@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "176181653925",
+    "project_id": "musicflame-x-789",
+    "storage_bucket": "musicflame-x-789.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:176181653925:android:a995dd1ac21b70d36eb84c",
+        "android_client_info": {
+          "package_name": "com.music.musicflame"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCSzS5BOF8vtRpNLU_dfc5h7Xuvwpyac0c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

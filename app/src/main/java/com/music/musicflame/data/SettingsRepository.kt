@@ -1,0 +1,109 @@
+package com.music.musicflame.data
+
+import android.content.Context
+
+class SettingsRepository(context: Context) {
+    private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+
+    fun getSystemPrompt(): String = prefs.getString("system_prompt", "") ?: ""
+    fun saveSystemPrompt(prompt: String) = prefs.edit().putString("system_prompt", prompt).apply()
+
+    // --- MANEJO DE CANCIONES ---
+    fun getAutoRescanEnabled(): Boolean = prefs.getBoolean("auto_rescan_enabled", false)
+    fun saveAutoRescanEnabled(enabled: Boolean) = prefs.edit().putBoolean("auto_rescan_enabled", enabled).apply()
+
+    fun getDurationFilterMin(): Int = prefs.getInt("duration_filter_min", 0)
+    fun saveDurationFilterMin(seconds: Int) = prefs.edit().putInt("duration_filter_min", seconds).apply()
+
+    fun getDurationFilterMax(): Int = prefs.getInt("duration_filter_max", Int.MAX_VALUE)
+    fun saveDurationFilterMax(seconds: Int) = prefs.edit().putInt("duration_filter_max", seconds).apply()
+
+    fun getDurationFilterMode(): String = prefs.getString("duration_filter_mode", "only") ?: "only"
+    fun saveDurationFilterMode(mode: String) = prefs.edit().putString("duration_filter_mode", mode).apply()
+
+    // --- APARIENCIA ---
+    fun getAppTheme(): String = prefs.getString("app_theme", "Siguiendo al sistema") ?: "Siguiendo al sistema"
+    fun saveAppTheme(theme: String) = prefs.edit().putString("app_theme", theme).apply()
+
+    fun saveAmoledMode(enabled: Boolean) {
+        prefs.edit().putBoolean("amoled_mode", enabled).apply()
+    }
+
+    fun isAmoledModeEnabled(): Boolean {
+        return prefs.getBoolean("amoled_mode", false)
+    }
+
+    fun getUseRoundCorners(): Boolean = prefs.getBoolean("use_round_corners", true)
+    fun saveUseRoundCorners(enabled: Boolean) = prefs.edit().putBoolean("use_round_corners", enabled).apply()
+
+    fun getCarouselStyle(): String = prefs.getString("carousel_style", "Desactivar") ?: "Desactivar"
+    fun saveCarouselStyle(style: String) = prefs.edit().putString("carousel_style", style).apply()
+
+    // --- REPRODUCCIÓN Y CUENTA ---
+    fun getPlayInBackground(): Boolean = prefs.getBoolean("play_in_background", true)
+    fun savePlayInBackground(enabled: Boolean) = prefs.edit().putBoolean("play_in_background", enabled).apply()
+
+    // --- ECUALIZADOR Y AUDIO PRO ---
+    fun getEqPresetSelected(): String = prefs.getString("eq_preset_selected", "Flat") ?: "Flat"
+    fun saveEqPresetSelected(preset: String) = prefs.edit().putString("eq_preset_selected", preset).apply()
+
+    fun getEqBand(index: Int): Float = prefs.getFloat("eq_band_$index", 0.5f)
+    fun saveEqBand(index: Int, value: Float) = prefs.edit().putFloat("eq_band_$index", value).apply()
+
+    fun getBassBoost(): Float = prefs.getFloat("bass_boost", 20f)
+    fun saveBassBoost(value: Float) = prefs.edit().putFloat("bass_boost", value).apply()
+
+    fun getVirtualizer(): Float = prefs.getFloat("virtualizer", 10f)
+    fun saveVirtualizer(value: Float) = prefs.edit().putFloat("virtualizer", value).apply()
+
+    fun getEqVolume(): Float = prefs.getFloat("eq_volume", 80f)
+    fun saveEqVolume(value: Float) = prefs.edit().putFloat("eq_volume", value).apply()
+
+    // Nuevos Efectos Pro
+    fun getLoudnessEnhancer(): Float = prefs.getFloat("loudness_enhancer", 0f)
+    fun saveLoudnessEnhancer(value: Float) = prefs.edit().putFloat("loudness_enhancer", value).apply()
+
+    fun getReverbPreset(): Int = prefs.getInt("reverb_preset", 0)
+    fun saveReverbPreset(value: Int) = prefs.edit().putInt("reverb_preset", value).apply()
+
+    // --- IMAGEN DE FONDO ---
+    fun getBackgroundImageUri(): String? = prefs.getString("background_image_uri", null)
+    fun saveBackgroundImageUri(uri: String) = prefs.edit().putString("background_image_uri", uri).apply()
+    fun removeBackgroundImage() = prefs.edit().remove("background_image_uri").apply()
+
+    fun saveBackgroundBrightness(value: Float) = prefs.edit().putFloat("bg_brightness", value).apply()
+    fun getBackgroundBrightness(): Float = prefs.getFloat("bg_brightness", 0f)
+
+    fun getPlayerGifUri(): String? = prefs.getString("player_gif_uri", null)
+    fun savePlayerGifUri(uri: String) = prefs.edit().putString("player_gif_uri", uri).apply()
+    fun removePlayerGifUri() = prefs.edit().remove("player_gif_uri").apply()
+
+    // --- PERSISTENCIA DEL MIX DIARIO ---
+    fun getLastMixDate(): String {
+        return prefs.getString("last_mix_date", "") ?: ""
+    }
+
+    fun saveLastMixDate(date: String) {
+        prefs.edit().putString("last_mix_date", date).apply()
+    }
+
+    fun getMixSongs(): List<Long> {
+        val json = prefs.getString("mix_songs", "[]") ?: "[]"
+        return try {
+            val array = org.json.JSONArray(json)
+            val result = mutableListOf<Long>()
+            for (i in 0 until array.length()) {
+                result.add(array.getLong(i))
+            }
+            result
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    fun saveMixSongs(songIds: List<Long>) {
+        val array = org.json.JSONArray()
+        songIds.forEach { array.put(it) }
+        prefs.edit().putString("mix_songs", array.toString()).apply()
+    }
+}

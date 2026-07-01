@@ -1,0 +1,774 @@
+package com.music.musicflame.ui.screens
+
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.PowerManager
+import android.provider.Settings
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Image
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Movie
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.ListItem
+import androidx.compose.material3.ListItemDefaults
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.RadioButton
+import androidx.compose.material3.Slider
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.Constraints
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import com.music.musicflame.data.SettingsRepository
+
+// ---------------------------------------------------------------
+// VERTICAL SLIDER
+// Compose Material3 NO trae un Slider vertical nativo. Este wrapper
+// toma el Slider horizontal normal y lo rota 90°, intercambiando
+// los constraints de medida para que ocupe el alto/ancho correctos.
+// ---------------------------------------------------------------
+@Composable
+fun VerticalSlider(
+    value: Float,
+    onValueChange: (Float) -> Unit,
+    modifier: Modifier = Modifier,
+    valueRange: ClosedFloatingPointRange<Float> = 0f..1f,
+    colors: androidx.compose.material3.SliderColors = SliderDefaults.colors()
+) {
+    Slider(
+        value = value,
+        onValueChange = onValueChange,
+        valueRange = valueRange,
+        colors = colors,
+        modifier = modifier
+            .graphicsLayer {
+                rotationZ = -90f
+                transformOrigin = TransformOrigin(0f, 0f)
+            }
+            .layout { measurable, constraints ->
+                // Intercambiamos width/height: el slider "piensa" que es
+                // horizontal con el alto disponible como su ancho.
+                val placeable = measurable.measure(
+                    Constraints(
+                        minWidth = constraints.minHeight,
+                        maxWidth = constraints.maxHeight,
+                        minHeight = constraints.minWidth,
+                        maxHeight = constraints.maxWidth
+                    )
+                )
+                layout(placeable.height, placeable.width) {
+                    placeable.place(-placeable.width, 0)
+                }
+            }
+    )
+}
+
+@Composable
+fun SettingsScreen(
+    modifier: Modifier = Modifier,
+    onBackgroundImageChanged: () -> Unit = {},
+    onRoundCornersChanged: (Boolean) -> Unit = {},
+    hasBackgroundImage: Boolean = false
+) {
+    val context = LocalContext.current
+    val settingsRepo = remember { SettingsRepository(context) }
+    val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+
+    val showDurationFilterDialog = remember { mutableStateOf(false) }
+    val showThemeDialog = remember { mutableStateOf(false) }
+    val showEqualizerDialog = remember { mutableStateOf(false) }
+
+    val autoRescan = remember { mutableStateOf(settingsRepo.getAutoRescanEnabled()) }
+    val durationMin = remember { mutableStateOf(settingsRepo.getDurationFilterMin().toString()) }
+    val durationMax = remember { mutableStateOf(settingsRepo.getDurationFilterMax().let { if (it == Int.MAX_VALUE) "" else it.toString() }) }
+    val filterMode = remember { mutableStateOf(settingsRepo.getDurationFilterMode()) }
+
+    val appTheme = remember { mutableStateOf(settingsRepo.getAppTheme()) }
+    val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
+    val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+    val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
+    val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
+
+    val backgroundImageUri = remember { mutableStateOf(settingsRepo.getBackgroundImageUri()) }
+    val playerGifUri = remember { mutableStateOf(settingsRepo.getPlayerGifUri()) }
+
+    val backgroundBrightness = remember { mutableStateOf(settingsRepo.getBackgroundBrightness()) }
+
+    val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
+    var isIgnoringBattery by remember { mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName)) }
+
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                isIgnoringBattery = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val isBgPresent = backgroundImageUri.value != null
+    val isGifPresent = playerGifUri.value != null
+    val hasAnyBackground = isBgPresent || isGifPresent
+
+    val slidersValues = remember { List(5) { index -> mutableStateOf(settingsRepo.getEqBand(index)) } }
+    val bassBoost = remember { mutableStateOf(settingsRepo.getBassBoost()) }
+    val virtualizer = remember { mutableStateOf(settingsRepo.getVirtualizer()) }
+    val eqVolume = remember { mutableStateOf(settingsRepo.getEqVolume()) }
+
+    val highEmphasis = MaterialTheme.colorScheme.onBackground
+    val mediumEmphasis = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+    val trailingColor = MaterialTheme.colorScheme.primary
+
+    val listItemColors = ListItemDefaults.colors(
+        containerColor = Color.Transparent,
+        headlineColor = highEmphasis,
+        supportingColor = mediumEmphasis,
+        trailingIconColor = trailingColor
+    )
+
+    val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (hasAnyBackground) 0.5f else 1f)
+
+    val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {}
+            settingsRepo.saveBackgroundImageUri(it.toString())
+            backgroundImageUri.value = it.toString()
+            settingsRepo.removePlayerGifUri()
+            playerGifUri.value = null
+            onBackgroundImageChanged()
+        }
+    }
+
+    val pickGifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            } catch (e: Exception) {}
+            settingsRepo.savePlayerGifUri(it.toString())
+            playerGifUri.value = it.toString()
+            settingsRepo.removeBackgroundImage()
+            backgroundImageUri.value = null
+            onBackgroundImageChanged()
+        }
+    }
+
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            .background(
+                if (hasAnyBackground) MaterialTheme.colorScheme.background.copy(alpha = 0.80f)
+                else MaterialTheme.colorScheme.background
+            )
+    ) {
+        CompositionLocalProvider(LocalContentColor provides highEmphasis) {
+            LazyColumn(modifier = Modifier.fillMaxSize()) {
+                item {
+                    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)) {
+                        Text("Configuración", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = highEmphasis)
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = dividerColor)
+                }
+
+                val sectionHeader = @Composable { text: String ->
+                    Text(
+                        text = text,
+                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Black,
+                        color = trailingColor
+                    )
+                }
+
+                // APARIENCIA
+                item { sectionHeader("Apariencia") }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Imagen de Fondo") },
+                        supportingContent = { Text(if (isBgPresent) "✓ Imagen seleccionada" else "Selecciona una imagen estática") },
+                        trailingContent = { Icon(Icons.Filled.Image, contentDescription = null, tint = trailingColor) },
+                        colors = listItemColors,
+                        modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                if (isBgPresent) {
+                    item {
+                        Button(
+                            onClick = {
+                                settingsRepo.removeBackgroundImage()
+                                backgroundImageUri.value = null
+                                onBackgroundImageChanged()
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) { Text("Quitar Imagen de Fondo", fontWeight = FontWeight.Bold) }
+                        HorizontalDivider(color = dividerColor)
+                    }
+                }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Fondo Animado (GIF)") },
+                        supportingContent = { Text(if (isGifPresent) "✓ GIF activado" else "Añade un GIF animado como fondo") },
+                        trailingContent = { Icon(Icons.Filled.Movie, contentDescription = null, modifier = Modifier.size(24.dp), tint = trailingColor) },
+                        colors = listItemColors,
+                        modifier = Modifier.clickable { pickGifLauncher.launch("image/gif") }
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                if (isGifPresent) {
+                    item {
+                        Button(
+                            onClick = {
+                                settingsRepo.removePlayerGifUri()
+                                playerGifUri.value = null
+                                onBackgroundImageChanged()
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                contentColor = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                        ) { Text("Quitar Fondo GIF", fontWeight = FontWeight.Bold) }
+                        HorizontalDivider(color = dividerColor)
+                    }
+                }
+
+                if (hasAnyBackground) {
+                    item {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                            Text("Brillo del fondo", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                            Spacer(Modifier.height(4.dp))
+                            Slider(
+                                value = backgroundBrightness.value,
+                                onValueChange = {
+                                    backgroundBrightness.value = it
+                                    settingsRepo.saveBackgroundBrightness(it)
+                                    onBackgroundImageChanged()
+                                },
+                                valueRange = -1f..1f,
+                                steps = 20,
+                                colors = SliderDefaults.colors(
+                                    thumbColor = trailingColor,
+                                    activeTrackColor = trailingColor
+                                )
+                            )
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
+                                Text("Original", fontSize = 12.sp, color = mediumEmphasis)
+                                Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                            }
+                        }
+                        HorizontalDivider(color = dividerColor)
+                    }
+                }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Apariencia de la aplicación") },
+                        supportingContent = { Text("Tema actual: ${appTheme.value}") },
+                        trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Modo AMOLED (Negro Puro)") },
+                        supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
+                        trailingContent = {
+                            Switch(
+                                checked = amoledMode.value,
+                                onCheckedChange = { isChecked ->
+                                    amoledMode.value = isChecked
+                                    settingsRepo.saveAmoledMode(isChecked)
+                                }
+                            )
+                        },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Usar redondeado de cuadros") },
+                        supportingContent = { Text("Aplica bordes curvos a las secciones y tarjetas") },
+                        trailingContent = {
+                            Switch(
+                                checked = useRoundCorners.value,
+                                onCheckedChange = { isChecked ->
+                                    useRoundCorners.value = isChecked
+                                    settingsRepo.saveUseRoundCorners(isChecked)
+                                    onRoundCornersChanged(isChecked)
+                                }
+                            )
+                        },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item { sectionHeader("Manejo de Canciones") }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Filtrar por duración") },
+                        supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
+                        trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Re-escanear al abrir app") },
+                        supportingContent = { Text("Actualiza la biblioteca automáticamente") },
+                        trailingContent = { Switch(checked = autoRescan.value, onCheckedChange = { autoRescan.value = it; settingsRepo.saveAutoRescanEnabled(it) }) },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item { sectionHeader("Reproducción") }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Reproducir en segundo plano") },
+                        supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
+                        trailingContent = {
+                            Switch(
+                                checked = playInBackground.value,
+                                onCheckedChange = {
+                                    playInBackground.value = it
+                                    settingsRepo.savePlayInBackground(it)
+                                    Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
+                                }
+                            )
+                        },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Segundo plano sin restricciones") },
+                        supportingContent = {
+                            Text(
+                                text = if (isIgnoringBattery)
+                                    "Optimizado para música continua (Recomendado)"
+                                else
+                                    "Restringido — Android podría pausar la música al apagar la pantalla",
+                                color = if (isIgnoringBattery) trailingColor else MaterialTheme.colorScheme.error
+                            )
+                        },
+                        trailingContent = {
+                            Switch(
+                                checked = isIgnoringBattery,
+                                onCheckedChange = { checked ->
+                                    if (checked) {
+                                        try {
+                                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                                data = Uri.parse("package:${context.packageName}")
+                                            }
+                                            context.startActivity(intent)
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "No se pudo abrir la configuración de batería", Toast.LENGTH_SHORT).show()
+                                        }
+                                    } else {
+                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                        context.startActivity(intent)
+                                    }
+                                }
+                            )
+                        },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item { sectionHeader("Audio") }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Studio Pro EQ") },
+                        supportingContent = { Text("Preset activo: ${eqPresetSelected.value}") },
+                        trailingContent = {
+                            Button(
+                                onClick = { showEqualizerDialog.value = true },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.primary,
+                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                )
+                            ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
+                        },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                // -------------------------------------------------------------
+                //  INTEGRACIÓN DE IA CON FIREBASE
+                // -------------------------------------------------------------
+                // NOTA DE MIGRACIÓN: con Firebase AI Logic ya no se necesita
+                // API key manual (la maneja google-services.json), y el modelo
+                // de Gemini se controla únicamente desde Firebase Remote Config,
+                // no desde esta pantalla. Por eso esta sección ahora es solo
+                // informativa.
+                item { sectionHeader("Integración de IA") }
+
+                item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+
+                item {
+                    ListItem(
+                        headlineContent = { Text("Modelo de IA") },
+                        supportingContent = { Text("Administrado automáticamente desde la nube") },
+                        colors = listItemColors
+                    )
+                    HorizontalDivider(color = dividerColor)
+                }
+
+                item { sectionHeader("Sobre") }
+                item { ListItem(headlineContent = { Text("Nombre de la app") }, supportingContent = { Text("MusicFlame") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("1.0.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                item { ListItem(headlineContent = { Text("Diseño") }, supportingContent = { Text("Material You") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("Shimuro Naga") }, colors = listItemColors) }
+            }
+        }
+    }
+
+    // DIÁLOGOS ADICIONALES ORIGINALES
+
+    if (showDurationFilterDialog.value) {
+        val tempMin = remember { mutableStateOf(durationMin.value) }
+        val tempMax = remember { mutableStateOf(durationMax.value) }
+        val tempMode = remember { mutableStateOf(filterMode.value) }
+        AlertDialog(
+            onDismissRequest = { showDurationFilterDialog.value = false },
+            title = { Text("Filtrar por duración", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    OutlinedTextField(value = tempMin.value, onValueChange = { tempMin.value = it }, label = { Text("Duración mínima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(value = tempMax.value, onValueChange = { tempMax.value = it }, label = { Text("Duración máxima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                    Spacer(Modifier.height(8.dp))
+                    Text("Modo:", fontWeight = FontWeight.Bold)
+                    TextButton(onClick = { tempMode.value = "exclude" }) { Text("Excluir", fontWeight = FontWeight.Bold, color = if (tempMode.value == "exclude") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                    TextButton(onClick = { tempMode.value = "only" }) { Text("Solo mostrar", fontWeight = FontWeight.Bold, color = if (tempMode.value == "only") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    val minVal = tempMin.value.toIntOrNull() ?: 0
+                    val maxVal = tempMax.value.toIntOrNull() ?: Int.MAX_VALUE
+                    settingsRepo.saveDurationFilterMin(minVal)
+                    settingsRepo.saveDurationFilterMax(maxVal)
+                    settingsRepo.saveDurationFilterMode(tempMode.value)
+                    durationMin.value = tempMin.value
+                    durationMax.value = tempMax.value
+                    filterMode.value = tempMode.value
+                    showDurationFilterDialog.value = false
+                }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+        )
+    }
+
+    if (showThemeDialog.value) {
+        val tempTheme = remember { mutableStateOf(appTheme.value) }
+        AlertDialog(
+            onDismissRequest = { showThemeDialog.value = false },
+            title = { Text("Elegir Tema", fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    listOf("Siguiendo al sistema", "Fondo blanco", "Fondo oscuro").forEach { theme ->
+                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { tempTheme.value = theme }.padding(vertical = 8.dp)) {
+                            RadioButton(selected = tempTheme.value == theme, onClick = { tempTheme.value = theme })
+                            Spacer(Modifier.width(8.dp))
+                            Text(theme, fontSize = 14.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    settingsRepo.saveAppTheme(tempTheme.value)
+                    appTheme.value = tempTheme.value
+                    showThemeDialog.value = false
+                }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+        )
+    }
+
+    // -------------------------------------------------------------
+    // ECUALIZADOR STUDIO PRO (PANTALLA COMPLETA) - INTACTO
+    // -------------------------------------------------------------
+    if (showEqualizerDialog.value) {
+        val tempPreset = remember { mutableStateOf(eqPresetSelected.value) }
+        val viewKHz = remember { mutableStateOf(false) }
+        val tempSliders = remember { List(5) { index -> mutableStateOf(slidersValues[index].value) } }
+        val tempBass = remember { mutableStateOf(bassBoost.value) }
+        val tempVirtualizer = remember { mutableStateOf(virtualizer.value) }
+        val tempVolume = remember { mutableStateOf(eqVolume.value) }
+        val tempLoudness = remember { mutableStateOf(sharedPrefs.getFloat("loudness_enhancer", 0f)) }
+        val tempReverb = remember { mutableStateOf(sharedPrefs.getInt("reverb_preset", 0)) }
+        val showSaveCustomDialog = remember { mutableStateOf(false) }
+        val customPresetName = remember { mutableStateOf("") }
+        val customNamesString = sharedPrefs.getString("custom_preset_names", "") ?: ""
+        val customPresetsList = if (customNamesString.isNotEmpty()) customNamesString.split(",") else emptyList()
+        val basePresets = listOf("Flat", "Rock", "Pop", "Hip hop", "Jazz", "Classical", "Electronico", "Refuerzo de graves", "Refuerzo de agudos", "Vocales", "Customizar")
+        val allPresets = basePresets + customPresetsList
+
+        val presetConfigs = mapOf(
+            "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
+            "Rock" to listOf(0.5f, 0.3f, -0.1f, 0.3f, 0.5f),
+            "Pop" to listOf(-0.1f, 0.2f, 0.4f, 0.2f, -0.1f),
+            "Hip hop" to listOf(0.7f, 0.4f, 0f, 0.2f, 0.4f),
+            "Jazz" to listOf(0.3f, 0.2f, -0.1f, 0.2f, 0.4f),
+            "Classical" to listOf(0.4f, 0.3f, -0.1f, 0.3f, 0.4f),
+            "Electronico" to listOf(0.6f, 0.4f, -0.1f, 0.4f, 0.6f),
+            "Refuerzo de graves" to listOf(0.9f, 0.5f, 0f, 0f, 0f),
+            "Refuerzo de agudos" to listOf(0f, 0f, 0f, 0.5f, 0.9f),
+            "Vocales" to listOf(-0.2f, 0f, 0.6f, 0.4f, -0.1f)
+        )
+
+        Dialog(
+            onDismissRequest = { showEqualizerDialog.value = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        IconButton(onClick = { showEqualizerDialog.value = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onBackground) }
+                        Text("Studio Pro EQ", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+                        Button(onClick = {
+                            settingsRepo.saveEqPresetSelected(tempPreset.value)
+                            eqPresetSelected.value = tempPreset.value
+                            for (i in 0 until 5) {
+                                settingsRepo.saveEqBand(i, tempSliders[i].value)
+                                slidersValues[i].value = tempSliders[i].value
+                            }
+                            settingsRepo.saveBassBoost(tempBass.value)
+                            settingsRepo.saveVirtualizer(tempVirtualizer.value)
+                            settingsRepo.saveEqVolume(tempVolume.value)
+                            bassBoost.value = tempBass.value
+                            virtualizer.value = tempVirtualizer.value
+                            eqVolume.value = tempVolume.value
+                            sharedPrefs.edit().putFloat("loudness_enhancer", tempLoudness.value).putInt("reverb_preset", tempReverb.value).apply()
+                            showEqualizerDialog.value = false
+                            Toast.makeText(context, "Audio Pro Activado 🎶", Toast.LENGTH_SHORT).show()
+                        }) { Text("Aplicar", fontWeight = FontWeight.Bold) }
+                    }
+
+                    LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                        item { Spacer(Modifier.height(8.dp)) }
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                Text("Ajustes Preestablecidos", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                IconButton(onClick = { showSaveCustomDialog.value = true }, modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)).size(36.dp)) {
+                                    Icon(Icons.Filled.Add, "Guardar Preset", tint = MaterialTheme.colorScheme.primary)
+                                }
+                            }
+                            Spacer(Modifier.height(8.dp))
+                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                items(allPresets) { preset ->
+                                    Card(
+                                        colors = CardDefaults.cardColors(containerColor = if (tempPreset.value == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
+                                        modifier = Modifier.clickable {
+                                            tempPreset.value = preset
+                                            if (presetConfigs.containsKey(preset)) {
+                                                val config = presetConfigs[preset]!!
+                                                for (i in 0 until 5) tempSliders[i].value = config[i]
+                                                if (preset == "Flat") { tempBass.value = 0f; tempVirtualizer.value = 0f; tempLoudness.value = 0f; tempReverb.value = 0 }
+                                                if (preset == "Refuerzo de graves") tempBass.value = 100f
+                                            } else {
+                                                val savedBands = sharedPrefs.getString("preset_${preset}_bands", "")
+                                                if (savedBands != null && savedBands.isNotEmpty()) {
+                                                    val vals = savedBands.split(",").map { it.toFloat() }
+                                                    if (vals.size == 5) for (i in 0 until 5) tempSliders[i].value = vals[i]
+                                                }
+                                                tempBass.value = sharedPrefs.getFloat("preset_${preset}_bass", 0f)
+                                                tempVirtualizer.value = sharedPrefs.getFloat("preset_${preset}_virt", 0f)
+                                                tempLoudness.value = sharedPrefs.getFloat("preset_${preset}_loud", 0f)
+                                                tempReverb.value = sharedPrefs.getInt("preset_${preset}_reverb", 0)
+                                            }
+                                        }
+                                    ) {
+                                        Text(text = preset, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = if (tempPreset.value == preset) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Ecualizador 5 Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Hz", fontSize = 12.sp, color = if (!viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                            Switch(checked = viewKHz.value, onCheckedChange = { viewKHz.value = it }, modifier = Modifier.padding(horizontal = 4.dp))
+                                            Text("kHz", fontSize = 12.sp, color = if (viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                        }
+                                    }
+                                    Spacer(Modifier.height(16.dp))
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                        val freqsHz = listOf("60", "230", "910", "3600", "14000")
+                                        val freqsKHz = listOf("0.06", "0.23", "0.91", "3.6", "14.0")
+                                        for (i in 0 until 5) {
+                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                Text(if (viewKHz.value) freqsKHz[i] else freqsHz[i], fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                Spacer(Modifier.height(8.dp))
+                                                Box(
+                                                    modifier = Modifier
+                                                        .height(150.dp)
+                                                        .width(40.dp),
+                                                    contentAlignment = Alignment.Center
+                                                ) {
+                                                    VerticalSlider(
+                                                        value = tempSliders[i].value,
+                                                        onValueChange = { tempSliders[i].value = it; tempPreset.value = "Customizar" },
+                                                        valueRange = -1f..1f,
+                                                        modifier = Modifier.fillMaxSize()
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        item {
+                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                val proCardColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
+                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Graves", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                        Text("${tempBass.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                                        Slider(value = tempBass.value, onValueChange = { tempBass.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
+                                    }
+                                }
+                                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
+                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text("Virtual 3D", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                        Text("${tempVirtualizer.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                                        Slider(value = tempVirtualizer.value, onValueChange = { tempVirtualizer.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (showSaveCustomDialog.value) {
+                    AlertDialog(
+                        onDismissRequest = { showSaveCustomDialog.value = false },
+                        title = { Text("Guardar Preset") },
+                        text = { OutlinedTextField(value = customPresetName.value, onValueChange = { customPresetName.value = it }, label = { Text("Nombre del Preset") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+                        confirmButton = {
+                            Button(onClick = {
+                                val name = customPresetName.value.trim()
+                                if (name.isNotEmpty() && !basePresets.contains(name)) {
+                                    val newList = customPresetsList.toMutableList()
+                                    if (!newList.contains(name)) newList.add(name)
+                                    sharedPrefs.edit().putString("custom_preset_names", newList.joinToString(",")).apply()
+
+                                    val bandsStr = tempSliders.joinToString(",") { it.value.toString() }
+                                    sharedPrefs.edit()
+                                        .putString("preset_${name}_bands", bandsStr)
+                                        .putFloat("preset_${name}_bass", tempBass.value)
+                                        .putFloat("preset_${name}_virt", tempVirtualizer.value)
+                                        .putFloat("preset_${name}_loud", tempLoudness.value)
+                                        .putInt("preset_${name}_reverb", tempReverb.value)
+                                        .apply()
+
+                                    tempPreset.value = name
+                                    showSaveCustomDialog.value = false
+                                    Toast.makeText(context, "Preset guardado con éxito", Toast.LENGTH_SHORT).show()
+                                }
+                            }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                        },
+                        dismissButton = { TextButton(onClick = { showSaveCustomDialog.value = false }) { Text("Cancelar") } }
+                    )
+                }
+            }
+        }
+    }
+}

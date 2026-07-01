@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">MusicFlame</string>
+    <string name="nav_songs">Canciones</string>
+    <string name="nav_playlists">Playlists</string>
+    <string name="nav_gemini">Gemini</string>
+    <string name="nav_mix">Tu Mix</string>
+    <string name="nav_trash">Papelera</string>
+</resources>

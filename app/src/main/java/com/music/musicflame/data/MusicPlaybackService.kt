@@ -51,11 +51,10 @@ class MusicPlaybackService : MediaSessionService() {
 
     // NOTIFICACIÓN Y ACCIONES CUSTOM
     private val CUSTOM_COMMAND_FAVORITE = "com.music.musicflame.FAVORITE"
-    private val CUSTOM_COMMAND_SHUFFLE = "com.music.musicflame.SHUFFLE"
-    private val CUSTOM_COMMAND_REPEAT = "com.music.musicflame.REPEAT"
+    private val CUSTOM_COMMAND_CYCLE_MODE = "com.music.musicflame.CYCLE_MODE" // NUEVO: ÚNICO BOTÓN CÍCLICO
 
     private var isCurrentSongFavorite = false
-    private val PREF_FAVORITES_KEY = "favorite_songs_set" // NUEVO: Clave para guardar favoritos
+    private val PREF_FAVORITES_KEY = "favorite_songs_set"
 
     // RECEPTOR DEL "MISIL" DE DATOS DESDE LA UI
     private val eqUpdateReceiver = object : BroadcastReceiver() {
@@ -120,7 +119,6 @@ class MusicPlaybackService : MediaSessionService() {
                 }
             }
 
-            // NUEVO: Detectar cuando cambia la canción para actualizar el ícono del corazón
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 super.onMediaItemTransition(mediaItem, reason)
                 checkIfCurrentSongIsFavorite()
@@ -140,7 +138,6 @@ class MusicPlaybackService : MediaSessionService() {
             .build()
     }
 
-    // NUEVO: Verifica si la canción actual está guardada en la lista de favoritos
     private fun checkIfCurrentSongIsFavorite() {
         val currentMediaId = player.currentMediaItem?.mediaId ?: return
         val favoritesSet = sharedPrefs.getStringSet(PREF_FAVORITES_KEY, mutableSetOf()) ?: mutableSetOf()
@@ -157,11 +154,10 @@ class MusicPlaybackService : MediaSessionService() {
         ): MediaSession.ConnectionResult {
             val connectionResult = super.onConnect(session, controller)
 
-            // Declaramos nuestros 3 comandos personalizados
+            // Declaramos nuestros comandos personalizados actualizados
             val sessionCommands = connectionResult.availableSessionCommands.buildUpon()
                 .add(SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY))
-                .add(SessionCommand(CUSTOM_COMMAND_SHUFFLE, Bundle.EMPTY))
-                .add(SessionCommand(CUSTOM_COMMAND_REPEAT, Bundle.EMPTY))
+                .add(SessionCommand(CUSTOM_COMMAND_CYCLE_MODE, Bundle.EMPTY))
                 .build()
 
             return MediaSession.ConnectionResult.accept(
@@ -187,12 +183,10 @@ class MusicPlaybackService : MediaSessionService() {
 
             when (customCommand.customAction) {
                 CUSTOM_COMMAND_FAVORITE -> {
-                    // NUEVO: Lógica real para guardar/borrar de favoritos
                     val currentMediaId = player.currentMediaItem?.mediaId
                     if (currentMediaId != null) {
                         isCurrentSongFavorite = !isCurrentSongFavorite
 
-                        // Leer la lista actual, modificarla y guardarla
                         val favoritesSet = sharedPrefs.getStringSet(PREF_FAVORITES_KEY, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
                         if (isCurrentSongFavorite) {
                             favoritesSet.add(currentMediaId)
@@ -210,24 +204,32 @@ class MusicPlaybackService : MediaSessionService() {
                         layoutNeedsUpdate = true
                     }
                 }
-                CUSTOM_COMMAND_SHUFFLE -> {
-                    player.shuffleModeEnabled = !player.shuffleModeEnabled
-                    layoutNeedsUpdate = true // <--- CORREGIDO: Ahora le avisa a la notificación que cambie el ícono
-                }
-                CUSTOM_COMMAND_REPEAT -> {
-                    player.repeatMode = when (player.repeatMode) {
-                        Player.REPEAT_MODE_OFF -> Player.REPEAT_MODE_ALL
-                        Player.REPEAT_MODE_ALL -> Player.REPEAT_MODE_ONE
-                        else -> Player.REPEAT_MODE_OFF
+                CUSTOM_COMMAND_CYCLE_MODE -> {
+                    // 1. Averiguamos en qué estado estamos actualmente
+                    val currentCycleState = if (player.shuffleModeEnabled) 1 else {
+                        when (player.repeatMode) {
+                            Player.REPEAT_MODE_ALL -> 2
+                            Player.REPEAT_MODE_ONE -> 3
+                            else -> 0
+                        }
                     }
-                    layoutNeedsUpdate = true // <--- CORREGIDO: Ahora redibuja el estado cíclico en la barra del sistema
+
+                    // 2. Pasamos al siguiente estado (0, 1, 2, 3 -> vuelve a 0)
+                    val nextState = (currentCycleState + 1) % 4
+
+                    // 3. Aplicamos la orden al reproductor
+                    when (nextState) {
+                        0 -> { player.shuffleModeEnabled = false; player.repeatMode = Player.REPEAT_MODE_OFF }
+                        1 -> { player.shuffleModeEnabled = true; player.repeatMode = Player.REPEAT_MODE_OFF }
+                        2 -> { player.shuffleModeEnabled = false; player.repeatMode = Player.REPEAT_MODE_ALL }
+                        3 -> { player.shuffleModeEnabled = false; player.repeatMode = Player.REPEAT_MODE_ONE }
+                    }
+                    layoutNeedsUpdate = true
                 }
             }
 
             if (layoutNeedsUpdate) {
-                // Actualiza el controlador específico que mandó la orden (la Notificación)
                 session.setCustomLayout(controller, getCustomLayout())
-                // Sincroniza de paso el estado global de la sesión
                 session.setCustomLayout(getCustomLayout())
             }
 
@@ -244,29 +246,32 @@ class MusicPlaybackService : MediaSessionService() {
             .setIconResId(favoriteIcon)
             .build()
 
-        // 2. Botón Mezclar (Cambia de nombre descriptivo según su estado actual)
-        val shuffleIcon = if (player.shuffleModeEnabled) R.drawable.ic_shuffle else R.drawable.ic_straight_arrow
-        val shuffleTitle = if (player.shuffleModeEnabled) "Mezclar: Activado" else "Mezclar: Desactivado"
-        val shuffleButton = CommandButton.Builder()
-            .setDisplayName(shuffleTitle)
-            .setSessionCommand(SessionCommand(CUSTOM_COMMAND_SHUFFLE, Bundle.EMPTY))
-            .setIconResId(shuffleIcon)
-            .build()
-
-        // 3. Botón Repetir (Cambia su texto de ayuda para que el usuario sepa cuál está activo)
-        val (repeatIcon, repeatTitle) = when (player.repeatMode) {
-            Player.REPEAT_MODE_ONE -> Pair(R.drawable.ic_autoplay, "Repetir una")
-            Player.REPEAT_MODE_ALL -> Pair(R.drawable.ic_autorenew, "Repetir todas")
-            else -> Pair(R.drawable.ic_straight_arrow, "Repetición desactivada")
+        // 2. Botón Cíclico Único (Calculamos el estado actual)
+        val cycleState = if (player.shuffleModeEnabled) 1 else {
+            when (player.repeatMode) {
+                Player.REPEAT_MODE_ALL -> 2
+                Player.REPEAT_MODE_ONE -> 3
+                else -> 0
+            }
         }
 
-        val repeatButton = CommandButton.Builder()
-            .setDisplayName(repeatTitle)
-            .setSessionCommand(SessionCommand(CUSTOM_COMMAND_REPEAT, Bundle.EMPTY))
-            .setIconResId(repeatIcon)
+        // Le damos icono y texto en base al orden: Normal -> Aleatorio -> Repetir Todo -> Repetir Una
+        val (cycleIcon, cycleTitle) = when (cycleState) {
+            0 -> Pair(R.drawable.ic_straight_arrow, "Normal")
+            1 -> Pair(R.drawable.ic_shuffle, "Aleatorio")
+            2 -> Pair(R.drawable.ic_autorenew, "Repetir Todo")
+            3 -> Pair(R.drawable.ic_autoplay, "Repetir Una")
+            else -> Pair(R.drawable.ic_straight_arrow, "Normal")
+        }
+
+        val cycleButton = CommandButton.Builder()
+            .setDisplayName(cycleTitle)
+            .setSessionCommand(SessionCommand(CUSTOM_COMMAND_CYCLE_MODE, Bundle.EMPTY))
+            .setIconResId(cycleIcon)
             .build()
 
-        return ImmutableList.of(shuffleButton, favoriteButton, repeatButton)
+        // El reproductor nativo añade automáticamente Anterior, Play/Pausa y Siguiente
+        return ImmutableList.of(cycleButton, favoriteButton)
     }
 
     // --- LÓGICA DE AUDIO EFECTOS ---

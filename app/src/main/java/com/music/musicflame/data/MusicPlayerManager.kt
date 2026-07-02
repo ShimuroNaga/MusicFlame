@@ -23,11 +23,10 @@ class MusicPlayerManager(private val context: Context) {
     private var mediaController: MediaController? = null
 
     // --- MEMORIA INTERNA ---
-    // Guardamos la lista actual para poder buscar la canción cuando Media3 avise del cambio
     private var currentPlaylist = listOf<Song>()
     private val playbackHistory = mutableListOf<Int>()
 
-    // --- ESTADOS GLOBALES REACTIVOS (LA FUENTE DE LA VERDAD PARA COMPOSE) ---
+    // --- ESTADOS GLOBALES REACTIVOS ---
     private val _currentSong = mutableStateOf<Song?>(null)
     val currentSong: State<Song?> = _currentSong
 
@@ -57,15 +56,14 @@ class MusicPlayerManager(private val context: Context) {
             val controller = controllerFuture.get()
             mediaController = controller
 
-            // --- EL ESPÍA DE TRANSICIONES Y ESTADOS ---
+            // Sincronizar el estado inicial al conectar
+            syncCycleModeState(controller)
+
             controller.addListener(object : Player.Listener {
                 private var lastIndex = controller.currentMediaItemIndex
 
-                // ESTA FUNCIÓN BLINDA LA SINCRONIZACIÓN DE LA CANCIÓN
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     val currentIndex = controller.currentMediaItemIndex
-
-                    // Guardar historial si la transición fue automática
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
                         if (lastIndex != C.INDEX_UNSET) {
                             playbackHistory.add(lastIndex)
@@ -73,22 +71,41 @@ class MusicPlayerManager(private val context: Context) {
                     }
                     lastIndex = currentIndex
 
-                    // ACTUALIZAMOS LA UI BASADO EN LO QUE MEDIA3 CARGÓ REALMENTE
                     val currentMediaId = mediaItem?.mediaId
                     _currentSong.value = currentPlaylist.find { it.id.toString() == currentMediaId }
                 }
 
-                // ESTA FUNCIÓN BLINDA EL BOTÓN DE PLAY/PAUSA
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     _isPlayingState.value = isPlaying
+                }
+
+                // NUEVO: Escuchamos cambios desde la notificación para actualizar la UI en vivo
+                override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
+                    syncCycleModeState(controller)
+                }
+
+                override fun onRepeatModeChanged(repeatMode: Int) {
+                    syncCycleModeState(controller)
                 }
             })
 
         }, MoreExecutors.directExecutor())
     }
 
+    // NUEVO: Método que averigua el estado actual real de Media3 y actualiza el icono
+    private fun syncCycleModeState(controller: Player) {
+        if (controller.shuffleModeEnabled) {
+            _cycleMode.intValue = 1 // Aleatorio
+        } else {
+            when (controller.repeatMode) {
+                Player.REPEAT_MODE_ALL -> _cycleMode.intValue = 2 // Repetir todas
+                Player.REPEAT_MODE_ONE -> _cycleMode.intValue = 3 // Repetir una
+                else -> _cycleMode.intValue = 0 // Normal (Flecha derecha)
+            }
+        }
+    }
+
     fun playSong(song: Song, songList: List<Song>) {
-        // Guardamos la playlist actual en la memoria del manager
         currentPlaylist = songList
 
         val mediaItems = songList.map { s ->
@@ -116,10 +133,7 @@ class MusicPlayerManager(private val context: Context) {
 
         mediaController?.apply {
             val indexToPlay = if (startIndex >= 0) startIndex else 0
-
-            // Borramos el historial porque el usuario eligió una nueva canción manualmente
             playbackHistory.clear()
-
             setMediaItems(mediaItems, indexToPlay, 0)
             prepare()
             play()
@@ -127,16 +141,11 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     fun togglePlayPause() {
-        mediaController?.let {
-            if (it.isPlaying) it.pause() else it.play()
-        }
+        mediaController?.let { if (it.isPlaying) it.pause() else it.play() }
     }
 
-    fun pause() {
-        mediaController?.pause()
-    }
+    fun pause() { mediaController?.pause() }
 
-    // --- AHORA SOLO MANDAN ÓRDENES AL REPRODUCTOR ---
     fun skipNext() {
         mediaController?.let { controller ->
             val currentIndex = controller.currentMediaItemIndex
@@ -150,26 +159,20 @@ class MusicPlayerManager(private val context: Context) {
     fun skipPrevious() {
         val controller = mediaController ?: return
         val currentPos = controller.currentPosition
-
-        // REGLA 1: Si pasaron más de 3 segundos, se reinicia la canción
         if (currentPos > 3000) {
             controller.seekTo(0)
-        }
-        // REGLA 2: Si hay historial, saca la última canción real (Ideal para aleatorio)
-        else if (playbackHistory.isNotEmpty()) {
+        } else if (playbackHistory.isNotEmpty()) {
             val previousIndex = playbackHistory.removeAt(playbackHistory.size - 1)
             controller.seekToDefaultPosition(previousIndex)
-        }
-        // REGLA 3: Reversa natural
-        else {
+        } else {
             controller.seekToPreviousMediaItem()
         }
     }
 
+    // El comportamiento desde la UI ahora está sincronizado
     fun toggleCycleMode() {
         val controller = mediaController ?: return
         val nextMode = (_cycleMode.intValue + 1) % 4
-        _cycleMode.intValue = nextMode
 
         when (nextMode) {
             0 -> {
@@ -191,24 +194,11 @@ class MusicPlayerManager(private val context: Context) {
         }
     }
 
-    fun seekTo(positionMs: Long) {
-        mediaController?.seekTo(positionMs)
-    }
+    fun seekTo(positionMs: Long) { mediaController?.seekTo(positionMs) }
+    fun release() { mediaController?.release(); mediaController = null }
 
-    fun release() {
-        mediaController?.release()
-        mediaController = null
-    }
-
-    val isPlaying: Boolean
-        get() = mediaController?.isPlaying == true
-
-    val isShuffleEnabled: Boolean
-        get() = mediaController?.shuffleModeEnabled == true
-
-    val currentPosition: Long
-        get() = mediaController?.currentPosition ?: 0L
-
-    val duration: Long
-        get() = mediaController?.duration ?: 0L
+    val isPlaying: Boolean get() = mediaController?.isPlaying == true
+    val isShuffleEnabled: Boolean get() = mediaController?.shuffleModeEnabled == true
+    val currentPosition: Long get() = mediaController?.currentPosition ?: 0L
+    val duration: Long get() = mediaController?.duration ?: 0L
 }

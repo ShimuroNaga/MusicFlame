@@ -77,12 +77,6 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.music.musicflame.data.SettingsRepository
 
-// ---------------------------------------------------------------
-// VERTICAL SLIDER
-// Compose Material3 NO trae un Slider vertical nativo. Este wrapper
-// toma el Slider horizontal normal y lo rota 90°, intercambiando
-// los constraints de medida para que ocupe el alto/ancho correctos.
-// ---------------------------------------------------------------
 @Composable
 fun VerticalSlider(
     value: Float,
@@ -102,8 +96,6 @@ fun VerticalSlider(
                 transformOrigin = TransformOrigin(0f, 0f)
             }
             .layout { measurable, constraints ->
-                // Intercambiamos width/height: el slider "piensa" que es
-                // horizontal con el alto disponible como su ancho.
                 val placeable = measurable.measure(
                     Constraints(
                         minWidth = constraints.minHeight,
@@ -423,7 +415,7 @@ fun SettingsScreen(
 
                 item {
                     ListItem(
-                        headlineContent = { Text("Segundo plano sin restricciones") },
+                        headlineContent = { Text("Optimización de batería") },
                         supportingContent = {
                             Text(
                                 text = if (isIgnoringBattery)
@@ -458,7 +450,7 @@ fun SettingsScreen(
                     HorizontalDivider(color = dividerColor)
                 }
 
-                item { sectionHeader("Audio") }
+                item { sectionHeader("Ecualizador") }
 
                 item {
                     ListItem(
@@ -478,14 +470,6 @@ fun SettingsScreen(
                     HorizontalDivider(color = dividerColor)
                 }
 
-                // -------------------------------------------------------------
-                //  INTEGRACIÓN DE IA CON FIREBASE
-                // -------------------------------------------------------------
-                // NOTA DE MIGRACIÓN: con Firebase AI Logic ya no se necesita
-                // API key manual (la maneja google-services.json), y el modelo
-                // de Gemini se controla únicamente desde Firebase Remote Config,
-                // no desde esta pantalla. Por eso esta sección ahora es solo
-                // informativa.
                 item { sectionHeader("Integración de IA") }
 
                 item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
@@ -501,9 +485,9 @@ fun SettingsScreen(
 
                 item { sectionHeader("Sobre") }
                 item { ListItem(headlineContent = { Text("Nombre de la app") }, supportingContent = { Text("MusicFlame") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("1.0.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("1.5.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
                 item { ListItem(headlineContent = { Text("Diseño") }, supportingContent = { Text("Material You") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("Shimuro Naga") }, colors = listItemColors) }
+                item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("ShimuroNaga") }, colors = listItemColors) }
             }
         }
     }
@@ -572,9 +556,6 @@ fun SettingsScreen(
         )
     }
 
-    // -------------------------------------------------------------
-    // ECUALIZADOR STUDIO PRO (PANTALLA COMPLETA) - INTACTO
-    // -------------------------------------------------------------
     if (showEqualizerDialog.value) {
         val tempPreset = remember { mutableStateOf(eqPresetSelected.value) }
         val viewKHz = remember { mutableStateOf(false) }
@@ -617,6 +598,8 @@ fun SettingsScreen(
                     ) {
                         IconButton(onClick = { showEqualizerDialog.value = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onBackground) }
                         Text("Studio Pro EQ", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+
+                        // BOTÓN APLICAR CON EL BROADCAST AÑADIDO
                         Button(onClick = {
                             settingsRepo.saveEqPresetSelected(tempPreset.value)
                             eqPresetSelected.value = tempPreset.value
@@ -631,6 +614,24 @@ fun SettingsScreen(
                             virtualizer.value = tempVirtualizer.value
                             eqVolume.value = tempVolume.value
                             sharedPrefs.edit().putFloat("loudness_enhancer", tempLoudness.value).putInt("reverb_preset", tempReverb.value).apply()
+
+                            // -----------------------------------------------------
+                            // LÓGICA AÑADIDA: Envío del Intent al MusicPlaybackService
+                            // -----------------------------------------------------
+                            val intent = Intent("com.music.musicflame.UPDATE_EQ")
+                            intent.setPackage(context.packageName)
+                            intent.putExtra("bass_boost", tempBass.value)
+                            intent.putExtra("virtualizer", tempVirtualizer.value)
+                            intent.putExtra("loudness", tempLoudness.value)
+                            intent.putExtra("reverb", tempReverb.value)
+
+                            for (i in 0 until 5) {
+                                intent.putExtra("eq_band_$i", tempSliders[i].value)
+                            }
+
+                            context.sendBroadcast(intent)
+                            // -----------------------------------------------------
+
                             showEqualizerDialog.value = false
                             Toast.makeText(context, "Audio Pro Activado 🎶", Toast.LENGTH_SHORT).show()
                         }) { Text("Aplicar", fontWeight = FontWeight.Bold) }

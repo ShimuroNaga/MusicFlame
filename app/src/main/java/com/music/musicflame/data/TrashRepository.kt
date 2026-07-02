@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -10,7 +11,7 @@ data class TrashedSong(
     val deletedAt: Long
 )
 
-class TrashRepository(context: Context) {
+class TrashRepository(private val context: Context) { // Hacemos el context accesible en toda la clase
     private val prefs = context.getSharedPreferences("trash", Context.MODE_PRIVATE)
     private val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
 
@@ -34,6 +35,27 @@ class TrashRepository(context: Context) {
             )
         }
         return result
+    }
+
+    // --- NUEVO MÉTODO INTELIGENTE PARA LA SELECCIÓN MÚLTIPLE ---
+    fun moveToTrash(songs: List<Song>) {
+        if (songs.isEmpty()) return
+
+        val trash = getTrash().toMutableList()
+        var movedCount = 0
+        val now = System.currentTimeMillis()
+
+        songs.forEach { song ->
+            if (trash.none { it.song.id == song.id }) {
+                trash.add(TrashedSong(song, now))
+                movedCount++
+            }
+        }
+
+        saveTrash(trash)
+
+        // El mismo repositorio se encarga de avisar al usuario
+        Toast.makeText(context, "$movedCount canciones movidas a la papelera", Toast.LENGTH_SHORT).show()
     }
 
     fun addToTrash(song: Song) {

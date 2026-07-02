@@ -115,6 +115,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 val settingsRepo = remember { SettingsRepository(context) }
+                // Agregamos la instancia del repositorio de papelera aquí
+                val trashRepo = remember { TrashRepository(context) }
 
                 val backgroundImageUri = remember { mutableStateOf(settingsRepo.getBackgroundImageUri()) }
                 val playerGifUri = remember { mutableStateOf(settingsRepo.getPlayerGifUri()) }
@@ -178,13 +180,11 @@ class MainActivity : ComponentActivity() {
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
                 }
 
-
                 CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value) {
                     BackHandler(enabled = showFullScreenPlayer || isAnySelectionMode) {
                         if (showFullScreenPlayer) showFullScreenPlayer = false
                         else {
                             selectedSongs.clear()
-
                             selectedPlaylists.clear()
                         }
                     }
@@ -194,7 +194,6 @@ class MainActivity : ComponentActivity() {
                         if (hasBackgroundImage) {
                             if (playerGifUri.value != null) {
                                 AsyncImage(model = ImageRequest.Builder(context).data(playerGifUri.value).decoderFactory(if (SDK_INT >= 28) ImageDecoderDecoder.Factory() else GifDecoder.Factory()).build(), contentDescription = "Fondo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-
                             } else {
                                 AsyncImage(model = backgroundImageUri.value, contentDescription = "Fondo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             }
@@ -202,7 +201,6 @@ class MainActivity : ComponentActivity() {
                             val brightness = bgBrightness.floatValue
                             if (brightness != 0f) Box(modifier = Modifier.fillMaxSize().background(if (brightness < 0) Color.Black.copy(alpha = abs(brightness)) else Color.White.copy(alpha = brightness)))
                             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
-
                         }
 
                         Scaffold(
@@ -210,14 +208,12 @@ class MainActivity : ComponentActivity() {
                             containerColor = Color.Transparent,
                             topBar = {
                                 if (isSongSelectionMode) {
-
                                     // ==========================================
                                     // BARRA SUPERIOR DE SELECCIÓN DE CANCIONES
                                     // ==========================================
 
                                     TopAppBar(
                                         title = { Text("${selectedSongs.size} / $totalSongsOnDevice", fontWeight = FontWeight.Bold) },
-
                                         navigationIcon = {
                                             IconButton(onClick = { selectedSongs.clear() }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
                                         },
@@ -226,40 +222,34 @@ class MainActivity : ComponentActivity() {
 
                                             DropdownMenu(expanded = showSelectionMenu, onDismissRequest = { showSelectionMenu = false }) {
                                                 DropdownMenuItem(
-
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Añadir a playlist") } },
                                                     onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }
                                                 )
                                                 DropdownMenuItem(
-
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Favorite, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Añadir a favoritos") } },
                                                     onClick = {
                                                         showSelectionMenu = false
-
                                                         selectedSongs.forEach { song -> if (!favoriteIds.contains(song.id)) favoritesRepo.toggleFavorite(song.id) }
                                                         favoriteIds = favoritesRepo.getAllFavoriteIds()
                                                         val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
-
                                                         intent.setPackage(packageName)
                                                         sendBroadcast(intent)
-
                                                         Toast.makeText(context, "${selectedSongs.size} añadidas a Favoritos", Toast.LENGTH_SHORT).show()
                                                         selectedSongs.clear()
                                                     }
                                                 )
-
                                                 DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
                                                     onClick = {
-
                                                         showSelectionMenu = false
                                                         geminiPrompt = "Analiza y recomiéndame música basándote en estas canciones: " + selectedSongs.joinToString(", ") { it.title }
                                                         selectedSongs.clear()
                                                         coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
                                                     }
                                                 )
+                                                // --- AQUÍ CAMBIAMOS A "MOVER A PAPELERA" ---
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mover a papelera") } },
                                                     onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }
                                                 )
                                             }
@@ -276,7 +266,6 @@ class MainActivity : ComponentActivity() {
                                         navigationIcon = {
                                             IconButton(onClick = { selectedPlaylists.clear() }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
                                         },
-
                                         actions = {
                                             IconButton(onClick = { showPlaylistSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, "Opciones") }
 
@@ -286,7 +275,6 @@ class MainActivity : ComponentActivity() {
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         val allSongs = loadSongsFromDevice(context)
-
                                                         val allIds = selectedPlaylists.flatMap { if (it.id == "favorites") favoriteIds.toList() else it.songIds }.distinct().take(40)
                                                         val targetSongs = allSongs.filter { it.id in allIds }
 
@@ -297,7 +285,6 @@ class MainActivity : ComponentActivity() {
                                                         coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
                                                     }
                                                 )
-
                                                 DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) } },
                                                     onClick = { showPlaylistSelectionMenu = false; showDeletePlaylistsDialog = true }
@@ -399,10 +386,8 @@ class MainActivity : ComponentActivity() {
                             } else {
                                 HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize().padding(innerPadding)) { page ->
 
-
                                     val onToggleSong: (Song) -> Unit = { song -> if (selectedSongs.contains(song)) selectedSongs.remove(song) else selectedSongs.add(song) }
                                     val onTogglePlaylist: (Playlist) -> Unit = { playlist -> if (selectedPlaylists.contains(playlist)) selectedPlaylists.remove(playlist) else selectedPlaylists.add(playlist) }
-
 
                                     when (bottomNavItems[page]) {
                                         Screen.Songs -> SongsScreen(
@@ -479,41 +464,29 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
 
+                            // --- AQUÍ CAMBIAMOS EL DIÁLOGO PARA MOVER A PAPELERA ---
                             if (showMultiDeleteDialog) {
                                 AlertDialog(
                                     onDismissRequest = { showMultiDeleteDialog = false },
-                                    icon = { Icon(Icons.Filled.Warning, null, tint = MaterialTheme.colorScheme.error) },
-                                    title = { Text("Eliminar Canciones", fontWeight = FontWeight.Bold) },
-                                    text = { Text("¿Estás seguro de que quieres eliminar permanentemente ${selectedSongs.size} canciones de tu dispositivo? Esta acción no se puede deshacer.") },
+                                    icon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.primary) },
+                                    title = { Text("Mover a la papelera", fontWeight = FontWeight.Bold) },
+                                    text = { Text("¿Mover ${selectedSongs.size} canciones a la papelera? Podrás recuperarlas más tarde desde ahí.") },
                                     confirmButton = {
                                         Button(
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                                             onClick = {
-                                                var deletedCount = 0
-                                                selectedSongs.forEach { song ->
-                                                    try {
-                                                        val file = File(song.path)
-                                                        if (file.exists()) file.delete()
-                                                        val selection = "${MediaStore.Audio.Media._ID} = ?"
-                                                        val selectionArgs = arrayOf(song.id.toString())
-                                                        context.contentResolver.delete(MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, selection, selectionArgs)
-                                                        deletedCount++
-                                                    } catch (e: Exception) {
-                                                        e.printStackTrace()
-                                                    }
-                                                }
-                                                Toast.makeText(context, "$deletedCount canciones eliminadas", Toast.LENGTH_SHORT).show()
-                                                totalSongsOnDevice = loadSongsFromDevice(context).size
+                                                // Le pasamos toda la lista completa en lugar de iterar con forEach
+                                                trashRepo.moveToTrash(selectedSongs.toList())
+
                                                 showMultiDeleteDialog = false
                                                 selectedSongs.clear()
                                             }
-                                        ) { Text("Eliminar") }
+                                        ) { Text("Mover") }
                                     },
                                     dismissButton = { TextButton(onClick = { showMultiDeleteDialog = false }) { Text("Cancelar") } }
                                 )
                             }
 
-                            // Diálogo funcional de Playlists
+                            // Diálogo funcional de Playlists (Este lo dejamos intacto ya que es para playlists)
                             if (showDeletePlaylistsDialog) {
                                 val deletablePlaylists = selectedPlaylists.filter { it.id != "favorites" }
                                 AlertDialog(

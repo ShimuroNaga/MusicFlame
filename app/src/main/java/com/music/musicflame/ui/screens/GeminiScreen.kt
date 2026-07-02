@@ -74,19 +74,6 @@ import com.music.musicflame.data.GeminiRepository
 import com.music.musicflame.data.Song
 import kotlinx.coroutines.launch
 
-/**
- * NOTA DE MIGRACIÓN (Firebase AI Logic):
- * Ya no se usa SettingsRepository.getGeminiApiKey(). Con Firebase AI Logic,
- * la app no necesita una API key manual: la autenticación la maneja
- * google-services.json a nivel de proyecto. Por eso esta pantalla ya no
- * tiene ningún estado de "¿hay key configurada?" -> el chat está disponible
- * siempre que haya internet.
- *
- * NOTA DE PERSISTENCIA:
- * El historial de conversación ahora se guarda en disco vía
- * ChatHistoryRepository, así que sobrevive aunque el usuario cierre
- * la app por completo y la vuelva a abrir.
- */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun GeminiScreen(

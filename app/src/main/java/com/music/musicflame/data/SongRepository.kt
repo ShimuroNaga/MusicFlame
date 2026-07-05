@@ -13,7 +13,8 @@ data class Song(
     val duration: Long,
     val path: String,
     val albumArtUri: String? = null,
-    val dateAdded: Long = 0L
+    val dateAdded: Long = 0L,
+    val youtubeVideoId: String? = null // <-- NUEVO: ID real del video en YouTube (distinto de `id`)
 )
 
 fun loadSongsFromDevice(context: Context): List<Song> {
@@ -71,6 +72,7 @@ fun loadSongsFromDevice(context: Context): List<Song> {
                         path = it.getString(pathCol) ?: "",
                         albumArtUri = albumArtUri,
                         dateAdded = it.getLong(dateAddedCol)
+                        // youtubeVideoId queda null para canciones locales, es lo esperado
                     )
                 )
             }

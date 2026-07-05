@@ -12,6 +12,23 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.filled.AccountCircle
+import coil.compose.AsyncImage
+import coil.request.ImageRequest
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
+import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material.icons.filled.OndemandVideo
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -111,12 +128,23 @@ fun VerticalSlider(
     )
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBackgroundImageChanged: () -> Unit = {},
     onRoundCornersChanged: (Boolean) -> Unit = {},
-    hasBackgroundImage: Boolean = false
+    hasBackgroundImage: Boolean = false,
+    isUserSignedIn: Boolean = false,
+    userName: String? = null,
+    userPhotoUrl: String? = null,
+    onSignInClick: () -> Unit = { /* Lógica de inicio de sesión por defecto */ },
+    onProfileClick: () -> Unit = { /* Lógica de perfil por defecto */ },
+    onRefreshUserProfile: () -> Unit = { /* Lógica opcional para re-sincronizar la sesión */ },
+    linkedAccountsCount: Int? = null,
+    onRequestLinkedAccountsCount: () -> Unit = { /* Dispara la consulta al backend que cuenta cuentas vinculadas */ },
+    isYouTubeLinked: Boolean = false,
+    onLinkYouTubeClick: () -> Unit = { /* Lógica para pedir el scope de YouTube */ }
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -180,6 +208,16 @@ fun SettingsScreen(
 
     val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (hasAnyBackground) 0.5f else 1f)
 
+    var isRefreshing by remember { mutableStateOf(false) }
+    var avatarRefreshKey by remember { mutableIntStateOf(0) }
+    val refreshScope = rememberCoroutineScope()
+    val pullState = rememberPullToRefreshState()
+
+    // Pide el conteo de cuentas de Google vinculadas al entrar a la pantalla, sin bloquear la UI.
+    LaunchedEffect(Unit) {
+        onRequestLinkedAccountsCount()
+    }
+
     val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             try {
@@ -215,559 +253,695 @@ fun SettingsScreen(
             )
     ) {
         CompositionLocalProvider(LocalContentColor provides highEmphasis) {
-            LazyColumn(modifier = Modifier.fillMaxSize()) {
-                item {
-                    Column(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 8.dp)) {
-                        Text("Configuración", fontSize = 28.sp, fontWeight = FontWeight.ExtraBold, color = highEmphasis)
+            PullToRefreshBox(
+                isRefreshing = isRefreshing,
+                onRefresh = {
+                    isRefreshing = true
+                    avatarRefreshKey++ // fuerza a Coil a re-descargar el ícono en vez de usar el cache
+                    onRefreshUserProfile() // aquí el caller puede re-sincronizar nombre/foto reales
+                    onRequestLinkedAccountsCount() // re-consulta el conteo de cuentas vinculadas
+                    refreshScope.launch {
+                        delay(800)
+                        isRefreshing = false
                     }
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp), color = dividerColor)
-                }
-
-                val sectionHeader = @Composable { text: String ->
-                    Text(
-                        text = text,
-                        modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.Black,
-                        color = trailingColor
+                },
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = isRefreshing,
+                        color = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.align(Alignment.TopCenter)
                     )
                 }
+            ) {
+                LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-                // APARIENCIA
-                item { sectionHeader("Apariencia") }
+                    // Se eliminó el título superior extra para dejar solo la sección de perfil y configuración general.
 
-                item {
-                    ListItem(
-                        headlineContent = { Text("Imagen de Fondo") },
-                        supportingContent = { Text(if (isBgPresent) "✓ Imagen seleccionada" else "Selecciona una imagen estática") },
-                        trailingContent = { Icon(Icons.Filled.Image, contentDescription = null, tint = trailingColor) },
-                        colors = listItemColors,
-                        modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                if (isBgPresent) {
                     item {
-                        Button(
-                            onClick = {
-                                settingsRepo.removeBackgroundImage()
-                                backgroundImageUri.value = null
-                                onBackgroundImageChanged()
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(64.dp)
+                                    .clip(CircleShape)
+                                    .background(
+                                        if (isUserSignedIn) Color.Transparent
+                                        else MaterialTheme.colorScheme.surfaceVariant
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isUserSignedIn && !userPhotoUrl.isNullOrEmpty()) {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data(userPhotoUrl)
+                                            .memoryCacheKey("$userPhotoUrl-$avatarRefreshKey")
+                                            .diskCacheKey("$userPhotoUrl-$avatarRefreshKey")
+                                            .build(),
+                                        contentDescription = "Foto de perfil",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(CircleShape)
+                                    )
+                                } else {
+                                    Icon(
+                                        imageVector = Icons.Filled.AccountCircle,
+                                        contentDescription = "Sin foto de perfil",
+                                        modifier = Modifier.size(64.dp),
+                                        tint = if (isUserSignedIn) trailingColor
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                }
+                            }
+
+                            Spacer(Modifier.width(14.dp))
+
+                            Column {
+                                if (isUserSignedIn && !userName.isNullOrEmpty()) {
+                                    Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
+                                    Text("Toca para ver tu cuenta", fontSize = 13.sp, color = mediumEmphasis)
+                                } else {
+                                    Text(
+                                        "Sin usuario, por favor regístrese",
+                                        fontSize = 15.sp,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = mediumEmphasis
+                                    )
+                                    Text(
+                                        "Inicia sesión con Google",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = trailingColor
+                                    )
+                                }
+                            }
+                        }
+
+                        // Contador de cuentas de Google vinculadas, se actualiza en 2do plano (ver onRequestLinkedAccountsCount)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (linkedAccountsCount != null) {
+                                Text(
+                                    text = "Cuentas de Google vinculadas: $linkedAccountsCount/100",
+                                    fontSize = 12.sp,
+                                    color = mediumEmphasis
+                                )
+                            } else {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(12.dp),
+                                    strokeWidth = 1.5.dp,
+                                    color = trailingColor
+                                )
+                                Spacer(Modifier.width(6.dp))
+                                Text("Actualizando cuentas vinculadas...", fontSize = 12.sp, color = mediumEmphasis)
+                            }
+                        }
+
+                        HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp), color = dividerColor)
+                    }
+
+                    val sectionHeader = @Composable { text: String ->
+                        Text(
+                            text = text,
+                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Black,
+                            color = trailingColor
+                        )
+                    }
+
+                    // CUENTA
+                    item { sectionHeader("Cuenta") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Vincular YouTube") },
+                            supportingContent = {
+                                Text(
+                                    if (isYouTubeLinked) "✓ YouTube vinculado con tu cuenta de Google"
+                                    else "Vincula tu cuenta para ver tus me gusta y suscripciones"
+                                )
                             },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        ) { Text("Quitar Imagen de Fondo", fontWeight = FontWeight.Bold) }
+                            trailingContent = {
+                                Icon(
+                                    imageVector = Icons.Filled.OndemandVideo,
+                                    contentDescription = null,
+                                    tint = if (isYouTubeLinked) trailingColor
+                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                )
+                            },
+                            colors = listItemColors,
+                            modifier = Modifier.clickable {
+                                if (isUserSignedIn) onLinkYouTubeClick() else onSignInClick()
+                            }
+                        )
                         HorizontalDivider(color = dividerColor)
                     }
-                }
 
-                item {
-                    ListItem(
-                        headlineContent = { Text("Fondo Animado (GIF)") },
-                        supportingContent = { Text(if (isGifPresent) "✓ GIF activado" else "Añade un GIF animado como fondo") },
-                        trailingContent = { Icon(Icons.Filled.Movie, contentDescription = null, modifier = Modifier.size(24.dp), tint = trailingColor) },
-                        colors = listItemColors,
-                        modifier = Modifier.clickable { pickGifLauncher.launch("image/gif") }
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
+                    // APARIENCIA
+                    item { sectionHeader("Apariencia") }
 
-                if (isGifPresent) {
                     item {
-                        Button(
-                            onClick = {
-                                settingsRepo.removePlayerGifUri()
-                                playerGifUri.value = null
-                                onBackgroundImageChanged()
-                            },
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                                contentColor = MaterialTheme.colorScheme.onErrorContainer
-                            )
-                        ) { Text("Quitar Fondo GIF", fontWeight = FontWeight.Bold) }
+                        ListItem(
+                            headlineContent = { Text("Imagen de Fondo") },
+                            supportingContent = { Text(if (isBgPresent) "✓ Imagen seleccionada" else "Selecciona una imagen estática") },
+                            trailingContent = { Icon(Icons.Filled.Image, contentDescription = null, tint = trailingColor) },
+                            colors = listItemColors,
+                            modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }
+                        )
                         HorizontalDivider(color = dividerColor)
                     }
-                }
 
-                if (hasAnyBackground) {
-                    item {
-                        Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                            Text("Brillo del fondo", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
-                            Spacer(Modifier.height(4.dp))
-                            Slider(
-                                value = backgroundBrightness.value,
-                                onValueChange = {
-                                    backgroundBrightness.value = it
-                                    settingsRepo.saveBackgroundBrightness(it)
+                    if (isBgPresent) {
+                        item {
+                            Button(
+                                onClick = {
+                                    settingsRepo.removeBackgroundImage()
+                                    backgroundImageUri.value = null
                                     onBackgroundImageChanged()
                                 },
-                                valueRange = -1f..1f,
-                                steps = 20,
-                                colors = SliderDefaults.colors(
-                                    thumbColor = trailingColor,
-                                    activeTrackColor = trailingColor
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
                                 )
-                            )
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
-                                Text("Original", fontSize = 12.sp, color = mediumEmphasis)
-                                Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
-                            }
+                            ) { Text("Quitar Imagen de Fondo", fontWeight = FontWeight.Bold) }
+                            HorizontalDivider(color = dividerColor)
                         }
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Fondo Animado (GIF)") },
+                            supportingContent = { Text(if (isGifPresent) "✓ GIF activado" else "Añade un GIF animado como fondo") },
+                            trailingContent = { Icon(Icons.Filled.Movie, contentDescription = null, modifier = Modifier.size(24.dp), tint = trailingColor) },
+                            colors = listItemColors,
+                            modifier = Modifier.clickable { pickGifLauncher.launch("image/gif") }
+                        )
                         HorizontalDivider(color = dividerColor)
                     }
-                }
 
-                item {
-                    ListItem(
-                        headlineContent = { Text("Apariencia de la aplicación") },
-                        supportingContent = { Text("Tema actual: ${appTheme.value}") },
-                        trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Modo AMOLED (Negro Puro)") },
-                        supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
-                        trailingContent = {
-                            Switch(
-                                checked = amoledMode.value,
-                                onCheckedChange = { isChecked ->
-                                    amoledMode.value = isChecked
-                                    settingsRepo.saveAmoledMode(isChecked)
-                                }
-                            )
-                        },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Usar redondeado de cuadros") },
-                        supportingContent = { Text("Aplica bordes curvos a las secciones y tarjetas") },
-                        trailingContent = {
-                            Switch(
-                                checked = useRoundCorners.value,
-                                onCheckedChange = { isChecked ->
-                                    useRoundCorners.value = isChecked
-                                    settingsRepo.saveUseRoundCorners(isChecked)
-                                    onRoundCornersChanged(isChecked)
-                                }
-                            )
-                        },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item { sectionHeader("Manejo de Canciones") }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Filtrar por duración") },
-                        supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
-                        trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Re-escanear al abrir app") },
-                        supportingContent = { Text("Actualiza la biblioteca automáticamente") },
-                        trailingContent = { Switch(checked = autoRescan.value, onCheckedChange = { autoRescan.value = it; settingsRepo.saveAutoRescanEnabled(it) }) },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item { sectionHeader("Reproducción") }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Reproducir en segundo plano") },
-                        supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
-                        trailingContent = {
-                            Switch(
-                                checked = playInBackground.value,
-                                onCheckedChange = {
-                                    playInBackground.value = it
-                                    settingsRepo.savePlayInBackground(it)
-                                    Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
-                                }
-                            )
-                        },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Optimización de batería") },
-                        supportingContent = {
-                            Text(
-                                text = if (isIgnoringBattery)
-                                    "Optimizado para música continua (Recomendado)"
-                                else
-                                    "Restringido — Android podría pausar la música al apagar la pantalla",
-                                color = if (isIgnoringBattery) trailingColor else MaterialTheme.colorScheme.error
-                            )
-                        },
-                        trailingContent = {
-                            Switch(
-                                checked = isIgnoringBattery,
-                                onCheckedChange = { checked ->
-                                    if (checked) {
-                                        try {
-                                            val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                data = Uri.parse("package:${context.packageName}")
-                                            }
-                                            context.startActivity(intent)
-                                        } catch (e: Exception) {
-                                            Toast.makeText(context, "No se pudo abrir la configuración de batería", Toast.LENGTH_SHORT).show()
-                                        }
-                                    } else {
-                                        val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                        context.startActivity(intent)
-                                    }
-                                }
-                            )
-                        },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item { sectionHeader("Ecualizador") }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Studio Pro EQ") },
-                        supportingContent = { Text("Preset activo: ${eqPresetSelected.value}") },
-                        trailingContent = {
+                    if (isGifPresent) {
+                        item {
                             Button(
-                                onClick = { showEqualizerDialog.value = true },
+                                onClick = {
+                                    settingsRepo.removePlayerGifUri()
+                                    playerGifUri.value = null
+                                    onBackgroundImageChanged()
+                                },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.primary,
-                                    contentColor = MaterialTheme.colorScheme.onPrimary
+                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
                                 )
-                            ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
-                        },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
+                            ) { Text("Quitar Fondo GIF", fontWeight = FontWeight.Bold) }
+                            HorizontalDivider(color = dividerColor)
+                        }
+                    }
+
+                    if (hasAnyBackground) {
+                        item {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text("Brillo del fondo", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Spacer(Modifier.height(4.dp))
+                                Slider(
+                                    value = backgroundBrightness.value,
+                                    onValueChange = {
+                                        backgroundBrightness.value = it
+                                        settingsRepo.saveBackgroundBrightness(it)
+                                        onBackgroundImageChanged()
+                                    },
+                                    valueRange = -1f..1f,
+                                    steps = 20,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = trailingColor,
+                                        activeTrackColor = trailingColor
+                                    )
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Original", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                            }
+                            HorizontalDivider(color = dividerColor)
+                        }
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Apariencia de la aplicación") },
+                            supportingContent = { Text("Tema actual: ${appTheme.value}") },
+                            trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Modo AMOLED (Negro Puro)") },
+                            supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
+                            trailingContent = {
+                                Switch(
+                                    checked = amoledMode.value,
+                                    onCheckedChange = { isChecked ->
+                                        amoledMode.value = isChecked
+                                        settingsRepo.saveAmoledMode(isChecked)
+                                    }
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Usar redondeado de cuadros") },
+                            supportingContent = { Text("Aplica bordes curvos a las secciones y tarjetas") },
+                            trailingContent = {
+                                Switch(
+                                    checked = useRoundCorners.value,
+                                    onCheckedChange = { isChecked ->
+                                        useRoundCorners.value = isChecked
+                                        settingsRepo.saveUseRoundCorners(isChecked)
+                                        onRoundCornersChanged(isChecked)
+                                    }
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item { sectionHeader("Manejo de Canciones") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Filtrar por duración") },
+                            supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
+                            trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Re-escanear al abrir app") },
+                            supportingContent = { Text("Actualiza la biblioteca automáticamente") },
+                            trailingContent = { Switch(checked = autoRescan.value, onCheckedChange = { autoRescan.value = it; settingsRepo.saveAutoRescanEnabled(it) }) },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item { sectionHeader("Reproducción") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Reproducir en segundo plano") },
+                            supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
+                            trailingContent = {
+                                Switch(
+                                    checked = playInBackground.value,
+                                    onCheckedChange = {
+                                        playInBackground.value = it
+                                        settingsRepo.savePlayInBackground(it)
+                                        Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Optimización de batería") },
+                            supportingContent = {
+                                Text(
+                                    text = if (isIgnoringBattery)
+                                        "Optimizado para música continua (Recomendado)"
+                                    else
+                                        "Restringido — Android podría pausar la música al apagar la pantalla",
+                                    color = if (isIgnoringBattery) trailingColor else MaterialTheme.colorScheme.error
+                                )
+                            },
+                            trailingContent = {
+                                Switch(
+                                    checked = isIgnoringBattery,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            try {
+                                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                                    data = Uri.parse("package:${context.packageName}")
+                                                }
+                                                context.startActivity(intent)
+                                            } catch (e: Exception) {
+                                                Toast.makeText(context, "No se pudo abrir la configuración de batería", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else {
+                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                            context.startActivity(intent)
+                                        }
+                                    }
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item { sectionHeader("Ecualizador") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Studio Pro EQ") },
+                            supportingContent = { Text("Preset activo: ${eqPresetSelected.value}") },
+                            trailingContent = {
+                                Button(
+                                    onClick = { showEqualizerDialog.value = true },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.primary,
+                                        contentColor = MaterialTheme.colorScheme.onPrimary
+                                    )
+                                ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item { sectionHeader("Integración de IA") }
+
+                    item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Modelo de IA") },
+                            supportingContent = { Text("Administrado automáticamente desde la nube") },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item { sectionHeader("Sobre") }
+                    item { ListItem(headlineContent = { Text("Nombre de la app") }, supportingContent = { Text("MusicFlame") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                    item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("1.5.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                    item { ListItem(headlineContent = { Text("Diseño") }, supportingContent = { Text("Material You") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                    item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("ShimuroNaga") }, colors = listItemColors) }
                 }
-
-                item { sectionHeader("Integración de IA") }
-
-                item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-
-                item {
-                    ListItem(
-                        headlineContent = { Text("Modelo de IA") },
-                        supportingContent = { Text("Administrado automáticamente desde la nube") },
-                        colors = listItemColors
-                    )
-                    HorizontalDivider(color = dividerColor)
-                }
-
-                item { sectionHeader("Sobre") }
-                item { ListItem(headlineContent = { Text("Nombre de la app") }, supportingContent = { Text("MusicFlame") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("1.5.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                item { ListItem(headlineContent = { Text("Diseño") }, supportingContent = { Text("Material You") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("ShimuroNaga") }, colors = listItemColors) }
             }
         }
-    }
 
-    // DIÁLOGOS ADICIONALES ORIGINALES
+        // DIÁLOGOS ADICIONALES ORIGINALES
 
-    if (showDurationFilterDialog.value) {
-        val tempMin = remember { mutableStateOf(durationMin.value) }
-        val tempMax = remember { mutableStateOf(durationMax.value) }
-        val tempMode = remember { mutableStateOf(filterMode.value) }
-        AlertDialog(
-            onDismissRequest = { showDurationFilterDialog.value = false },
-            title = { Text("Filtrar por duración", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    OutlinedTextField(value = tempMin.value, onValueChange = { tempMin.value = it }, label = { Text("Duración mínima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    OutlinedTextField(value = tempMax.value, onValueChange = { tempMax.value = it }, label = { Text("Duración máxima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
-                    Text("Modo:", fontWeight = FontWeight.Bold)
-                    TextButton(onClick = { tempMode.value = "exclude" }) { Text("Excluir", fontWeight = FontWeight.Bold, color = if (tempMode.value == "exclude") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
-                    TextButton(onClick = { tempMode.value = "only" }) { Text("Solo mostrar", fontWeight = FontWeight.Bold, color = if (tempMode.value == "only") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    val minVal = tempMin.value.toIntOrNull() ?: 0
-                    val maxVal = tempMax.value.toIntOrNull() ?: Int.MAX_VALUE
-                    settingsRepo.saveDurationFilterMin(minVal)
-                    settingsRepo.saveDurationFilterMax(maxVal)
-                    settingsRepo.saveDurationFilterMode(tempMode.value)
-                    durationMin.value = tempMin.value
-                    durationMax.value = tempMax.value
-                    filterMode.value = tempMode.value
-                    showDurationFilterDialog.value = false
-                }) { Text("Guardar", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
-        )
-    }
-
-    if (showThemeDialog.value) {
-        val tempTheme = remember { mutableStateOf(appTheme.value) }
-        AlertDialog(
-            onDismissRequest = { showThemeDialog.value = false },
-            title = { Text("Elegir Tema", fontWeight = FontWeight.Bold) },
-            text = {
-                Column {
-                    listOf("Siguiendo al sistema", "Fondo blanco", "Fondo oscuro").forEach { theme ->
-                        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { tempTheme.value = theme }.padding(vertical = 8.dp)) {
-                            RadioButton(selected = tempTheme.value == theme, onClick = { tempTheme.value = theme })
-                            Spacer(Modifier.width(8.dp))
-                            Text(theme, fontSize = 14.sp)
-                        }
+        if (showDurationFilterDialog.value) {
+            val tempMin = remember { mutableStateOf(durationMin.value) }
+            val tempMax = remember { mutableStateOf(durationMax.value) }
+            val tempMode = remember { mutableStateOf(filterMode.value) }
+            AlertDialog(
+                onDismissRequest = { showDurationFilterDialog.value = false },
+                title = { Text("Filtrar por duración", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        OutlinedTextField(value = tempMin.value, onValueChange = { tempMin.value = it }, label = { Text("Duración mínima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(value = tempMax.value, onValueChange = { tempMax.value = it }, label = { Text("Duración máxima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Text("Modo:", fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { tempMode.value = "exclude" }) { Text("Excluir", fontWeight = FontWeight.Bold, color = if (tempMode.value == "exclude") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                        TextButton(onClick = { tempMode.value = "only" }) { Text("Solo mostrar", fontWeight = FontWeight.Bold, color = if (tempMode.value == "only") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
                     }
-                }
-            },
-            confirmButton = {
-                Button(onClick = {
-                    settingsRepo.saveAppTheme(tempTheme.value)
-                    appTheme.value = tempTheme.value
-                    showThemeDialog.value = false
-                }) { Text("Guardar", fontWeight = FontWeight.Bold) }
-            },
-            dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
-        )
-    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val minVal = tempMin.value.toIntOrNull() ?: 0
+                        val maxVal = tempMax.value.toIntOrNull() ?: Int.MAX_VALUE
+                        settingsRepo.saveDurationFilterMin(minVal)
+                        settingsRepo.saveDurationFilterMax(maxVal)
+                        settingsRepo.saveDurationFilterMode(tempMode.value)
+                        durationMin.value = tempMin.value
+                        durationMax.value = tempMax.value
+                        filterMode.value = tempMode.value
+                        showDurationFilterDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
 
-    if (showEqualizerDialog.value) {
-        val tempPreset = remember { mutableStateOf(eqPresetSelected.value) }
-        val viewKHz = remember { mutableStateOf(false) }
-        val tempSliders = remember { List(5) { index -> mutableStateOf(slidersValues[index].value) } }
-        val tempBass = remember { mutableStateOf(bassBoost.value) }
-        val tempVirtualizer = remember { mutableStateOf(virtualizer.value) }
-        val tempVolume = remember { mutableStateOf(eqVolume.value) }
-        val tempLoudness = remember { mutableStateOf(sharedPrefs.getFloat("loudness_enhancer", 0f)) }
-        val tempReverb = remember { mutableStateOf(sharedPrefs.getInt("reverb_preset", 0)) }
-        val showSaveCustomDialog = remember { mutableStateOf(false) }
-        val customPresetName = remember { mutableStateOf("") }
-        val customNamesString = sharedPrefs.getString("custom_preset_names", "") ?: ""
-        val customPresetsList = if (customNamesString.isNotEmpty()) customNamesString.split(",") else emptyList()
-        val basePresets = listOf("Flat", "Rock", "Pop", "Hip hop", "Jazz", "Classical", "Electronico", "Refuerzo de graves", "Refuerzo de agudos", "Vocales", "Customizar")
-        val allPresets = basePresets + customPresetsList
-
-        val presetConfigs = mapOf(
-            "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
-            "Rock" to listOf(0.5f, 0.3f, -0.1f, 0.3f, 0.5f),
-            "Pop" to listOf(-0.1f, 0.2f, 0.4f, 0.2f, -0.1f),
-            "Hip hop" to listOf(0.7f, 0.4f, 0f, 0.2f, 0.4f),
-            "Jazz" to listOf(0.3f, 0.2f, -0.1f, 0.2f, 0.4f),
-            "Classical" to listOf(0.4f, 0.3f, -0.1f, 0.3f, 0.4f),
-            "Electronico" to listOf(0.6f, 0.4f, -0.1f, 0.4f, 0.6f),
-            "Refuerzo de graves" to listOf(0.9f, 0.5f, 0f, 0f, 0f),
-            "Refuerzo de agudos" to listOf(0f, 0f, 0f, 0.5f, 0.9f),
-            "Vocales" to listOf(-0.2f, 0f, 0.6f, 0.4f, -0.1f)
-        )
-
-        Dialog(
-            onDismissRequest = { showEqualizerDialog.value = false },
-            properties = DialogProperties(usePlatformDefaultWidth = false)
-        ) {
-            Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        IconButton(onClick = { showEqualizerDialog.value = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onBackground) }
-                        Text("Studio Pro EQ", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
-
-                        // BOTÓN APLICAR CON EL BROADCAST AÑADIDO
-                        Button(onClick = {
-                            settingsRepo.saveEqPresetSelected(tempPreset.value)
-                            eqPresetSelected.value = tempPreset.value
-                            for (i in 0 until 5) {
-                                settingsRepo.saveEqBand(i, tempSliders[i].value)
-                                slidersValues[i].value = tempSliders[i].value
-                            }
-                            settingsRepo.saveBassBoost(tempBass.value)
-                            settingsRepo.saveVirtualizer(tempVirtualizer.value)
-                            settingsRepo.saveEqVolume(tempVolume.value)
-                            bassBoost.value = tempBass.value
-                            virtualizer.value = tempVirtualizer.value
-                            eqVolume.value = tempVolume.value
-                            sharedPrefs.edit().putFloat("loudness_enhancer", tempLoudness.value).putInt("reverb_preset", tempReverb.value).apply()
-
-                            // -----------------------------------------------------
-                            // LÓGICA AÑADIDA: Envío del Intent al MusicPlaybackService
-                            // -----------------------------------------------------
-                            val intent = Intent("com.music.musicflame.UPDATE_EQ")
-                            intent.setPackage(context.packageName)
-                            intent.putExtra("bass_boost", tempBass.value)
-                            intent.putExtra("virtualizer", tempVirtualizer.value)
-                            intent.putExtra("loudness", tempLoudness.value)
-                            intent.putExtra("reverb", tempReverb.value)
-
-                            for (i in 0 until 5) {
-                                intent.putExtra("eq_band_$i", tempSliders[i].value)
-                            }
-
-                            context.sendBroadcast(intent)
-                            // -----------------------------------------------------
-
-                            showEqualizerDialog.value = false
-                            Toast.makeText(context, "Audio Pro Activado 🎶", Toast.LENGTH_SHORT).show()
-                        }) { Text("Aplicar", fontWeight = FontWeight.Bold) }
-                    }
-
-                    LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                        item { Spacer(Modifier.height(8.dp)) }
-                        item {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                Text("Ajustes Preestablecidos", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
-                                IconButton(onClick = { showSaveCustomDialog.value = true }, modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)).size(36.dp)) {
-                                    Icon(Icons.Filled.Add, "Guardar Preset", tint = MaterialTheme.colorScheme.primary)
-                                }
-                            }
-                            Spacer(Modifier.height(8.dp))
-                            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(allPresets) { preset ->
-                                    Card(
-                                        colors = CardDefaults.cardColors(containerColor = if (tempPreset.value == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
-                                        modifier = Modifier.clickable {
-                                            tempPreset.value = preset
-                                            if (presetConfigs.containsKey(preset)) {
-                                                val config = presetConfigs[preset]!!
-                                                for (i in 0 until 5) tempSliders[i].value = config[i]
-                                                if (preset == "Flat") { tempBass.value = 0f; tempVirtualizer.value = 0f; tempLoudness.value = 0f; tempReverb.value = 0 }
-                                                if (preset == "Refuerzo de graves") tempBass.value = 100f
-                                            } else {
-                                                val savedBands = sharedPrefs.getString("preset_${preset}_bands", "")
-                                                if (savedBands != null && savedBands.isNotEmpty()) {
-                                                    val vals = savedBands.split(",").map { it.toFloat() }
-                                                    if (vals.size == 5) for (i in 0 until 5) tempSliders[i].value = vals[i]
-                                                }
-                                                tempBass.value = sharedPrefs.getFloat("preset_${preset}_bass", 0f)
-                                                tempVirtualizer.value = sharedPrefs.getFloat("preset_${preset}_virt", 0f)
-                                                tempLoudness.value = sharedPrefs.getFloat("preset_${preset}_loud", 0f)
-                                                tempReverb.value = sharedPrefs.getInt("preset_${preset}_reverb", 0)
-                                            }
-                                        }
-                                    ) {
-                                        Text(text = preset, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = if (tempPreset.value == preset) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
-                            Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
-                                Column(modifier = Modifier.padding(16.dp)) {
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                        Text("Ecualizador 5 Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Hz", fontSize = 12.sp, color = if (!viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                            Switch(checked = viewKHz.value, onCheckedChange = { viewKHz.value = it }, modifier = Modifier.padding(horizontal = 4.dp))
-                                            Text("kHz", fontSize = 12.sp, color = if (viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
-                                        }
-                                    }
-                                    Spacer(Modifier.height(16.dp))
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                        val freqsHz = listOf("60", "230", "910", "3600", "14000")
-                                        val freqsKHz = listOf("0.06", "0.23", "0.91", "3.6", "14.0")
-                                        for (i in 0 until 5) {
-                                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                Text(if (viewKHz.value) freqsKHz[i] else freqsHz[i], fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                                Spacer(Modifier.height(8.dp))
-                                                Box(
-                                                    modifier = Modifier
-                                                        .height(150.dp)
-                                                        .width(40.dp),
-                                                    contentAlignment = Alignment.Center
-                                                ) {
-                                                    VerticalSlider(
-                                                        value = tempSliders[i].value,
-                                                        onValueChange = { tempSliders[i].value = it; tempPreset.value = "Customizar" },
-                                                        valueRange = -1f..1f,
-                                                        modifier = Modifier.fillMaxSize()
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        item {
-                            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                val proCardColor = MaterialTheme.colorScheme.surfaceContainerHighest
-                                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
-                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Graves", fontSize = 12.sp, fontWeight = FontWeight.Black)
-                                        Text("${tempBass.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
-                                        Slider(value = tempBass.value, onValueChange = { tempBass.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
-                                    }
-                                }
-                                Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
-                                    Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Text("Virtual 3D", fontSize = 12.sp, fontWeight = FontWeight.Black)
-                                        Text("${tempVirtualizer.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
-                                        Slider(value = tempVirtualizer.value, onValueChange = { tempVirtualizer.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
-                                    }
-                                }
+        if (showThemeDialog.value) {
+            val tempTheme = remember { mutableStateOf(appTheme.value) }
+            AlertDialog(
+                onDismissRequest = { showThemeDialog.value = false },
+                title = { Text("Elegir Tema", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        listOf("Siguiendo al sistema", "Fondo blanco", "Fondo oscuro").forEach { theme ->
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { tempTheme.value = theme }.padding(vertical = 8.dp)) {
+                                RadioButton(selected = tempTheme.value == theme, onClick = { tempTheme.value = theme })
+                                Spacer(Modifier.width(8.dp))
+                                Text(theme, fontSize = 14.sp)
                             }
                         }
                     }
-                }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveAppTheme(tempTheme.value)
+                        appTheme.value = tempTheme.value
+                        showThemeDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
 
-                if (showSaveCustomDialog.value) {
-                    AlertDialog(
-                        onDismissRequest = { showSaveCustomDialog.value = false },
-                        title = { Text("Guardar Preset") },
-                        text = { OutlinedTextField(value = customPresetName.value, onValueChange = { customPresetName.value = it }, label = { Text("Nombre del Preset") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
-                        confirmButton = {
+        if (showEqualizerDialog.value) {
+            val tempPreset = remember { mutableStateOf(eqPresetSelected.value) }
+            val viewKHz = remember { mutableStateOf(false) }
+            val tempSliders = remember { List(5) { index -> mutableStateOf(slidersValues[index].value) } }
+            val tempBass = remember { mutableStateOf(bassBoost.value) }
+            val tempVirtualizer = remember { mutableStateOf(virtualizer.value) }
+            val tempVolume = remember { mutableStateOf(eqVolume.value) }
+            val tempLoudness = remember { mutableStateOf(sharedPrefs.getFloat("loudness_enhancer", 0f)) }
+            val tempReverb = remember { mutableStateOf(sharedPrefs.getInt("reverb_preset", 0)) }
+            val showSaveCustomDialog = remember { mutableStateOf(false) }
+            val customPresetName = remember { mutableStateOf("") }
+            val customNamesString = sharedPrefs.getString("custom_preset_names", "") ?: ""
+            val customPresetsList = if (customNamesString.isNotEmpty()) customNamesString.split(",") else emptyList()
+            val basePresets = listOf("Flat", "Rock", "Pop", "Hip hop", "Jazz", "Classical", "Electronico", "Refuerzo de graves", "Refuerzo de agudos", "Vocales", "Customizar")
+            val allPresets = basePresets + customPresetsList
+
+            val presetConfigs = mapOf(
+                "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
+                "Rock" to listOf(0.5f, 0.3f, -0.1f, 0.3f, 0.5f),
+                "Pop" to listOf(-0.1f, 0.2f, 0.4f, 0.2f, -0.1f),
+                "Hip hop" to listOf(0.7f, 0.4f, 0f, 0.2f, 0.4f),
+                "Jazz" to listOf(0.3f, 0.2f, -0.1f, 0.2f, 0.4f),
+                "Classical" to listOf(0.4f, 0.3f, -0.1f, 0.3f, 0.4f),
+                "Electronico" to listOf(0.6f, 0.4f, -0.1f, 0.4f, 0.6f),
+                "Refuerzo de graves" to listOf(0.9f, 0.5f, 0f, 0f, 0f),
+                "Refuerzo de agudos" to listOf(0f, 0f, 0f, 0.5f, 0.9f),
+                "Vocales" to listOf(-0.2f, 0f, 0.6f, 0.4f, -0.1f)
+            )
+
+            Dialog(
+                onDismissRequest = { showEqualizerDialog.value = false },
+                properties = DialogProperties(usePlatformDefaultWidth = false)
+            ) {
+                Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            IconButton(onClick = { showEqualizerDialog.value = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onBackground) }
+                            Text("Studio Pro EQ", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+
                             Button(onClick = {
-                                val name = customPresetName.value.trim()
-                                if (name.isNotEmpty() && !basePresets.contains(name)) {
-                                    val newList = customPresetsList.toMutableList()
-                                    if (!newList.contains(name)) newList.add(name)
-                                    sharedPrefs.edit().putString("custom_preset_names", newList.joinToString(",")).apply()
-
-                                    val bandsStr = tempSliders.joinToString(",") { it.value.toString() }
-                                    sharedPrefs.edit()
-                                        .putString("preset_${name}_bands", bandsStr)
-                                        .putFloat("preset_${name}_bass", tempBass.value)
-                                        .putFloat("preset_${name}_virt", tempVirtualizer.value)
-                                        .putFloat("preset_${name}_loud", tempLoudness.value)
-                                        .putInt("preset_${name}_reverb", tempReverb.value)
-                                        .apply()
-
-                                    tempPreset.value = name
-                                    showSaveCustomDialog.value = false
-                                    Toast.makeText(context, "Preset guardado con éxito", Toast.LENGTH_SHORT).show()
+                                settingsRepo.saveEqPresetSelected(tempPreset.value)
+                                eqPresetSelected.value = tempPreset.value
+                                for (i in 0 until 5) {
+                                    settingsRepo.saveEqBand(i, tempSliders[i].value)
+                                    slidersValues[i].value = tempSliders[i].value
                                 }
-                            }) { Text("Guardar", fontWeight = FontWeight.Bold) }
-                        },
-                        dismissButton = { TextButton(onClick = { showSaveCustomDialog.value = false }) { Text("Cancelar") } }
-                    )
+                                settingsRepo.saveBassBoost(tempBass.value)
+                                settingsRepo.saveVirtualizer(tempVirtualizer.value)
+                                settingsRepo.saveEqVolume(tempVolume.value)
+                                bassBoost.value = tempBass.value
+                                virtualizer.value = tempVirtualizer.value
+                                eqVolume.value = tempVolume.value
+                                sharedPrefs.edit().putFloat("loudness_enhancer", tempLoudness.value).putInt("reverb_preset", tempReverb.value).apply()
+
+                                val intent = Intent("com.music.musicflame.UPDATE_EQ")
+                                intent.setPackage(context.packageName)
+                                intent.putExtra("bass_boost", tempBass.value)
+                                intent.putExtra("virtualizer", tempVirtualizer.value)
+                                intent.putExtra("loudness", tempLoudness.value)
+                                intent.putExtra("reverb", tempReverb.value)
+
+                                for (i in 0 until 5) {
+                                    intent.putExtra("eq_band_$i", tempSliders[i].value)
+                                }
+
+                                context.sendBroadcast(intent)
+
+                                showEqualizerDialog.value = false
+                                Toast.makeText(context, "Audio Pro Activado 🎶", Toast.LENGTH_SHORT).show()
+                            }) { Text("Aplicar", fontWeight = FontWeight.Bold) }
+                        }
+
+                        LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                            item { Spacer(Modifier.height(8.dp)) }
+                            item {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                    Text("Ajustes Preestablecidos", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                    IconButton(onClick = { showSaveCustomDialog.value = true }, modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)).size(36.dp)) {
+                                        Icon(Icons.Filled.Add, "Guardar Preset", tint = MaterialTheme.colorScheme.primary)
+                                    }
+                                }
+                                Spacer(Modifier.height(8.dp))
+                                LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    items(allPresets) { preset ->
+                                        Card(
+                                            colors = CardDefaults.cardColors(containerColor = if (tempPreset.value == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
+                                            modifier = Modifier.clickable {
+                                                tempPreset.value = preset
+                                                if (presetConfigs.containsKey(preset)) {
+                                                    val config = presetConfigs[preset]!!
+                                                    for (i in 0 until 5) tempSliders[i].value = config[i]
+                                                    if (preset == "Flat") { tempBass.value = 0f; tempVirtualizer.value = 0f; tempLoudness.value = 0f; tempReverb.value = 0 }
+                                                    if (preset == "Refuerzo de graves") tempBass.value = 100f
+                                                } else {
+                                                    val savedBands = sharedPrefs.getString("preset_${preset}_bands", "")
+                                                    if (savedBands != null && savedBands.isNotEmpty()) {
+                                                        val vals = savedBands.split(",").map { it.toFloat() }
+                                                        if (vals.size == 5) for (i in 0 until 5) tempSliders[i].value = vals[i]
+                                                    }
+                                                    tempBass.value = sharedPrefs.getFloat("preset_${preset}_bass", 0f)
+                                                    tempVirtualizer.value = sharedPrefs.getFloat("preset_${preset}_virt", 0f)
+                                                    tempLoudness.value = sharedPrefs.getFloat("preset_${preset}_loud", 0f)
+                                                    tempReverb.value = sharedPrefs.getInt("preset_${preset}_reverb", 0)
+                                                }
+                                            }
+                                        ) {
+                                            Text(text = preset, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = if (tempPreset.value == preset) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+
+                            item {
+                                Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                                            Text("Ecualizador 5 Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text("Hz", fontSize = 12.sp, color = if (!viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                                Switch(checked = viewKHz.value, onCheckedChange = { viewKHz.value = it }, modifier = Modifier.padding(horizontal = 4.dp))
+                                                Text("kHz", fontSize = 12.sp, color = if (viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
+                                            }
+                                        }
+                                        Spacer(Modifier.height(16.dp))
+                                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+                                            val freqsHz = listOf("60", "230", "910", "3600", "14000")
+                                            val freqsKHz = listOf("0.06", "0.23", "0.91", "3.6", "14.0")
+                                            for (i in 0 until 5) {
+                                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                                    Text(if (viewKHz.value) freqsKHz[i] else freqsHz[i], fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    Spacer(Modifier.height(8.dp))
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .height(150.dp)
+                                                            .width(40.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        VerticalSlider(
+                                                            value = tempSliders[i].value,
+                                                            onValueChange = { tempSliders[i].value = it; tempPreset.value = "Customizar" },
+                                                            valueRange = -1f..1f,
+                                                            modifier = Modifier.fillMaxSize()
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+
+                            item {
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    val proCardColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                    Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
+                                        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Graves", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                            Text("${tempBass.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                                            Slider(value = tempBass.value, onValueChange = { tempBass.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
+                                        }
+                                    }
+                                    Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
+                                        Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+                                            Text("Virtual 3D", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                            Text("${tempVirtualizer.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
+                                            Slider(value = tempVirtualizer.value, onValueChange = { tempVirtualizer.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (showSaveCustomDialog.value) {
+                        AlertDialog(
+                            onDismissRequest = { showSaveCustomDialog.value = false },
+                            title = { Text("Guardar Preset") },
+                            text = { OutlinedTextField(value = customPresetName.value, onValueChange = { customPresetName.value = it }, label = { Text("Nombre del Preset") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+                            confirmButton = {
+                                Button(onClick = {
+                                    val name = customPresetName.value.trim()
+                                    if (name.isNotEmpty() && !basePresets.contains(name)) {
+                                        val newList = customPresetsList.toMutableList()
+                                        if (!newList.contains(name)) newList.add(name)
+                                        sharedPrefs.edit().putString("custom_preset_names", newList.joinToString(",")).apply()
+
+                                        val bandsStr = tempSliders.joinToString(",") { it.value.toString() }
+                                        sharedPrefs.edit()
+                                            .putString("preset_${name}_bands", bandsStr)
+                                            .putFloat("preset_${name}_bass", tempBass.value)
+                                            .putFloat("preset_${name}_virt", tempVirtualizer.value)
+                                            .putFloat("preset_${name}_loud", tempLoudness.value)
+                                            .putInt("preset_${name}_reverb", tempReverb.value)
+                                            .apply()
+
+                                        tempPreset.value = name
+                                        showSaveCustomDialog.value = false
+                                        Toast.makeText(context, "Preset guardado con éxito", Toast.LENGTH_SHORT).show()
+                                    }
+                                }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                            },
+                            dismissButton = { TextButton(onClick = { showSaveCustomDialog.value = false }) { Text("Cancelar") } }
+                        )
+                    }
                 }
             }
         }

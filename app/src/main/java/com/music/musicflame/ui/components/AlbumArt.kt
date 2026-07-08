@@ -19,7 +19,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
@@ -54,7 +55,7 @@ fun AlbumArt(
         contentAlignment = Alignment.Center
     ) {
         if (albumArtUri != null) {
-            AsyncImage(
+            SubcomposeAsyncImage(
                 // Aquí le decimos qué archivo cargar y le ponemos un suavizado (crossfade)
                 model = ImageRequest.Builder(context)
                     .data(albumArtUri)
@@ -65,7 +66,23 @@ fun AlbumArt(
                 contentDescription = "Carátula",
                 modifier = Modifier.size(size),
                 contentScale = ContentScale.Crop
-            )
+            ) {
+                val painterState = painter.state
+                if (painterState is coil.compose.AsyncImagePainter.State.Success) {
+                    // Se encontró la carátula: mostramos la imagen real
+                    SubcomposeAsyncImageContent()
+                } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
+                    // No hay carátula (o falló la URI heredada de MediaStore en Android 10+):
+                    // mostramos el ícono de nota musical sobre el cuadro gris
+                    Icon(
+                        Icons.Filled.MusicNote,
+                        contentDescription = null,
+                        modifier = Modifier.size(size / 2),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                // Mientras carga (Loading) no mostramos nada: se ve el fondo gris de la Box
+            }
         } else {
             Icon(
                 Icons.Filled.MusicNote,

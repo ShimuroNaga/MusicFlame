@@ -28,11 +28,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil.compose.SubcomposeAsyncImage
+import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
+import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -60,7 +62,9 @@ fun FullScreenPlayer(
     val currentCycleState = playerManager.cycleMode.value
 
     val bgColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.65f) else MaterialTheme.colorScheme.background
-    val adaptiveContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onBackground
+
+    // <-- AQUÍ SUCEDE LA MAGIA: Al cambiar esto a LocalAppTextColor, se propaga automáticamente a todos los textos e íconos de esta pantalla
+    val adaptiveContentColor = if (hasBackgroundImage) Color.White else LocalAppTextColor.current
 
     val initialIndex = songList.indexOf(song).coerceAtLeast(0)
     val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { songList.size })
@@ -182,12 +186,22 @@ fun FullScreenPlayer(
                         contentAlignment = Alignment.Center
                     ) {
                         if (pageSong.albumArtUri != null) {
-                            AsyncImage(
+                            SubcomposeAsyncImage(
                                 model = ImageRequest.Builder(context).data(pageSong.albumArtUri).crossfade(true).build(),
                                 contentDescription = "Carátula",
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
-                            )
+                            ) {
+                                val painterState = painter.state
+                                if (painterState is coil.compose.AsyncImagePainter.State.Success) {
+                                    // Carátula encontrada: mostramos la imagen real
+                                    SubcomposeAsyncImageContent()
+                                } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
+                                    // No hay carátula real (o la URI falló): mostramos el ícono
+                                    Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
+                                }
+                                // Mientras carga no mostramos nada: se ve el fondo gris de la Box
+                            }
                         } else {
                             Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
                         }

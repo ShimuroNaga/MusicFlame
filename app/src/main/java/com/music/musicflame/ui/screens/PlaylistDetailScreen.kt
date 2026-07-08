@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.*
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.theme.LocalAppTextColor // <-- Import agregado
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -223,7 +224,7 @@ fun PlaylistDetailScreen(
                                         }
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Orden original")
+                                    Text("Orden original", color = LocalAppTextColor.current)
                                 }
                             },
                             onClick = {
@@ -246,7 +247,7 @@ fun PlaylistDetailScreen(
                                         }
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("A - Z")
+                                    Text("A - Z", color = LocalAppTextColor.current)
                                 }
                             },
                             onClick = {
@@ -269,7 +270,7 @@ fun PlaylistDetailScreen(
                                         }
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Z - A")
+                                    Text("Z - A", color = LocalAppTextColor.current)
                                 }
                             },
                             onClick = {
@@ -315,7 +316,7 @@ fun PlaylistDetailScreen(
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Reproducir", fontWeight = FontWeight.Bold)
+                        Text("Reproducir", fontWeight = FontWeight.Bold) // No se toca por estar en botón primario
                     }
 
                     // Botón Mezclar (Secundario)
@@ -466,10 +467,14 @@ fun SongItemCard(
     onToggleSelection: (() -> Unit)? = null
 ) {
     // Animación suave del color de fondo al ser seleccionado
+    // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
     val backgroundColor by animateColorAsState(
         targetValue = when {
             isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
-            hasBackgroundImage -> Color.Black.copy(alpha = 0.5f)
+            hasBackgroundImage -> {
+                if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
+                else Color.Black.copy(alpha = 0.5f)
+            }
             else -> MaterialTheme.colorScheme.surfaceContainerHigh
         },
         label = "selectionColor"
@@ -543,12 +548,14 @@ fun SongItemCard(
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                    // <-- Aplicando LocalAppTextColor
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
                 )
                 Text(
                     text = song.artist,
                     fontSize = 13.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    // <-- Aplicando LocalAppTextColor con transparencia para el texto secundario
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else LocalAppTextColor.current.copy(alpha = 0.7f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

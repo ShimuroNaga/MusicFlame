@@ -39,6 +39,11 @@ class SettingsRepository(context: Context) {
     fun getCarouselStyle(): String = prefs.getString("carousel_style", "Desactivar") ?: "Desactivar"
     fun saveCarouselStyle(style: String) = prefs.edit().putString("carousel_style", style).apply()
 
+    // --- COLOR DE TEXTO GLOBAL ---
+    // Valores posibles: "Negro" o "Blanco". Controla LocalAppTextColor en toda la app.
+    fun getAppTextColor(): String = prefs.getString("app_text_color", "Negro") ?: "Negro"
+    fun saveAppTextColor(color: String) = prefs.edit().putString("app_text_color", color).apply()
+
     // --- REPRODUCCIÓN Y CUENTA ---
     fun getPlayInBackground(): Boolean = prefs.getBoolean("play_in_background", true)
     fun savePlayInBackground(enabled: Boolean) = prefs.edit().putBoolean("play_in_background", enabled).apply()

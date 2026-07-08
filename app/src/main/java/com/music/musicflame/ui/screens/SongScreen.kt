@@ -29,6 +29,7 @@ import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.SearchMode
 import com.music.musicflame.data.*
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -65,6 +66,9 @@ fun SongsScreen(
     val isRounded = LocalUseRoundCorners.current
     val cardRadius = if (isRounded) 16.dp else 0.dp
     val albumRadius = if (isRounded) 8.dp else 0.dp
+
+    // Color de texto normal para toda la pantalla, controlado desde Ajustes > Color de texto.
+    val normalTextColor = LocalAppTextColor.current
 
     val refreshSongs = {
         val trashedIds = trashRepo.getTrash().map { it.song.id }
@@ -177,13 +181,13 @@ fun SongsScreen(
                             Text(
                                 // El texto cambia dependiendo de si el usuario vinculó su cuenta o no
                                 text = if (isYoutubeLoggedIn) "Tus videos favoritos y búsqueda" else "Tendencias y búsqueda en YouTube",
-                                color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface,
+                                color = normalTextColor,
                                 fontWeight = FontWeight.Medium
                             )
                         } else {
                             Text(
                                 text = "Buscando: \"$searchQuery\"...",
-                                color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface,
+                                color = normalTextColor,
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 18.sp
                             )
@@ -226,12 +230,12 @@ fun SongsScreen(
                                         fontSize = 16.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                                        color = normalTextColor
                                     )
                                     Text(
                                         text = song.artist,
                                         fontSize = 13.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = normalTextColor.copy(alpha = 0.7f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )
@@ -317,12 +321,12 @@ fun SongsScreen(
                                         fontSize = 16.sp,
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor
                                     )
                                     Text(
                                         text = song.artist,
                                         fontSize = 13.sp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )

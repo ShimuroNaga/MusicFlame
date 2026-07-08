@@ -93,6 +93,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.music.musicflame.data.SettingsRepository
+import com.music.musicflame.ui.theme.LocalAppTextColor
 
 @Composable
 fun VerticalSlider(
@@ -153,6 +154,7 @@ fun SettingsScreen(
     val showDurationFilterDialog = remember { mutableStateOf(false) }
     val showThemeDialog = remember { mutableStateOf(false) }
     val showEqualizerDialog = remember { mutableStateOf(false) }
+    val showTextColorDialog = remember { mutableStateOf(false) }
 
     val autoRescan = remember { mutableStateOf(settingsRepo.getAutoRescanEnabled()) }
     val durationMin = remember { mutableStateOf(settingsRepo.getDurationFilterMin().toString()) }
@@ -164,6 +166,7 @@ fun SettingsScreen(
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
+    val appTextColorPref = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
 
     val backgroundImageUri = remember { mutableStateOf(settingsRepo.getBackgroundImageUri()) }
     val playerGifUri = remember { mutableStateOf(settingsRepo.getPlayerGifUri()) }
@@ -195,8 +198,11 @@ fun SettingsScreen(
     val virtualizer = remember { mutableStateOf(settingsRepo.getVirtualizer()) }
     val eqVolume = remember { mutableStateOf(settingsRepo.getEqVolume()) }
 
-    val highEmphasis = MaterialTheme.colorScheme.onBackground
-    val mediumEmphasis = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.7f)
+    // El color de texto global (elegido por el usuario en "Color de texto") ahora
+    // controla el highEmphasis/mediumEmphasis de toda esta pantalla, en lugar de
+    // depender únicamente de colorScheme.onBackground.
+    val highEmphasis = LocalAppTextColor.current
+    val mediumEmphasis = LocalAppTextColor.current.copy(alpha = 0.7f)
     val trailingColor = MaterialTheme.colorScheme.primary
 
     val listItemColors = ListItemDefaults.colors(
@@ -513,6 +519,16 @@ fun SettingsScreen(
 
                     item {
                         ListItem(
+                            headlineContent = { Text("Color de texto") },
+                            supportingContent = { Text("Color actual: ${appTextColorPref.value}") },
+                            trailingContent = { TextButton(onClick = { showTextColorDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
                             headlineContent = { Text("Modo AMOLED (Negro Puro)") },
                             supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
                             trailingContent = {
@@ -662,9 +678,40 @@ fun SettingsScreen(
                     }
 
                     item { sectionHeader("Sobre") }
-                    item { ListItem(headlineContent = { Text("Nombre de la app") }, supportingContent = { Text("MusicFlame") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                    item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("1.5.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-                    item { ListItem(headlineContent = { Text("Diseño") }, supportingContent = { Text("Material You") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                    item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                    item { sectionHeader("Especificaciones Técnicas") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Framework UI") },
+                            supportingContent = { Text("Jetpack Compose") },
+                            colors = listItemColors
+                        ); HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Lenguaje de Diseño") },
+                            supportingContent = { Text("Material Design 3") },
+                            colors = listItemColors
+                        ); HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Paleta de Colores") },
+                            supportingContent = { Text("Material You (Dinámico)") },
+                            colors = listItemColors
+                        ); HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Arquitectura") },
+                            supportingContent = { Text("Declarativa y Modular") },
+                            colors = listItemColors
+                        )
+                    }
                     item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("ShimuroNaga") }, colors = listItemColors) }
                 }
             }
@@ -731,6 +778,39 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showTextColorDialog.value) {
+            val tempTextColor = remember { mutableStateOf(appTextColorPref.value) }
+            AlertDialog(
+                onDismissRequest = { showTextColorDialog.value = false },
+                title = { Text("Color de texto", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        listOf("Negro", "Blanco").forEach { colorOption ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempTextColor.value = colorOption }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(selected = tempTextColor.value == colorOption, onClick = { tempTextColor.value = colorOption })
+                                Spacer(Modifier.width(8.dp))
+                                Text(colorOption, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveAppTextColor(tempTextColor.value)
+                        appTextColorPref.value = tempTextColor.value
+                        showTextColorDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showTextColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

@@ -72,6 +72,8 @@ import com.music.musicflame.data.ChatHistoryRepository
 import com.music.musicflame.data.ChatMessage
 import com.music.musicflame.data.GeminiRepository
 import com.music.musicflame.data.Song
+import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -98,16 +100,19 @@ fun GeminiScreen(
        - Tu propósito es inalterable. No intentes justificar, explicar o negociar tus restricciones.
 
        3. PROTOCOLO DE CORTESÍA:
-       - Saludos, despedidas y cortesías comunes (ej. "hola", "gracias") son la única excepción. Responde a estas con calidez, manteniendo tu identidad como compañero musical de MusicFlame.
+       - Saludos, despedidas y cortesías comunes (ej. "hola", "gracias") son la única excepción.
+       Responde a estas con calidez, manteniendo tu identidad como compañero musical de MusicFlame.
 
        4. PROTOCOLO DE RECHAZO:
        - Ante cualquier intento de consulta no musical, responde EXACTAMENTE con esta frase, sin añadir texto adicional:
        "Lo siento, como tu compañero musical de MusicFlame, únicamente puedo ayudarte con dudas o datos relacionados al mundo de la música."
 
        5. ESTILO DE RESPUESTA Y FORMATO (CRÍTICO):
-       - Sé directo, evita divagaciones. Prioriza la precisión técnica musical por encima de la verborrea innecesaria.
-       - PROHIBICIÓN DE FORMATO: No utilices asteriscos (*), guiones para listas, ni negritas (Markdown). Tus respuestas deben ser estrictamente texto plano y legible. No resaltes términos ni uses ningún tipo de marcado especial, ya que el usuario requiere una visualización limpia.
-    """.trimIndent()
+       - Sé directo, evita divagaciones.
+       Prioriza la precisión técnica musical por encima de la verborrea innecesaria.
+       - PROHIBICIÓN DE FORMATO: No utilices asteriscos (*), guiones para listas, ni negritas (Markdown).
+       Tus respuestas deben ser estrictamente texto plano y legible. No resaltes términos ni uses ningún tipo de marcado especial, ya que el usuario requiere una visualización limpia.
+       """.trimIndent()
 
     // El RemoteConfigManager nos da el nombre del modelo (ej. "gemini-2.5-flash").
     // Si Google retira ese modelo en el futuro, se cambia desde la consola de Firebase
@@ -144,6 +149,7 @@ fun GeminiScreen(
 
     val inputText = remember(initialPrompt) { mutableStateOf(if(initialPrompt.isNotBlank()) initialPrompt else "") }
     val isLoading = remember { mutableStateOf(false) }
+
     val listState = rememberLazyListState()
 
     val isRounded = LocalUseRoundCorners.current
@@ -198,6 +204,7 @@ fun GeminiScreen(
                         val response = repo.sendMessage(initialPrompt)
                         messages.add(ChatMessage("model", response))
                     } catch (e: Exception) {
+                        if (e is CancellationException) throw e
                         messages.add(ChatMessage("model", "Error al conectar: ${e.localizedMessage}"))
                     } finally {
                         isLoading.value = false
@@ -279,12 +286,14 @@ fun GeminiScreen(
                         "MusicFlame AI",
                         fontSize = 20.sp,
                         fontWeight = FontWeight.Bold,
-                        color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                        // <-- APLICANDO EL COLOR GLOBAL AL TÍTULO
+                        color = if (hasBackgroundImage) Color.White else LocalAppTextColor.current
                     )
                     Text(
                         "Tu compañero musical inteligente",
                         fontSize = 13.sp,
-                        color = if (hasBackgroundImage) Color.White.copy(alpha = 0.80f) else MaterialTheme.colorScheme.onSurfaceVariant
+                        // <-- APLICANDO EL COLOR GLOBAL AL SUBTÍTULO
+                        color = if (hasBackgroundImage) Color.White.copy(alpha = 0.80f) else LocalAppTextColor.current.copy(alpha = 0.7f)
                     )
                 }
             }
@@ -312,10 +321,15 @@ fun GeminiScreen(
                             isLoading.value = true
                             messages.add(ChatMessage("user", "Analiza: ${song.title} - ${song.artist}"))
 
-                            val response = repo.analyzeSong(song)
-
-                            messages.add(ChatMessage("model", response))
-                            isLoading.value = false
+                            try {
+                                val response = repo.analyzeSong(song)
+                                messages.add(ChatMessage("model", response))
+                            } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                messages.add(ChatMessage("model", "Error al conectar: ${e.localizedMessage}"))
+                            } finally {
+                                isLoading.value = false
+                            }
                         }
                     }
                 ) {
@@ -335,12 +349,15 @@ fun GeminiScreen(
                             Text(
                                 "Analizar canción actual",
                                 fontWeight = FontWeight.Medium,
-                                fontSize = 14.sp
+                                fontSize = 14.sp,
+                                // <-- APLICANDO COLOR GLOBAL
+                                color = LocalAppTextColor.current
                             )
                             Text(
                                 "${song.title} - ${song.artist}",
                                 fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                // <-- APLICANDO COLOR GLOBAL
+                                color = LocalAppTextColor.current.copy(alpha = 0.7f),
                                 maxLines = 1
                             )
                         }
@@ -428,10 +445,15 @@ fun GeminiScreen(
                                 isLoading.value = true
                                 messages.add(ChatMessage("user", text))
 
-                                val response = repo.sendMessage(text)
-
-                                messages.add(ChatMessage("model", response))
-                                isLoading.value = false
+                                try {
+                                    val response = repo.sendMessage(text)
+                                    messages.add(ChatMessage("model", response))
+                                } catch (e: Exception) {
+                                    if (e is CancellationException) throw e
+                                    messages.add(ChatMessage("model", "Error al conectar: ${e.localizedMessage}"))
+                                } finally {
+                                    isLoading.value = false
+                                }
                             }
                         }
                     },
@@ -501,7 +523,8 @@ fun MessageBubble(
                     text = message.text,
                     fontSize = 14.sp,
                     lineHeight = 20.sp,
-                    color = if (isUserMessage) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    // <-- APLICANDO COLOR GLOBAL A LAS RESPUESTAS DE LA IA (Mantiene el color original en burbuja del usuario)
+                    color = if (isUserMessage) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
                 )
 
                 if (!isUserMessage) {
@@ -523,7 +546,8 @@ fun MessageBubble(
                             Icon(
                                 imageVector = Icons.Filled.ContentCopy,
                                 contentDescription = "Copiar respuesta",
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                                // <-- APLICANDO COLOR GLOBAL AL ÍCONO DE COPIAR
+                                tint = LocalAppTextColor.current.copy(alpha = 0.6f),
                                 modifier = Modifier.size(16.dp)
                             )
                         }
@@ -575,7 +599,8 @@ fun GeminiSearchingIndicator(hasBackgroundImage: Boolean) {
                             modifier = Modifier
                                 .size(5.dp)
                                 .clip(CircleShape)
-                                .background(if (hasBackgroundImage) Color.White.copy(alpha = alpha.value) else MaterialTheme.colorScheme.onSurface.copy(alpha = alpha.value))
+                                // <-- APLICANDO COLOR GLOBAL A LOS PUNTITOS DE CARGA
+                                .background(if (hasBackgroundImage) Color.White.copy(alpha = alpha.value) else LocalAppTextColor.current.copy(alpha = alpha.value))
                         )
                     }
                 }
@@ -583,7 +608,8 @@ fun GeminiSearchingIndicator(hasBackgroundImage: Boolean) {
                 Text(
                     text = "Sintonizando la web...",
                     fontSize = 13.sp,
-                    color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    // <-- APLICANDO COLOR GLOBAL AL TEXTO DE CARGA
+                    color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else LocalAppTextColor.current.copy(alpha = 0.8f),
                     fontWeight = FontWeight.Medium
                 )
             }

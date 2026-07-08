@@ -26,6 +26,7 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
+import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.TransparentCardDefaults
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
@@ -157,14 +158,16 @@ fun MiniPlayer(
                 Text(
                     text = if (currentSong != null) formatDuration(currentMs.longValue) else "0:00",
                     fontSize = 10.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    // <-- APLICANDO COLOR GLOBAL SECUNDARIO
+                    color = LocalAppTextColor.current.copy(alpha = 0.7f)
                 )
                 Text(
                     text = if (currentSong != null) formatDuration(totalDuration) else "0:00",
                     fontSize = 10.sp,
                     modifier = Modifier.weight(1f),
                     textAlign = TextAlign.End,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    // <-- APLICANDO COLOR GLOBAL SECUNDARIO
+                    color = LocalAppTextColor.current.copy(alpha = 0.7f)
                 )
             }
 
@@ -192,18 +195,20 @@ fun MiniPlayer(
                             fontSize = 14.sp,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
-                            color = MaterialTheme.colorScheme.onSurface
+                            // <-- APLICANDO COLOR GLOBAL PRINCIPAL
+                            color = LocalAppTextColor.current
                         )
                         Text(
                             text = currentSong?.artist ?: "Selecciona una canción",
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            // <-- APLICANDO COLOR GLOBAL SECUNDARIO
+                            color = LocalAppTextColor.current.copy(alpha = 0.7f),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    // Controles de audio
+                    // Controles de audio (Los colores de los íconos se mantienen intactos)
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         // Botón Cíclico
                         IconButton(

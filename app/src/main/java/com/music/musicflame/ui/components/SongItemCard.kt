@@ -20,6 +20,7 @@ import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.data.Song
+import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -33,9 +34,13 @@ fun SongItemCard(
     isSelectionMode: Boolean = false,
     onToggleSelection: () -> Unit = {}
 ) {
+    // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
-        hasBackgroundImage -> Color.Black.copy(alpha = 0.5f)
+        hasBackgroundImage -> {
+            if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
+            else Color.Black.copy(alpha = 0.5f)
+        }
         else -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
@@ -78,12 +83,14 @@ fun SongItemCard(
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                    // <-- APLICANDO EL COLOR GLOBAL (Mantiene el color de selección si está activa)
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
                 )
                 Text(
                     text = song.artist,
                     fontSize = 13.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    // <-- APLICANDO EL COLOR GLOBAL CON TRANSPARENCIA
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else LocalAppTextColor.current.copy(alpha = 0.7f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

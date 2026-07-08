@@ -79,6 +79,7 @@ import com.music.musicflame.data.Playlist
 import com.music.musicflame.data.PlaylistRepository
 import com.music.musicflame.data.loadSongsFromDevice
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.BufferedWriter
@@ -199,7 +200,7 @@ fun PlaylistsScreen(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         floatingActionButton = {
-            if (!isSelectionMode) { // Solo mostrar FABs si NO estamos seleccionando
+            if (!isSelectionMode) {
                 Column(
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
@@ -224,7 +225,7 @@ fun PlaylistsScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                         RadioButton(selected = sortType.value == PlaylistSortType.DATE_CREATED, onClick = { sortType.value = PlaylistSortType.DATE_CREATED; showSortMenu.value = false })
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Fecha creada")
+                                        Text("Fecha creada", color = LocalAppTextColor.current)
                                     }
                                 },
                                 onClick = { sortType.value = PlaylistSortType.DATE_CREATED; showSortMenu.value = false }
@@ -234,7 +235,7 @@ fun PlaylistsScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                         RadioButton(selected = sortType.value == PlaylistSortType.A_Z, onClick = { sortType.value = PlaylistSortType.A_Z; showSortMenu.value = false })
                                         Spacer(Modifier.width(8.dp))
-                                        Text("A - Z")
+                                        Text("A - Z", color = LocalAppTextColor.current)
                                     }
                                 },
                                 onClick = { sortType.value = PlaylistSortType.A_Z; showSortMenu.value = false }
@@ -244,7 +245,7 @@ fun PlaylistsScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                         RadioButton(selected = sortType.value == PlaylistSortType.Z_A, onClick = { sortType.value = PlaylistSortType.Z_A; showSortMenu.value = false })
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Z - A")
+                                        Text("Z - A", color = LocalAppTextColor.current)
                                     }
                                 },
                                 onClick = { sortType.value = PlaylistSortType.Z_A; showSortMenu.value = false }
@@ -429,10 +430,17 @@ fun PlaylistCard(
     val albumRadius = if (isRounded) 12.dp else 0.dp
     val dialogRadius = if (isRounded) 28.dp else 0.dp
 
+    // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
         isFavorites -> if (hasBackgroundImage) Color(0xFF8B1A2A).copy(alpha = 0.5f) else Color(0xFF8B1A2A)
-        else -> if (hasBackgroundImage) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerHigh
+        else -> if (hasBackgroundImage) {
+            // Si el tema es claro, la tarjeta es blanca; si es oscuro, negra.
+            if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
+            else Color.Black.copy(alpha = 0.5f)
+        } else {
+            MaterialTheme.colorScheme.surfaceContainerHigh
+        }
     }
 
     Card(
@@ -502,12 +510,12 @@ fun PlaylistCard(
                     text = playlist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (isFavorites || hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (isFavorites) Color.White else LocalAppTextColor.current
                 )
                 Text(
                     text = "$songCount ${if (songCount == 1) "canción" else "canciones"} • $totalDurationFormatted",
                     fontSize = 13.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (isFavorites || hasBackgroundImage) Color.White.copy(alpha = 0.85f) else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (isFavorites) Color.White.copy(alpha = 0.85f) else LocalAppTextColor.current.copy(alpha = 0.7f)
                 )
             }
         }

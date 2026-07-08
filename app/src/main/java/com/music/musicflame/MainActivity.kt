@@ -57,6 +57,7 @@ import com.music.musicflame.navigation.Screen
 import com.music.musicflame.navigation.bottomNavItems
 import com.music.musicflame.ui.screens.*
 import com.music.musicflame.ui.theme.MusicFlameTheme
+import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -301,8 +302,11 @@ class MainActivity : ComponentActivity() {
                 var showSelectionMenu by remember { mutableStateOf(false) }
                 var showPlaylistSelectionMenu by remember { mutableStateOf(false) }
                 var showMultiPlaylistDialog by remember { mutableStateOf(false) }
+                var showCreatePlaylistFromSelection by remember { mutableStateOf(false) }
+                var newPlaylistNameFromSelection by remember { mutableStateOf("") }
                 var showMultiDeleteDialog by remember { mutableStateOf(false) }
                 var showDeletePlaylistsDialog by remember { mutableStateOf(false) }
+
 
                 var youtubeVideoId by remember { mutableStateOf<String?>(null) }
                 var youtubeRecommendedSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
@@ -447,6 +451,7 @@ class MainActivity : ComponentActivity() {
 
                     selectedSongs.clear()
                     selectedPlaylists.clear()
+                    messages.clear()
                     if (currentScreen != Screen.Gemini) geminiPrompt = ""
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
                 }
@@ -489,24 +494,42 @@ class MainActivity : ComponentActivity() {
 
                                             DropdownMenu(expanded = showSelectionMenu, onDismissRequest = { showSelectionMenu = false }) {
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Añadir a playlist") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Añadir a playlist") } },
                                                     onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }
                                                 )
+                                                run {
+                                                    val allSelectedAreFavorites = selectedSongs.isNotEmpty() && selectedSongs.all { favoriteIds.contains(it.id) }
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Icon(
+                                                                    if (allSelectedAreFavorites) Icons.Filled.HeartBroken else Icons.Filled.Favorite,
+                                                                    null,
+                                                                    modifier = Modifier.size(20.dp),
+                                                                    tint = Color(0xFFE91E63)
+                                                                )
+                                                                Spacer(Modifier.width(8.dp))
+                                                                Text(if (allSelectedAreFavorites) "Quitar de favoritos" else "Añadir a favoritos")
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            showSelectionMenu = false
+                                                            if (allSelectedAreFavorites) {
+                                                                selectedSongs.forEach { song -> if (favoriteIds.contains(song.id)) favoritesRepo.toggleFavorite(song.id) }
+                                                            } else {
+                                                                selectedSongs.forEach { song -> if (!favoriteIds.contains(song.id)) favoritesRepo.toggleFavorite(song.id) }
+                                                            }
+                                                            favoriteIds = favoritesRepo.getAllFavoriteIds()
+                                                            val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
+                                                            intent.setPackage(packageName)
+                                                            sendBroadcast(intent)
+                                                            Toast.makeText(context, if (allSelectedAreFavorites) "${selectedSongs.size} quitadas de Favoritos" else "${selectedSongs.size} añadidas a Favoritos", Toast.LENGTH_SHORT).show()
+                                                            selectedSongs.clear()
+                                                        }
+                                                    )
+                                                }
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Favorite, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Añadir a favoritos") } },
-                                                    onClick = {
-                                                        showSelectionMenu = false
-                                                        selectedSongs.forEach { song -> if (!favoriteIds.contains(song.id)) favoritesRepo.toggleFavorite(song.id) }
-                                                        favoriteIds = favoritesRepo.getAllFavoriteIds()
-                                                        val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
-                                                        intent.setPackage(packageName)
-                                                        sendBroadcast(intent)
-                                                        Toast.makeText(context, "${selectedSongs.size} añadidas a Favoritos", Toast.LENGTH_SHORT).show()
-                                                        selectedSongs.clear()
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
                                                     onClick = {
                                                         showSelectionMenu = false
                                                         geminiPrompt = "Analiza y recomiéndame música basándote en estas canciones: " + selectedSongs.joinToString(", ") { it.title }
@@ -515,7 +538,7 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 )
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mover a papelera") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Mover a papelera") } },
                                                     onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }
                                                 )
                                             }
@@ -533,7 +556,7 @@ class MainActivity : ComponentActivity() {
 
                                             DropdownMenu(expanded = showPlaylistSelectionMenu, onDismissRequest = { showPlaylistSelectionMenu = false }) {
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         val allSongs = loadSongsFromDevice(context)
@@ -548,7 +571,20 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 )
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Eliminar", color = MaterialTheme.colorScheme.error) } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Download, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary); Spacer(Modifier.width(8.dp)); Text("Exportar a M3U") } },
+                                                    onClick = {
+                                                        showPlaylistSelectionMenu = false
+                                                        var successCount = 0
+                                                        selectedPlaylists.forEach { playlist ->
+                                                            val exportable = if (playlist.id == "favorites") playlist.copy(songIds = favoriteIds.toList()) else playlist
+                                                            if (playlistRepo.exportToM3U(context, exportable)) successCount++
+                                                        }
+                                                        Toast.makeText(context, "$successCount de ${selectedPlaylists.size} exportadas a Descargas", Toast.LENGTH_SHORT).show()
+                                                        selectedPlaylists.clear()
+                                                    }
+                                                )
+                                                DropdownMenuItem(
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mover a papelera", color = MaterialTheme.colorScheme.error) } },
                                                     onClick = { showPlaylistSelectionMenu = false; showDeletePlaylistsDialog = true }
                                                 )
                                             }
@@ -611,9 +647,11 @@ class MainActivity : ComponentActivity() {
                                                         Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
                                                             if (searchQuery.isEmpty()) {
                                                                 val hintText = if (searchMode == SearchMode.LOCAL) "Buscar en dispositivo..." else "Buscar en YouTube..."
-                                                                Text(hintText, fontSize = 14.sp, color = if (hasBackgroundImage) Color.White.copy(alpha = 0.5f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+                                                                // Texto placeholder: ahora sigue el color de texto global elegido en Ajustes.
+                                                                Text(hintText, fontSize = 14.sp, color = LocalAppTextColor.current.copy(alpha = 0.5f))
                                                             }
-                                                            BasicTextField(value = searchQuery, onValueChange = { searchQuery = it }, singleLine = true, textStyle = TextStyle(fontSize = 15.sp, color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface), cursorBrush = SolidColor(if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), modifier = Modifier.fillMaxWidth())
+                                                            // Texto que el usuario escribe en el buscador: mismo color global.
+                                                            BasicTextField(value = searchQuery, onValueChange = { searchQuery = it }, singleLine = true, textStyle = TextStyle(fontSize = 15.sp, color = LocalAppTextColor.current), cursorBrush = SolidColor(if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), modifier = Modifier.fillMaxWidth())
                                                         }
 
                                                         IconButton(onClick = { if (searchQuery.isNotEmpty()) searchQuery = "" else isSearchActive = false }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Cerrar", modifier = Modifier.size(18.dp), tint = if (hasBackgroundImage) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant) }
@@ -640,7 +678,8 @@ class MainActivity : ComponentActivity() {
                                         },
                                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                             containerColor = if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.surface,
-                                            titleContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface,
+                                            // Título de la barra ("MusicFlame" / "Ajustes" / nombre de playlist): color de texto global.
+                                            titleContentColor = LocalAppTextColor.current,
                                             navigationIconContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface,
                                             actionIconContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -739,6 +778,7 @@ class MainActivity : ComponentActivity() {
                                             SongsScreen(
                                                 onSongClick = { song, list ->
                                                     if (searchMode == SearchMode.LOCAL) {
+                                                        songList = list
                                                         playerManager.playSong(song, list)
                                                     } else {
                                                         youtubeVideoId = song.youtubeVideoId
@@ -814,29 +854,88 @@ class MainActivity : ComponentActivity() {
                                     onDismissRequest = { showMultiPlaylistDialog = false },
                                     title = { Text("Añadir a playlist", fontWeight = FontWeight.Bold) },
                                     text = {
-                                        if (playlists.isEmpty()) {
-                                            Text("No tienes playlists creadas.")
-                                        } else {
-                                            LazyColumn(modifier = Modifier.fillMaxWidth()) {
-                                                items(playlists) { playlist ->
-                                                    Text(
-                                                        text = playlist.name,
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .clickable {
-                                                                selectedSongs.forEach { playlistRepo.addSongToPlaylist(playlist.id, it.id) }
-                                                                Toast.makeText(context, "${selectedSongs.size} canciones añadidas a ${playlist.name}", Toast.LENGTH_SHORT).show()
-                                                                showMultiPlaylistDialog = false
-                                                                selectedSongs.clear()
-                                                            }
-                                                            .padding(vertical = 12.dp, horizontal = 8.dp),
-                                                        fontSize = 16.sp
-                                                    )
+                                        Column(modifier = Modifier.fillMaxWidth()) {
+                                            // --- Opción para crear una playlist nueva sin salir del flujo ---
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clickable {
+                                                        showMultiPlaylistDialog = false
+                                                        newPlaylistNameFromSelection = ""
+                                                        showCreatePlaylistFromSelection = true
+                                                    }
+                                                    .padding(vertical = 12.dp, horizontal = 8.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(Icons.Filled.Add, null, tint = MaterialTheme.colorScheme.primary)
+                                                Spacer(Modifier.width(8.dp))
+                                                Text("Crear nueva playlist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                                            }
+
+                                            HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                                            if (playlists.isEmpty()) {
+                                                Text("No tienes playlists creadas.", modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp))
+                                            } else {
+                                                LazyColumn(modifier = Modifier.fillMaxWidth()) {
+                                                    items(playlists) { playlist ->
+                                                        Text(
+                                                            text = playlist.name,
+                                                            modifier = Modifier
+                                                                .fillMaxWidth()
+                                                                .clickable {
+                                                                    selectedSongs.forEach { playlistRepo.addSongToPlaylist(playlist.id, it.id) }
+                                                                    Toast.makeText(context, "${selectedSongs.size} canciones añadidas a ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                                                    showMultiPlaylistDialog = false
+                                                                    selectedSongs.clear()
+                                                                }
+                                                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                                                            fontSize = 16.sp
+                                                        )
+                                                    }
                                                 }
                                             }
                                         }
                                     },
                                     confirmButton = { TextButton(onClick = { showMultiPlaylistDialog = false }) { Text("Cancelar") } }
+                                )
+                            }
+
+                            if (showCreatePlaylistFromSelection) {
+                                AlertDialog(
+                                    onDismissRequest = { showCreatePlaylistFromSelection = false },
+                                    title = { Text("Nueva Playlist", fontWeight = FontWeight.Bold) },
+                                    text = {
+                                        OutlinedTextField(
+                                            value = newPlaylistNameFromSelection,
+                                            onValueChange = { newPlaylistNameFromSelection = it },
+                                            label = { Text("Nombre") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                val trimmedName = newPlaylistNameFromSelection.trim()
+                                                if (trimmedName.isNotEmpty()) {
+                                                    playlistRepo.createPlaylist(trimmedName)
+                                                    val newPlaylist = playlistRepo.getAllPlaylists()
+                                                        .filter { it.name == trimmedName }
+                                                        .maxByOrNull { it.id.toLongOrNull() ?: 0L }
+                                                    if (newPlaylist != null) {
+                                                        selectedSongs.forEach { playlistRepo.addSongToPlaylist(newPlaylist.id, it.id) }
+                                                        Toast.makeText(context, "${selectedSongs.size} canciones añadidas a $trimmedName", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                    showCreatePlaylistFromSelection = false
+                                                    selectedSongs.clear()
+                                                }
+                                            }
+                                        ) { Text("Crear y añadir") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showCreatePlaylistFromSelection = false }) { Text("Cancelar") }
+                                    }
                                 )
                             }
 

@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -27,6 +28,7 @@ fun MusicFlameTheme(
     // Estados reactivos que almacenan las preferencias actuales del usuario
     val appThemeState = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val isAmoledState = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
+    val appTextColorState = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
 
     // Registrar un listener para detectar cambios en SharedPreferences en tiempo real
     DisposableEffect(context) {
@@ -37,6 +39,7 @@ fun MusicFlameTheme(
                 // Nota: Asegúrate de que "amoled_mode" sea exactamente el nombre
                 // de la clave que usas en tu SettingsRepository para guardar esta opción.
                 "amoled_mode" -> isAmoledState.value = settingsRepo.isAmoledModeEnabled()
+                "app_text_color" -> appTextColorState.value = settingsRepo.getAppTextColor()
             }
         }
 
@@ -74,8 +77,16 @@ fun MusicFlameTheme(
         baseColorScheme
     }
 
+    val appTextColor = when (appTextColorState.value) {
+        "Blanco" -> Color.White
+        else -> Color.Black
+    }
+
     MaterialTheme(
-        colorScheme = finalColorScheme,
-        content = content
-    )
+        colorScheme = finalColorScheme
+    ) {
+        CompositionLocalProvider(LocalAppTextColor provides appTextColor) {
+            content()
+        }
+    }
 }

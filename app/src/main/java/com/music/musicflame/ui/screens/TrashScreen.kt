@@ -60,6 +60,7 @@ import com.music.musicflame.data.Song
 import com.music.musicflame.data.TrashRepository
 import com.music.musicflame.data.TrashedSong
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.ui.utils.TransparentCardDefaults
 import java.io.File
 
@@ -230,6 +231,11 @@ fun TrashItemCard(
         else -> MaterialTheme.colorScheme.surfaceContainerHigh
     }
 
+    // Color de texto normal: sigue la preferencia global elegida en Ajustes ("Color de texto").
+    // Cuando la card está seleccionada, el fondo pasa a ser primaryContainer (un color sólido),
+    // así que ahí seguimos usando onPrimaryContainer para garantizar contraste correcto.
+    val normalTextColor = LocalAppTextColor.current
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -273,12 +279,12 @@ fun TrashItemCard(
                     fontSize = 15.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor
                 )
                 Text(
                     text = trashedSong.song.artist,
                     fontSize = 13.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
                     maxLines = 1
                 )
 
@@ -287,7 +293,7 @@ fun TrashItemCard(
                 Text(
                     text = if (daysLeft > 1) "Se elimina en $daysLeft días" else "Se elimina hoy",
                     fontSize = 11.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else (if (daysLeft <= 7) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant),
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else (if (daysLeft <= 7) MaterialTheme.colorScheme.error else normalTextColor.copy(alpha = 0.7f)),
                     fontWeight = if (daysLeft <= 7) FontWeight.Bold else FontWeight.Normal
                 )
             }
@@ -322,13 +328,13 @@ fun EmptyTrashView() {
             "Papelera vacía",
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = LocalAppTextColor.current
         )
         Spacer(Modifier.height(8.dp))
         Text(
             "Las canciones eliminadas aparecerán aquí",
             fontSize = 14.sp,
-            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+            color = LocalAppTextColor.current.copy(alpha = 0.7f)
         )
     }
 }

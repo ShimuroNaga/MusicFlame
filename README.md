@@ -36,7 +36,7 @@ MusicFlame es un reproductor de música versátil y moderno que combina tu bibli
 Descargar e instalar MusicFlame es muy sencillo. No necesitas compilar el código si solo quieres probar la app:
 
 1. Ve a la sección de [Releases](../../releases) de este repositorio.
-2. Busca la versión más reciente (etiqueta **Latest**).
+2. Busca la versión más reciente.
 3. Desplázate hacia abajo hasta el apartado **Assets** y descarga el archivo `.apk` (ej. `MusicFlame-v1.5.apk`).
 4. Abre el archivo en tu dispositivo Android. *(Es posible que debas conceder permisos para instalar aplicaciones de orígenes desconocidos).*
 5. ¡Listo! Abre la app, concede los permisos de lectura de audio y disfruta.

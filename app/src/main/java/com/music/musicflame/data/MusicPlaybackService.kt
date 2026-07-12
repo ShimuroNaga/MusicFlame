@@ -373,6 +373,19 @@ class MusicPlaybackService : MediaSessionService() {
 
     override fun onGetSession(controllerInfo: MediaSession.ControllerInfo): MediaSession? = mediaSession
 
+    // NUEVO: controla explícitamente qué pasa cuando el usuario cierra la app desde "recientes".
+    // Si tiene activado "Reproducir en segundo plano", no hacemos nada: el foreground service
+    // sigue vivo y ExoPlayer sigue sonando. Si lo tiene desactivado, cortamos todo aquí mismo
+    // en vez de depender del comportamiento por defecto de MediaSessionService.
+    override fun onTaskRemoved(rootIntent: Intent?) {
+        val playInBackground = sharedPrefs.getBoolean("play_in_background", true)
+        if (!playInBackground) {
+            player.pause()
+            player.stop()
+            stopSelf()
+        }
+    }
+
     override fun onDestroy() {
         unregisterReceiver(eqUpdateReceiver)
         unregisterReceiver(noisyReceiver)

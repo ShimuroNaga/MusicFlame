@@ -3,6 +3,7 @@ package com.music.musicflame.ui.screens
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectVerticalDragGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -14,6 +15,8 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -47,7 +50,8 @@ fun MiniPlayer(
     onExpand: () -> Unit,
     onPlayPause: () -> Unit,
     onSkipNext: () -> Unit,
-    onSkipPrevious: () -> Unit
+    onSkipPrevious: () -> Unit,
+    onSwipeDownToHide: () -> Unit = {} // NUEVO: se llama al deslizar el mini-reproductor hacia abajo
 ) {
     val progress = remember { mutableFloatStateOf(0f) }
     val currentMs = remember { mutableLongStateOf(0L) }
@@ -56,6 +60,10 @@ fun MiniPlayer(
 
     val isRounded = LocalUseRoundCorners.current
     val cornerRadius = if (isRounded) 24.dp else 0.dp
+
+    // NUEVO: acumulador del gesto de swipe hacia abajo (no confundir con isDragging del slider)
+    var dragAccumulator by remember { mutableFloatStateOf(0f) }
+    val dismissThresholdPx = with(LocalDensity.current) { 45.dp.toPx() }
 
     // Obtener duración total de forma segura
     val totalDuration = if (currentSong != null) {
@@ -112,6 +120,22 @@ fun MiniPlayer(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp) // Margen horizontal conservado para estética limpia
+            .pointerInput(Unit) {
+                detectVerticalDragGestures(
+                    onDragEnd = {
+                        if (dragAccumulator > dismissThresholdPx) {
+                            onSwipeDownToHide()
+                        }
+                        dragAccumulator = 0f
+                    },
+                    onVerticalDrag = { change, dragAmount ->
+                        if (dragAmount > 0) { // solo acumulamos el arrastre hacia ABAJO
+                            dragAccumulator += dragAmount
+                            change.consume()
+                        }
+                    }
+                )
+            }
             .clickable(enabled = currentSong != null) { onExpand() },
         shape = RoundedCornerShape(cornerRadius),
         colors = TransparentCardDefaults.surfaceContainer(hasBackgroundImage),

@@ -59,6 +59,13 @@ class MusicPlayerManager(private val context: Context) {
             // Sincronizar el estado inicial al conectar
             syncCycleModeState(controller)
 
+            // NUEVO: sincroniza la canción actual y si está reproduciendo AHORA MISMO.
+            // Es clave cuando el servicio ya venía reproduciendo música en segundo plano
+            // (p.ej. cerraste la app desde "recientes" y la vuelves a abrir): sin esto,
+            // el mini-reproductor aparecía vacío hasta la siguiente canción.
+            syncCurrentSongState(controller)
+            _isPlayingState.value = controller.isPlaying
+
             controller.addListener(object : Player.Listener {
                 private var lastIndex = controller.currentMediaItemIndex
 
@@ -71,8 +78,7 @@ class MusicPlayerManager(private val context: Context) {
                     }
                     lastIndex = currentIndex
 
-                    val currentMediaId = mediaItem?.mediaId
-                    _currentSong.value = currentPlaylist.find { it.id.toString() == currentMediaId }
+                    syncCurrentSongState(controller)
                 }
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -103,6 +109,34 @@ class MusicPlayerManager(private val context: Context) {
                 else -> _cycleMode.intValue = 0 // Normal (Flecha derecha)
             }
         }
+    }
+
+    // NUEVO: Averigua qué canción está sonando ahora en el reproductor y actualiza el estado reactivo.
+    // Si el MediaItem no está en nuestra playlist en memoria (por ejemplo, porque la Activity se
+    // recreó y perdió la lista al ser cerrada desde "recientes"), reconstruye un Song "ligero" a
+    // partir de los metadatos que ya guarda ExoPlayer, para que el mini-reproductor no quede vacío.
+    private fun syncCurrentSongState(controller: Player) {
+        val mediaItem = controller.currentMediaItem
+        if (mediaItem == null) {
+            _currentSong.value = null
+            return
+        }
+
+        val mediaId = mediaItem.mediaId
+        val songFromPlaylist = currentPlaylist.find { it.id.toString() == mediaId }
+        _currentSong.value = songFromPlaylist ?: buildSongFromMediaItem(mediaItem)
+    }
+
+    private fun buildSongFromMediaItem(mediaItem: MediaItem): Song {
+        val metadata = mediaItem.mediaMetadata
+        return Song(
+            id = mediaItem.mediaId.toLongOrNull() ?: 0L,
+            title = metadata.title?.toString() ?: "Desconocido",
+            artist = metadata.artist?.toString() ?: "",
+            duration = 0L, // La UI usa playerManager.duration en vivo, no este campo
+            path = mediaItem.localConfiguration?.uri?.toString() ?: "",
+            albumArtUri = metadata.artworkUri?.toString()
+        )
     }
 
     fun playSong(song: Song, songList: List<Song>) {

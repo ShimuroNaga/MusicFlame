@@ -4,7 +4,6 @@ import android.Manifest
 import android.content.pm.PackageManager
 import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
-import android.provider.MediaStore
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
@@ -61,7 +60,6 @@ import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
 import kotlin.math.abs
 import com.google.firebase.Firebase
 import com.google.firebase.appcheck.appCheck
@@ -74,8 +72,7 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.SetOptions
 import kotlinx.coroutines.tasks.await
 
-// ⚠️ Reemplaza esto con tu "Web Client ID" (tipo Aplicación Web) de Google Cloud Console.
-// Es el mismo que usarías para Credential Manager; aquí se usa para requestIdToken().
+// ⚠️ Reemplaza esto con tu "Web Client ID" de Google Cloud Console.
 private const val WEB_CLIENT_ID = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k.apps.googleusercontent.com"
 
 val LocalUseRoundCorners = compositionLocalOf { true }
@@ -108,17 +105,12 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    // --- 1. AÑADIMOS LA FUNCIÓN DE AYUDA PARA OBTENER EL TOKEN ---
     private suspend fun getYouTubeAccessToken(context: android.content.Context): String? {
         return withContext(Dispatchers.IO) {
             try {
-                // Obtenemos la cuenta activa actual
                 val account = GoogleSignIn.getLastSignedInAccount(context)?.account
                 if (account != null) {
-                    // El prefijo "oauth2:" es OBLIGATORIO para GoogleAuthUtil
                     val scope = "oauth2:https://www.googleapis.com/auth/youtube.readonly"
-
-                    // Esto devuelve el Access Token real en formato String
                     GoogleAuthUtil.getToken(context, account, scope)
                 } else {
                     null
@@ -151,11 +143,12 @@ class MainActivity : ComponentActivity() {
                 var userName by remember { mutableStateOf<String?>(null) }
                 var userPhotoUrl by remember { mutableStateOf<String?>(null) }
 
-                // --- Firebase Auth + Firestore (contador de cuentas vinculadas) ---
+                // --- Firebase Auth + Firestore ---
                 val firebaseAuth = remember { FirebaseAuth.getInstance() }
                 val firestore = remember { FirebaseFirestore.getInstance() }
                 var linkedAccountsCount by remember { mutableStateOf<Int?>(null) }
                 var isYouTubeLinked by remember { mutableStateOf(false) }
+                var isDriveLinked by remember { mutableStateOf(false) }
                 val authScope = rememberCoroutineScope()
 
                 suspend fun syncLinkedAccount(uid: String, name: String?, email: String?) {
@@ -207,13 +200,14 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
+                val driveScope = remember { Scope("https://www.googleapis.com/auth/drive.file") }
                 val youtubeScope = remember { Scope("https://www.googleapis.com/auth/youtube.readonly") }
                 val gso = remember {
                     GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
                         .requestEmail()
                         .requestProfile()
                         .requestIdToken(WEB_CLIENT_ID)
-                        .requestScopes(youtubeScope)
+                        .requestScopes(youtubeScope, driveScope)
                         .build()
                 }
                 val googleSignInClient = remember { GoogleSignIn.getClient(context, gso) }
@@ -225,20 +219,20 @@ class MainActivity : ComponentActivity() {
                         userName = account.displayName
                         userPhotoUrl = account.photoUrl?.toString()
                         isYouTubeLinked = GoogleSignIn.hasPermissions(account, youtubeScope)
+                        isDriveLinked = GoogleSignIn.hasPermissions(account, driveScope)
                         syncFirebaseSession(account.idToken, account.email, account.displayName)
                     }
                 }
 
                 val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-                    Toast.makeText(context, "DEBUG: callback de login recibido", Toast.LENGTH_SHORT).show()
                     val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
                     try {
                         val account = task.getResult(com.google.android.gms.common.api.ApiException::class.java)
-                        Toast.makeText(context, "DEBUG: cuenta obtenida, nombre=${account.displayName}", Toast.LENGTH_SHORT).show()
                         isUserLoggedIn = true
                         userName = account.displayName
                         userPhotoUrl = account.photoUrl?.toString()
                         isYouTubeLinked = GoogleSignIn.hasPermissions(account, youtubeScope)
+                        isDriveLinked = GoogleSignIn.hasPermissions(account, driveScope)
                         authScope.launch { syncFirebaseSession(account.idToken, account.email, account.displayName) }
                     } catch (e: Exception) {
                         Toast.makeText(context, "Error al iniciar sesión", Toast.LENGTH_SHORT).show()
@@ -259,6 +253,67 @@ class MainActivity : ComponentActivity() {
                 val settingsRepo = remember { SettingsRepository(context) }
                 val trashRepo = remember { TrashRepository(context) }
 
+                // --- SISTEMA DE ACTUALIZACIONES ---
+                val updatePreferences = remember { UpdatePreferences(context) }
+                val ignoredVersion by updatePreferences.ignoredVersionFlow.collectAsState(initial = null)
+
+                var showUpdateDialog by remember { mutableStateOf(false) }
+                var latestVersionTag by remember { mutableStateOf("") }
+                var latestReleaseUrl by remember { mutableStateOf("") }
+                val coroutineScope = rememberCoroutineScope()
+
+                fun checkForUpdates(isManualCheck: Boolean) {
+                    coroutineScope.launch(Dispatchers.IO) {
+                        try {
+                            val url = java.net.URL("https://api.github.com/repos/ShimuroNaga/MusicFlame/releases/latest")
+                            val connection = url.openConnection() as java.net.HttpURLConnection
+                            connection.requestMethod = "GET"
+                            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+
+                            if (connection.responseCode == 200) {
+                                val response = connection.inputStream.bufferedReader().use { it.readText() }
+
+                                val tagMatch = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(response)
+                                val apkMatch = "\"browser_download_url\"\\s*:\\s*\"([^\"]+\\.apk)\"".toRegex().find(response)
+
+                                if (tagMatch != null) {
+                                    val fetchedVersion = tagMatch.groupValues[1]
+                                    val downloadUrl = apkMatch?.groupValues?.get(1) ?: ""
+
+                                    val versionName = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+                                    val currentVersion = "v$versionName"
+
+                                    withContext(Dispatchers.Main) {
+                                        if (fetchedVersion > currentVersion) {
+                                            if (isManualCheck || ignoredVersion != fetchedVersion) {
+                                                latestVersionTag = fetchedVersion
+                                                latestReleaseUrl = downloadUrl
+                                                showUpdateDialog = true
+                                            } else if (isManualCheck) {
+                                                Toast.makeText(context, "Ya tienes la última versión", Toast.LENGTH_SHORT).show()
+                                            }
+                                        } else if (isManualCheck) {
+                                            Toast.makeText(context, "Estás al día", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                            if (isManualCheck) {
+                                withContext(Dispatchers.Main) {
+                                    Toast.makeText(context, "Error de red al buscar actualizaciones", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        }
+                    }
+                }
+
+                LaunchedEffect(Unit) {
+                    checkForUpdates(isManualCheck = false)
+                }
+                // ----------------------------------
+
                 val backgroundImageUri = remember { mutableStateOf(settingsRepo.getBackgroundImageUri()) }
                 val playerGifUri = remember { mutableStateOf(settingsRepo.getPlayerGifUri()) }
                 val bgBrightness = remember { mutableFloatStateOf(settingsRepo.getBackgroundBrightness()) }
@@ -266,7 +321,6 @@ class MainActivity : ComponentActivity() {
                 val useRoundCornersState = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
 
                 val pagerState = rememberPagerState(pageCount = { bottomNavItems.size })
-                val coroutineScope = rememberCoroutineScope()
 
                 val currentSong by playerManager.currentSong
                 val isPlaying by playerManager.isPlayingState
@@ -288,7 +342,10 @@ class MainActivity : ComponentActivity() {
                 val messages = remember { mutableStateListOf<ChatMessage>() }
 
                 var showFullScreenPlayer by remember { mutableStateOf(false) }
+
+                // --- Variables de Estado para Favoritos y Drive ---
                 var favoriteIds by remember { mutableStateOf(favoritesRepo.getAllFavoriteIds()) }
+                var syncedFileNames by remember { mutableStateOf(setOf<String>()) } // <-- NUEVO
 
                 val selectedSongs = remember { mutableStateListOf<Song>() }
                 val selectedPlaylists = remember { mutableStateListOf<Playlist>() }
@@ -311,24 +368,18 @@ class MainActivity : ComponentActivity() {
                 var youtubeVideoId by remember { mutableStateOf<String?>(null) }
                 var youtubeRecommendedSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
-                // --- NUEVO: trae videos recientes de tus canales suscritos ---
                 suspend fun fetchSubscriptionVideos(token: String): List<Song> = withContext(Dispatchers.IO) {
                     try {
                         val authHeader = "Bearer $token"
-
-                        // 1. Tus canales suscritos (quota barata: 1)
                         val subsResponse = com.music.musicflame.api.RetrofitClient.instance.getMySubscriptions(authHeader = authHeader)
                         val channelIds = subsResponse.items.mapNotNull { it.snippet?.resourceId?.channelId }.distinct()
                         if (channelIds.isEmpty()) return@withContext emptyList()
 
-                        // 2. Su playlist de "Subidos" para cada canal, hasta 50 IDs en un solo request (quota: 1)
                         val channelsResponse = com.music.musicflame.api.RetrofitClient.instance.getChannelsContentDetails(
                             channelIds = channelIds.take(50).joinToString(",")
                         )
                         val uploadsPlaylistIds = channelsResponse.items.mapNotNull { it.contentDetails?.relatedPlaylists?.uploads }
 
-                        // 3. Videos recientes de cada playlist (quota: 1 por canal).
-                        // Limitamos a 8 canales para no gastar cuota de más en cada carga.
                         uploadsPlaylistIds.take(8).flatMap { playlistId ->
                             try {
                                 val itemsResponse = com.music.musicflame.api.RetrofitClient.instance.getPlaylistItems(playlistId = playlistId)
@@ -356,7 +407,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // --- 2. FUNCIÓN ACTUALIZADA: combina Me gusta + canales suscritos ---
                 fun fetchInitialYoutubeVideos() {
                     coroutineScope.launch {
                         try {
@@ -365,8 +415,6 @@ class MainActivity : ComponentActivity() {
 
                                 if (token != null) {
                                     val authHeader = "Bearer $token"
-
-                                    // Videos con "Me gusta"
                                     val likedResponse = try {
                                         com.music.musicflame.api.RetrofitClient.instance.getLikedVideos(authHeader = authHeader)
                                     } catch (e: Exception) {
@@ -388,10 +436,7 @@ class MainActivity : ComponentActivity() {
                                         )
                                     } ?: emptyList()
 
-                                    // Videos de canales suscritos
                                     val subscriptionSongs = fetchSubscriptionVideos(token)
-
-                                    // Combina ambas fuentes, sin duplicados
                                     youtubeRecommendedSongs = (likedSongs + subscriptionSongs).distinctBy { it.youtubeVideoId }
 
                                 } else {
@@ -433,7 +478,6 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                // Disparamos la carga automáticamente cuando el usuario entra al modo YouTube
                 LaunchedEffect(searchMode, isYouTubeLinked) {
                     if (searchMode == SearchMode.YOUTUBE && youtubeRecommendedSongs.isEmpty()) {
                         fetchInitialYoutubeVideos()
@@ -443,6 +487,26 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     totalSongsOnDevice = loadSongsFromDevice(context).size
                 }
+
+                // --- NUEVO: Efecto para cargar los archivos de Drive ---
+                LaunchedEffect(isDriveLinked) {
+                    if (isDriveLinked) {
+                        val account = GoogleSignIn.getLastSignedInAccount(context)
+                        if (account != null) {
+                            try {
+                                val driveRepo = DriveRepository(context)
+                                val folderId = driveRepo.getOrCreateAppFolder(account)
+                                if (folderId != null) {
+                                    val files = driveRepo.getSongsFromFolder(account, folderId)
+                                    syncedFileNames = files.map { it.name }.toSet()
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                            }
+                        }
+                    }
+                }
+                // -------------------------------------------------------
 
                 LaunchedEffect(pagerState.currentPage) {
                     val currentScreen = bottomNavItems[pagerState.currentPage]
@@ -477,6 +541,24 @@ class MainActivity : ComponentActivity() {
                             val brightness = bgBrightness.floatValue
                             if (brightness != 0f) Box(modifier = Modifier.fillMaxSize().background(if (brightness < 0) Color.Black.copy(alpha = abs(brightness)) else Color.White.copy(alpha = brightness)))
                             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+                        }
+
+                        // Mostrar cuadro de nueva versión si el estado es true
+                        if (showUpdateDialog) {
+                            UpdateDialog(
+                                newVersion = latestVersionTag,
+                                hasBackgroundImage = hasBackgroundImage,
+                                onConfirm = {
+                                    showUpdateDialog = false
+                                    downloadApk(context, latestReleaseUrl, "MusicFlame_$latestVersionTag.apk")
+                                },
+                                onDismiss = {
+                                    showUpdateDialog = false
+                                    coroutineScope.launch {
+                                        updatePreferences.saveIgnoredVersion(latestVersionTag)
+                                    }
+                                }
+                            )
                         }
 
                         Scaffold(
@@ -535,6 +617,51 @@ class MainActivity : ComponentActivity() {
                                                         geminiPrompt = "Analiza y recomiéndame música basándote en estas canciones: " + selectedSongs.joinToString(", ") { it.title }
                                                         selectedSongs.clear()
                                                         coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
+                                                    }
+                                                )
+                                                // --- OPCIÓN SUBIR A GOOGLE DRIVE ---
+                                                DropdownMenuItem(
+                                                    text = {
+                                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                                            Icon(Icons.Filled.CloudUpload, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                                                            Spacer(Modifier.width(8.dp))
+                                                            Text("Subir a Google Drive")
+                                                        }
+                                                    },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        val account = GoogleSignIn.getLastSignedInAccount(context)
+
+                                                        if (account != null && isDriveLinked) {
+                                                            coroutineScope.launch {
+                                                                Toast.makeText(context, "Subiendo ${selectedSongs.size} canciones a la nube...", Toast.LENGTH_SHORT).show()
+
+                                                                val driveRepo = DriveRepository(context)
+                                                                val folderId = driveRepo.getOrCreateAppFolder(account)
+
+                                                                if (folderId != null) {
+                                                                    var successCount = 0
+                                                                    selectedSongs.forEach { song ->
+                                                                        val success = driveRepo.uploadSong(account, folderId, song.path)
+                                                                        if (success) successCount++
+                                                                    }
+
+                                                                    withContext(Dispatchers.Main) {
+                                                                        Toast.makeText(context, "$successCount de ${selectedSongs.size} canciones subidas con éxito", Toast.LENGTH_LONG).show()
+                                                                        // Actualizamos la lista visual instantáneamente
+                                                                        val files = driveRepo.getSongsFromFolder(account, folderId)
+                                                                        syncedFileNames = files.map { it.name }.toSet()
+                                                                    }
+                                                                } else {
+                                                                    withContext(Dispatchers.Main) {
+                                                                        Toast.makeText(context, "Error al acceder a la carpeta de Drive", Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                }
+                                                                selectedSongs.clear()
+                                                            }
+                                                        } else {
+                                                            Toast.makeText(context, "Por favor, vincula Google Drive en CONFIGURACION primero", Toast.LENGTH_LONG).show()
+                                                        }
                                                     }
                                                 )
                                                 DropdownMenuItem(
@@ -647,10 +774,8 @@ class MainActivity : ComponentActivity() {
                                                         Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
                                                             if (searchQuery.isEmpty()) {
                                                                 val hintText = if (searchMode == SearchMode.LOCAL) "Buscar en dispositivo..." else "Buscar en YouTube..."
-                                                                // Texto placeholder: ahora sigue el color de texto global elegido en Ajustes.
                                                                 Text(hintText, fontSize = 14.sp, color = LocalAppTextColor.current.copy(alpha = 0.5f))
                                                             }
-                                                            // Texto que el usuario escribe en el buscador: mismo color global.
                                                             BasicTextField(value = searchQuery, onValueChange = { searchQuery = it }, singleLine = true, textStyle = TextStyle(fontSize = 15.sp, color = LocalAppTextColor.current), cursorBrush = SolidColor(if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), modifier = Modifier.fillMaxWidth())
                                                         }
 
@@ -659,7 +784,15 @@ class MainActivity : ComponentActivity() {
                                                 }
 
                                                 AnimatedVisibility(visible = !isSearchActive, enter = fadeIn(), exit = fadeOut()) {
-                                                    Text(text = when { showSettings -> "Ajustes"; selectedPlaylist != null -> selectedPlaylist!!.name; else -> "MusicFlame" }, fontWeight = FontWeight.Bold, fontSize = 20.sp)
+                                                    Text(
+                                                        text = when {
+                                                            showSettings -> "CONFIGURACION"
+                                                            selectedPlaylist != null -> selectedPlaylist!!.name
+                                                            else -> "MusicFlame"
+                                                        },
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 20.sp
+                                                    )
                                                 }
                                             }
                                         },
@@ -673,12 +806,11 @@ class MainActivity : ComponentActivity() {
                                                     youtubeVideoId = null
                                                 }) { Icon(Icons.Filled.Search, "Buscar") }
 
-                                                IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, "Ajustes") }
+                                                IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, "Configuración") }
                                             }
                                         },
                                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                             containerColor = if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.surface,
-                                            // Título de la barra ("MusicFlame" / "Ajustes" / nombre de playlist): color de texto global.
                                             titleContentColor = LocalAppTextColor.current,
                                             navigationIconContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface,
                                             actionIconContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
@@ -732,6 +864,7 @@ class MainActivity : ComponentActivity() {
                                     isUserSignedIn = isUserLoggedIn,
                                     userName = userName,
                                     userPhotoUrl = userPhotoUrl,
+                                    onCheckForUpdates = { checkForUpdates(isManualCheck = true) },
                                     onSignInClick = { signInLauncher.launch(googleSignInClient.signInIntent) },
                                     onProfileClick = {
                                         googleSignInClient.signOut().addOnCompleteListener {
@@ -739,8 +872,10 @@ class MainActivity : ComponentActivity() {
                                             userName = null
                                             userPhotoUrl = null
                                             isYouTubeLinked = false
+                                            isDriveLinked = false
                                             linkedAccountsCount = null
                                             firebaseAuth.signOut()
+                                            syncedFileNames = emptySet() // Limpiar al salir
                                         }
                                     },
                                     onRefreshUserProfile = {
@@ -749,6 +884,7 @@ class MainActivity : ComponentActivity() {
                                             userName = account.displayName
                                             userPhotoUrl = account.photoUrl?.toString()
                                             isYouTubeLinked = GoogleSignIn.hasPermissions(account, youtubeScope)
+                                            isDriveLinked = GoogleSignIn.hasPermissions(account, driveScope)
                                         }
                                     },
                                     linkedAccountsCount = linkedAccountsCount,
@@ -757,10 +893,10 @@ class MainActivity : ComponentActivity() {
                                             linkedAccountsCount = try { fetchLinkedAccountsCount() } catch (e: Exception) { linkedAccountsCount }
                                         }
                                     },
-                                    isYouTubeLinked = isYouTubeLinked,
-                                    onLinkYouTubeClick = {
-                                        if (isYouTubeLinked) {
-                                            Toast.makeText(context, "YouTube ya está vinculado con tu cuenta", Toast.LENGTH_SHORT).show()
+                                    isDriveLinked = isDriveLinked,
+                                    onLinkDriveClick = {
+                                        if (isDriveLinked) {
+                                            Toast.makeText(context, "Google Drive ya está vinculado con MusicFlame", Toast.LENGTH_SHORT).show()
                                         } else {
                                             signInLauncher.launch(googleSignInClient.signInIntent)
                                         }
@@ -775,6 +911,7 @@ class MainActivity : ComponentActivity() {
                                     when (bottomNavItems[page]) {
 
                                         Screen.Songs -> Box(modifier = Modifier.fillMaxSize()) {
+                                            // --- AQUÍ PASAMOS LOS NUEVOS PARÁMETROS ---
                                             SongsScreen(
                                                 onSongClick = { song, list ->
                                                     if (searchMode == SearchMode.LOCAL) {
@@ -790,7 +927,16 @@ class MainActivity : ComponentActivity() {
                                                 selectedSongs = selectedSongs,
                                                 onToggleSelection = onToggleSong,
                                                 youtubeRecommendedSongs = youtubeRecommendedSongs,
-                                                isYoutubeLoggedIn = isYouTubeLinked
+                                                isYoutubeLoggedIn = isYouTubeLinked,
+                                                favoriteIds = favoriteIds,
+                                                onToggleFavorite = { song ->
+                                                    favoritesRepo.toggleFavorite(song.id)
+                                                    favoriteIds = favoritesRepo.getAllFavoriteIds()
+                                                    val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
+                                                    intent.setPackage(packageName)
+                                                    sendBroadcast(intent)
+                                                },
+                                                syncedFileNames = syncedFileNames
                                             )
 
                                             if (youtubeVideoId != null) {
@@ -855,7 +1001,6 @@ class MainActivity : ComponentActivity() {
                                     title = { Text("Añadir a playlist", fontWeight = FontWeight.Bold) },
                                     text = {
                                         Column(modifier = Modifier.fillMaxWidth()) {
-                                            // --- Opción para crear una playlist nueva sin salir del flujo ---
                                             Row(
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -1026,5 +1171,52 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         playerManager.release()
+    }
+}
+
+@Composable
+fun UpdateDialog(
+    newVersion: String,
+    hasBackgroundImage: Boolean,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val dialogColor = if (hasBackgroundImage) Color.White else Color.Gray
+
+    AlertDialog(
+        onDismissRequest = { onDismiss() },
+        containerColor = dialogColor,
+        title = { Text(text = "¡Actualización disponible!") },
+        text = {
+            Text(text = "La versión $newVersion ya está lista para instalarse. ¿Deseas descargarla ahora?")
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm() }) {
+                Text("Actualizar")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = { onDismiss() }) {
+                Text("Más tarde")
+            }
+        }
+    )
+}
+
+fun downloadApk(context: android.content.Context, url: String, fileName: String) {
+    try {
+        val request = android.app.DownloadManager.Request(android.net.Uri.parse(url))
+            .setTitle("Descargando actualización")
+            .setDescription("Descargando la nueva versión...")
+            .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+            .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
+            .setAllowedOverMetered(true)
+            .setAllowedOverRoaming(true)
+
+        val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
+        downloadManager.enqueue(request)
+        android.widget.Toast.makeText(context, "Descarga iniciada...", android.widget.Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        android.widget.Toast.makeText(context, "Error al iniciar la descarga", android.widget.Toast.LENGTH_SHORT).show()
     }
 }

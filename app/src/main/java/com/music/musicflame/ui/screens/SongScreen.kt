@@ -10,6 +10,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.FavoriteBorder
 import androidx.compose.material3.*
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -45,7 +46,11 @@ fun SongsScreen(
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
     youtubeRecommendedSongs: List<Song> = emptyList(),
-    isYoutubeLoggedIn: Boolean = false
+    isYoutubeLoggedIn: Boolean = false,
+    // --- NUEVOS PARÁMETROS ---
+    favoriteIds: Set<Long> = emptySet(),
+    onToggleFavorite: (Song) -> Unit = {},
+    syncedFileNames: Set<String> = emptySet()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -314,21 +319,45 @@ fun SongsScreen(
                                     AlbumArt(song.albumArtUri, 50.dp, albumRadius)
                                 }
 
+                                // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---
                                 Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-                                    Text(
-                                        text = song.title,
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor
-                                    )
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(
+                                            text = song.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 16.sp,
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor,
+                                            modifier = Modifier.weight(1f, fill = false)
+                                        )
+
+                                        // Muestra la nube si el nombre de la canción está en Drive
+                                        if (syncedFileNames.contains(song.title) || syncedFileNames.contains("${song.title}.mp3")) {
+                                            Spacer(Modifier.width(8.dp))
+                                            Icon(
+                                                imageVector = Icons.Filled.CloudDone,
+                                                contentDescription = "Sincronizado con Drive",
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(16.dp)
+                                            )
+                                        }
+                                    }
                                     Text(
                                         text = song.artist,
                                         fontSize = 13.sp,
                                         color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+
+                                // --- NUEVO BOTÓN DE FAVORITOS ---
+                                IconButton(onClick = { onToggleFavorite(song) }) {
+                                    Icon(
+                                        imageVector = if (favoriteIds.contains(song.id)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                        contentDescription = "Favorito",
+                                        tint = if (favoriteIds.contains(song.id)) Color(0xFFE91E63) else normalTextColor.copy(alpha = 0.5f)
                                     )
                                 }
                             }

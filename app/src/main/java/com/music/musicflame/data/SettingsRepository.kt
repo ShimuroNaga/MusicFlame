@@ -39,6 +39,10 @@ class SettingsRepository(context: Context) {
     fun getCarouselStyle(): String = prefs.getString("carousel_style", "Desactivar") ?: "Desactivar"
     fun saveCarouselStyle(style: String) = prefs.edit().putString("carousel_style", style).apply()
 
+    // --- ICONO DE LA APP ---
+    fun getSelectedAppIcon(): String = prefs.getString("selected_app_icon", "default") ?: "default"
+    fun saveSelectedAppIcon(key: String) = prefs.edit().putString("selected_app_icon", key).apply()
+
     // --- COLOR DE TEXTO GLOBAL ---
     // Valores posibles: "Negro" o "Blanco". Controla LocalAppTextColor en toda la app.
     fun getAppTextColor(): String = prefs.getString("app_text_color", "Negro") ?: "Negro"
@@ -47,6 +51,10 @@ class SettingsRepository(context: Context) {
     // --- REPRODUCCIÓN Y CUENTA ---
     fun getPlayInBackground(): Boolean = prefs.getBoolean("play_in_background", true)
     fun savePlayInBackground(enabled: Boolean) = prefs.edit().putBoolean("play_in_background", enabled).apply()
+
+    // Pausar automáticamente al desconectar Bluetooth/auriculares
+    fun getPauseOnDisconnect(): Boolean = prefs.getBoolean("pause_on_disconnect", true)
+    fun savePauseOnDisconnect(enabled: Boolean) = prefs.edit().putBoolean("pause_on_disconnect", enabled).apply()
 
     // --- ECUALIZADOR Y AUDIO PRO ---
     fun getEqPresetSelected(): String = prefs.getString("eq_preset_selected", "Flat") ?: "Flat"

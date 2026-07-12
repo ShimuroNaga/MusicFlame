@@ -56,4 +56,4 @@ Descargar e instalar MusicFlame es muy sencillo. No necesitas compilar el códig
 *   **Desarrollador:** ShimuroNaga
 *   **Desarrollador:** Naofresita18
 *   **Contacto y reporte de bugs:** oomo87284@gmail.com
-*   https://discord.gg/U7jZwYnbG3
+*   https://discord.gg/U7jZwYnbG3 - tomar en cuenta que se vence a si que porfavor avisarme al correo :)

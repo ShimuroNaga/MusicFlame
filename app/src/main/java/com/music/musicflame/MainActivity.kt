@@ -342,6 +342,7 @@ class MainActivity : ComponentActivity() {
                 val messages = remember { mutableStateListOf<ChatMessage>() }
 
                 var showFullScreenPlayer by remember { mutableStateOf(false) }
+                var isMiniPlayerVisible by remember { mutableStateOf(true) }
 
                 // --- Variables de Estado para Favoritos y Drive ---
                 var favoriteIds by remember { mutableStateOf(favoritesRepo.getAllFavoriteIds()) }
@@ -821,8 +822,46 @@ class MainActivity : ComponentActivity() {
                             bottomBar = {
                                 Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
                                     if (currentSong != null) {
-                                        Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(if (useRoundCornersState.value) 16.dp else 0.dp))) {
-                                            MiniPlayer(currentSong = currentSong, isPlaying = isPlaying, playerManager = playerManager, hasBackgroundImage = hasBackgroundImage, onExpand = { showFullScreenPlayer = true }, onPlayPause = { playerManager.togglePlayPause() }, onSkipNext = { playerManager.skipNext() }, onSkipPrevious = { playerManager.skipPrevious() })
+                                        // Reaparece automáticamente si cambia la canción, para no dejar "atrapado" al usuario
+                                        LaunchedEffect(currentSong?.id) { isMiniPlayerVisible = true }
+
+                                        AnimatedVisibility(
+                                            visible = isMiniPlayerVisible,
+                                            enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                                            exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+                                        ) {
+                                            Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(if (useRoundCornersState.value) 16.dp else 0.dp))) {
+                                                MiniPlayer(
+                                                    currentSong = currentSong!!,
+                                                    isPlaying = isPlaying,
+                                                    playerManager = playerManager,
+                                                    hasBackgroundImage = hasBackgroundImage,
+                                                    onExpand = { showFullScreenPlayer = true },
+                                                    onPlayPause = { playerManager.togglePlayPause() },
+                                                    onSkipNext = { playerManager.skipNext() },
+                                                    onSkipPrevious = { playerManager.skipPrevious() },
+                                                    onSwipeDownToHide = { isMiniPlayerVisible = false }
+                                                )
+                                            }
+                                        }
+
+                                        // Pestañita para volver a mostrar el mini-reproductor si lo ocultaste
+                                        AnimatedVisibility(visible = !isMiniPlayerVisible, enter = fadeIn(), exit = fadeOut()) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 6.dp)
+                                                    .clickable { isMiniPlayerVisible = true },
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .width(40.dp)
+                                                        .height(4.dp)
+                                                        .clip(RoundedCornerShape(2.dp))
+                                                        .background(MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f))
+                                                )
+                                            }
                                         }
                                     }
 

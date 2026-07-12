@@ -16,6 +16,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.SystemUpdate
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -23,7 +24,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material.icons.filled.OndemandVideo
+import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
@@ -92,6 +93,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.ui.res.painterResource
+import com.music.musicflame.R
+import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.ui.theme.LocalAppTextColor
 
@@ -144,8 +149,9 @@ fun SettingsScreen(
     onRefreshUserProfile: () -> Unit = { /* Lógica opcional para re-sincronizar la sesión */ },
     linkedAccountsCount: Int? = null,
     onRequestLinkedAccountsCount: () -> Unit = { /* Dispara la consulta al backend que cuenta cuentas vinculadas */ },
-    isYouTubeLinked: Boolean = false,
-    onLinkYouTubeClick: () -> Unit = { /* Lógica para pedir el scope de YouTube */ }
+    isDriveLinked: Boolean = false,
+    onLinkDriveClick: () -> Unit = { /* Lógica para pedir el scope de Google Drive */ },
+    onCheckForUpdates: () -> Unit
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -164,7 +170,20 @@ fun SettingsScreen(
     val appTheme = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+    val iconPickerExpanded = remember { mutableStateOf(false) }
+    val selectedAppIcon = remember { mutableStateOf(settingsRepo.getSelectedAppIcon()) }
+    val appIconOptions = remember {
+        listOf(
+            Triple("default", "Original", R.mipmap.ic_launcher),
+            Triple("brilliant", "Brillante", R.mipmap.ic_launcher_brilliant),
+            Triple("pixel", "Pixelart", R.mipmap.ic_launcher_pixel),
+            Triple("cookies", "Cookies N Cream", R.mipmap.ic_launcher_cookies),
+            Triple("gray", "Escala de grises", R.mipmap.ic_launcher_gray)
+        )
+    }
+
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
+    val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
     val appTextColorPref = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
 
@@ -394,24 +413,24 @@ fun SettingsScreen(
 
                     item {
                         ListItem(
-                            headlineContent = { Text("Vincular YouTube") },
+                            headlineContent = { Text("Vincular Google Drive") },
                             supportingContent = {
                                 Text(
-                                    if (isYouTubeLinked) "✓ YouTube vinculado con tu cuenta de Google"
-                                    else "Vincula tu cuenta para ver tus me gusta y suscripciones"
+                                    if (isDriveLinked) "✓ Google Drive vinculado con tu cuenta"
+                                    else "Vincula tu cuenta para respaldar tus playlists y ajustes"
                                 )
                             },
                             trailingContent = {
                                 Icon(
-                                    imageVector = Icons.Filled.OndemandVideo,
+                                    imageVector = Icons.Filled.CloudDone,
                                     contentDescription = null,
-                                    tint = if (isYouTubeLinked) trailingColor
+                                    tint = if (isDriveLinked) trailingColor
                                     else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
                                 )
                             },
                             colors = listItemColors,
                             modifier = Modifier.clickable {
-                                if (isUserSignedIn) onLinkYouTubeClick() else onSignInClick()
+                                if (isUserSignedIn) onLinkDriveClick() else onSignInClick()
                             }
                         )
                         HorizontalDivider(color = dividerColor)
@@ -564,6 +583,73 @@ fun SettingsScreen(
                         HorizontalDivider(color = dividerColor)
                     }
 
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Icono de la app") },
+                            supportingContent = { Text("Elige entre los iconos predeterminados") },
+                            trailingContent = {
+                                Icon(
+                                    imageVector = if (iconPickerExpanded.value) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = trailingColor
+                                )
+                            },
+                            colors = listItemColors,
+                            modifier = Modifier.clickable { iconPickerExpanded.value = !iconPickerExpanded.value }
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        AnimatedVisibility(visible = iconPickerExpanded.value) {
+                            LazyRow(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                contentPadding = PaddingValues(horizontal = 16.dp)
+                            ) {
+                                items(appIconOptions) { (key, label, previewRes) ->
+                                    val isSelected = selectedAppIcon.value == key
+                                    Column(
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        modifier = Modifier.clickable {
+                                            selectedAppIcon.value = key
+                                            settingsRepo.saveSelectedAppIcon(key)
+                                            AppIconManager.setIcon(context, key)
+                                            Toast.makeText(context, "Icono cambiado a $label", Toast.LENGTH_SHORT).show()
+                                        }
+                                    ) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(60.dp)
+                                                .clip(RoundedCornerShape(16.dp))
+                                                .background(
+                                                    if (isSelected) trailingColor.copy(alpha = 0.15f)
+                                                    else Color.Transparent
+                                                ),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            AsyncImage(
+                                                model = previewRes,
+                                                contentDescription = label,
+                                                modifier = Modifier
+                                                    .size(48.dp)
+                                                    .clip(RoundedCornerShape(12.dp))
+                                            )
+                                        }
+                                        Spacer(Modifier.height(4.dp))
+                                        Text(
+                                            label,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                            color = if (isSelected) trailingColor else mediumEmphasis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        HorizontalDivider(color = dividerColor)
+                    }
+
                     item { sectionHeader("Manejo de Canciones") }
 
                     item {
@@ -599,6 +685,24 @@ fun SettingsScreen(
                                         playInBackground.value = it
                                         settingsRepo.savePlayInBackground(it)
                                         Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
+                                    }
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Pausar al desconectar audífonos") },
+                            supportingContent = { Text("Detiene la canción si te quitas los audífonos o se desconecta el Bluetooth") },
+                            trailingContent = {
+                                Switch(
+                                    checked = pauseOnDisconnect.value,
+                                    onCheckedChange = {
+                                        pauseOnDisconnect.value = it
+                                        settingsRepo.savePauseOnDisconnect(it)
+                                        Toast.makeText(context, if (it) "Pausa automática activada" else "Pausa automática desactivada", Toast.LENGTH_SHORT).show()
                                     }
                                 )
                             },
@@ -679,6 +783,34 @@ fun SettingsScreen(
 
                     item { sectionHeader("Sobre") }
                     item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+
+                    // BOTÓN DE ACTUALIZACIONES (CARD)
+                    item {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(16.dp)
+                                .clickable { onCheckForUpdates() },
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                        ) {
+                            Row(
+                                modifier = Modifier.padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.SystemUpdate,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(Modifier.width(16.dp))
+                                Column {
+                                    Text("Actualizaciones", fontWeight = FontWeight.Bold)
+                                    Text("Buscar nueva versión", style = MaterialTheme.typography.bodySmall)
+                                }
+                            }
+                        }
+                    }
+
                     item { sectionHeader("Especificaciones Técnicas") }
 
                     item {
@@ -712,7 +844,97 @@ fun SettingsScreen(
                             colors = listItemColors
                         )
                     }
-                    item { ListItem(headlineContent = { Text("Creador de código") }, supportingContent = { Text("ShimuroNaga") }, colors = listItemColors) }
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Creador de código") },
+                            supportingContent = { Text("ShimuroNaga") },
+                            leadingContent = {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data("https://github.com/ShimuroNaga.png")
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Avatar de ShimuroNaga",
+                                    contentScale = ContentScale.Crop,
+                                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item { sectionHeader("Tester") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Tester") },
+                            supportingContent = { Text("Naofresita18") },
+                            leadingContent = {
+                                AsyncImage(
+                                    model = ImageRequest.Builder(context)
+                                        .data("https://github.com/Naofresita18.png")
+                                        .crossfade(true)
+                                        .build(),
+                                    contentDescription = "Avatar de Naofresita18",
+                                    contentScale = ContentScale.Crop,
+                                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .clip(CircleShape)
+                                )
+                            },
+                            colors = listItemColors
+                        )
+                    }
+
+                    item { sectionHeader("Comunidad") }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Repositorio en GitHub") },
+                            supportingContent = { Text("Código fuente y changelog de MusicFlame") },
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_github),
+                                    contentDescription = "GitHub",
+                                    modifier = Modifier.size(28.dp),
+                                    tint = highEmphasis
+                                )
+                            },
+                            colors = listItemColors,
+                            modifier = Modifier.clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ShimuroNaga/MusicFlame"))
+                                context.startActivity(intent)
+                            }
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Únete al Discord") },
+                            supportingContent = { Text("Comunidad, soporte y novedades de la app") },
+                            leadingContent = {
+                                Icon(
+                                    painter = painterResource(id = R.drawable.ic_discord),
+                                    contentDescription = "Discord",
+                                    modifier = Modifier.size(28.dp),
+                                    tint = Color(0xFF5865F2)
+                                )
+                            },
+                            colors = listItemColors,
+                            modifier = Modifier.clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/JcWFNNVMgU"))
+                                context.startActivity(intent)
+                            }
+                        )
+                    }
                 }
             }
         }

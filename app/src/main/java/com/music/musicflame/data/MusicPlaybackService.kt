@@ -27,6 +27,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
+import android.media.AudioManager
 
 @OptIn(UnstableApi::class)
 class MusicPlaybackService : MediaSessionService() {
@@ -56,6 +57,7 @@ class MusicPlaybackService : MediaSessionService() {
     private var isCurrentSongFavorite = false
     private val PREF_FAVORITES_KEY = "favorite_songs_set"
 
+
     // RECEPTOR DEL "MISIL" DE DATOS DESDE LA UI
     private val eqUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
@@ -71,6 +73,18 @@ class MusicPlaybackService : MediaSessionService() {
                     }
                 }
                 applyAudioSettings()
+            }
+        }
+    }
+
+    // RECEPTOR DE DESCONEXIÓN DE AUDÍFONOS/BLUETOOTH (pausa automática)
+    private val noisyReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == AudioManager.ACTION_AUDIO_BECOMING_NOISY) {
+                val pauseOnDisconnect = sharedPrefs.getBoolean("pause_on_disconnect", true)
+                if (pauseOnDisconnect && player.isPlaying) {
+                    player.pause()
+                }
             }
         }
     }
@@ -92,6 +106,12 @@ class MusicPlaybackService : MediaSessionService() {
 
         val filter = IntentFilter("com.music.musicflame.UPDATE_EQ")
         registerReceiver(eqUpdateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+
+        // Registro del receiver de "audio ruidoso" (desconexión de Bluetooth/audífonos).
+        // Este SÍ debe registrarse SIN Context.RECEIVER_NOT_EXPORTED, porque
+        // ACTION_AUDIO_BECOMING_NOISY lo dispara el propio sistema Android, no nuestra app.
+        val noisyFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
+        registerReceiver(noisyReceiver, noisyFilter)
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -355,6 +375,7 @@ class MusicPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         unregisterReceiver(eqUpdateReceiver)
+        unregisterReceiver(noisyReceiver)
         equalizer?.release()
         bassBoost?.release()
         virtualizer?.release()

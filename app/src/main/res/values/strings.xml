@@ -5,4 +5,6 @@
     <string name="nav_gemini">Gemini</string>
     <string name="nav_mix">Tu Mix</string>
     <string name="nav_trash">Papelera</string>
+    <string name="app_name_pixel">PixelFlame</string>
+    <string name="app_name_cookies">CookieFlame</string>
 </resources>

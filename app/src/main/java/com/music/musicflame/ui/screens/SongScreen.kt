@@ -1,12 +1,19 @@
 package com.music.musicflame.ui.screens
 
 import android.content.Context
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -20,13 +27,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.SearchMode
 import com.music.musicflame.data.*
 import com.music.musicflame.ui.components.AlbumArt
@@ -34,6 +45,59 @@ import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlin.math.roundToInt
+
+// Botón cuadrado, con elevación, para la barra flotante de selección/orden.
+@Composable
+private fun MFIconButton(
+    icon: ImageVector,
+    contentDescription: String,
+    hasBackgroundImage: Boolean,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.size(48.dp),
+        shape = RoundedCornerShape(14.dp),
+        color = if (hasBackgroundImage) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.92f) else MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+        tonalElevation = 3.dp
+    ) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Icon(icon, contentDescription, modifier = Modifier.size(22.dp))
+        }
+    }
+}
+
+// Barrita de scroll simple, tipo "scrollbar" de escritorio, que indica en qué parte
+// de la lista estás. Solo se muestra si hay más canciones de las que caben en pantalla.
+@Composable
+private fun ListScrollbar(listState: LazyListState, modifier: Modifier = Modifier) {
+    val layoutInfo = listState.layoutInfo
+    val totalItems = layoutInfo.totalItemsCount
+    val visibleItems = layoutInfo.visibleItemsInfo.size
+
+    if (totalItems == 0 || visibleItems == 0 || visibleItems >= totalItems) return
+
+    BoxWithConstraints(modifier = modifier.width(4.dp)) {
+        val density = LocalDensity.current
+        val trackHeightPx = with(density) { maxHeight.toPx() }
+        val thumbRatio = (visibleItems.toFloat() / totalItems.toFloat()).coerceIn(0.08f, 1f)
+        val thumbHeightPx = trackHeightPx * thumbRatio
+        val maxScrollableItems = (totalItems - visibleItems).coerceAtLeast(1)
+        val scrollProgress = (listState.firstVisibleItemIndex.toFloat() / maxScrollableItems.toFloat()).coerceIn(0f, 1f)
+        val offsetPx = (trackHeightPx - thumbHeightPx) * scrollProgress
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(0, offsetPx.roundToInt()) }
+                .width(4.dp)
+                .height(with(density) { thumbHeightPx.toDp() })
+                .clip(RoundedCornerShape(2.dp))
+                .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
+        )
+    }
+}
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
@@ -50,7 +114,10 @@ fun SongsScreen(
     // --- NUEVOS PARÁMETROS ---
     favoriteIds: Set<Long> = emptySet(),
     onToggleFavorite: (Song) -> Unit = {},
-    syncedFileNames: Set<String> = emptySet()
+    syncedFileNames: Set<String> = emptySet(),
+    // --- MODO DE SELECCIÓN POR TAP (sin necesidad de mantener presionado) ---
+    selectionModeActive: Boolean = false,
+    onToggleSelectionModeButton: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -65,10 +132,29 @@ fun SongsScreen(
     val pullState = rememberPullToRefreshState()
     val sortType = remember { mutableStateOf(SortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
 
-    val isSelectionMode = selectedSongs.isNotEmpty()
+    // --- Mostrar/ocultar los botones inferiores según la dirección del scroll ---
+    // Scroll down (hacia abajo) = se ocultan. Scroll up (hacia arriba) = reaparecen.
+    var bottomButtonsVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                val scrollingUp = if (index != previousIndex) index < previousIndex else offset < previousOffset
+                val scrollingDown = if (index != previousIndex) index > previousIndex else offset > previousOffset
+                if (scrollingDown) bottomButtonsVisible = false
+                if (scrollingUp) bottomButtonsVisible = true
+                previousIndex = index
+                previousOffset = offset
+            }
+    }
+
+    val isSelectionMode = selectedSongs.isNotEmpty() || selectionModeActive
 
     val isRounded = LocalUseRoundCorners.current
+    val albumArtShape = LocalAlbumArtShape.current
     val cardRadius = if (isRounded) 16.dp else 0.dp
     val albumRadius = if (isRounded) 8.dp else 0.dp
 
@@ -142,228 +228,290 @@ fun SongsScreen(
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(), containerColor = Color.Transparent,
-        floatingActionButton = {
-            if (!isSelectionMode && searchMode == SearchMode.LOCAL) {
-                Box {
-                    FloatingActionButton(onClick = { showSortMenu.value = true }, containerColor = if (hasBackgroundImage) MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.85f) else MaterialTheme.colorScheme.secondaryContainer) { Icon(Icons.Filled.Sort, "Ordenar") }
-                    DropdownMenu(expanded = showSortMenu.value, onDismissRequest = { showSortMenu.value = false }) {
-                        listOf("Fecha creada" to SortType.DATE_CREATED, "A - Z" to SortType.A_Z, "Z - A" to SortType.Z_A).forEach { (label, type) -> DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = sortType.value == type, onClick = null); Spacer(Modifier.width(8.dp)); Text(label) } }, onClick = { sortType.value = type; showSortMenu.value = false }) }
-                    }
-                }
-            }
-        }
+        modifier = modifier.fillMaxSize(), containerColor = Color.Transparent
     ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
 
-        if (searchMode == SearchMode.YOUTUBE) {
+            if (searchMode == SearchMode.YOUTUBE) {
+                Box(modifier = Modifier.fillMaxSize()) {
 
-            // La "TV" de fondo solo aparece si NO hay videos que mostrar (o hay un error visual)
-            if (displaySongs.isEmpty() || errorMessage != null) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(
-                            imageVector = Icons.Filled.OndemandVideo,
-                            contentDescription = "YouTube Mode",
-                            modifier = Modifier.size(64.dp),
-                            tint = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-
-                        if (errorMessage != null) {
-                            Text(
-                                text = errorMessage!!,
-                                color = Color.Red,
-                                fontWeight = FontWeight.Bold,
-                                textAlign = TextAlign.Center,
-                                modifier = Modifier.padding(horizontal = 16.dp)
-                            )
-                        } else if (searchQuery.isBlank()) {
-                            Text(
-                                // El texto cambia dependiendo de si el usuario vinculó su cuenta o no
-                                text = if (isYoutubeLoggedIn) "Tus videos favoritos y búsqueda" else "Tendencias y búsqueda en YouTube",
-                                color = normalTextColor,
-                                fontWeight = FontWeight.Medium
-                            )
-                        } else {
-                            Text(
-                                text = "Buscando: \"$searchQuery\"...",
-                                color = normalTextColor,
-                                fontWeight = FontWeight.Bold,
-                                fontSize = 18.sp
-                            )
-                            Spacer(modifier = Modifier.height(8.dp))
-                            CircularProgressIndicator(
-                                color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Lista de resultados de YouTube
-            if (displaySongs.isNotEmpty()) {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize().padding(padding).padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    item { Spacer(modifier = Modifier.height(8.dp)) }
-                    items(displaySongs, key = { it.id }) { song ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(cardRadius))
-                                .combinedClickable(
-                                    onClick = { onSongClick(song, displaySongs) },
-                                    onLongClick = {}
-                                ),
-                            colors = CardDefaults.cardColors(
-                                containerColor = if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainerHigh
-                            ),
-                            shape = RoundedCornerShape(cardRadius)
+                    // La "TV" de fondo solo aparece si NO hay videos que mostrar (o hay un error visual)
+                    if (displaySongs.isEmpty() || errorMessage != null) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                AlbumArt(song.albumArtUri, 50.dp, albumRadius)
-                                Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Filled.OndemandVideo,
+                                    contentDescription = "YouTube Mode",
+                                    modifier = Modifier.size(64.dp),
+                                    tint = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.primary
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                if (errorMessage != null) {
                                     Text(
-                                        text = song.title,
+                                        text = errorMessage!!,
+                                        color = Color.Red,
                                         fontWeight = FontWeight.Bold,
-                                        fontSize = 16.sp,
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis,
-                                        color = normalTextColor
+                                        textAlign = TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 16.dp)
                                     )
+                                } else if (searchQuery.isBlank()) {
                                     Text(
-                                        text = song.artist,
-                                        fontSize = 13.sp,
-                                        color = normalTextColor.copy(alpha = 0.7f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
+                                        // El texto cambia dependiendo de si el usuario vinculó su cuenta o no
+                                        text = if (isYoutubeLoggedIn) "Tus videos favoritos y búsqueda" else "Tendencias y búsqueda en YouTube",
+                                        color = normalTextColor,
+                                        fontWeight = FontWeight.Medium
+                                    )
+                                } else {
+                                    Text(
+                                        text = "Buscando: \"$searchQuery\"...",
+                                        color = normalTextColor,
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 18.sp
+                                    )
+                                    Spacer(modifier = Modifier.height(8.dp))
+                                    CircularProgressIndicator(
+                                        color = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.primary
                                     )
                                 }
                             }
                         }
                     }
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
-                }
-            }
-        } else {
-            // INTERFAZ LOCAL ORIGINAL
-            PullToRefreshBox(
-                isRefreshing = isRefreshing.value,
-                onRefresh = {
-                    scope.launch {
-                        isRefreshing.value = true
-                        delay(800)
-                        refreshSongs()
-                        isRefreshing.value = false
-                    }
-                },
-                state = pullState,
-                modifier = Modifier.fillMaxSize().padding(padding),
-                indicator = {
-                    PullToRefreshDefaults.Indicator(
-                        state = pullState,
-                        isRefreshing = isRefreshing.value,
-                        color = MaterialTheme.colorScheme.primary,
-                        containerColor = MaterialTheme.colorScheme.primaryContainer,
-                        modifier = Modifier.align(Alignment.TopCenter)
-                    )
-                }
-            ) {
-                LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    item { Spacer(modifier = Modifier.height(8.dp)) }
 
-                    items(displaySongs, key = { it.id }) { song ->
-                        val isSelected = selectedSongs.contains(song)
-
-                        val containerColor = when {
-                            isSelected -> MaterialTheme.colorScheme.primaryContainer
-                            hasBackgroundImage -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
-                            else -> MaterialTheme.colorScheme.surfaceContainerHigh
-                        }
-
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clip(RoundedCornerShape(cardRadius))
-                                .combinedClickable(
-                                    onClick = {
-                                        if (isSelectionMode) onToggleSelection(song)
-                                        else onSongClick(song, displaySongs)
-                                    },
-                                    onLongClick = {
-                                        onToggleSelection(song)
-                                    }
-                                ),
-                            colors = CardDefaults.cardColors(containerColor = containerColor),
-                            elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage || isSelected) 0.dp else 4.dp),
-                            shape = RoundedCornerShape(cardRadius)
+                    // Lista de resultados de YouTube
+                    if (displaySongs.isNotEmpty()) {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                if (isSelected) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(50.dp)
-                                            .clip(RoundedCornerShape(albumRadius))
-                                            .background(MaterialTheme.colorScheme.primary),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(Icons.Filled.Check, "Seleccionada", tint = MaterialTheme.colorScheme.onPrimary)
-                                    }
-                                } else {
-                                    AlbumArt(song.albumArtUri, 50.dp, albumRadius)
-                                }
-
-                                // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---
-                                Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-                                    Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = song.title,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 16.sp,
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor,
-                                            modifier = Modifier.weight(1f, fill = false)
-                                        )
-
-                                        // Muestra la nube si el nombre de la canción está en Drive
-                                        if (syncedFileNames.contains(song.title) || syncedFileNames.contains("${song.title}.mp3")) {
-                                            Spacer(Modifier.width(8.dp))
-                                            Icon(
-                                                imageVector = Icons.Filled.CloudDone,
-                                                contentDescription = "Sincronizado con Drive",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
+                            item { Spacer(modifier = Modifier.height(8.dp)) }
+                            items(displaySongs, key = { it.id }) { song ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clip(RoundedCornerShape(cardRadius))
+                                        .combinedClickable(
+                                            onClick = { onSongClick(song, displaySongs) },
+                                            onLongClick = {}
+                                        ),
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                                    ),
+                                    shape = RoundedCornerShape(cardRadius)
+                                ) {
+                                    Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                        AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape)
+                                        Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
+                                            Text(
+                                                text = song.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = normalTextColor
+                                            )
+                                            Text(
+                                                text = song.artist,
+                                                fontSize = 13.sp,
+                                                color = normalTextColor.copy(alpha = 0.7f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
                                             )
                                         }
                                     }
-                                    Text(
-                                        text = song.artist,
-                                        fontSize = 13.sp,
-                                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
-                                        maxLines = 1,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
                                 }
-
-                                // --- NUEVO BOTÓN DE FAVORITOS ---
-                                IconButton(onClick = { onToggleFavorite(song) }) {
-                                    Icon(
-                                        imageVector = if (favoriteIds.contains(song.id)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                        contentDescription = "Favorito",
-                                        tint = if (favoriteIds.contains(song.id)) Color(0xFFE91E63) else normalTextColor.copy(alpha = 0.5f)
-                                    )
-                                }
+                            }
+                            item { Spacer(modifier = Modifier.height(80.dp)) }
+                        }
+                    }
+                }
+            } else {
+                // INTERFAZ LOCAL ORIGINAL
+                PullToRefreshBox(
+                    isRefreshing = isRefreshing.value,
+                    onRefresh = {
+                        scope.launch {
+                            isRefreshing.value = true
+                            delay(800)
+                            refreshSongs()
+                            isRefreshing.value = false
+                        }
+                    },
+                    state = pullState,
+                    modifier = Modifier.fillMaxSize(),
+                    indicator = {
+                        PullToRefreshDefaults.Indicator(
+                            state = pullState,
+                            isRefreshing = isRefreshing.value,
+                            color = MaterialTheme.colorScheme.primary,
+                            containerColor = MaterialTheme.colorScheme.primaryContainer,
+                            modifier = Modifier.align(Alignment.TopCenter)
+                        )
+                    }
+                ) {
+                    if (displaySongs.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(
+                                    imageVector = Icons.Filled.MusicNote,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(64.dp),
+                                    tint = normalTextColor.copy(alpha = 0.6f)
+                                )
+                                Spacer(modifier = Modifier.height(16.dp))
+                                Text(
+                                    text = "¡Aún no tienes canciones, llena la app de sinfonía!",
+                                    color = normalTextColor,
+                                    fontWeight = FontWeight.Medium,
+                                    textAlign = TextAlign.Center,
+                                    modifier = Modifier.padding(horizontal = 32.dp)
+                                )
                             }
                         }
                     }
-                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                    LazyColumn(
+                        state = listState,
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        item { Spacer(modifier = Modifier.height(8.dp)) }
+
+                        items(displaySongs, key = { it.id }) { song ->
+                            val isSelected = selectedSongs.contains(song)
+
+                            val containerColor = when {
+                                isSelected -> MaterialTheme.colorScheme.primaryContainer
+                                hasBackgroundImage -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
+                                else -> MaterialTheme.colorScheme.surfaceContainerHigh
+                            }
+
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(cardRadius))
+                                    .combinedClickable(
+                                        onClick = {
+                                            if (isSelectionMode) onToggleSelection(song)
+                                            else onSongClick(song, displaySongs)
+                                        },
+                                        onLongClick = {
+                                            onToggleSelection(song)
+                                        }
+                                    ),
+                                colors = CardDefaults.cardColors(containerColor = containerColor),
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage || isSelected) 0.dp else 4.dp),
+                                shape = RoundedCornerShape(cardRadius)
+                            ) {
+                                Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                    if (isSelected) {
+                                        Box(
+                                            modifier = Modifier
+                                                .size(50.dp)
+                                                .clip(RoundedCornerShape(albumRadius))
+                                                .background(MaterialTheme.colorScheme.primary),
+                                            contentAlignment = Alignment.Center
+                                        ) {
+                                            Icon(Icons.Filled.Check, "Seleccionada", tint = MaterialTheme.colorScheme.onPrimary)
+                                        }
+                                    } else {
+                                        AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape)
+                                    }
+
+                                    // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---
+                                    Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = song.title,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 16.sp,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+
+                                            // Muestra la nube si el nombre de la canción está en Drive
+                                            if (syncedFileNames.contains(song.title) || syncedFileNames.contains("${song.title}.mp3")) {
+                                                Spacer(Modifier.width(8.dp))
+                                                Icon(
+                                                    imageVector = Icons.Filled.CloudDone,
+                                                    contentDescription = "Sincronizado con Drive",
+                                                    tint = MaterialTheme.colorScheme.primary,
+                                                    modifier = Modifier.size(16.dp)
+                                                )
+                                            }
+                                        }
+                                        Text(
+                                            text = song.artist,
+                                            fontSize = 13.sp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+
+                                    // --- NUEVO BOTÓN DE FAVORITOS ---
+                                    IconButton(onClick = { onToggleFavorite(song) }) {
+                                        Icon(
+                                            imageVector = if (favoriteIds.contains(song.id)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
+                                            contentDescription = "Favorito",
+                                            tint = if (favoriteIds.contains(song.id)) Color(0xFFE91E63) else normalTextColor.copy(alpha = 0.5f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        item { Spacer(modifier = Modifier.height(80.dp)) }
+                    }
+
+                    // --- Indicador de scroll (scrollbar) pegado al borde derecho ---
+                    ListScrollbar(
+                        listState = listState,
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .fillMaxHeight()
+                            .padding(vertical = 8.dp, horizontal = 2.dp)
+                    )
+                }
+            }
+
+            // --- BARRA INFERIOR FLOTANTE: selección (izquierda) y ordenar (derecha) ---
+            // Se oculta al hacer scroll hacia abajo y reaparece al hacer scroll hacia arriba.
+            AnimatedVisibility(
+                visible = !isSelectionMode && searchMode == SearchMode.LOCAL && bottomButtonsVisible,
+                modifier = Modifier.align(Alignment.BottomCenter),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    MFIconButton(
+                        icon = Icons.Filled.Checklist,
+                        contentDescription = "Seleccionar canciones",
+                        hasBackgroundImage = hasBackgroundImage,
+                        onClick = onToggleSelectionModeButton
+                    )
+
+                    Box {
+                        MFIconButton(
+                            icon = Icons.Filled.Sort,
+                            contentDescription = "Ordenar",
+                            hasBackgroundImage = hasBackgroundImage,
+                            onClick = { showSortMenu.value = true }
+                        )
+                        DropdownMenu(expanded = showSortMenu.value, onDismissRequest = { showSortMenu.value = false }) {
+                            listOf("Fecha creada" to SortType.DATE_CREATED, "A - Z" to SortType.A_Z, "Z - A" to SortType.Z_A).forEach { (label, type) -> DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = sortType.value == type, onClick = null); Spacer(Modifier.width(8.dp)); Text(label) } }, onClick = { sortType.value = type; showSortMenu.value = false }) }
+                        }
+                    }
                 }
             }
         }

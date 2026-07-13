@@ -33,6 +33,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FileDownload
 import androidx.compose.material.icons.filled.MusicNote
@@ -74,6 +75,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.data.FavoritesRepository
 import com.music.musicflame.data.Playlist
 import com.music.musicflame.data.PlaylistRepository
@@ -105,13 +107,16 @@ fun PlaylistsScreen(
     onChangeCoverClick: (String) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     selectedPlaylists: List<Playlist> = emptyList(),
-    onToggleSelection: (Playlist) -> Unit = {}
+    onToggleSelection: (Playlist) -> Unit = {},
+    // --- MODO DE SELECCIÓN POR TAP (sin necesidad de mantener presionado) ---
+    selectionModeActive: Boolean = false,
+    onToggleSelectionModeButton: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val playlistRepo = remember { PlaylistRepository(context) }
     val favoritesRepo = remember { FavoritesRepository(context) }
 
-    val isSelectionMode = selectedPlaylists.isNotEmpty()
+    val isSelectionMode = selectedPlaylists.isNotEmpty() || selectionModeActive
 
     val playlists = remember { mutableStateListOf<Playlist>() }
     val displayPlaylists = remember { mutableStateListOf<Playlist>() }
@@ -198,13 +203,134 @@ fun PlaylistsScreen(
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
-        containerColor = Color.Transparent,
-        floatingActionButton = {
-            if (!isSelectionMode) {
-                Column(
-                    horizontalAlignment = Alignment.End,
+        containerColor = Color.Transparent
+    ) { padding ->
+        Box(modifier = Modifier.fillMaxSize().padding(padding)) {
+            PullToRefreshBox(
+                isRefreshing = isRefreshing.value,
+                onRefresh = {
+                    scope.launch {
+                        isRefreshing.value = true
+                        delay(800)
+                        playlists.clear()
+                        playlists.addAll(playlistRepo.getPlaylists())
+                        favoriteCount.value = favoritesRepo.getAllFavoriteIds().size
+                        displayPlaylists.clear()
+                        displayPlaylists.addAll(
+                            when (sortType.value) {
+                                PlaylistSortType.DATE_CREATED -> playlists
+                                PlaylistSortType.A_Z -> playlists.sortedBy { it.name }
+                                PlaylistSortType.Z_A -> playlists.sortedByDescending { it.name }
+                            }
+                        )
+                        isRefreshing.value = false
+                    }
+                },
+                state = pullState,
+                modifier = Modifier
+                    .fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = isRefreshing.value,
+                        color = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
+            ) {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(horizontal = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
+                    item { Spacer(modifier = Modifier.height(8.dp)) }
+
+                    item {
+                        val favoritesPlaylist = Playlist("favorites", "Favoritos", favoritesRepo.getAllFavoriteIds().toList(), customCoverUri = favoritesRepo.getCoverUri())
+                        PlaylistCard(
+                            playlist = favoritesPlaylist,
+                            songCount = favoriteCount.value,
+                            isFavorites = true,
+                            onPlaylistClick = { onPlaylistClick(it, true) },
+                            onChangeCoverClick = { onChangeCoverClick("favorites") },
+                            onResetCoverClick = { favoritesRepo.saveCoverUri("") },
+                            hasBackgroundImage = hasBackgroundImage,
+                            isSelected = selectedPlaylists.contains(favoritesPlaylist),
+                            isSelectionMode = isSelectionMode,
+                            onToggleSelection = { onToggleSelection(favoritesPlaylist) }
+                        )
+                    }
+
+                    if (displayPlaylists.isEmpty()) {
+                        item {
+                            Box(
+                                modifier = Modifier.fillMaxWidth().padding(top = 48.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                    Icon(
+                                        imageVector = Icons.Filled.MusicNote,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(64.dp),
+                                        tint = LocalAppTextColor.current.copy(alpha = 0.6f)
+                                    )
+                                    Spacer(modifier = Modifier.height(16.dp))
+                                    Text(
+                                        text = "¡Aún no tienes playlists, llena la app de tus playlists favoritas!",
+                                        color = LocalAppTextColor.current,
+                                        fontWeight = FontWeight.Medium,
+                                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                                        modifier = Modifier.padding(horizontal = 32.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    items(displayPlaylists, key = { it.id }) { playlist ->
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            PlaylistCard(
+                                playlist = playlist,
+                                songCount = playlist.songIds.size,
+                                isFavorites = false,
+                                onPlaylistClick = { onPlaylistClick(it, false) },
+                                onChangeCoverClick = onChangeCoverClick,
+                                onResetCoverClick = { playlistRepo.updatePlaylistCover(it, "") },
+                                hasBackgroundImage = hasBackgroundImage,
+                                isSelected = selectedPlaylists.contains(playlist),
+                                isSelectionMode = isSelectionMode,
+                                onToggleSelection = { onToggleSelection(playlist) }
+                            )
+                        }
+                    }
+
+                    item { Spacer(modifier = Modifier.height(80.dp)) }
+                }
+            }
+
+            // --- GRUPO IZQUIERDO: seleccionar (checklist) y ordenar ---
+            if (!isSelectionMode) {
+                Column(
+                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+                    horizontalAlignment = Alignment.Start,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    FloatingActionButton(
+                        onClick = onToggleSelectionModeButton,
+                        shape = RoundedCornerShape(fabRadius),
+                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                        elevation = FloatingActionButtonDefaults.elevation()
+                    ) {
+                        Icon(Icons.Filled.Checklist, contentDescription = "Seleccionar playlists")
+                    }
+
                     Box {
                         FloatingActionButton(
                             onClick = { showSortMenu.value = true },
@@ -252,7 +378,14 @@ fun PlaylistsScreen(
                             )
                         }
                     }
+                }
 
+                // --- GRUPO DERECHO: nueva playlist e importar (al mismo nivel que el grupo izquierdo) ---
+                Column(
+                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
                     ExtendedFloatingActionButton(
                         onClick = { showCreateDialog.value = true },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
@@ -272,87 +405,6 @@ fun PlaylistsScreen(
                         elevation = FloatingActionButtonDefaults.elevation()
                     )
                 }
-            }
-        }
-    ) { padding ->
-        PullToRefreshBox(
-            isRefreshing = isRefreshing.value,
-            onRefresh = {
-                scope.launch {
-                    isRefreshing.value = true
-                    delay(800)
-                    playlists.clear()
-                    playlists.addAll(playlistRepo.getPlaylists())
-                    favoriteCount.value = favoritesRepo.getAllFavoriteIds().size
-                    displayPlaylists.clear()
-                    displayPlaylists.addAll(
-                        when (sortType.value) {
-                            PlaylistSortType.DATE_CREATED -> playlists
-                            PlaylistSortType.A_Z -> playlists.sortedBy { it.name }
-                            PlaylistSortType.Z_A -> playlists.sortedByDescending { it.name }
-                        }
-                    )
-                    isRefreshing.value = false
-                }
-            },
-            state = pullState,
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding),
-            indicator = {
-                PullToRefreshDefaults.Indicator(
-                    state = pullState,
-                    isRefreshing = isRefreshing.value,
-                    color = MaterialTheme.colorScheme.primary,
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    modifier = Modifier.align(Alignment.TopCenter)
-                )
-            }
-        ) {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
-            ) {
-                item { Spacer(modifier = Modifier.height(8.dp)) }
-
-                item {
-                    val favoritesPlaylist = Playlist("favorites", "Favoritos", favoritesRepo.getAllFavoriteIds().toList())
-                    PlaylistCard(
-                        playlist = favoritesPlaylist,
-                        songCount = favoriteCount.value,
-                        isFavorites = true,
-                        onPlaylistClick = { onPlaylistClick(it, true) },
-                        onChangeCoverClick = {},
-                        hasBackgroundImage = hasBackgroundImage,
-                        isSelected = selectedPlaylists.contains(favoritesPlaylist),
-                        isSelectionMode = isSelectionMode,
-                        onToggleSelection = { onToggleSelection(favoritesPlaylist) }
-                    )
-                }
-
-                items(displayPlaylists, key = { it.id }) { playlist ->
-                    AnimatedVisibility(
-                        visible = true,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        PlaylistCard(
-                            playlist = playlist,
-                            songCount = playlist.songIds.size,
-                            isFavorites = false,
-                            onPlaylistClick = { onPlaylistClick(it, false) },
-                            onChangeCoverClick = onChangeCoverClick,
-                            hasBackgroundImage = hasBackgroundImage,
-                            isSelected = selectedPlaylists.contains(playlist),
-                            isSelectionMode = isSelectionMode,
-                            onToggleSelection = { onToggleSelection(playlist) }
-                        )
-                    }
-                }
-
-                item { Spacer(modifier = Modifier.height(80.dp)) }
             }
         }
     }
@@ -408,6 +460,7 @@ fun PlaylistCard(
     isFavorites: Boolean,
     onPlaylistClick: (Playlist) -> Unit,
     onChangeCoverClick: (String) -> Unit,
+    onResetCoverClick: (String) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
@@ -426,6 +479,7 @@ fun PlaylistCard(
     }
 
     val isRounded = LocalUseRoundCorners.current
+    val albumArtShape = LocalAlbumArtShape.current
     val cardRadius = if (isRounded) 16.dp else 0.dp
     val albumRadius = if (isRounded) 12.dp else 0.dp
     val dialogRadius = if (isRounded) 28.dp else 0.dp
@@ -478,26 +532,24 @@ fun PlaylistCard(
                         .clip(RoundedCornerShape(albumRadius))
                         .combinedClickable(
                             onClick = { },
-                            onLongClick = { if (!isFavorites && !isSelectionMode) showCoverDialog.value = true }
+                            onLongClick = { if (!isSelectionMode) showCoverDialog.value = true }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isFavorites) {
+                    if (isFavorites && playlist.customCoverUri == null) {
                         Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
                             Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
                         }
+                    } else if (playlist.customCoverUri != null) {
+                        AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
                     } else {
-                        if (playlist.customCoverUri != null) {
-                            AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius)
+                        val firstSongId = playlist.songIds.firstOrNull()
+                        if (firstSongId != null) {
+                            val allSongs = remember { loadSongsFromDevice(context) }
+                            val firstSong = allSongs.find { it.id == firstSongId }
+                            AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
                         } else {
-                            val firstSongId = playlist.songIds.firstOrNull()
-                            if (firstSongId != null) {
-                                val allSongs = remember { loadSongsFromDevice(context) }
-                                val firstSong = allSongs.find { it.id == firstSongId }
-                                AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius)
-                            } else {
-                                Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                            }
+                            Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -535,7 +587,7 @@ fun PlaylistCard(
             },
             dismissButton = {
                 TextButton(onClick = {
-                    playlistRepo.updatePlaylistCover(playlist.id, "")
+                    onResetCoverClick(playlist.id)
                     showCoverDialog.value = false
                 }) { Text("Restablecer") }
             }

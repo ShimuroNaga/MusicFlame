@@ -140,6 +140,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBackgroundImageChanged: () -> Unit = {},
     onRoundCornersChanged: (Boolean) -> Unit = {},
+    onAlbumArtShapeChanged: (com.music.musicflame.AlbumArtShapeType) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     isUserSignedIn: Boolean = false,
     userName: String? = null,
@@ -170,6 +171,8 @@ fun SettingsScreen(
     val appTheme = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+    val albumArtShapePref = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
+    val showAlbumArtShapeDialog = remember { mutableStateOf(false) }
     val iconPickerExpanded = remember { mutableStateOf(false) }
     val selectedAppIcon = remember { mutableStateOf(settingsRepo.getSelectedAppIcon()) }
     val appIconOptions = remember {
@@ -578,6 +581,24 @@ fun SettingsScreen(
                                     }
                                 )
                             },
+                            colors = listItemColors
+                        )
+                        HorizontalDivider(color = dividerColor)
+                    }
+
+                    item {
+                        ListItem(
+                            headlineContent = { Text("Forma de la carátula") },
+                            supportingContent = {
+                                Text(
+                                    "Actual: " + when (albumArtShapePref.value) {
+                                        com.music.musicflame.AlbumArtShapeType.SQUARE -> "Cuadrado"
+                                        com.music.musicflame.AlbumArtShapeType.DIAMOND -> "Rombo"
+                                        com.music.musicflame.AlbumArtShapeType.CIRCLE -> "Círculo"
+                                    }
+                                )
+                            },
+                            trailingContent = { TextButton(onClick = { showAlbumArtShapeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                             colors = listItemColors
                         )
                         HorizontalDivider(color = dividerColor)
@@ -1000,6 +1021,38 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showAlbumArtShapeDialog.value) {
+            val tempShape = remember { mutableStateOf(albumArtShapePref.value) }
+            AlertDialog(
+                onDismissRequest = { showAlbumArtShapeDialog.value = false },
+                title = { Text("Forma de la carátula", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        listOf(
+                            com.music.musicflame.AlbumArtShapeType.SQUARE to "Cuadrado",
+                            com.music.musicflame.AlbumArtShapeType.DIAMOND to "Rombo",
+                            com.music.musicflame.AlbumArtShapeType.CIRCLE to "Círculo"
+                        ).forEach { (shape, label) ->
+                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { tempShape.value = shape }.padding(vertical = 8.dp)) {
+                                RadioButton(selected = tempShape.value == shape, onClick = { tempShape.value = shape })
+                                Spacer(Modifier.width(8.dp))
+                                Text(label, fontSize = 14.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveAlbumArtShape(tempShape.value)
+                        albumArtShapePref.value = tempShape.value
+                        onAlbumArtShapeChanged(tempShape.value)
+                        showAlbumArtShapeDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showAlbumArtShapeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

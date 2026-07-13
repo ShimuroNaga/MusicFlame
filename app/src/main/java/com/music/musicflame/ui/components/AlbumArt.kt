@@ -4,6 +4,7 @@ import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.MusicNote
@@ -14,9 +15,15 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Outline
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.unit.Density
 import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
@@ -24,14 +31,38 @@ import coil.compose.SubcomposeAsyncImageContent
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
+import com.music.musicflame.AlbumArtShapeType
+
+// Forma de rombo (diamante) que se ajusta al tamaño exacto del contenedor.
+private class DiamondShape : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val path = Path().apply {
+            moveTo(size.width / 2f, 0f)
+            lineTo(size.width, size.height / 2f)
+            lineTo(size.width / 2f, size.height)
+            lineTo(0f, size.height / 2f)
+            close()
+        }
+        return Outline.Generic(path)
+    }
+}
 
 @Composable
 fun AlbumArt(
     albumArtUri: String?,
     size: Dp = 48.dp,
-    cornerRadius: Dp = 8.dp
+    cornerRadius: Dp = 8.dp,
+    shape: AlbumArtShapeType = AlbumArtShapeType.SQUARE
 ) {
     val context = LocalContext.current
+
+    val clipShape = remember(shape, cornerRadius) {
+        when (shape) {
+            AlbumArtShapeType.CIRCLE -> CircleShape
+            AlbumArtShapeType.DIAMOND -> DiamondShape()
+            AlbumArtShapeType.SQUARE -> RoundedCornerShape(cornerRadius)
+        }
+    }
 
     // Configuramos el lector de GIFs y lo guardamos en caché con 'remember'
     // para no ralentizar la aplicación.
@@ -50,7 +81,7 @@ fun AlbumArt(
     Box(
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(cornerRadius))
+            .clip(clipShape)
             .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center
     ) {

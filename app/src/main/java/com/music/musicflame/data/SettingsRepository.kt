@@ -36,6 +36,18 @@ class SettingsRepository(context: Context) {
     fun getUseRoundCorners(): Boolean = prefs.getBoolean("use_round_corners", true)
     fun saveUseRoundCorners(enabled: Boolean) = prefs.edit().putBoolean("use_round_corners", enabled).apply()
 
+    // --- FORMA DE LA CARÁTULA: SQUARE, DIAMOND o CIRCLE ---
+    fun getAlbumArtShape(): com.music.musicflame.AlbumArtShapeType {
+        val name = prefs.getString("album_art_shape", com.music.musicflame.AlbumArtShapeType.SQUARE.name)
+            ?: com.music.musicflame.AlbumArtShapeType.SQUARE.name
+        return try {
+            com.music.musicflame.AlbumArtShapeType.valueOf(name)
+        } catch (e: Exception) {
+            com.music.musicflame.AlbumArtShapeType.SQUARE
+        }
+    }
+    fun saveAlbumArtShape(shape: com.music.musicflame.AlbumArtShapeType) = prefs.edit().putString("album_art_shape", shape.name).apply()
+
     fun getCarouselStyle(): String = prefs.getString("carousel_style", "Desactivar") ?: "Desactivar"
     fun saveCarouselStyle(style: String) = prefs.edit().putString("carousel_style", style).apply()
 

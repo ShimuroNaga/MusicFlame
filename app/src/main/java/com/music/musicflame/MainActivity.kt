@@ -21,6 +21,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -77,6 +78,12 @@ private const val WEB_CLIENT_ID = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k
 
 val LocalUseRoundCorners = compositionLocalOf { true }
 
+// --- FORMA DE LA CARÁTULA (configurable desde Ajustes > Apariencia) ---
+enum class AlbumArtShapeType {
+    SQUARE, DIAMOND, CIRCLE
+}
+val LocalAlbumArtShape = compositionLocalOf { AlbumArtShapeType.SQUARE }
+
 enum class SearchMode {
     LOCAL,
     YOUTUBE
@@ -99,7 +106,11 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {}
 
             selectedPlaylistForCover?.let { playlistId ->
-                playlistRepo.updatePlaylistCover(playlistId, it.toString())
+                if (playlistId == "favorites") {
+                    favoritesRepo.saveCoverUri(it.toString())
+                } else {
+                    playlistRepo.updatePlaylistCover(playlistId, it.toString())
+                }
                 selectedPlaylistForCover = null
             }
         }
@@ -319,6 +330,7 @@ class MainActivity : ComponentActivity() {
                 val bgBrightness = remember { mutableFloatStateOf(settingsRepo.getBackgroundBrightness()) }
                 val hasBackgroundImage = backgroundImageUri.value != null || playerGifUri.value != null
                 val useRoundCornersState = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+                val albumArtShapeState = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
 
                 val pagerState = rememberPagerState(pageCount = { bottomNavItems.size })
 
@@ -333,6 +345,11 @@ class MainActivity : ComponentActivity() {
                 var selectedPlaylistIsFavorites by remember { mutableStateOf(false) }
                 var showSettings by remember { mutableStateOf(false) }
                 var geminiPrompt by remember { mutableStateOf("") }
+
+                // --- Selector de hasta 200 canciones antes de mandar a Gemini (desde playlists) ---
+                var showGeminiSongPicker by remember { mutableStateOf(false) }
+                var geminiCandidateSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+                val geminiSelectedSongIds = remember { mutableStateListOf<Long>() }
 
                 var isSearchActive by remember { mutableStateOf(false) }
                 var searchQuery by remember { mutableStateOf("") }
@@ -351,8 +368,14 @@ class MainActivity : ComponentActivity() {
                 val selectedSongs = remember { mutableStateListOf<Song>() }
                 val selectedPlaylists = remember { mutableStateListOf<Playlist>() }
 
-                val isSongSelectionMode = selectedSongs.isNotEmpty()
-                val isPlaylistSelectionMode = selectedPlaylists.isNotEmpty()
+                // Permite entrar en modo selección de playlists tocando un botón, sin mantener presionado
+                var manualPlaylistSelectionMode by remember { mutableStateOf(false) }
+
+                // Permite entrar en modo selección tocando un botón, sin necesidad de mantener presionado
+                var manualSongSelectionMode by remember { mutableStateOf(false) }
+
+                val isSongSelectionMode = selectedSongs.isNotEmpty() || manualSongSelectionMode
+                val isPlaylistSelectionMode = selectedPlaylists.isNotEmpty() || manualPlaylistSelectionMode
                 val isAnySelectionMode = isSongSelectionMode || isPlaylistSelectionMode
 
                 var totalSongsOnDevice by remember { mutableIntStateOf(0) }
@@ -514,19 +537,19 @@ class MainActivity : ComponentActivity() {
                     isSearchActive = false
                     searchQuery = ""
 
-                    selectedSongs.clear()
-                    selectedPlaylists.clear()
+                    selectedSongs.clear(); manualSongSelectionMode = false
+                    selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                     messages.clear()
                     if (currentScreen != Screen.Gemini) geminiPrompt = ""
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
                 }
 
-                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value) {
+                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value) {
                     BackHandler(enabled = showFullScreenPlayer || isAnySelectionMode) {
                         if (showFullScreenPlayer) showFullScreenPlayer = false
                         else {
-                            selectedSongs.clear()
-                            selectedPlaylists.clear()
+                            selectedSongs.clear(); manualSongSelectionMode = false
+                            selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                         }
                     }
 
@@ -570,12 +593,22 @@ class MainActivity : ComponentActivity() {
                                     TopAppBar(
                                         title = { Text("${selectedSongs.size} / $totalSongsOnDevice", fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
-                                            IconButton(onClick = { selectedSongs.clear() }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
+                                            IconButton(onClick = { selectedSongs.clear(); manualSongSelectionMode = false }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
                                         },
                                         actions = {
                                             IconButton(onClick = { showSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, "Opciones") }
 
                                             DropdownMenu(expanded = showSelectionMenu, onDismissRequest = { showSelectionMenu = false }) {
+                                                DropdownMenuItem(
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Seleccionar todos") } },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        val trashedIds = trashRepo.getTrash().map { it.song.id }
+                                                        val allSongs = loadSongsFromDevice(context).filter { it.id !in trashedIds }
+                                                        selectedSongs.clear()
+                                                        selectedSongs.addAll(allSongs)
+                                                    }
+                                                )
                                                 DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Añadir a playlist") } },
                                                     onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }
@@ -607,7 +640,7 @@ class MainActivity : ComponentActivity() {
                                                             intent.setPackage(packageName)
                                                             sendBroadcast(intent)
                                                             Toast.makeText(context, if (allSelectedAreFavorites) "${selectedSongs.size} quitadas de Favoritos" else "${selectedSongs.size} añadidas a Favoritos", Toast.LENGTH_SHORT).show()
-                                                            selectedSongs.clear()
+                                                            selectedSongs.clear(); manualSongSelectionMode = false
                                                         }
                                                     )
                                                 }
@@ -615,9 +648,11 @@ class MainActivity : ComponentActivity() {
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
                                                     onClick = {
                                                         showSelectionMenu = false
-                                                        geminiPrompt = "Analiza y recomiéndame música basándote en estas canciones: " + selectedSongs.joinToString(", ") { it.title }
-                                                        selectedSongs.clear()
-                                                        coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
+                                                        geminiCandidateSongs = selectedSongs.toList()
+                                                        geminiSelectedSongIds.clear()
+                                                        geminiSelectedSongIds.addAll(geminiCandidateSongs.take(200).map { it.id })
+                                                        selectedSongs.clear(); manualSongSelectionMode = false
+                                                        showGeminiSongPicker = true
                                                     }
                                                 )
                                                 // --- OPCIÓN SUBIR A GOOGLE DRIVE ---
@@ -658,7 +693,7 @@ class MainActivity : ComponentActivity() {
                                                                         Toast.makeText(context, "Error al acceder a la carpeta de Drive", Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
-                                                                selectedSongs.clear()
+                                                                selectedSongs.clear(); manualSongSelectionMode = false
                                                             }
                                                         } else {
                                                             Toast.makeText(context, "Por favor, vincula Google Drive en CONFIGURACION primero", Toast.LENGTH_LONG).show()
@@ -677,25 +712,33 @@ class MainActivity : ComponentActivity() {
                                     TopAppBar(
                                         title = { Text("${selectedPlaylists.size} seleccionadas", fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
-                                            IconButton(onClick = { selectedPlaylists.clear() }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
+                                            IconButton(onClick = { selectedPlaylists.clear(); manualPlaylistSelectionMode = false }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
                                         },
                                         actions = {
                                             IconButton(onClick = { showPlaylistSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, "Opciones") }
 
                                             DropdownMenu(expanded = showPlaylistSelectionMenu, onDismissRequest = { showPlaylistSelectionMenu = false }) {
                                                 DropdownMenuItem(
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Seleccionar todos") } },
+                                                    onClick = {
+                                                        showPlaylistSelectionMenu = false
+                                                        val favoritesPlaylist = Playlist("favorites", "Favoritos", favoriteIds.toList())
+                                                        val allPlaylists = listOf(favoritesPlaylist) + playlistRepo.getPlaylists()
+                                                        selectedPlaylists.clear()
+                                                        selectedPlaylists.addAll(allPlaylists)
+                                                    }
+                                                )
+                                                DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         val allSongs = loadSongsFromDevice(context)
-                                                        val allIds = selectedPlaylists.flatMap { if (it.id == "favorites") favoriteIds.toList() else it.songIds }.distinct().take(40)
-                                                        val targetSongs = allSongs.filter { it.id in allIds }
-
-                                                        if (allIds.size >= 40) Toast.makeText(context, "Limitado a 40 canciones para Gemini", Toast.LENGTH_SHORT).show()
-
-                                                        geminiPrompt = "Analiza estas playlists con música como: " + targetSongs.joinToString(", ") { it.title }
-                                                        selectedPlaylists.clear()
-                                                        coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
+                                                        val allIds = selectedPlaylists.flatMap { if (it.id == "favorites") favoriteIds.toList() else it.songIds }.distinct()
+                                                        geminiCandidateSongs = allSongs.filter { it.id in allIds }
+                                                        geminiSelectedSongIds.clear()
+                                                        geminiSelectedSongIds.addAll(geminiCandidateSongs.take(200).map { it.id })
+                                                        selectedPlaylists.clear(); manualPlaylistSelectionMode = false
+                                                        showGeminiSongPicker = true
                                                     }
                                                 )
                                                 DropdownMenuItem(
@@ -708,7 +751,7 @@ class MainActivity : ComponentActivity() {
                                                             if (playlistRepo.exportToM3U(context, exportable)) successCount++
                                                         }
                                                         Toast.makeText(context, "$successCount de ${selectedPlaylists.size} exportadas a Descargas", Toast.LENGTH_SHORT).show()
-                                                        selectedPlaylists.clear()
+                                                        selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                     }
                                                 )
                                                 DropdownMenuItem(
@@ -877,8 +920,8 @@ class MainActivity : ComponentActivity() {
                                                     showSettings = false
                                                     isSearchActive = false
                                                     searchQuery = ""
-                                                    selectedSongs.clear()
-                                                    selectedPlaylists.clear()
+                                                    selectedSongs.clear(); manualSongSelectionMode = false
+                                                    selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                     if (screen != Screen.Gemini) geminiPrompt = ""
                                                     coroutineScope.launch { pagerState.animateScrollToPage(index) }
                                                 },
@@ -899,6 +942,7 @@ class MainActivity : ComponentActivity() {
                                         bgBrightness.floatValue = settingsRepo.getBackgroundBrightness()
                                     },
                                     onRoundCornersChanged = { newState -> useRoundCornersState.value = newState },
+                                    onAlbumArtShapeChanged = { newShape -> albumArtShapeState.value = newShape },
                                     hasBackgroundImage = hasBackgroundImage,
                                     isUserSignedIn = isUserLoggedIn,
                                     userName = userName,
@@ -975,7 +1019,9 @@ class MainActivity : ComponentActivity() {
                                                     intent.setPackage(packageName)
                                                     sendBroadcast(intent)
                                                 },
-                                                syncedFileNames = syncedFileNames
+                                                syncedFileNames = syncedFileNames,
+                                                selectionModeActive = manualSongSelectionMode,
+                                                onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode }
                                             )
 
                                             if (youtubeVideoId != null) {
@@ -1016,7 +1062,9 @@ class MainActivity : ComponentActivity() {
                                             onChangeCoverClick = { playlistId -> selectedPlaylistForCover = playlistId; pickImageLauncher.launch("image/*") },
                                             hasBackgroundImage = hasBackgroundImage,
                                             selectedPlaylists = selectedPlaylists,
-                                            onToggleSelection = onTogglePlaylist
+                                            onToggleSelection = onTogglePlaylist,
+                                            selectionModeActive = manualPlaylistSelectionMode,
+                                            onToggleSelectionModeButton = { manualPlaylistSelectionMode = !manualPlaylistSelectionMode }
                                         )
                                         Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong)
                                         Screen.Gemini -> GeminiScreen(messages = messages, initialPrompt = geminiPrompt, hasBackgroundImage = hasBackgroundImage)
@@ -1071,7 +1119,7 @@ class MainActivity : ComponentActivity() {
                                                                     selectedSongs.forEach { playlistRepo.addSongToPlaylist(playlist.id, it.id) }
                                                                     Toast.makeText(context, "${selectedSongs.size} canciones añadidas a ${playlist.name}", Toast.LENGTH_SHORT).show()
                                                                     showMultiPlaylistDialog = false
-                                                                    selectedSongs.clear()
+                                                                    selectedSongs.clear(); manualSongSelectionMode = false
                                                                 }
                                                                 .padding(vertical = 12.dp, horizontal = 8.dp),
                                                             fontSize = 16.sp
@@ -1112,7 +1160,7 @@ class MainActivity : ComponentActivity() {
                                                         Toast.makeText(context, "${selectedSongs.size} canciones añadidas a $trimmedName", Toast.LENGTH_SHORT).show()
                                                     }
                                                     showCreatePlaylistFromSelection = false
-                                                    selectedSongs.clear()
+                                                    selectedSongs.clear(); manualSongSelectionMode = false
                                                 }
                                             }
                                         ) { Text("Crear y añadir") }
@@ -1134,7 +1182,7 @@ class MainActivity : ComponentActivity() {
                                             onClick = {
                                                 trashRepo.moveToTrash(selectedSongs.toList())
                                                 showMultiDeleteDialog = false
-                                                selectedSongs.clear()
+                                                selectedSongs.clear(); manualSongSelectionMode = false
                                             }
                                         ) { Text("Mover") }
                                     },
@@ -1159,13 +1207,67 @@ class MainActivity : ComponentActivity() {
                                             onClick = {
                                                 deletablePlaylists.forEach { playlistRepo.deletePlaylist(it.id) }
                                                 Toast.makeText(context, "${deletablePlaylists.size} playlists eliminadas", Toast.LENGTH_SHORT).show()
-                                                selectedPlaylists.clear()
+                                                selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                 showDeletePlaylistsDialog = false
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                         ) { Text("Eliminar") }
                                     },
                                     dismissButton = { TextButton(onClick = { showDeletePlaylistsDialog = false }) { Text("Cancelar") } }
+                                )
+                            }
+
+                            if (showGeminiSongPicker) {
+                                AlertDialog(
+                                    onDismissRequest = { showGeminiSongPicker = false },
+                                    title = { Text("Selecciona hasta 200 canciones", fontWeight = FontWeight.Bold) },
+                                    text = {
+                                        Column {
+                                            Text(
+                                                "${geminiSelectedSongIds.size} / 200 seleccionadas",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(bottom = 8.dp)
+                                            )
+                                            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
+                                                items(geminiCandidateSongs, key = { it.id }) { song ->
+                                                    val isChecked = geminiSelectedSongIds.contains(song.id)
+                                                    val canToggle = isChecked || geminiSelectedSongIds.size < 200
+                                                    Row(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .clickable(enabled = canToggle) {
+                                                                if (isChecked) geminiSelectedSongIds.remove(song.id)
+                                                                else if (geminiSelectedSongIds.size < 200) geminiSelectedSongIds.add(song.id)
+                                                            }
+                                                            .padding(vertical = 6.dp),
+                                                        verticalAlignment = Alignment.CenterVertically
+                                                    ) {
+                                                        Checkbox(checked = isChecked, onCheckedChange = null, enabled = canToggle)
+                                                        Spacer(Modifier.width(4.dp))
+                                                        Text(
+                                                            text = song.title,
+                                                            maxLines = 1,
+                                                            overflow = TextOverflow.Ellipsis,
+                                                            color = if (canToggle) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.4f)
+                                                        )
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                val chosen = geminiCandidateSongs.filter { it.id in geminiSelectedSongIds }
+                                                geminiPrompt = "Analiza y recomiéndame música basándote en estas canciones: " + chosen.joinToString(", ") { it.title }
+                                                showGeminiSongPicker = false
+                                                coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
+                                            },
+                                            enabled = geminiSelectedSongIds.isNotEmpty()
+                                        ) { Text("Enviar a Gemini") }
+                                    },
+                                    dismissButton = { TextButton(onClick = { showGeminiSongPicker = false }) { Text("Cancelar") } }
                                 )
                             }
                         }

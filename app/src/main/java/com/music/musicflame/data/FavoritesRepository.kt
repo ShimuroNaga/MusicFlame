@@ -55,4 +55,11 @@ class FavoritesRepository(context: Context) {
         // Convertimos los textos (Strings) de vuelta a números (Longs) de forma segura
         return favoritesSet.mapNotNull { it.toLongOrNull() }.toSet()
     }
+
+    // --- CARÁTULA PERSONALIZADA DE LA CARPETA "FAVORITOS" (imagen o GIF) ---
+    fun getCoverUri(): String? = prefs.getString("favorites_cover_uri", null)
+
+    fun saveCoverUri(uri: String) {
+        prefs.edit().putString("favorites_cover_uri", if (uri.isBlank()) null else uri).apply()
+    }
 }

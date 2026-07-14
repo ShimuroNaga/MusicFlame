@@ -62,6 +62,15 @@ class PlaylistRepository(context: Context) {
         savePlaylists(playlists)
     }
 
+    // Vuelve a insertar una playlist (usado al restaurar desde la papelera), preservando su id, canciones y carátula
+    fun restorePlaylist(playlist: Playlist) {
+        val playlists = getAllPlaylists().toMutableList()
+        if (playlists.none { it.id == playlist.id }) {
+            playlists.add(playlist)
+            savePlaylists(playlists)
+        }
+    }
+
     fun addSongToPlaylist(playlistId: String, songId: Long) {
         val playlists = getAllPlaylists().map { playlist ->
             if (playlist.id == playlistId && songId !in playlist.songIds) {

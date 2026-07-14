@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.CheckCircle
+import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.data.*
 import com.music.musicflame.ui.components.AlbumArt
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- Import agregado
@@ -130,7 +132,10 @@ fun PlaylistDetailScreen(
     onSendToGemini: (List<Song>) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     selectedSongs: List<Song> = emptyList(),
-    onToggleSelection: (Song) -> Unit = {}
+    onToggleSelection: (Song) -> Unit = {},
+    // --- MODO DE SELECCIÓN POR TAP (sin necesidad de mantener presionado) ---
+    selectionModeActive: Boolean = false,
+    onToggleSelectionModeButton: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val favoritesRepo = remember { FavoritesRepository(context) }
@@ -138,6 +143,7 @@ fun PlaylistDetailScreen(
     val snackbarHostState = remember { SnackbarHostState() }
 
     val isRounded = LocalUseRoundCorners.current
+    val albumArtShape = LocalAlbumArtShape.current
     val itemRadius = if (isRounded) 12.dp else 0.dp
     val buttonRadius = if (isRounded) 24.dp else 0.dp // Aumentado para un look más "píldora"
     val fabRadius = if (isRounded) 16.dp else 0.dp
@@ -148,7 +154,7 @@ fun PlaylistDetailScreen(
     val sortType = remember { mutableStateOf(SortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
 
-    val isSelectionMode = selectedSongs.isNotEmpty()
+    val isSelectionMode = selectedSongs.isNotEmpty() || selectionModeActive
 
     // SOLUCIÓN AL ORDENAMIENTO: Guardamos el orden original explícitamente.
     val originalOrder = remember { mutableListOf<Long>() }
@@ -191,94 +197,18 @@ fun PlaylistDetailScreen(
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         floatingActionButton = {
-            if (!isSelectionMode) { // Ocultamos el FAB de ordenar si estamos seleccionando
-                Box {
-                    FloatingActionButton(
-                        onClick = { showSortMenu.value = true },
-                        shape = RoundedCornerShape(fabRadius),
-                        containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                        contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                        elevation = FloatingActionButtonDefaults.elevation()
-                    ) {
-                        Icon(
-                            Icons.Filled.Sort,
-                            contentDescription = "Ordenar"
-                        )
-                    }
-
-                    DropdownMenu(
-                        expanded = showSortMenu.value,
-                        onDismissRequest = { showSortMenu.value = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    RadioButton(
-                                        selected = sortType.value == SortType.DATE_CREATED,
-                                        onClick = {
-                                            sortType.value = SortType.DATE_CREATED
-                                            showSortMenu.value = false
-                                        }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Orden original", color = LocalAppTextColor.current)
-                                }
-                            },
-                            onClick = {
-                                sortType.value = SortType.DATE_CREATED
-                                showSortMenu.value = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    RadioButton(
-                                        selected = sortType.value == SortType.A_Z,
-                                        onClick = {
-                                            sortType.value = SortType.A_Z
-                                            showSortMenu.value = false
-                                        }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("A - Z", color = LocalAppTextColor.current)
-                                }
-                            },
-                            onClick = {
-                                sortType.value = SortType.A_Z
-                                showSortMenu.value = false
-                            }
-                        )
-
-                        DropdownMenuItem(
-                            text = {
-                                Row(
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    RadioButton(
-                                        selected = sortType.value == SortType.Z_A,
-                                        onClick = {
-                                            sortType.value = SortType.Z_A
-                                            showSortMenu.value = false
-                                        }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Z - A", color = LocalAppTextColor.current)
-                                }
-                            },
-                            onClick = {
-                                sortType.value = SortType.Z_A
-                                showSortMenu.value = false
-                            }
-                        )
-                    }
+            if (!isSelectionMode) { // Ocultamos el FAB si ya estamos seleccionando
+                FloatingActionButton(
+                    onClick = onToggleSelectionModeButton,
+                    shape = RoundedCornerShape(fabRadius),
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                    elevation = FloatingActionButtonDefaults.elevation()
+                ) {
+                    Icon(
+                        Icons.Filled.Checklist,
+                        contentDescription = "Seleccionar canciones"
+                    )
                 }
             }
         }
@@ -340,7 +270,7 @@ fun PlaylistDetailScreen(
                         icon = Icons.Filled.SmartToy,
                         enabled = songs.isNotEmpty(),
                         onClick = {
-                            if (songs.size > 40) {
+                            if (songs.size > 200) {
                                 showSelectDialog.value = true
                             } else {
                                 onSendToGemini(songs)
@@ -349,6 +279,91 @@ fun PlaylistDetailScreen(
                         hasBackgroundImage = hasBackgroundImage,
                         radius = buttonRadius
                     )
+
+                    // Botón Ordenar (Secundario) - antes era un FAB flotante, ahora vive en esta fila
+                    Box {
+                        AnimatedActionButton(
+                            icon = Icons.Filled.Sort,
+                            enabled = songs.isNotEmpty(),
+                            onClick = { showSortMenu.value = true },
+                            hasBackgroundImage = hasBackgroundImage,
+                            radius = buttonRadius
+                        )
+
+                        DropdownMenu(
+                            expanded = showSortMenu.value,
+                            onDismissRequest = { showSortMenu.value = false }
+                        ) {
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        RadioButton(
+                                            selected = sortType.value == SortType.DATE_CREATED,
+                                            onClick = {
+                                                sortType.value = SortType.DATE_CREATED
+                                                showSortMenu.value = false
+                                            }
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Orden original", color = LocalAppTextColor.current)
+                                    }
+                                },
+                                onClick = {
+                                    sortType.value = SortType.DATE_CREATED
+                                    showSortMenu.value = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        RadioButton(
+                                            selected = sortType.value == SortType.A_Z,
+                                            onClick = {
+                                                sortType.value = SortType.A_Z
+                                                showSortMenu.value = false
+                                            }
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("A - Z", color = LocalAppTextColor.current)
+                                    }
+                                },
+                                onClick = {
+                                    sortType.value = SortType.A_Z
+                                    showSortMenu.value = false
+                                }
+                            )
+
+                            DropdownMenuItem(
+                                text = {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        RadioButton(
+                                            selected = sortType.value == SortType.Z_A,
+                                            onClick = {
+                                                sortType.value = SortType.Z_A
+                                                showSortMenu.value = false
+                                            }
+                                        )
+                                        Spacer(Modifier.width(8.dp))
+                                        Text("Z - A", color = LocalAppTextColor.current)
+                                    }
+                                },
+                                onClick = {
+                                    sortType.value = SortType.Z_A
+                                    showSortMenu.value = false
+                                }
+                            )
+                        }
+                    }
                 }
             }
 
@@ -374,6 +389,7 @@ fun PlaylistDetailScreen(
                         } else null,
                         hasBackgroundImage = hasBackgroundImage,
                         radius = itemRadius,
+                        albumArtShape = albumArtShape,
                         isSelected = selectedSongs.contains(song),
                         isSelectionMode = isSelectionMode,
                         onToggleSelection = { onToggleSelection(song) }
@@ -462,6 +478,7 @@ fun SongItemCard(
     onDelete: (() -> Unit)? = null,
     hasBackgroundImage: Boolean = false,
     radius: androidx.compose.ui.unit.Dp = 12.dp,
+    albumArtShape: com.music.musicflame.AlbumArtShapeType = com.music.musicflame.AlbumArtShapeType.SQUARE,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onToggleSelection: (() -> Unit)? = null
@@ -517,7 +534,8 @@ fun SongItemCard(
                 AlbumArt(
                     albumArtUri = song.albumArtUri,
                     size = 48.dp,
-                    cornerRadius = if (radius > 0.dp) 8.dp else 0.dp
+                    cornerRadius = if (radius > 0.dp) 8.dp else 0.dp,
+                    shape = albumArtShape
                 )
                 if (isSelected) {
                     Box(

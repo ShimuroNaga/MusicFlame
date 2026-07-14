@@ -852,6 +852,14 @@ class MainActivity : ComponentActivity() {
 
                                                 IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, "Configuración") }
                                             }
+                                            if (selectedPlaylist != null) {
+                                                IconButton(onClick = {
+                                                    val playlist = selectedPlaylist!!
+                                                    val exportable = if (selectedPlaylistIsFavorites) playlist.copy(songIds = favoriteIds.toList()) else playlist
+                                                    val success = playlistRepo.exportToM3U(context, exportable)
+                                                    Toast.makeText(context, if (success) "Playlist exportada a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                            }
                                         },
                                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
                                             containerColor = if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.surface,
@@ -1054,7 +1062,9 @@ class MainActivity : ComponentActivity() {
                                                 onSendToGemini = { songs -> geminiPrompt = "Analiza esta playlist: " + songs.joinToString { it.title }; coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) } },
                                                 hasBackgroundImage = hasBackgroundImage,
                                                 selectedSongs = selectedSongs,
-                                                onToggleSelection = onToggleSong
+                                                onToggleSelection = onToggleSong,
+                                                selectionModeActive = manualSongSelectionMode,
+                                                onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode }
                                             )
                                         } else PlaylistsScreen(
                                             onPlaylistClick = { playlist, isFavorites -> selectedPlaylist = playlist; selectedPlaylistIsFavorites = isFavorites },
@@ -1194,24 +1204,27 @@ class MainActivity : ComponentActivity() {
                                 val deletablePlaylists = selectedPlaylists.filter { it.id != "favorites" }
                                 AlertDialog(
                                     onDismissRequest = { showDeletePlaylistsDialog = false },
-                                    title = { Text("Eliminar Playlists", fontWeight = FontWeight.Bold) },
+                                    title = { Text("Mover a papelera", fontWeight = FontWeight.Bold) },
                                     text = {
                                         if (deletablePlaylists.isEmpty()) {
-                                            Text("La playlist de Favoritos no se puede eliminar.")
+                                            Text("La playlist de Favoritos no se puede mover a la papelera.")
                                         } else {
-                                            Text("¿Eliminar permanentemente ${deletablePlaylists.size} playlists creadas?\n(Las canciones no se borrarán del dispositivo).")
+                                            Text("¿Mover ${deletablePlaylists.size} playlists a la papelera?\nLas canciones no se borrarán del dispositivo, solo la playlist. Podrás restaurarla dentro de 30 días.")
                                         }
                                     },
                                     confirmButton = {
                                         Button(
                                             onClick = {
-                                                deletablePlaylists.forEach { playlistRepo.deletePlaylist(it.id) }
-                                                Toast.makeText(context, "${deletablePlaylists.size} playlists eliminadas", Toast.LENGTH_SHORT).show()
+                                                deletablePlaylists.forEach { playlist ->
+                                                    trashRepo.trashPlaylist(playlist)
+                                                    playlistRepo.deletePlaylist(playlist.id)
+                                                }
+                                                Toast.makeText(context, "${deletablePlaylists.size} playlists movidas a la papelera", Toast.LENGTH_SHORT).show()
                                                 selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                 showDeletePlaylistsDialog = false
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                        ) { Text("Eliminar") }
+                                        ) { Text("Mover a papelera") }
                                     },
                                     dismissButton = { TextButton(onClick = { showDeletePlaylistsDialog = false }) { Text("Cancelar") } }
                                 )

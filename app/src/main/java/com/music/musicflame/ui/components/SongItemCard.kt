@@ -19,6 +19,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 
@@ -30,6 +31,7 @@ fun SongItemCard(
     onDelete: (() -> Unit)? = null,
     hasBackgroundImage: Boolean = false,
     radius: Dp = 12.dp,
+    albumArtShape: AlbumArtShapeType = AlbumArtShapeType.SQUARE,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onToggleSelection: () -> Unit = {}
@@ -73,7 +75,7 @@ fun SongItemCard(
                     Icon(Icons.Filled.Check, "Seleccionada", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             } else {
-                AlbumArt(albumArtUri = song.albumArtUri, size = 48.dp, cornerRadius = if (radius > 0.dp) 8.dp else 0.dp)
+                AlbumArt(albumArtUri = song.albumArtUri, size = 48.dp, cornerRadius = if (radius > 0.dp) 8.dp else 0.dp, shape = albumArtShape)
             }
 
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {

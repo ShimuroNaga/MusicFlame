@@ -58,6 +58,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.blur
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
@@ -178,6 +179,17 @@ fun GeminiScreen(
         label = "rotation"
     )
 
+    // Rotación lenta y constante mientras está en reposo, para que el ícono se sienta "vivo"
+    val idleRotation = infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(14000, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "idleRotation"
+    )
+
     LaunchedEffect(messages.size, isLoading.value) {
         if (messages.isNotEmpty()) {
             listState.animateScrollToItem(if (isLoading.value) messages.size else messages.size - 1)
@@ -244,36 +256,57 @@ fun GeminiScreen(
             ) {
                 Box(
                     modifier = Modifier
-                        .size(70.dp)
+                        .size(84.dp)
                         .scale(if (isLoading.value) scale.value else 1f),
                     contentAlignment = Alignment.Center
                 ) {
+                    // Glow exterior suave, con el color primario del tema
                     Box(
                         modifier = Modifier
-                            .size(70.dp)
-                            .rotate(if (isLoading.value) rotation.value else 0f)
-                            .clip(CircleShape)
+                            .size(84.dp)
+                            .blur(18.dp)
                             .background(
-                                brush = Brush.sweepGradient(
+                                brush = Brush.radialGradient(
                                     colors = listOf(
-                                        Color(0xFF6200EE),
-                                        Color(0xFF03DAC5),
-                                        Color(0xFF6200EE)
+                                        MaterialTheme.colorScheme.primary.copy(alpha = 0.55f),
+                                        Color.Transparent
                                     )
                                 )
                             )
                     )
+
+                    // Anillo giratorio con degradado de los 3 colores del tema
                     Box(
                         modifier = Modifier
-                            .size(60.dp)
+                            .size(70.dp)
+                            .rotate(if (isLoading.value) rotation.value else idleRotation.value)
                             .clip(CircleShape)
-                            .background(Color.Black.copy(alpha = 0.45f)),
+                            .background(
+                                brush = Brush.sweepGradient(
+                                    colors = listOf(
+                                        MaterialTheme.colorScheme.primary,
+                                        MaterialTheme.colorScheme.tertiary,
+                                        MaterialTheme.colorScheme.secondary,
+                                        MaterialTheme.colorScheme.primary
+                                    )
+                                )
+                            )
+                    )
+
+                    // Núcleo oscuro con el ícono
+                    Box(
+                        modifier = Modifier
+                            .size(58.dp)
+                            .clip(CircleShape)
+                            .background(Color.Black.copy(alpha = 0.55f)),
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
                             imageVector = Icons.Filled.AutoAwesome,
                             contentDescription = null,
-                            modifier = Modifier.size(32.dp),
+                            modifier = Modifier
+                                .size(30.dp)
+                                .rotate(if (isLoading.value) -rotation.value else -idleRotation.value),
                             tint = Color.White
                         )
                     }

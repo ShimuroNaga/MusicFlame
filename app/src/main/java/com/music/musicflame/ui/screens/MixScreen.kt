@@ -22,12 +22,14 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.data.*
 // --- TARJETA UNIVERSAL DE CANCIONES ---
 import com.music.musicflame.ui.components.SongItemCard
@@ -59,6 +61,7 @@ fun MixScreen(
 
     val todayFormatted = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()) }
     val isRounded = LocalUseRoundCorners.current
+    val albumArtShape = LocalAlbumArtShape.current
     val headerRadius = if (isRounded) 20.dp else 0.dp
     val buttonRadius = if (isRounded) 12.dp else 0.dp
     val itemRadius = if (isRounded) 12.dp else 0.dp
@@ -69,9 +72,47 @@ fun MixScreen(
         animationSpec = infiniteRepeatable(animation = tween(2000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
         label = "rotation"
     )
+    // Rotación lenta constante en reposo, para que el ícono se sienta "vivo" (igual que en GeminiScreen)
+    val idleRotation by infiniteTransition.animateFloat(
+        initialValue = 0f, targetValue = 360f,
+        animationSpec = infiniteRepeatable(animation = tween(16000, easing = LinearEasing), repeatMode = RepeatMode.Restart),
+        label = "idleRotation"
+    )
+    val pulse by infiniteTransition.animateFloat(
+        initialValue = 0.96f, targetValue = 1.04f,
+        animationSpec = infiniteRepeatable(animation = tween(1400), repeatMode = RepeatMode.Reverse),
+        label = "pulse"
+    )
 
     // Modo Selección Global activo si hay elementos seleccionados
     val isSelectionMode = selectedSongs.isNotEmpty()
+
+    // --- Duración total del mix, formateada en horas y minutos ---
+    val totalDurationFormatted by remember {
+        derivedStateOf {
+            val totalMs = mixSongs.sumOf { it.duration }
+            val totalMinutes = totalMs / 60000
+            val hours = totalMinutes / 60
+            val minutes = totalMinutes % 60
+            if (hours > 0) "$hours h $minutes min" else "$minutes min"
+        }
+    }
+
+    // --- Horas restantes hasta la medianoche, para saber cuándo se desbloquea el próximo mix ---
+    val hoursUntilNextMix = remember(canGenerate) {
+        if (canGenerate) 0 else {
+            val now = java.util.Calendar.getInstance()
+            val midnight = java.util.Calendar.getInstance().apply {
+                add(java.util.Calendar.DAY_OF_YEAR, 1)
+                set(java.util.Calendar.HOUR_OF_DAY, 0)
+                set(java.util.Calendar.MINUTE, 0)
+                set(java.util.Calendar.SECOND, 0)
+                set(java.util.Calendar.MILLISECOND, 0)
+            }
+            val diffMs = midnight.timeInMillis - now.timeInMillis
+            (diffMs / (1000 * 60 * 60)).toInt().coerceAtLeast(0)
+        }
+    }
 
     LaunchedEffect(Unit) {
         val allSongs = loadSongsFromDevice(context)
@@ -105,8 +146,23 @@ fun MixScreen(
                         shape = RoundedCornerShape(headerRadius)
                     ) {
                         Column(modifier = Modifier.fillMaxWidth().padding(24.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                            Box(modifier = Modifier.size(80.dp).rotate(if (isGenerating.value) rotation else 0f).clip(CircleShape).background(MaterialTheme.colorScheme.primary), contentAlignment = Alignment.Center) {
-                                Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onPrimary)
+                            Box(
+                                modifier = Modifier
+                                    .size(80.dp)
+                                    .scale(if (isGenerating.value) pulse else 1f)
+                                    .rotate(if (isGenerating.value) rotation else idleRotation)
+                                    .clip(CircleShape)
+                                    .background(MaterialTheme.colorScheme.primary),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    Icons.Filled.MusicNote,
+                                    null,
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .rotate(if (isGenerating.value) -rotation else -idleRotation),
+                                    tint = MaterialTheme.colorScheme.onPrimary
+                                )
                             }
                             Spacer(Modifier.height(16.dp))
 
@@ -116,7 +172,7 @@ fun MixScreen(
                             Text("Hoy ($todayFormatted)", fontSize = 14.sp, color = textColor.copy(alpha = 0.8f))
                             if (mixSongs.isNotEmpty()) {
                                 Spacer(Modifier.height(8.dp))
-                                Text("${mixSongs.size} canciones", fontSize = 13.sp, color = textColor.copy(alpha = 0.8f))
+                                Text("${mixSongs.size} canciones • $totalDurationFormatted", fontSize = 13.sp, color = textColor.copy(alpha = 0.8f))
                             }
                         }
                     }
@@ -145,6 +201,7 @@ fun MixScreen(
                         onClick = { onSongClick(song, mixSongs) },
                         hasBackgroundImage = hasBackgroundImage,
                         radius = itemRadius,
+                        albumArtShape = albumArtShape,
                         isSelected = selectedSongs.contains(song),
                         isSelectionMode = isSelectionMode,
                         onToggleSelection = { onToggleSelection(song) }
@@ -190,7 +247,7 @@ fun MixScreen(
                                     Toast.makeText(context, "¡30 canciones generadas!", Toast.LENGTH_SHORT).show()
                                 }
                             } else {
-                                Toast.makeText(context, "Vuelve mañana para generar un nuevo mix", Toast.LENGTH_SHORT).show()
+                                Toast.makeText(context, "Nuevo mix disponible en $hoursUntilNextMix horas", Toast.LENGTH_SHORT).show()
                             }
                         },
                         icon = {
@@ -199,7 +256,7 @@ fun MixScreen(
                                 contentDescription = null
                             )
                         },
-                        text = { Text(if (canGenerate) "Generar Mix" else "Mix Listo") },
+                        text = { Text(if (canGenerate) "Generar Mix" else "Listo (${hoursUntilNextMix}h)") },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(buttonRadius),
                         containerColor = FloatingActionButtonDefaults.containerColor,

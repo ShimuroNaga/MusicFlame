@@ -11,6 +11,11 @@ data class TrashedSong(
     val deletedAt: Long
 )
 
+data class TrashedPlaylist(
+    val playlist: Playlist,
+    val deletedAt: Long
+)
+
 class TrashRepository(private val context: Context) { // Hacemos el context accesible en toda la clase
     private val prefs = context.getSharedPreferences("trash", Context.MODE_PRIVATE)
     private val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
@@ -87,6 +92,69 @@ class TrashRepository(private val context: Context) { // Hacemos el context acce
         val expired = trash.filter { now - it.deletedAt > thirtyDaysMs }
         expired.forEach { File(it.song.path).delete() }
         saveTrash(trash.filter { now - it.deletedAt <= thirtyDaysMs })
+
+        // Playlists en papelera: solo se limpia la entrada, NUNCA se tocan las canciones
+        val trashPlaylists = getTrashedPlaylists()
+        saveTrashedPlaylists(trashPlaylists.filter { now - it.deletedAt <= thirtyDaysMs })
+    }
+
+    // --- PAPELERA DE PLAYLISTS (solo borra el contenedor, jamás las canciones dentro) ---
+    fun getTrashedPlaylists(): List<TrashedPlaylist> {
+        val json = prefs.getString("trash_playlists", "[]") ?: "[]"
+        val array = JSONArray(json)
+        val result = mutableListOf<TrashedPlaylist>()
+        for (i in 0 until array.length()) {
+            val obj = array.getJSONObject(i)
+            val songIds = mutableListOf<Long>()
+            val songsArray = obj.getJSONArray("songIds")
+            for (j in 0 until songsArray.length()) songIds.add(songsArray.getLong(j))
+            result.add(
+                TrashedPlaylist(
+                    playlist = Playlist(
+                        id = obj.getString("id"),
+                        name = obj.getString("name"),
+                        songIds = songIds,
+                        customCoverUri = if (obj.has("customCoverUri")) obj.getString("customCoverUri") else null
+                    ),
+                    deletedAt = obj.getLong("deletedAt")
+                )
+            )
+        }
+        return result
+    }
+
+    fun trashPlaylist(playlist: Playlist) {
+        val trash = getTrashedPlaylists().toMutableList()
+        if (trash.none { it.playlist.id == playlist.id }) {
+            trash.add(TrashedPlaylist(playlist, System.currentTimeMillis()))
+            saveTrashedPlaylists(trash)
+        }
+    }
+
+    fun restorePlaylistFromTrash(playlistId: String) {
+        val items = getTrashedPlaylists().filter { it.playlist.id != playlistId }
+        saveTrashedPlaylists(items)
+    }
+
+    fun deletePlaylistPermanently(playlistId: String) {
+        val items = getTrashedPlaylists().filter { it.playlist.id != playlistId }
+        saveTrashedPlaylists(items)
+    }
+
+    private fun saveTrashedPlaylists(trash: List<TrashedPlaylist>) {
+        val array = JSONArray()
+        trash.forEach { item ->
+            val obj = JSONObject()
+            obj.put("id", item.playlist.id)
+            obj.put("name", item.playlist.name)
+            if (item.playlist.customCoverUri != null) obj.put("customCoverUri", item.playlist.customCoverUri)
+            val songs = JSONArray()
+            item.playlist.songIds.forEach { songs.put(it) }
+            obj.put("songIds", songs)
+            obj.put("deletedAt", item.deletedAt)
+            array.put(obj)
+        }
+        prefs.edit().putString("trash_playlists", array.toString()).apply()
     }
 
     fun daysRemaining(deletedAt: Long): Int {

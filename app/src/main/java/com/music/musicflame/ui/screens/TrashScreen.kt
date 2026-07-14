@@ -8,6 +8,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -27,6 +28,8 @@ import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.DeleteForever
 import androidx.compose.material.icons.filled.DeleteSweep
+import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.QueueMusic
 import androidx.compose.material.icons.filled.Restore
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -55,13 +58,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.data.Playlist
+import com.music.musicflame.data.PlaylistRepository
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.TrashRepository
+import com.music.musicflame.data.TrashedPlaylist
 import com.music.musicflame.data.TrashedSong
 import com.music.musicflame.ui.components.AlbumArt
 import com.music.musicflame.ui.theme.LocalAppTextColor
-import com.music.musicflame.ui.utils.TransparentCardDefaults
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
@@ -76,10 +82,13 @@ fun TrashScreen(
 ) {
     val context = LocalContext.current
     val trashRepo = remember { TrashRepository(context) }
+    val playlistRepo = remember { PlaylistRepository(context) }
     val trashedItems = remember { mutableStateListOf<TrashedSong>() }
+    val trashedPlaylists = remember { mutableStateListOf<TrashedPlaylist>() }
     val showClearAllDialog = remember { mutableStateOf(false) }
 
     val isRounded = LocalUseRoundCorners.current
+    val albumArtShape = LocalAlbumArtShape.current
     val cardRadius = if (isRounded) 12.dp else 0.dp
     val isSelectionMode = selectedSongs.isNotEmpty()
 
@@ -87,15 +96,19 @@ fun TrashScreen(
     LaunchedEffect(Unit) {
         trashedItems.clear()
         trashedItems.addAll(trashRepo.getTrash())
+        trashedPlaylists.clear()
+        trashedPlaylists.addAll(trashRepo.getTrashedPlaylists())
         trashRepo.purgeExpired()
     }
+
+    val isEmpty = trashedItems.isEmpty() && trashedPlaylists.isEmpty()
 
     Scaffold(
         modifier = modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         floatingActionButton = {
             // Ocultamos el botón de vaciar si estamos en modo selección para evitar líos
-            if (trashedItems.isNotEmpty() && !isSelectionMode) {
+            if (!isEmpty && !isSelectionMode) {
                 ExtendedFloatingActionButton(
                     onClick = { showClearAllDialog.value = true },
                     icon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
@@ -106,7 +119,7 @@ fun TrashScreen(
             }
         }
     ) { padding ->
-        if (trashedItems.isEmpty()) {
+        if (isEmpty) {
             EmptyTrashView()
         } else {
             LazyColumn(
@@ -118,7 +131,50 @@ fun TrashScreen(
             ) {
                 item { Spacer(Modifier.height(8.dp)) }
 
-                items(trashedItems, key = { it.song.id }) { item ->
+                if (trashedPlaylists.isNotEmpty()) {
+                    item {
+                        Text(
+                            "Playlists",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp,
+                            color = LocalAppTextColor.current.copy(alpha = 0.7f)
+                        )
+                    }
+
+                    items(trashedPlaylists, key = { "playlist_${it.playlist.id}" }) { item ->
+                        AnimatedVisibility(
+                            visible = true,
+                            enter = fadeIn() + expandVertically(),
+                            exit = fadeOut() + shrinkVertically()
+                        ) {
+                            TrashedPlaylistCard(
+                                trashedPlaylist = item,
+                                onRestore = {
+                                    playlistRepo.restorePlaylist(item.playlist)
+                                    trashRepo.restorePlaylistFromTrash(item.playlist.id)
+                                    trashedPlaylists.remove(item)
+                                },
+                                hasBackgroundImage = hasBackgroundImage,
+                                cardRadius = cardRadius,
+                                albumArtShape = albumArtShape
+                            )
+                        }
+                    }
+
+                    if (trashedItems.isNotEmpty()) {
+                        item { Spacer(Modifier.height(8.dp)) }
+                        item {
+                            Text(
+                                "Canciones",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 14.sp,
+                                color = LocalAppTextColor.current.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+
+                items(trashedItems, key = { "song_${it.song.id}" }) { item ->
                     AnimatedVisibility(
                         visible = true,
                         enter = fadeIn() + expandVertically(),
@@ -136,6 +192,7 @@ fun TrashScreen(
                             },
                             hasBackgroundImage = hasBackgroundImage,
                             cardRadius = cardRadius,
+                            albumArtShape = albumArtShape,
                             // --- INTEGRACIÓN SELECCIÓN ---
                             isSelected = selectedSongs.contains(item.song),
                             isSelectionMode = isSelectionMode,
@@ -163,7 +220,12 @@ fun TrashScreen(
             },
             title = { Text("¿Vaciar papelera?", fontWeight = FontWeight.Bold) },
             text = {
-                Text("Se eliminarán permanentemente ${trashedItems.size} ${if (trashedItems.size == 1) "canción" else "canciones"} del dispositivo. Esta acción no se puede deshacer.")
+                val songCount = trashedItems.size
+                val playlistCount = trashedPlaylists.size
+                val parts = mutableListOf<String>()
+                if (songCount > 0) parts.add("$songCount ${if (songCount == 1) "canción" else "canciones"}")
+                if (playlistCount > 0) parts.add("$playlistCount ${if (playlistCount == 1) "playlist" else "playlists"}")
+                Text("Se eliminarán permanentemente ${parts.joinToString(" y ")} del dispositivo. Las playlists solo pierden el contenedor, no las canciones. Esta acción no se puede deshacer.")
             },
             confirmButton = {
                 Button(
@@ -191,6 +253,11 @@ fun TrashScreen(
                             trashRepo.deleteFromTrash(item.song.id)
                         }
                         trashedItems.clear()
+
+                        // Las playlists en papelera solo se eliminan como contenedor (las canciones no se tocan)
+                        trashedPlaylists.forEach { trashRepo.deletePlaylistPermanently(it.playlist.id) }
+                        trashedPlaylists.clear()
+
                         showClearAllDialog.value = false
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -218,6 +285,7 @@ fun TrashItemCard(
     onPlay: () -> Unit,
     hasBackgroundImage: Boolean = false,
     cardRadius: androidx.compose.ui.unit.Dp = 12.dp,
+    albumArtShape: com.music.musicflame.AlbumArtShapeType = com.music.musicflame.AlbumArtShapeType.SQUARE,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
     onToggleSelection: () -> Unit = {}
@@ -265,7 +333,7 @@ fun TrashItemCard(
                     Icon(Icons.Filled.CheckCircle, contentDescription = "Seleccionado", tint = MaterialTheme.colorScheme.onPrimary)
                 }
             } else {
-                AlbumArt(trashedSong.song.albumArtUri, 50.dp, 8.dp)
+                AlbumArt(trashedSong.song.albumArtUri, 50.dp, 8.dp, albumArtShape)
             }
 
             Column(
@@ -308,6 +376,87 @@ fun TrashItemCard(
     }
 }
 
+// Tarjeta para una playlist movida a la papelera. Restaurarla solo trae de vuelta el
+// contenedor (nombre, orden, carátula) — las canciones nunca se tocaron ni se borraron.
+@Composable
+fun TrashedPlaylistCard(
+    trashedPlaylist: TrashedPlaylist,
+    onRestore: () -> Unit,
+    hasBackgroundImage: Boolean = false,
+    cardRadius: androidx.compose.ui.unit.Dp = 12.dp,
+    albumArtShape: com.music.musicflame.AlbumArtShapeType = com.music.musicflame.AlbumArtShapeType.SQUARE
+) {
+    val context = LocalContext.current
+    val trashRepo = remember { TrashRepository(context) }
+    val daysLeft = trashRepo.daysRemaining(trashedPlaylist.deletedAt)
+    val normalTextColor = LocalAppTextColor.current
+
+    val containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.surfaceContainerHigh
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(cardRadius)),
+        colors = CardDefaults.cardColors(containerColor = containerColor),
+        shape = RoundedCornerShape(cardRadius)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (trashedPlaylist.playlist.customCoverUri != null) {
+                AlbumArt(trashedPlaylist.playlist.customCoverUri, 50.dp, 8.dp, albumArtShape)
+            } else {
+                Box(
+                    modifier = Modifier
+                        .size(50.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.QueueMusic, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(horizontal = 12.dp)
+            ) {
+                Text(
+                    text = trashedPlaylist.playlist.name,
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    color = normalTextColor
+                )
+                Text(
+                    text = "${trashedPlaylist.playlist.songIds.size} canciones (a salvo)",
+                    fontSize = 13.sp,
+                    color = normalTextColor.copy(alpha = 0.7f),
+                    maxLines = 1
+                )
+
+                Spacer(Modifier.height(2.dp))
+
+                Text(
+                    text = if (daysLeft > 1) "Se elimina en $daysLeft días" else "Se elimina hoy",
+                    fontSize = 11.sp,
+                    color = if (daysLeft <= 7) MaterialTheme.colorScheme.error else normalTextColor.copy(alpha = 0.7f),
+                    fontWeight = if (daysLeft <= 7) FontWeight.Bold else FontWeight.Normal
+                )
+            }
+
+            IconButton(onClick = onRestore, modifier = Modifier.size(48.dp)) {
+                Icon(Icons.Filled.Restore, contentDescription = "Restaurar playlist", tint = MaterialTheme.colorScheme.primary)
+            }
+        }
+    }
+}
+
 @Composable
 fun EmptyTrashView() {
     Column(
@@ -332,7 +481,7 @@ fun EmptyTrashView() {
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Las canciones eliminadas aparecerán aquí",
+            "Las canciones y playlists eliminadas aparecerán aquí",
             fontSize = 14.sp,
             color = LocalAppTextColor.current.copy(alpha = 0.7f)
         )

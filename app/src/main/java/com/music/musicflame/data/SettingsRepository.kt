@@ -9,8 +9,6 @@ class SettingsRepository(context: Context) {
     fun saveSystemPrompt(prompt: String) = prefs.edit().putString("system_prompt", prompt).apply()
 
     // --- MANEJO DE CANCIONES ---
-    fun getAutoRescanEnabled(): Boolean = prefs.getBoolean("auto_rescan_enabled", false)
-    fun saveAutoRescanEnabled(enabled: Boolean) = prefs.edit().putBoolean("auto_rescan_enabled", enabled).apply()
 
     fun getDurationFilterMin(): Int = prefs.getInt("duration_filter_min", 0)
     fun saveDurationFilterMin(seconds: Int) = prefs.edit().putInt("duration_filter_min", seconds).apply()
@@ -59,6 +57,10 @@ class SettingsRepository(context: Context) {
     // Valores posibles: "Negro" o "Blanco". Controla LocalAppTextColor en toda la app.
     fun getAppTextColor(): String = prefs.getString("app_text_color", "Negro") ?: "Negro"
     fun saveAppTextColor(color: String) = prefs.edit().putString("app_text_color", color).apply()
+
+    // Color de texto personalizado (hex "#RRGGBB"/"#AARRGGBB" o "r,g,b"/"r,g,b,a")
+    fun getCustomTextColorHex(): String = prefs.getString("custom_text_color_hex", "#FFFFFF") ?: "#FFFFFF"
+    fun saveCustomTextColorHex(value: String) = prefs.edit().putString("custom_text_color_hex", value).apply()
 
     // --- REPRODUCCIÓN Y CUENTA ---
     fun getPlayInBackground(): Boolean = prefs.getBoolean("play_in_background", true)

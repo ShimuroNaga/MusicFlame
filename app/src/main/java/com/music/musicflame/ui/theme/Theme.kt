@@ -29,6 +29,7 @@ fun MusicFlameTheme(
     val appThemeState = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val isAmoledState = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val appTextColorState = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
+    val customTextColorHexState = remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
 
     // Registrar un listener para detectar cambios en SharedPreferences en tiempo real
     DisposableEffect(context) {
@@ -40,6 +41,7 @@ fun MusicFlameTheme(
                 // de la clave que usas en tu SettingsRepository para guardar esta opción.
                 "amoled_mode" -> isAmoledState.value = settingsRepo.isAmoledModeEnabled()
                 "app_text_color" -> appTextColorState.value = settingsRepo.getAppTextColor()
+                "custom_text_color_hex" -> customTextColorHexState.value = settingsRepo.getCustomTextColorHex()
             }
         }
 
@@ -79,6 +81,7 @@ fun MusicFlameTheme(
 
     val appTextColor = when (appTextColorState.value) {
         "Blanco" -> Color.White
+        "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
         else -> Color.Black
     }
 

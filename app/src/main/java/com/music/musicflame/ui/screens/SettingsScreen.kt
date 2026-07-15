@@ -6,16 +6,26 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.Palette
+import androidx.compose.material.icons.filled.MusicNote
+import androidx.compose.material.icons.filled.Equalizer
+import androidx.compose.material.icons.filled.SmartToy
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SystemUpdate
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
@@ -163,7 +173,6 @@ fun SettingsScreen(
     val showEqualizerDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
 
-    val autoRescan = remember { mutableStateOf(settingsRepo.getAutoRescanEnabled()) }
     val durationMin = remember { mutableStateOf(settingsRepo.getDurationFilterMin().toString()) }
     val durationMax = remember { mutableStateOf(settingsRepo.getDurationFilterMax().let { if (it == Int.MAX_VALUE) "" else it.toString() }) }
     val filterMode = remember { mutableStateOf(settingsRepo.getDurationFilterMode()) }
@@ -171,6 +180,16 @@ fun SettingsScreen(
     val appTheme = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+
+    // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
+    val activeSection = remember { mutableStateOf<String?>(null) }
+
+    // Si estás dentro de una sub-sección (Cuenta, Apariencia, etc.), el botón de
+    // volver (gesto o botón físico) te regresa a la pantalla principal de
+    // Configuración en vez de salir de la pantalla/app.
+    BackHandler(enabled = activeSection.value != null) {
+        activeSection.value = null
+    }
     val albumArtShapePref = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
     val showAlbumArtShapeDialog = remember { mutableStateOf(false) }
     val iconPickerExpanded = remember { mutableStateOf(false) }
@@ -189,6 +208,7 @@ fun SettingsScreen(
     val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
     val appTextColorPref = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
+    val customTextColorHex = remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
 
     val backgroundImageUri = remember { mutableStateOf(settingsRepo.getBackgroundImageUri()) }
     val playerGifUri = remember { mutableStateOf(settingsRepo.getPlayerGifUri()) }
@@ -307,99 +327,60 @@ fun SettingsScreen(
             ) {
                 LazyColumn(modifier = Modifier.fillMaxSize()) {
 
-                    // Se eliminó el título superior extra para dejar solo la sección de perfil y configuración general.
-
-                    item {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
-                                .padding(horizontal = 16.dp, vertical = 12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(64.dp)
-                                    .clip(CircleShape)
-                                    .background(
-                                        if (isUserSignedIn) Color.Transparent
-                                        else MaterialTheme.colorScheme.surfaceVariant
-                                    ),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                if (isUserSignedIn && !userPhotoUrl.isNullOrEmpty()) {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data(userPhotoUrl)
-                                            .memoryCacheKey("$userPhotoUrl-$avatarRefreshKey")
-                                            .diskCacheKey("$userPhotoUrl-$avatarRefreshKey")
-                                            .build(),
-                                        contentDescription = "Foto de perfil",
-                                        contentScale = ContentScale.Crop,
-                                        modifier = Modifier
-                                            .fillMaxSize()
-                                            .clip(CircleShape)
-                                    )
-                                } else {
-                                    Icon(
-                                        imageVector = Icons.Filled.AccountCircle,
-                                        contentDescription = "Sin foto de perfil",
-                                        modifier = Modifier.size(64.dp),
-                                        tint = if (isUserSignedIn) trailingColor
-                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                    )
-                                }
-                            }
-
-                            Spacer(Modifier.width(14.dp))
-
-                            Column {
-                                if (isUserSignedIn && !userName.isNullOrEmpty()) {
-                                    Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
-                                    Text("Toca para ver tu cuenta", fontSize = 13.sp, color = mediumEmphasis)
-                                } else {
-                                    Text(
-                                        "Sin usuario, por favor regístrese",
-                                        fontSize = 15.sp,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = mediumEmphasis
-                                    )
-                                    Text(
-                                        "Inicia sesión con Google",
-                                        fontSize = 13.sp,
-                                        fontWeight = FontWeight.Bold,
-                                        color = trailingColor
-                                    )
+                    // --- LISTA DE CATEGORÍAS cuando no hay sub-página activa ---
+                    // (Ecualizador, IA y Actualizaciones ya no navegan: se muestran fijas más abajo)
+                    if (activeSection.value == null) {
+                        item {
+                            listOf(
+                                Triple("Cuenta", "Cuenta de Google y sesión", Icons.Filled.AccountCircle),
+                                Triple("Apariencia", "Fondo, colores, carátula, ícono", Icons.Filled.Palette),
+                                Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
+                                Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info)
+                            ).forEach { (catKey, subtitle, icon) ->
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp)
+                                        .clickable { activeSection.value = catKey },
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(icon, contentDescription = null, tint = trailingColor)
+                                        Spacer(Modifier.width(16.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(catKey, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = highEmphasis)
+                                            Text(subtitle, fontSize = 12.sp, color = mediumEmphasis)
+                                        }
+                                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = mediumEmphasis)
+                                    }
                                 }
                             }
                         }
-
-                        // Contador de cuentas de Google vinculadas, se actualiza en 2do plano (ver onRequestLinkedAccountsCount)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            if (linkedAccountsCount != null) {
-                                Text(
-                                    text = "Cuentas de Google vinculadas: $linkedAccountsCount/100",
-                                    fontSize = 12.sp,
-                                    color = mediumEmphasis
-                                )
-                            } else {
-                                CircularProgressIndicator(
-                                    modifier = Modifier.size(12.dp),
-                                    strokeWidth = 1.5.dp,
-                                    color = trailingColor
-                                )
-                                Spacer(Modifier.width(6.dp))
-                                Text("Actualizando cuentas vinculadas...", fontSize = 12.sp, color = mediumEmphasis)
-                            }
-                        }
-
-                        HorizontalDivider(modifier = Modifier.padding(bottom = 4.dp), color = dividerColor)
                     }
+
+                    // --- ENCABEZADO DE REGRESO cuando hay una sub-página activa ---
+                    if (activeSection.value != null) {
+                        item {
+                            Column {
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .clickable { activeSection.value = null }
+                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = highEmphasis)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(activeSection.value ?: "", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
+                                }
+                                HorizontalDivider(color = dividerColor)
+                            }
+                        }
+                    }
+
 
                     val sectionHeader = @Composable { text: String ->
                         Text(
@@ -412,549 +393,639 @@ fun SettingsScreen(
                     }
 
                     // CUENTA
-                    item { sectionHeader("Cuenta") }
+                    if (activeSection.value == "Cuenta") {
+                        item { sectionHeader("Cuenta") }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Vincular Google Drive") },
-                            supportingContent = {
-                                Text(
-                                    if (isDriveLinked) "✓ Google Drive vinculado con tu cuenta"
-                                    else "Vincula tu cuenta para respaldar tus playlists y ajustes"
-                                )
-                            },
-                            trailingContent = {
-                                Icon(
-                                    imageVector = Icons.Filled.CloudDone,
-                                    contentDescription = null,
-                                    tint = if (isDriveLinked) trailingColor
-                                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                                )
-                            },
-                            colors = listItemColors,
-                            modifier = Modifier.clickable {
-                                if (isUserSignedIn) onLinkDriveClick() else onSignInClick()
-                            }
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    // APARIENCIA
-                    item { sectionHeader("Apariencia") }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Imagen de Fondo") },
-                            supportingContent = { Text(if (isBgPresent) "✓ Imagen seleccionada" else "Selecciona una imagen estática") },
-                            trailingContent = { Icon(Icons.Filled.Image, contentDescription = null, tint = trailingColor) },
-                            colors = listItemColors,
-                            modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    if (isBgPresent) {
                         item {
-                            Button(
-                                onClick = {
-                                    settingsRepo.removeBackgroundImage()
-                                    backgroundImageUri.value = null
-                                    onBackgroundImageChanged()
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            ) { Text("Quitar Imagen de Fondo", fontWeight = FontWeight.Bold) }
-                            HorizontalDivider(color = dividerColor)
-                        }
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Fondo Animado (GIF)") },
-                            supportingContent = { Text(if (isGifPresent) "✓ GIF activado" else "Añade un GIF animado como fondo") },
-                            trailingContent = { Icon(Icons.Filled.Movie, contentDescription = null, modifier = Modifier.size(24.dp), tint = trailingColor) },
-                            colors = listItemColors,
-                            modifier = Modifier.clickable { pickGifLauncher.launch("image/gif") }
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    if (isGifPresent) {
-                        item {
-                            Button(
-                                onClick = {
-                                    settingsRepo.removePlayerGifUri()
-                                    playerGifUri.value = null
-                                    onBackgroundImageChanged()
-                                },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                                    contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                )
-                            ) { Text("Quitar Fondo GIF", fontWeight = FontWeight.Bold) }
-                            HorizontalDivider(color = dividerColor)
-                        }
-                    }
-
-                    if (hasAnyBackground) {
-                        item {
-                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Text("Brillo del fondo", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
-                                Spacer(Modifier.height(4.dp))
-                                Slider(
-                                    value = backgroundBrightness.value,
-                                    onValueChange = {
-                                        backgroundBrightness.value = it
-                                        settingsRepo.saveBackgroundBrightness(it)
-                                        onBackgroundImageChanged()
-                                    },
-                                    valueRange = -1f..1f,
-                                    steps = 20,
-                                    colors = SliderDefaults.colors(
-                                        thumbColor = trailingColor,
-                                        activeTrackColor = trailingColor
-                                    )
-                                )
-                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Original", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
-                                }
-                            }
-                            HorizontalDivider(color = dividerColor)
-                        }
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Apariencia de la aplicación") },
-                            supportingContent = { Text("Tema actual: ${appTheme.value}") },
-                            trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Color de texto") },
-                            supportingContent = { Text("Color actual: ${appTextColorPref.value}") },
-                            trailingContent = { TextButton(onClick = { showTextColorDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Modo AMOLED (Negro Puro)") },
-                            supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
-                            trailingContent = {
-                                Switch(
-                                    checked = amoledMode.value,
-                                    onCheckedChange = { isChecked ->
-                                        amoledMode.value = isChecked
-                                        settingsRepo.saveAmoledMode(isChecked)
-                                    }
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Usar redondeado de cuadros") },
-                            supportingContent = { Text("Aplica bordes curvos a las secciones y tarjetas") },
-                            trailingContent = {
-                                Switch(
-                                    checked = useRoundCorners.value,
-                                    onCheckedChange = { isChecked ->
-                                        useRoundCorners.value = isChecked
-                                        settingsRepo.saveUseRoundCorners(isChecked)
-                                        onRoundCornersChanged(isChecked)
-                                    }
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Forma de la carátula") },
-                            supportingContent = {
-                                Text(
-                                    "Actual: " + when (albumArtShapePref.value) {
-                                        com.music.musicflame.AlbumArtShapeType.SQUARE -> "Cuadrado"
-                                        com.music.musicflame.AlbumArtShapeType.DIAMOND -> "Rombo"
-                                        com.music.musicflame.AlbumArtShapeType.CIRCLE -> "Círculo"
-                                    }
-                                )
-                            },
-                            trailingContent = { TextButton(onClick = { showAlbumArtShapeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Icono de la app") },
-                            supportingContent = { Text("Elige entre los iconos predeterminados") },
-                            trailingContent = {
-                                Icon(
-                                    imageVector = if (iconPickerExpanded.value) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = null,
-                                    tint = trailingColor
-                                )
-                            },
-                            colors = listItemColors,
-                            modifier = Modifier.clickable { iconPickerExpanded.value = !iconPickerExpanded.value }
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        AnimatedVisibility(visible = iconPickerExpanded.value) {
-                            LazyRow(
-                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
-                                horizontalArrangement = Arrangement.spacedBy(16.dp),
-                                contentPadding = PaddingValues(horizontal = 16.dp)
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                items(appIconOptions) { (key, label, previewRes) ->
-                                    val isSelected = selectedAppIcon.value == key
-                                    Column(
-                                        horizontalAlignment = Alignment.CenterHorizontally,
-                                        modifier = Modifier.clickable {
-                                            selectedAppIcon.value = key
-                                            settingsRepo.saveSelectedAppIcon(key)
-                                            AppIconManager.setIcon(context, key)
-                                            Toast.makeText(context, "Icono cambiado a $label", Toast.LENGTH_SHORT).show()
-                                        }
-                                    ) {
-                                        Box(
+                                Box(
+                                    modifier = Modifier
+                                        .size(64.dp)
+                                        .clip(CircleShape)
+                                        .background(
+                                            if (isUserSignedIn) Color.Transparent
+                                            else MaterialTheme.colorScheme.surfaceVariant
+                                        ),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    if (isUserSignedIn && !userPhotoUrl.isNullOrEmpty()) {
+                                        AsyncImage(
+                                            model = ImageRequest.Builder(context)
+                                                .data(userPhotoUrl)
+                                                .memoryCacheKey("$userPhotoUrl-$avatarRefreshKey")
+                                                .diskCacheKey("$userPhotoUrl-$avatarRefreshKey")
+                                                .build(),
+                                            contentDescription = "Foto de perfil",
+                                            contentScale = ContentScale.Crop,
                                             modifier = Modifier
-                                                .size(60.dp)
-                                                .clip(RoundedCornerShape(16.dp))
-                                                .background(
-                                                    if (isSelected) trailingColor.copy(alpha = 0.15f)
-                                                    else Color.Transparent
-                                                ),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            AsyncImage(
-                                                model = previewRes,
-                                                contentDescription = label,
-                                                modifier = Modifier
-                                                    .size(48.dp)
-                                                    .clip(RoundedCornerShape(12.dp))
-                                            )
-                                        }
-                                        Spacer(Modifier.height(4.dp))
+                                                .fillMaxSize()
+                                                .clip(CircleShape)
+                                        )
+                                    } else {
+                                        Icon(
+                                            imageVector = Icons.Filled.AccountCircle,
+                                            contentDescription = "Sin foto de perfil",
+                                            modifier = Modifier.size(64.dp),
+                                            tint = if (isUserSignedIn) trailingColor
+                                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.width(14.dp))
+
+                                Column {
+                                    if (isUserSignedIn && !userName.isNullOrEmpty()) {
+                                        Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
+                                        Text("Toca para ver tu cuenta", fontSize = 13.sp, color = mediumEmphasis)
+                                    } else {
                                         Text(
-                                            label,
-                                            fontSize = 12.sp,
-                                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-                                            color = if (isSelected) trailingColor else mediumEmphasis
+                                            "Sin usuario, por favor regístrese",
+                                            fontSize = 15.sp,
+                                            fontWeight = FontWeight.SemiBold,
+                                            color = mediumEmphasis
+                                        )
+                                        Text(
+                                            "Inicia sesión con Google",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = trailingColor
                                         )
                                     }
                                 }
                             }
-                        }
-                        HorizontalDivider(color = dividerColor)
-                    }
 
-                    item { sectionHeader("Manejo de Canciones") }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Filtrar por duración") },
-                            supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
-                            trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Re-escanear al abrir app") },
-                            supportingContent = { Text("Actualiza la biblioteca automáticamente") },
-                            trailingContent = { Switch(checked = autoRescan.value, onCheckedChange = { autoRescan.value = it; settingsRepo.saveAutoRescanEnabled(it) }) },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item { sectionHeader("Reproducción") }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Reproducir en segundo plano") },
-                            supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
-                            trailingContent = {
-                                Switch(
-                                    checked = playInBackground.value,
-                                    onCheckedChange = {
-                                        playInBackground.value = it
-                                        settingsRepo.savePlayInBackground(it)
-                                        Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Pausar al desconectar audífonos") },
-                            supportingContent = { Text("Detiene la canción si te quitas los audífonos o se desconecta el Bluetooth") },
-                            trailingContent = {
-                                Switch(
-                                    checked = pauseOnDisconnect.value,
-                                    onCheckedChange = {
-                                        pauseOnDisconnect.value = it
-                                        settingsRepo.savePauseOnDisconnect(it)
-                                        Toast.makeText(context, if (it) "Pausa automática activada" else "Pausa automática desactivada", Toast.LENGTH_SHORT).show()
-                                    }
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Optimización de batería") },
-                            supportingContent = {
-                                Text(
-                                    text = if (isIgnoringBattery)
-                                        "Optimizado para música continua (Recomendado)"
-                                    else
-                                        "Restringido — Android podría pausar la música al apagar la pantalla",
-                                    color = if (isIgnoringBattery) trailingColor else MaterialTheme.colorScheme.error
-                                )
-                            },
-                            trailingContent = {
-                                Switch(
-                                    checked = isIgnoringBattery,
-                                    onCheckedChange = { checked ->
-                                        if (checked) {
-                                            try {
-                                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                                    data = Uri.parse("package:${context.packageName}")
-                                                }
-                                                context.startActivity(intent)
-                                            } catch (e: Exception) {
-                                                Toast.makeText(context, "No se pudo abrir la configuración de batería", Toast.LENGTH_SHORT).show()
-                                            }
-                                        } else {
-                                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                                            context.startActivity(intent)
-                                        }
-                                    }
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item { sectionHeader("Ecualizador") }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Studio Pro EQ") },
-                            supportingContent = { Text("Preset activo: ${eqPresetSelected.value}") },
-                            trailingContent = {
-                                Button(
-                                    onClick = { showEqualizerDialog.value = true },
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.primary,
-                                        contentColor = MaterialTheme.colorScheme.onPrimary
-                                    )
-                                ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item { sectionHeader("Integración de IA") }
-
-                    item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Modelo de IA") },
-                            supportingContent = { Text("Administrado automáticamente desde la nube") },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
-
-                    item { sectionHeader("Sobre") }
-                    item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-
-                    // BOTÓN DE ACTUALIZACIONES (CARD)
-                    item {
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(16.dp)
-                                .clickable { onCheckForUpdates() },
-                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                        ) {
+                            // Contador de cuentas de Google vinculadas, se actualiza en 2do plano (ver onRequestLinkedAccountsCount)
                             Row(
-                                modifier = Modifier.padding(16.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Default.SystemUpdate,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Spacer(Modifier.width(16.dp))
-                                Column {
-                                    Text("Actualizaciones", fontWeight = FontWeight.Bold)
-                                    Text("Buscar nueva versión", style = MaterialTheme.typography.bodySmall)
+                                if (linkedAccountsCount != null) {
+                                    Text(
+                                        text = "Cuentas de Google vinculadas: $linkedAccountsCount/100",
+                                        fontSize = 12.sp,
+                                        color = mediumEmphasis
+                                    )
+                                } else {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(12.dp),
+                                        strokeWidth = 1.5.dp,
+                                        color = trailingColor
+                                    )
+                                    Spacer(Modifier.width(6.dp))
+                                    Text("Actualizando cuentas vinculadas...", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                            }
+
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Vincular Google Drive") },
+                                supportingContent = {
+                                    Text(
+                                        if (isDriveLinked) "✓ Google Drive vinculado con tu cuenta"
+                                        else "Vincula tu cuenta para respaldar tus playlists y ajustes"
+                                    )
+                                },
+                                trailingContent = {
+                                    Icon(
+                                        imageVector = Icons.Filled.CloudDone,
+                                        contentDescription = null,
+                                        tint = if (isDriveLinked) trailingColor
+                                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                                    )
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable {
+                                    if (isUserSignedIn) onLinkDriveClick() else onSignInClick()
+                                }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        // APARIENCIA
+                    }
+                    if (activeSection.value == "Apariencia") {
+                        item { sectionHeader("Apariencia") }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Imagen de Fondo") },
+                                supportingContent = { Text(if (isBgPresent) "✓ Imagen seleccionada" else "Selecciona una imagen estática") },
+                                trailingContent = { Icon(Icons.Filled.Image, contentDescription = null, tint = trailingColor) },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        if (isBgPresent) {
+                            item {
+                                Button(
+                                    onClick = {
+                                        settingsRepo.removeBackgroundImage()
+                                        backgroundImageUri.value = null
+                                        onBackgroundImageChanged()
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                ) { Text("Quitar Imagen de Fondo", fontWeight = FontWeight.Bold) }
+                                HorizontalDivider(color = dividerColor)
+                            }
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Fondo Animado (GIF)") },
+                                supportingContent = { Text(if (isGifPresent) "✓ GIF activado" else "Añade un GIF animado como fondo") },
+                                trailingContent = { Icon(Icons.Filled.Movie, contentDescription = null, modifier = Modifier.size(24.dp), tint = trailingColor) },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { pickGifLauncher.launch("image/gif") }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        if (isGifPresent) {
+                            item {
+                                Button(
+                                    onClick = {
+                                        settingsRepo.removePlayerGifUri()
+                                        playerGifUri.value = null
+                                        onBackgroundImageChanged()
+                                    },
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
+                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                ) { Text("Quitar Fondo GIF", fontWeight = FontWeight.Bold) }
+                                HorizontalDivider(color = dividerColor)
+                            }
+                        }
+
+                        if (hasAnyBackground) {
+                            item {
+                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                    Text("Brillo del fondo", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                    Spacer(Modifier.height(4.dp))
+                                    Slider(
+                                        value = backgroundBrightness.value,
+                                        onValueChange = {
+                                            backgroundBrightness.value = it
+                                            settingsRepo.saveBackgroundBrightness(it)
+                                            onBackgroundImageChanged()
+                                        },
+                                        valueRange = -1f..1f,
+                                        steps = 20,
+                                        colors = SliderDefaults.colors(
+                                            thumbColor = trailingColor,
+                                            activeTrackColor = trailingColor
+                                        )
+                                    )
+                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
+                                        Text("Original", fontSize = 12.sp, color = mediumEmphasis)
+                                        Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                    }
+                                }
+                                HorizontalDivider(color = dividerColor)
+                            }
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Apariencia de la aplicación") },
+                                supportingContent = { Text("Tema actual: ${appTheme.value}") },
+                                trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Color de texto") },
+                                supportingContent = { Text("Color actual: ${appTextColorPref.value}") },
+                                trailingContent = { TextButton(onClick = { showTextColorDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Modo AMOLED (Negro Puro)") },
+                                supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
+                                trailingContent = {
+                                    Switch(
+                                        checked = amoledMode.value,
+                                        onCheckedChange = { isChecked ->
+                                            amoledMode.value = isChecked
+                                            settingsRepo.saveAmoledMode(isChecked)
+                                        }
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Usar redondeado de cuadros") },
+                                supportingContent = { Text("Aplica bordes curvos a las secciones y tarjetas") },
+                                trailingContent = {
+                                    Switch(
+                                        checked = useRoundCorners.value,
+                                        onCheckedChange = { isChecked ->
+                                            useRoundCorners.value = isChecked
+                                            settingsRepo.saveUseRoundCorners(isChecked)
+                                            onRoundCornersChanged(isChecked)
+                                        }
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Forma de la carátula") },
+                                supportingContent = {
+                                    Text(
+                                        "Actual: " + when (albumArtShapePref.value) {
+                                            com.music.musicflame.AlbumArtShapeType.SQUARE -> "Cuadrado"
+                                            com.music.musicflame.AlbumArtShapeType.DIAMOND -> "Rombo"
+                                            com.music.musicflame.AlbumArtShapeType.CIRCLE -> "Círculo"
+                                        }
+                                    )
+                                },
+                                trailingContent = { TextButton(onClick = { showAlbumArtShapeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Icono de la app") },
+                                supportingContent = { Text("Elige entre los iconos predeterminados") },
+                                trailingContent = {
+                                    Icon(
+                                        imageVector = if (iconPickerExpanded.value) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                        contentDescription = null,
+                                        tint = trailingColor
+                                    )
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { iconPickerExpanded.value = !iconPickerExpanded.value }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            AnimatedVisibility(visible = iconPickerExpanded.value) {
+                                LazyRow(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                                    contentPadding = PaddingValues(horizontal = 16.dp)
+                                ) {
+                                    items(appIconOptions) { (key, label, previewRes) ->
+                                        val isSelected = selectedAppIcon.value == key
+                                        Column(
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            modifier = Modifier.clickable {
+                                                selectedAppIcon.value = key
+                                                settingsRepo.saveSelectedAppIcon(key)
+                                                AppIconManager.setIcon(context, key)
+                                                Toast.makeText(context, "Icono cambiado a $label", Toast.LENGTH_SHORT).show()
+                                            }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(60.dp)
+                                                    .clip(RoundedCornerShape(16.dp))
+                                                    .background(
+                                                        if (isSelected) trailingColor.copy(alpha = 0.15f)
+                                                        else Color.Transparent
+                                                    ),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                AsyncImage(
+                                                    model = previewRes,
+                                                    contentDescription = label,
+                                                    modifier = Modifier
+                                                        .size(48.dp)
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                )
+                                            }
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(
+                                                label,
+                                                fontSize = 12.sp,
+                                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                                color = if (isSelected) trailingColor else mediumEmphasis
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                    }
+                    if (activeSection.value == "Canciones") {
+                        item { sectionHeader("Manejo de Canciones") }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Filtrar por duración") },
+                                supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
+                                trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item { sectionHeader("Reproducción") }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Reproducir en segundo plano") },
+                                supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
+                                trailingContent = {
+                                    Switch(
+                                        checked = playInBackground.value,
+                                        onCheckedChange = {
+                                            playInBackground.value = it
+                                            settingsRepo.savePlayInBackground(it)
+                                            Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Pausar al desconectar audífonos") },
+                                supportingContent = { Text("Detiene la canción si te quitas los audífonos o se desconecta el Bluetooth") },
+                                trailingContent = {
+                                    Switch(
+                                        checked = pauseOnDisconnect.value,
+                                        onCheckedChange = {
+                                            pauseOnDisconnect.value = it
+                                            settingsRepo.savePauseOnDisconnect(it)
+                                            Toast.makeText(context, if (it) "Pausa automática activada" else "Pausa automática desactivada", Toast.LENGTH_SHORT).show()
+                                        }
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Optimización de batería") },
+                                supportingContent = {
+                                    Text(
+                                        text = if (isIgnoringBattery)
+                                            "Optimizado para música continua (Recomendado)"
+                                        else
+                                            "Restringido — Android podría pausar la música al apagar la pantalla",
+                                        color = if (isIgnoringBattery) trailingColor else MaterialTheme.colorScheme.error
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = isIgnoringBattery,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                try {
+                                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                                        data = Uri.parse("package:${context.packageName}")
+                                                    }
+                                                    context.startActivity(intent)
+                                                } catch (e: Exception) {
+                                                    Toast.makeText(context, "No se pudo abrir la configuración de batería", Toast.LENGTH_SHORT).show()
+                                                }
+                                            } else {
+                                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+                                                context.startActivity(intent)
+                                            }
+                                        }
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item { sectionHeader("Ecualizador") }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Studio Pro EQ") },
+                                supportingContent = { Text("Preset activo: ${eqPresetSelected.value}") },
+                                trailingContent = {
+                                    Button(
+                                        onClick = { showEqualizerDialog.value = true },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                    }
+                    if (activeSection.value == "Especificaciones") {
+                        item { sectionHeader("Sobre") }
+                        item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.0") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+
+                        // BOTÓN DE ACTUALIZACIONES (CARD)
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                                    .clickable { onCheckForUpdates() },
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(16.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.SystemUpdate,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary
+                                    )
+                                    Spacer(Modifier.width(16.dp))
+                                    Column {
+                                        Text("Actualizaciones", fontWeight = FontWeight.Bold)
+                                        Text("Buscar nueva versión", style = MaterialTheme.typography.bodySmall)
+                                    }
                                 }
                             }
                         }
-                    }
 
-                    item { sectionHeader("Especificaciones Técnicas") }
+                        item { sectionHeader("IA") }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Framework UI") },
-                            supportingContent = { Text("Jetpack Compose") },
-                            colors = listItemColors
-                        ); HorizontalDivider(color = dividerColor)
-                    }
+                        item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Lenguaje de Diseño") },
-                            supportingContent = { Text("Material Design 3") },
-                            colors = listItemColors
-                        ); HorizontalDivider(color = dividerColor)
-                    }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Modelo de IA") },
+                                supportingContent = { Text("Administrado automáticamente desde la nube") },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Paleta de Colores") },
-                            supportingContent = { Text("Material You (Dinámico)") },
-                            colors = listItemColors
-                        ); HorizontalDivider(color = dividerColor)
-                    }
+                        item { sectionHeader("Especificaciones Técnicas") }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Arquitectura") },
-                            supportingContent = { Text("Declarativa y Modular") },
-                            colors = listItemColors
-                        )
-                    }
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Creador de código") },
-                            supportingContent = { Text("ShimuroNaga") },
-                            leadingContent = {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data("https://github.com/ShimuroNaga.png")
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = "Avatar de ShimuroNaga",
-                                    contentScale = ContentScale.Crop,
-                                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Framework UI") },
+                                supportingContent = { Text("Jetpack Compose") },
+                                colors = listItemColors
+                            ); HorizontalDivider(color = dividerColor)
+                        }
 
-                    item { sectionHeader("Tester") }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Lenguaje de Diseño") },
+                                supportingContent = { Text("Material Design 3") },
+                                colors = listItemColors
+                            ); HorizontalDivider(color = dividerColor)
+                        }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Tester") },
-                            supportingContent = { Text("Naofresita18") },
-                            leadingContent = {
-                                AsyncImage(
-                                    model = ImageRequest.Builder(context)
-                                        .data("https://github.com/Naofresita18.png")
-                                        .crossfade(true)
-                                        .build(),
-                                    contentDescription = "Avatar de Naofresita18",
-                                    contentScale = ContentScale.Crop,
-                                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
-                                    modifier = Modifier
-                                        .size(40.dp)
-                                        .clip(CircleShape)
-                                )
-                            },
-                            colors = listItemColors
-                        )
-                    }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Paleta de Colores") },
+                                supportingContent = { Text("Material You (Dinámico)") },
+                                colors = listItemColors
+                            ); HorizontalDivider(color = dividerColor)
+                        }
 
-                    item { sectionHeader("Comunidad") }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Arquitectura") },
+                                supportingContent = { Text("Declarativa y Modular") },
+                                colors = listItemColors
+                            )
+                        }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Creador de código") },
+                                supportingContent = { Text("ShimuroNaga") },
+                                leadingContent = {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data("https://github.com/ShimuroNaga.png")
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Avatar de ShimuroNaga",
+                                        contentScale = ContentScale.Crop,
+                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Repositorio en GitHub") },
-                            supportingContent = { Text("Código fuente y changelog de MusicFlame") },
-                            leadingContent = {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_github),
-                                    contentDescription = "GitHub",
-                                    modifier = Modifier.size(28.dp),
-                                    tint = highEmphasis
-                                )
-                            },
-                            colors = listItemColors,
-                            modifier = Modifier.clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ShimuroNaga/MusicFlame"))
-                                context.startActivity(intent)
-                            }
-                        )
-                        HorizontalDivider(color = dividerColor)
-                    }
+                        item { sectionHeader("Tester") }
 
-                    item {
-                        ListItem(
-                            headlineContent = { Text("Únete al Discord") },
-                            supportingContent = { Text("Comunidad, soporte y novedades de la app") },
-                            leadingContent = {
-                                Icon(
-                                    painter = painterResource(id = R.drawable.ic_discord),
-                                    contentDescription = "Discord",
-                                    modifier = Modifier.size(28.dp),
-                                    tint = Color(0xFF5865F2)
-                                )
-                            },
-                            colors = listItemColors,
-                            modifier = Modifier.clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/JcWFNNVMgU"))
-                                context.startActivity(intent)
-                            }
-                        )
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Tester") },
+                                supportingContent = { Text("Naofresita18") },
+                                leadingContent = {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data("https://github.com/Naofresita18.png")
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Avatar de Naofresita18",
+                                        contentScale = ContentScale.Crop,
+                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                        }
+
+                        item { sectionHeader("Comunidad") }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Repositorio en GitHub") },
+                                supportingContent = { Text("Código fuente y changelog de MusicFlame") },
+                                leadingContent = {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_github),
+                                        contentDescription = "GitHub",
+                                        modifier = Modifier.size(28.dp),
+                                        tint = highEmphasis
+                                    )
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ShimuroNaga/MusicFlame"))
+                                    context.startActivity(intent)
+                                }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Únete al Discord") },
+                                supportingContent = { Text("Comunidad, soporte y novedades de la app") },
+                                leadingContent = {
+                                    Icon(
+                                        painter = painterResource(id = R.drawable.ic_discord),
+                                        contentDescription = "Discord",
+                                        modifier = Modifier.size(28.dp),
+                                        tint = Color(0xFF5865F2)
+                                    )
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/gGZ4zCZvab"))
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
                     }
                 }
             }
@@ -1058,12 +1129,13 @@ fun SettingsScreen(
 
         if (showTextColorDialog.value) {
             val tempTextColor = remember { mutableStateOf(appTextColorPref.value) }
+            val tempCustomHex = remember { mutableStateOf(customTextColorHex.value) }
             AlertDialog(
                 onDismissRequest = { showTextColorDialog.value = false },
                 title = { Text("Color de texto", fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
-                        listOf("Negro", "Blanco").forEach { colorOption ->
+                        listOf("Negro", "Blanco", "Personalizado").forEach { colorOption ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -1076,12 +1148,71 @@ fun SettingsScreen(
                                 Text(colorOption, fontSize = 14.sp)
                             }
                         }
+
+                        if (tempTextColor.value == "Personalizado") {
+                            Spacer(Modifier.height(4.dp))
+
+                            // --- SELECTOR DE COLOR: cuadros tocables con colores comunes ---
+                            val presetColors = listOf(
+                                "#FFFFFF", "#000000", "#F44336", "#E91E63", "#9C27B0",
+                                "#673AB7", "#3F51B5", "#2196F3", "#03A9F4", "#00BCD4",
+                                "#009688", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B",
+                                "#FFC107", "#FF9800", "#FF5722", "#795548", "#9E9E9E"
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                presetColors.forEach { hex ->
+                                    val isSelected = tempCustomHex.value.equals(hex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(com.music.musicflame.ui.theme.parseCustomTextColor(hex))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { tempCustomHex.value = hex }
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = tempCustomHex.value,
+                                onValueChange = { tempCustomHex.value = it },
+                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(com.music.musicflame.ui.theme.parseCustomTextColor(tempCustomHex.value))
+                                        .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Vista previa", fontSize = 12.sp)
+                            }
+                        }
                     }
                 },
                 confirmButton = {
                     Button(onClick = {
                         settingsRepo.saveAppTextColor(tempTextColor.value)
                         appTextColorPref.value = tempTextColor.value
+                        if (tempTextColor.value == "Personalizado") {
+                            settingsRepo.saveCustomTextColorHex(tempCustomHex.value)
+                            customTextColorHex.value = tempCustomHex.value
+                        }
                         showTextColorDialog.value = false
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },

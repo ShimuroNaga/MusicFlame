@@ -158,8 +158,6 @@ fun SettingsScreen(
     onSignInClick: () -> Unit = { /* Lógica de inicio de sesión por defecto */ },
     onProfileClick: () -> Unit = { /* Lógica de perfil por defecto */ },
     onRefreshUserProfile: () -> Unit = { /* Lógica opcional para re-sincronizar la sesión */ },
-    linkedAccountsCount: Int? = null,
-    onRequestLinkedAccountsCount: () -> Unit = { /* Dispara la consulta al backend que cuenta cuentas vinculadas */ },
     isDriveLinked: Boolean = false,
     onLinkDriveClick: () -> Unit = { /* Lógica para pedir el scope de Google Drive */ },
     onCheckForUpdates: () -> Unit
@@ -261,11 +259,6 @@ fun SettingsScreen(
     val refreshScope = rememberCoroutineScope()
     val pullState = rememberPullToRefreshState()
 
-    // Pide el conteo de cuentas de Google vinculadas al entrar a la pantalla, sin bloquear la UI.
-    LaunchedEffect(Unit) {
-        onRequestLinkedAccountsCount()
-    }
-
     val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             try {
@@ -307,7 +300,6 @@ fun SettingsScreen(
                     isRefreshing = true
                     avatarRefreshKey++ // fuerza a Coil a re-descargar el ícono en vez de usar el cache
                     onRefreshUserProfile() // aquí el caller puede re-sincronizar nombre/foto reales
-                    onRequestLinkedAccountsCount() // re-consulta el conteo de cuentas vinculadas
                     refreshScope.launch {
                         delay(800)
                         isRefreshing = false
@@ -458,30 +450,6 @@ fun SettingsScreen(
                                             color = trailingColor
                                         )
                                     }
-                                }
-                            }
-
-                            // Contador de cuentas de Google vinculadas, se actualiza en 2do plano (ver onRequestLinkedAccountsCount)
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                if (linkedAccountsCount != null) {
-                                    Text(
-                                        text = "Cuentas de Google vinculadas: $linkedAccountsCount/100",
-                                        fontSize = 12.sp,
-                                        color = mediumEmphasis
-                                    )
-                                } else {
-                                    CircularProgressIndicator(
-                                        modifier = Modifier.size(12.dp),
-                                        strokeWidth = 1.5.dp,
-                                        color = trailingColor
-                                    )
-                                    Spacer(Modifier.width(6.dp))
-                                    Text("Actualizando cuentas vinculadas...", fontSize = 12.sp, color = mediumEmphasis)
                                 }
                             }
 
@@ -887,19 +855,6 @@ fun SettingsScreen(
                                     }
                                 }
                             }
-                        }
-
-                        item { sectionHeader("IA") }
-
-                        item { ListItem(headlineContent = { Text("Proveedor") }, supportingContent = { Text("Gemini AI (vía Firebase AI Logic)") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
-
-                        item {
-                            ListItem(
-                                headlineContent = { Text("Modelo de IA") },
-                                supportingContent = { Text("Administrado automáticamente desde la nube") },
-                                colors = listItemColors
-                            )
-                            HorizontalDivider(color = dividerColor)
                         }
 
                         item { sectionHeader("Especificaciones Técnicas") }

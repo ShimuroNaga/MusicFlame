@@ -35,6 +35,7 @@ import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
+import com.music.musicflame.ui.utils.safeScreenPadding
 import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -104,7 +105,14 @@ fun FullScreenPlayer(
             .background(bgColor)
             // --- ESCUDO INVISIBLE: Esto intercepta TODOS los toques y evita que pasen a la UI de atrás ---
             .pointerInput(Unit) { detectTapGestures { } }
-            .padding(horizontal = 24.dp, vertical = 24.dp),
+            // Respeta el notch/status bar arriba y la barra de navegación (gestos o
+            // 3 botones) abajo, en cualquier celular. Va primero para que sea lo único
+            // que separa el contenido de los bordes reales del sistema.
+            .safeScreenPadding()
+            // Aire visual extra, chico, para no duplicar el espacio que ya reservó
+            // safeScreenPadding() (antes esto sumaba 24dp encima del inset y dejaba
+            // un hueco negro enorme abajo).
+            .padding(horizontal = 24.dp, vertical = 8.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {

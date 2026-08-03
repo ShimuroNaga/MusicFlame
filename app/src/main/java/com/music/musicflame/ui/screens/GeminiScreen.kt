@@ -73,6 +73,7 @@ import com.music.musicflame.data.ChatHistoryRepository
 import com.music.musicflame.data.ChatMessage
 import com.music.musicflame.data.GeminiRepository
 import com.music.musicflame.data.Song
+import androidx.compose.foundation.layout.imePadding
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -435,7 +436,10 @@ fun GeminiScreen(
         }
 
         Surface(
-            modifier = Modifier.fillMaxWidth(),
+            // Solo imePadding: la barra de navegación del sistema ya la reserva el
+            // Scaffold exterior (MainActivity). Esto evita "doble" espacio abajo y
+            // asegura que el teclado nunca tape la caja de texto ni el botón de enviar.
+            modifier = Modifier.fillMaxWidth().imePadding(),
             color = if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.surface,
             tonalElevation = if (hasBackgroundImage) 0.dp else 3.dp
         ) {

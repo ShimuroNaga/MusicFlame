@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -211,7 +212,10 @@ fun PlaylistDetailScreen(
                     )
                 }
             }
-        }
+        },
+        // Ya vive dentro del Scaffold principal (que reserva status/nav bar); sin esto
+        // reserva la status bar otra vez y deja un hueco vacío arriba de la lista.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(
             modifier = Modifier

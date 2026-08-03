@@ -36,34 +36,34 @@ android {
         buildConfigField("String", "YOUTUBE_API_KEY", "\"${localProperties.getProperty("YOUTUBE_API_KEY", "")}\"")
     }
 
-     signingConfigs {
-         create("release") {
-             val keystorePath = localProperties.getProperty("RELEASE_KEYSTORE_PATH", "")
-             if (keystorePath.isNotEmpty()) {
-                 storeFile = file(keystorePath)
-                 storePassword = localProperties.getProperty("RELEASE_KEYSTORE_PASSWORD", "")
-                 keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS", "")
-                 keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
-             }
-         }
-         packaging {
-             resources {
-                 excludes += "META-INF/DEPENDENCIES"
-                 excludes += "META-INF/LICENSE"
-                 excludes += "META-INF/LICENSE.txt"
-                 excludes += "META-INF/LICENSE.md"
-                 excludes += "META-INF/LICENSE-notice.md"
-                 excludes += "META-INF/NOTICE"
-                 excludes += "META-INF/NOTICE.txt"
-                 excludes += "META-INF/NOTICE.md"
-                 excludes += "META-INF/ASL2.0"
-                 excludes += "META-INF/LGPL2.1"
+    signingConfigs {
+        create("release") {
+            val keystorePath = localProperties.getProperty("RELEASE_KEYSTORE_PATH", "")
+            if (keystorePath.isNotEmpty()) {
+                storeFile = file(keystorePath)
+                storePassword = localProperties.getProperty("RELEASE_KEYSTORE_PASSWORD", "")
+                keyAlias = localProperties.getProperty("RELEASE_KEY_ALIAS", "")
+                keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
+            }
+        }
+        packaging {
+            resources {
+                excludes += "META-INF/DEPENDENCIES"
+                excludes += "META-INF/LICENSE"
+                excludes += "META-INF/LICENSE.txt"
+                excludes += "META-INF/LICENSE.md"
+                excludes += "META-INF/LICENSE-notice.md"
+                excludes += "META-INF/NOTICE"
+                excludes += "META-INF/NOTICE.txt"
+                excludes += "META-INF/NOTICE.md"
+                excludes += "META-INF/ASL2.0"
+                excludes += "META-INF/LGPL2.1"
 
-                 // Si después de esto te marca error por algún archivo de versión de Kotlin
-                 // puedes descomentar esta línea:
-                 // pickFirst += "META-INF/kotlinx_coroutines_core.version"
-             }
-         }
+                // Si después de esto te marca error por algún archivo de versión de Kotlin
+                // puedes descomentar esta línea:
+                // pickFirst += "META-INF/kotlinx_coroutines_core.version"
+            }
+        }
     }
 
     buildTypes {
@@ -74,7 +74,7 @@ android {
                 "proguard-rules.pro"
             )
             // --- CAMBIADO: antes usaba signingConfigs.getByName("debug") ---
-                  signingConfig = signingConfigs.getByName("release")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 
@@ -131,6 +131,7 @@ dependencies {
     implementation("com.google.firebase:firebase-config")
     implementation("com.google.firebase:firebase-ai")
     implementation("com.google.firebase:firebase-appcheck-playintegrity")
+    implementation("com.google.firebase:firebase-appcheck-debug")
     implementation("com.google.firebase:firebase-auth")
     implementation("com.google.firebase:firebase-firestore")
     // --- GOOGLE SIGN-IN ---

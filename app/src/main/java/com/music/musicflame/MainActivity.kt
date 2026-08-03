@@ -871,7 +871,18 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             bottomBar = {
-                                Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        // Reserva EXACTAMENTE el inset real de la barra de navegación
+                                        // del sistema (gestos, 3 botones tipo Honor/EMUI, lo que sea).
+                                        // Esto va primero (más "afuera") para que sea lo único que
+                                        // separa la barra de los botones físicos/virtuales del sistema.
+                                        .navigationBarsPadding()
+                                        // Aire visual solo arriba y a los lados; el bottom ya lo puso
+                                        // navigationBarsPadding de sobra, así que no se suma dos veces.
+                                        .padding(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 0.dp)
+                                ) {
                                     if (currentSong != null) {
                                         // Reaparece automáticamente si cambia la canción, para no dejar "atrapado" al usuario
                                         LaunchedEffect(currentSong?.id) { isMiniPlayerVisible = true }

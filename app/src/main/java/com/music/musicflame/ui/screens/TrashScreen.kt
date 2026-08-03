@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -55,6 +56,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -117,7 +119,10 @@ fun TrashScreen(
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
                 )
             }
-        }
+        },
+        // Ya vive dentro del Scaffold principal (que reserva status/nav bar); sin esto
+        // reserva la status bar otra vez y deja un hueco vacío arriba de la lista.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         if (isEmpty) {
             EmptyTrashView()
@@ -483,6 +488,8 @@ fun EmptyTrashView() {
         Text(
             "Las canciones y playlists eliminadas aparecerán aquí",
             fontSize = 14.sp,
+            textAlign = TextAlign.Center,
+            modifier = Modifier.fillMaxWidth(0.8f),
             color = LocalAppTextColor.current.copy(alpha = 0.7f)
         )
     }

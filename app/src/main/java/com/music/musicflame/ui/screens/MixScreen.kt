@@ -126,7 +126,13 @@ fun MixScreen(
         }
     }
 
-    Scaffold(modifier = modifier.fillMaxSize(), containerColor = Color.Transparent) { padding ->
+    Scaffold(
+        modifier = modifier.fillMaxSize(),
+        containerColor = Color.Transparent,
+        // Ya vive dentro del Scaffold principal (que reserva status/nav bar); sin esto
+        // reserva la status bar otra vez y deja un hueco vacío arriba.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
+    ) { padding ->
         Box(modifier = Modifier.fillMaxSize()) {
             LazyColumn(
                 modifier = Modifier

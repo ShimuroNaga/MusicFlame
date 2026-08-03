@@ -228,7 +228,11 @@ fun SongsScreen(
     }
 
     Scaffold(
-        modifier = modifier.fillMaxSize(), containerColor = Color.Transparent
+        modifier = modifier.fillMaxSize(), containerColor = Color.Transparent,
+        // Este Scaffold vive DENTRO del Scaffold principal (que ya reserva status bar
+        // y nav bar). Sin esto, por defecto reserva la status bar OTRA VEZ y deja un
+        // hueco vacío arriba de las cards.
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Box(modifier = Modifier.fillMaxSize().padding(padding)) {
 

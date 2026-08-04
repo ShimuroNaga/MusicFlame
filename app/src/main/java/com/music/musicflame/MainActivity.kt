@@ -278,17 +278,12 @@ class MainActivity : ComponentActivity() {
                 var showSettings by remember { mutableStateOf(false) }
                 var geminiPrompt by remember { mutableStateOf("") }
 
-                // --- Selector de hasta 200 canciones antes de mandar a Gemini (desde playlists) ---
-                var showGeminiSongPicker by remember { mutableStateOf(false) }
-                var geminiCandidateSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
-                val geminiSelectedSongIds = remember { mutableStateListOf<Long>() }
+                // --- Selección múltiple de canciones (playlists, drive, etc.) ---
 
                 var isSearchActive by remember { mutableStateOf(false) }
                 var searchQuery by remember { mutableStateOf("") }
                 var searchMode by remember { mutableStateOf(SearchMode.LOCAL) }
                 var showSearchModeMenu by remember { mutableStateOf(false) }
-
-                val messages = remember { mutableStateListOf<AlbumRepository>() }
 
                 var showFullScreenPlayer by remember { mutableStateOf(false) }
                 var isMiniPlayerVisible by remember { mutableStateOf(true) }
@@ -471,8 +466,7 @@ class MainActivity : ComponentActivity() {
 
                     selectedSongs.clear(); manualSongSelectionMode = false
                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                    messages.clear()
-                    if (currentScreen != Screen.Gemini) geminiPrompt = ""
+                    if (currentScreen != Screen.Album) geminiPrompt = ""
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
                 }
 
@@ -576,17 +570,6 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     )
                                                 }
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
-                                                    onClick = {
-                                                        showSelectionMenu = false
-                                                        geminiCandidateSongs = selectedSongs.toList()
-                                                        geminiSelectedSongIds.clear()
-                                                        geminiSelectedSongIds.addAll(geminiCandidateSongs.take(200).map { it.id })
-                                                        selectedSongs.clear(); manualSongSelectionMode = false
-                                                        showGeminiSongPicker = true
-                                                    }
-                                                )
                                                 // --- OPCIÓN SUBIR A GOOGLE DRIVE ---
                                                 DropdownMenuItem(
                                                     text = {
@@ -658,19 +641,6 @@ class MainActivity : ComponentActivity() {
                                                         val allPlaylists = listOf(favoritesPlaylist) + playlistRepo.getPlaylists()
                                                         selectedPlaylists.clear()
                                                         selectedPlaylists.addAll(allPlaylists)
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SmartToy, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.tertiary); Spacer(Modifier.width(8.dp)); Text("Mandar a Gemini") } },
-                                                    onClick = {
-                                                        showPlaylistSelectionMenu = false
-                                                        val allSongs = loadSongsFromDevice(context)
-                                                        val allIds = selectedPlaylists.flatMap { if (it.id == "favorites") favoriteIds.toList() else it.songIds }.distinct()
-                                                        geminiCandidateSongs = allSongs.filter { it.id in allIds }
-                                                        geminiSelectedSongIds.clear()
-                                                        geminiSelectedSongIds.addAll(geminiCandidateSongs.take(200).map { it.id })
-                                                        selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                                                        showGeminiSongPicker = true
                                                     }
                                                 )
                                                 DropdownMenuItem(
@@ -873,7 +843,7 @@ class MainActivity : ComponentActivity() {
                                                     searchQuery = ""
                                                     selectedSongs.clear(); manualSongSelectionMode = false
                                                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                                                    if (screen != Screen.Gemini) geminiPrompt = ""
+                                                    if (screen != Screen.Album) geminiPrompt = ""
                                                     coroutineScope.launch { pagerState.animateScrollToPage(index) }
                                                 },
                                                 icon = { Icon(screen.icon, screen.label) },
@@ -994,7 +964,6 @@ class MainActivity : ComponentActivity() {
                                                 isFavorites = selectedPlaylistIsFavorites,
                                                 onBack = { selectedPlaylist = null },
                                                 onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },
-                                                onSendToGemini = { songs -> geminiPrompt = "Analiza esta playlist: " + songs.joinToString { it.title }; coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) } },
                                                 hasBackgroundImage = hasBackgroundImage,
                                                 selectedSongs = selectedSongs,
                                                 onToggleSelection = onToggleSong,
@@ -1012,7 +981,10 @@ class MainActivity : ComponentActivity() {
                                             onToggleSelectionModeButton = { manualPlaylistSelectionMode = !manualPlaylistSelectionMode }
                                         )
                                         Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong)
-                                        Screen.Gemini -> GeminiScreen(messages = messages, initialPrompt = geminiPrompt, hasBackgroundImage = hasBackgroundImage)
+                                        Screen.Album -> AlbumScreen(
+                                            hasBackgroundImage = hasBackgroundImage,
+                                            onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) }
+                                        )
                                         Screen.Trash -> TrashScreen(
                                             onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },
                                             hasBackgroundImage = hasBackgroundImage,
@@ -1164,60 +1136,6 @@ class MainActivity : ComponentActivity() {
                                     dismissButton = { TextButton(onClick = { showDeletePlaylistsDialog = false }) { Text("Cancelar") } }
                                 )
                             }
-
-                            if (showGeminiSongPicker) {
-                                AlertDialog(
-                                    onDismissRequest = { showGeminiSongPicker = false },
-                                    title = { Text("Selecciona hasta 200 canciones", fontWeight = FontWeight.Bold) },
-                                    text = {
-                                        Column {
-                                            Text(
-                                                "${geminiSelectedSongIds.size} / 200 seleccionadas",
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(bottom = 8.dp)
-                                            )
-                                            LazyColumn(modifier = Modifier.heightIn(max = 400.dp)) {
-                                                items(geminiCandidateSongs, key = { it.id }) { song ->
-                                                    val isChecked = geminiSelectedSongIds.contains(song.id)
-                                                    val canToggle = isChecked || geminiSelectedSongIds.size < 200
-                                                    Row(
-                                                        modifier = Modifier
-                                                            .fillMaxWidth()
-                                                            .clickable(enabled = canToggle) {
-                                                                if (isChecked) geminiSelectedSongIds.remove(song.id)
-                                                                else if (geminiSelectedSongIds.size < 200) geminiSelectedSongIds.add(song.id)
-                                                            }
-                                                            .padding(vertical = 6.dp),
-                                                        verticalAlignment = Alignment.CenterVertically
-                                                    ) {
-                                                        Checkbox(checked = isChecked, onCheckedChange = null, enabled = canToggle)
-                                                        Spacer(Modifier.width(4.dp))
-                                                        Text(
-                                                            text = song.title,
-                                                            maxLines = 1,
-                                                            overflow = TextOverflow.Ellipsis,
-                                                            color = if (canToggle) LocalContentColor.current else LocalContentColor.current.copy(alpha = 0.4f)
-                                                        )
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    },
-                                    confirmButton = {
-                                        Button(
-                                            onClick = {
-                                                val chosen = geminiCandidateSongs.filter { it.id in geminiSelectedSongIds }
-                                                geminiPrompt = "Analiza y recomiéndame música basándote en estas canciones: " + chosen.joinToString(", ") { it.title }
-                                                showGeminiSongPicker = false
-                                                coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
-                                            },
-                                            enabled = geminiSelectedSongIds.isNotEmpty()
-                                        ) { Text("Enviar a Gemini") }
-                                    },
-                                    dismissButton = { TextButton(onClick = { showGeminiSongPicker = false }) { Text("Cancelar") } }
-                                )
-                            }
                         }
 
                         AnimatedVisibility(
@@ -1240,7 +1158,7 @@ class MainActivity : ComponentActivity() {
                                     onSendToGemini = {
                                         showFullScreenPlayer = false
                                         geminiPrompt = "Háblame de la canción ${currentSong!!.title} de ${currentSong!!.artist}. Dame recomendaciones de canciones parecidas."
-                                        coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Gemini)) }
+                                        coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Album)) }
                                     },
                                     hasBackgroundImage = hasBackgroundImage
                                 )

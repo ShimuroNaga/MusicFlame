@@ -29,7 +29,6 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
-import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -130,7 +129,6 @@ fun PlaylistDetailScreen(
     isFavorites: Boolean,
     onBack: () -> Unit,
     onSongClick: (Song, List<Song>) -> Unit,
-    onSendToGemini: (List<Song>) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
@@ -151,7 +149,6 @@ fun PlaylistDetailScreen(
 
     val songs = remember { mutableStateListOf<Song>() }
     val displaySongs = remember { mutableStateListOf<Song>() }
-    val showSelectDialog = remember { mutableStateOf(false) }
     val sortType = remember { mutableStateOf(SortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
 
@@ -263,21 +260,6 @@ fun PlaylistDetailScreen(
                             displaySongs.addAll(shuffled)
                             if (shuffled.isNotEmpty()) {
                                 onSongClick(shuffled.first(), shuffled)
-                            }
-                        },
-                        hasBackgroundImage = hasBackgroundImage,
-                        radius = buttonRadius
-                    )
-
-                    // Botón Gemini (Secundario)
-                    AnimatedActionButton(
-                        icon = Icons.Filled.SmartToy,
-                        enabled = songs.isNotEmpty(),
-                        onClick = {
-                            if (songs.size > 200) {
-                                showSelectDialog.value = true
-                            } else {
-                                onSendToGemini(songs)
                             }
                         },
                         hasBackgroundImage = hasBackgroundImage,
@@ -403,17 +385,6 @@ fun PlaylistDetailScreen(
                 item { Spacer(Modifier.height(80.dp)) }
             }
         }
-    }
-
-    if (showSelectDialog.value) {
-        SelectSongsDialog(
-            songs = songs,
-            onDismiss = { showSelectDialog.value = false },
-            onConfirm = { selectedList ->
-                onSendToGemini(selectedList)
-                showSelectDialog.value = false
-            }
-        )
     }
 }
 

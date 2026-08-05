@@ -289,7 +289,7 @@ fun SongsScreen(
                     if (displaySongs.isNotEmpty()) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             item { Spacer(modifier = Modifier.height(8.dp)) }
                             items(displaySongs, key = { it.id }) { song ->
@@ -382,7 +382,7 @@ fun SongsScreen(
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         item { Spacer(modifier = Modifier.height(8.dp)) }
 
@@ -473,8 +473,6 @@ fun SongsScreen(
                         }
                         item { Spacer(modifier = Modifier.height(80.dp)) }
                     }
-
-                    // --- Indicador de scroll (scrollbar) pegado al borde derecho ---
                     ListScrollbar(
                         listState = listState,
                         modifier = Modifier
@@ -485,8 +483,6 @@ fun SongsScreen(
                 }
             }
 
-            // --- BARRA INFERIOR FLOTANTE: selección (izquierda) y ordenar (derecha) ---
-            // Se oculta al hacer scroll hacia abajo y reaparece al hacer scroll hacia arriba.
             AnimatedVisibility(
                 visible = !isSelectionMode && searchMode == SearchMode.LOCAL && bottomButtonsVisible,
                 modifier = Modifier.align(Alignment.BottomCenter),

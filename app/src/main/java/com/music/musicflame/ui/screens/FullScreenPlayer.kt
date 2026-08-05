@@ -52,7 +52,6 @@ fun FullScreenPlayer(
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    onSendToGemini: () -> Unit,
     hasBackgroundImage: Boolean = false
 ) {
     val context = LocalContext.current
@@ -311,10 +310,6 @@ fun FullScreenPlayer(
                     tint = if (isFavorite) MaterialTheme.colorScheme.primary else adaptiveContentColor,
                     modifier = Modifier.size(28.dp)
                 )
-            }
-
-            IconButton(onClick = onSendToGemini) {
-                Icon(Icons.Filled.AutoAwesome, contentDescription = "Preguntar a Gemini", tint = adaptiveContentColor)
             }
         }
 

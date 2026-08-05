@@ -276,7 +276,6 @@ class MainActivity : ComponentActivity() {
                 var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
                 var selectedPlaylistIsFavorites by remember { mutableStateOf(false) }
                 var showSettings by remember { mutableStateOf(false) }
-                var geminiPrompt by remember { mutableStateOf("") }
 
                 // --- Selección múltiple de canciones (playlists, drive, etc.) ---
 
@@ -466,7 +465,6 @@ class MainActivity : ComponentActivity() {
 
                     selectedSongs.clear(); manualSongSelectionMode = false
                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                    if (currentScreen != Screen.Album) geminiPrompt = ""
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
                 }
 
@@ -843,7 +841,6 @@ class MainActivity : ComponentActivity() {
                                                     searchQuery = ""
                                                     selectedSongs.clear(); manualSongSelectionMode = false
                                                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                                                    if (screen != Screen.Album) geminiPrompt = ""
                                                     coroutineScope.launch { pagerState.animateScrollToPage(index) }
                                                 },
                                                 icon = { Icon(screen.icon, screen.label) },
@@ -1155,11 +1152,6 @@ class MainActivity : ComponentActivity() {
                                         sendBroadcast(intent)
                                     },
                                     onSkipNext = { playerManager.skipNext() }, onSkipPrevious = { playerManager.skipPrevious() }, onAddToPlaylist = { songToAddToPlaylist = currentSong; showAddToPlaylist = true },
-                                    onSendToGemini = {
-                                        showFullScreenPlayer = false
-                                        geminiPrompt = "Háblame de la canción ${currentSong!!.title} de ${currentSong!!.artist}. Dame recomendaciones de canciones parecidas."
-                                        coroutineScope.launch { pagerState.animateScrollToPage(bottomNavItems.indexOf(Screen.Album)) }
-                                    },
                                     hasBackgroundImage = hasBackgroundImage
                                 )
                             }

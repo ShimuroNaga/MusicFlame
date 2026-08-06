@@ -11,16 +11,15 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.music.musicflame.LocalAlbumGridColumns
 import com.music.musicflame.data.Album
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.groupSongsIntoAlbums
@@ -30,48 +29,40 @@ import com.music.musicflame.ui.components.AlbumArt
 /**
  * Pantalla de Álbumes. Agrupa las canciones del dispositivo por álbum
  * (usando AlbumRepository.kt) y las muestra en una grilla; al tocar un
- * álbum se abre AlbumDetailScreen.kt (reproducir/mezclar/ordenar/seleccionar/exportar).
+ * álbum se abre AlbumDetailScreen.kt.
  *
- * Reemplaza lo que antes era la pantalla de Gemini (que usaba Firebase AI
- * Logic y se quitó por completo).
+ * El álbum seleccionado, igual que la playlist seleccionada, vive en
+ * MainActivity para que la barra superior "de afuera" pueda mostrar el
+ * nombre del álbum + botón de regresar + exportar, en vez de que esta
+ * pantalla dibuje su propia barra encima.
  */
 @Composable
 fun AlbumScreen(
     modifier: Modifier = Modifier,
     hasBackgroundImage: Boolean = false,
-    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> }
+    selectedAlbum: Album? = null,
+    onAlbumClick: (Album) -> Unit = {},
+    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    selectedSongs: List<Song> = emptyList(),
+    onToggleSelection: (Song) -> Unit = {},
+    selectionModeActive: Boolean = false,
+    onToggleSelectionModeButton: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val albums = remember { groupSongsIntoAlbums(loadSongsFromDevice(context)) }
-    var selectedAlbum by remember { mutableStateOf<Album?>(null) }
-
-    // Selección múltiple dentro del detalle de un álbum (se resetea al cambiar de álbum)
-    val selectedSongs = remember(selectedAlbum) { mutableStateOf(setOf<Song>()) }
-    var selectionModeActive by remember(selectedAlbum) { mutableStateOf(false) }
 
     Box(modifier = modifier.fillMaxSize()) {
-        val album = selectedAlbum
-        if (album == null) {
-            AlbumGrid(albums = albums, onAlbumClick = { selectedAlbum = it })
+        if (selectedAlbum == null) {
+            AlbumGrid(albums = albums, onAlbumClick = onAlbumClick)
         } else {
             AlbumDetailScreen(
-                album = album,
-                onBack = { selectedAlbum = null },
+                album = selectedAlbum,
                 onSongClick = { song, list -> onPlaySong(song, list) },
                 hasBackgroundImage = hasBackgroundImage,
-                selectedSongs = selectedSongs.value.toList(),
-                onToggleSelection = { song ->
-                    selectedSongs.value = if (selectedSongs.value.contains(song)) {
-                        selectedSongs.value - song
-                    } else {
-                        selectedSongs.value + song
-                    }
-                },
+                selectedSongs = selectedSongs,
+                onToggleSelection = onToggleSelection,
                 selectionModeActive = selectionModeActive,
-                onToggleSelectionModeButton = {
-                    selectionModeActive = !selectionModeActive
-                    if (!selectionModeActive) selectedSongs.value = emptySet()
-                }
+                onToggleSelectionModeButton = onToggleSelectionModeButton
             )
         }
     }
@@ -79,6 +70,8 @@ fun AlbumScreen(
 
 @Composable
 private fun AlbumGrid(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
+    val columns = LocalAlbumGridColumns.current
+
     if (albums.isEmpty()) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -95,21 +88,29 @@ private fun AlbumGrid(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
         return
     }
 
+    // AlbumArt pinta a un tamaño fijo (no responsivo), así que calculamos
+    // manualmente cuánto le toca a cada carátula según cuántas columnas
+    // eligió el usuario en Ajustes > Apariencia.
+    val configuration = LocalConfiguration.current
+    val gridPadding = 16.dp
+    val itemSpacing = 16.dp
+    val itemSize = (configuration.screenWidthDp.dp - gridPadding * 2 - itemSpacing * (columns - 1)) / columns
+
     LazyVerticalGrid(
-        columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp),
-        horizontalArrangement = Arrangement.spacedBy(16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
+        columns = GridCells.Fixed(columns),
+        contentPadding = PaddingValues(gridPadding),
+        horizontalArrangement = Arrangement.spacedBy(itemSpacing),
+        verticalArrangement = Arrangement.spacedBy(itemSpacing),
         modifier = Modifier.fillMaxSize()
     ) {
         items(albums, key = { it.name + it.artist }) { album ->
-            AlbumCard(album = album, onClick = { onAlbumClick(album) })
+            AlbumCard(album = album, artSize = itemSize, onClick = { onAlbumClick(album) })
         }
     }
 }
 
 @Composable
-private fun AlbumCard(album: Album, onClick: () -> Unit) {
+private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -123,7 +124,7 @@ private fun AlbumCard(album: Album, onClick: () -> Unit) {
         ) {
             AlbumArt(
                 albumArtUri = album.albumArtUri,
-                size = 160.dp,
+                size = artSize,
                 cornerRadius = 12.dp
             )
         }

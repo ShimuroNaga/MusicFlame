@@ -101,6 +101,11 @@ class SettingsRepository(context: Context) {
     fun saveBackgroundBrightness(value: Float) = prefs.edit().putFloat("bg_brightness", value).apply()
     fun getBackgroundBrightness(): Float = prefs.getFloat("bg_brightness", 0f)
 
+    // Cantidad de carátulas por renglón en la pantalla de Álbumes.
+    // 2 = carátulas grandes (default), 4 = carátulas chicas (más por renglón).
+    fun saveAlbumGridColumns(columns: Int) = prefs.edit().putInt("album_grid_columns", columns).apply()
+    fun getAlbumGridColumns(): Int = prefs.getInt("album_grid_columns", 2)
+
     fun getPlayerGifUri(): String? = prefs.getString("player_gif_uri", null)
     fun savePlayerGifUri(uri: String) = prefs.edit().putString("player_gif_uri", uri).apply()
     fun removePlayerGifUri() = prefs.edit().remove("player_gif_uri").apply()

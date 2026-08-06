@@ -75,6 +75,9 @@ enum class AlbumArtShapeType {
 }
 val LocalAlbumArtShape = compositionLocalOf { AlbumArtShapeType.SQUARE }
 
+// --- CANTIDAD DE CARÁTULAS POR RENGLÓN EN ÁLBUMES (configurable desde Ajustes > Apariencia) ---
+val LocalAlbumGridColumns = compositionLocalOf { 2 }
+
 enum class SearchMode {
     LOCAL,
     YOUTUBE
@@ -263,6 +266,7 @@ class MainActivity : ComponentActivity() {
                 val hasBackgroundImage = backgroundImageUri.value != null || playerGifUri.value != null
                 val useRoundCornersState = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
                 val albumArtShapeState = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
+                val albumGridColumnsState = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
 
                 val pagerState = rememberPagerState(pageCount = { bottomNavItems.size })
 
@@ -275,6 +279,7 @@ class MainActivity : ComponentActivity() {
 
                 var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
                 var selectedPlaylistIsFavorites by remember { mutableStateOf(false) }
+                var selectedAlbum by remember { mutableStateOf<com.music.musicflame.data.Album?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
 
                 // --- Selección múltiple de canciones (playlists, drive, etc.) ---
@@ -466,9 +471,10 @@ class MainActivity : ComponentActivity() {
                     selectedSongs.clear(); manualSongSelectionMode = false
                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
+                    if (currentScreen != Screen.Album) selectedAlbum = null
                 }
 
-                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value) {
+                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
                     BackHandler(enabled = showFullScreenPlayer || isAnySelectionMode) {
                         if (showFullScreenPlayer) showFullScreenPlayer = false
                         else {
@@ -732,6 +738,7 @@ class MainActivity : ComponentActivity() {
                                                         text = when {
                                                             showSettings -> "CONFIGURACION"
                                                             selectedPlaylist != null -> selectedPlaylist!!.name
+                                                            selectedAlbum != null -> selectedAlbum!!.name
                                                             else -> "MusicFlame"
                                                         },
                                                         fontWeight = FontWeight.Bold,
@@ -741,10 +748,10 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         navigationIcon = {
-                                            if (selectedPlaylist != null || showSettings) IconButton(onClick = { selectedPlaylist = null; showSettings = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
+                                            if (selectedPlaylist != null || selectedAlbum != null || showSettings) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; showSettings = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
                                         },
                                         actions = {
-                                            if (selectedPlaylist == null && !showSettings && !isSearchActive) {
+                                            if (selectedPlaylist == null && selectedAlbum == null && !showSettings && !isSearchActive) {
                                                 IconButton(onClick = {
                                                     isSearchActive = true
                                                     youtubeVideoId = null
@@ -758,6 +765,12 @@ class MainActivity : ComponentActivity() {
                                                     val exportable = if (selectedPlaylistIsFavorites) playlist.copy(songIds = favoriteIds.toList()) else playlist
                                                     val success = playlistRepo.exportToM3U(context, exportable)
                                                     Toast.makeText(context, if (success) "Playlist exportada a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                            }
+                                            if (selectedAlbum != null) {
+                                                IconButton(onClick = {
+                                                    val ok = exportAlbumToM3U(context, selectedAlbum!!.name, selectedAlbum!!.songs)
+                                                    Toast.makeText(context, if (ok) "Álbum exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
                                                 }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
                                             }
                                         },
@@ -836,6 +849,7 @@ class MainActivity : ComponentActivity() {
                                                 selected = pagerState.currentPage == index,
                                                 onClick = {
                                                     selectedPlaylist = null
+                                                    selectedAlbum = null
                                                     showSettings = false
                                                     isSearchActive = false
                                                     searchQuery = ""
@@ -860,6 +874,7 @@ class MainActivity : ComponentActivity() {
                                         bgBrightness.floatValue = settingsRepo.getBackgroundBrightness()
                                     },
                                     onRoundCornersChanged = { newState -> useRoundCornersState.value = newState },
+                                    onAlbumGridColumnsChanged = { newState -> albumGridColumnsState.value = newState },
                                     onAlbumArtShapeChanged = { newShape -> albumArtShapeState.value = newShape },
                                     hasBackgroundImage = hasBackgroundImage,
                                     isUserSignedIn = isUserLoggedIn,
@@ -980,7 +995,13 @@ class MainActivity : ComponentActivity() {
                                         Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong)
                                         Screen.Album -> AlbumScreen(
                                             hasBackgroundImage = hasBackgroundImage,
-                                            onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) }
+                                            selectedAlbum = selectedAlbum,
+                                            onAlbumClick = { selectedAlbum = it },
+                                            onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) },
+                                            selectedSongs = selectedSongs,
+                                            onToggleSelection = onToggleSong,
+                                            selectionModeActive = manualSongSelectionMode,
+                                            onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode }
                                         )
                                         Screen.Trash -> TrashScreen(
                                             onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },

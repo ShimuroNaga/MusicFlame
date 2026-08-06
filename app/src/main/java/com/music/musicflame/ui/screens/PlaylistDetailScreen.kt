@@ -194,22 +194,6 @@ fun PlaylistDetailScreen(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        floatingActionButton = {
-            if (!isSelectionMode) { // Ocultamos el FAB si ya estamos seleccionando
-                FloatingActionButton(
-                    onClick = onToggleSelectionModeButton,
-                    shape = RoundedCornerShape(fabRadius),
-                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                    elevation = FloatingActionButtonDefaults.elevation()
-                ) {
-                    Icon(
-                        Icons.Filled.Checklist,
-                        contentDescription = "Seleccionar canciones"
-                    )
-                }
-            }
-        },
         // Ya vive dentro del Scaffold principal (que reserva status/nav bar); sin esto
         // reserva la status bar otra vez y deja un hueco vacío arriba de la lista.
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
@@ -350,6 +334,15 @@ fun PlaylistDetailScreen(
                             )
                         }
                     }
+
+                    // Botón Seleccionar (Secundario) - antes era un FAB flotante, ahora vive en esta fila
+                    AnimatedActionButton(
+                        icon = Icons.Filled.Checklist,
+                        enabled = songs.isNotEmpty(),
+                        onClick = onToggleSelectionModeButton,
+                        hasBackgroundImage = hasBackgroundImage,
+                        radius = buttonRadius
+                    )
                 }
             }
 

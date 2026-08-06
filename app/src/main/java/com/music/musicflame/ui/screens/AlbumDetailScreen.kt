@@ -1,15 +1,12 @@
 package com.music.musicflame.ui.screens
 
 import android.content.Context
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Checklist
-import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Shuffle
 import androidx.compose.material.icons.filled.Sort
@@ -19,7 +16,6 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
@@ -34,11 +30,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.data.Album
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.components.AlbumArt
@@ -92,7 +88,6 @@ fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Bo
 @Composable
 fun AlbumDetailScreen(
     album: Album,
-    onBack: () -> Unit,
     onSongClick: (Song, List<Song>) -> Unit,
     hasBackgroundImage: Boolean = false,
     selectedSongs: List<Song> = emptyList(),
@@ -100,8 +95,6 @@ fun AlbumDetailScreen(
     selectionModeActive: Boolean = false,
     onToggleSelectionModeButton: () -> Unit = {}
 ) {
-    val context = LocalContext.current
-
     val isRounded = LocalUseRoundCorners.current
     val albumArtShape = LocalAlbumArtShape.current
     val itemRadius = if (isRounded) 12.dp else 0.dp
@@ -140,36 +133,11 @@ fun AlbumDetailScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // --- Header: volver + exportar (esquina superior derecha) ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                IconButton(onClick = onBack) {
-                    Icon(Icons.Filled.ArrowBack, contentDescription = "Volver a álbumes")
-                }
-                IconButton(
-                    onClick = {
-                        val ok = exportAlbumToM3U(context, album.name, album.songs)
-                        Toast.makeText(
-                            context,
-                            if (ok) "Álbum exportado a Descargas" else "No se pudo exportar",
-                            Toast.LENGTH_SHORT
-                        ).show()
-                    }
-                ) {
-                    Icon(Icons.Filled.Download, contentDescription = "Exportar a M3U")
-                }
-            }
-
             // --- Portada + info del álbum ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AlbumArt(
@@ -180,11 +148,16 @@ fun AlbumDetailScreen(
                 )
                 Spacer(Modifier.width(16.dp))
                 Column {
-                    Text(album.name, fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleLarge)
-                    Text(album.artist, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(
+                        album.name,
+                        fontWeight = FontWeight.Bold,
+                        style = MaterialTheme.typography.titleLarge,
+                        color = LocalAppTextColor.current
+                    )
+                    Text(album.artist, color = LocalAppTextColor.current.copy(alpha = 0.7f))
                     Text(
                         "${album.songCount} canciones",
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = LocalAppTextColor.current.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.bodySmall
                     )
                 }

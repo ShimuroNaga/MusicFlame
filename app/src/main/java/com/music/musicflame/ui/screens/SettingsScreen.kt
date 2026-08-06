@@ -150,6 +150,7 @@ fun SettingsScreen(
     modifier: Modifier = Modifier,
     onBackgroundImageChanged: () -> Unit = {},
     onRoundCornersChanged: (Boolean) -> Unit = {},
+    onAlbumGridColumnsChanged: (Int) -> Unit = {},
     onAlbumArtShapeChanged: (com.music.musicflame.AlbumArtShapeType) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     isUserSignedIn: Boolean = false,
@@ -178,6 +179,7 @@ fun SettingsScreen(
     val appTheme = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+    val albumGridColumns = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
 
     // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
     val activeSection = remember { mutableStateOf<String?>(null) }
@@ -580,6 +582,33 @@ fun SettingsScreen(
                                 trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text("Tamaño de carátulas de álbumes", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Spacer(Modifier.height(4.dp))
+                                Slider(
+                                    value = albumGridColumns.value.toFloat(),
+                                    onValueChange = {
+                                        val columns = it.toInt()
+                                        albumGridColumns.value = columns
+                                        settingsRepo.saveAlbumGridColumns(columns)
+                                        onAlbumGridColumnsChanged(columns)
+                                    },
+                                    valueRange = 2f..4f,
+                                    steps = 1, // dos pasos intermedios entre 2 y 4 -> valores posibles: 2, 3, 4
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = trailingColor,
+                                        activeTrackColor = trailingColor
+                                    )
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Grande", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Chico", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                            }
                             HorizontalDivider(color = dividerColor)
                         }
 

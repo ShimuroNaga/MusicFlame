@@ -274,6 +274,23 @@ class MainActivity : ComponentActivity() {
                 val isPlaying by playerManager.isPlayingState
                 var songList by remember { mutableStateOf<List<Song>>(emptyList()) }
 
+                // FIX: cuando la app se reabre (Activity recreada tras salir/segundo plano),
+                // currentSong se restaura solo desde el MediaSession que sigue sonando, pero
+                // songList vuelve a emptyList() porque solo se llena cuando tocas una canción
+                // manualmente. Ese desfase dejaba al HorizontalPager del reproductor expandido
+                // con 0 páginas (carátula invisible) y provocaba el cierre de la app al saltar
+                // de canción, porque el pager quedaba en un estado inconsistente. Aquí
+                // reconstruimos songList con la librería completa en cuanto detectamos el desfase.
+                LaunchedEffect(currentSong?.id) {
+                    if (currentSong != null && songList.isEmpty()) {
+                        val restoredSongs = withContext(Dispatchers.IO) {
+                            val trashedIds = trashRepo.getTrash().map { it.song.id }
+                            loadSongsFromDevice(context).filter { it.id !in trashedIds }
+                        }
+                        songList = restoredSongs
+                    }
+                }
+
                 var songToAddToPlaylist by remember { mutableStateOf<Song?>(null) }
                 var showAddToPlaylist by remember { mutableStateOf(false) }
 

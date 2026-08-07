@@ -112,9 +112,9 @@ fun FullScreenPlayer(
             text = {
                 Text(
                     "Para animar las barras con el ritmo de tu música, Android exige el " +
-                    "permiso de \"grabar audio\", aunque MusicFlame no graba ni guarda nada. " +
-                    "Solo se usa para leer el sonido que ya está sonando y dibujar el " +
-                    "ecualizador en tiempo real."
+                            "permiso de \"grabar audio\", aunque MusicFlame no graba ni guarda nada. " +
+                            "Solo se usa para leer el sonido que ya está sonando y dibujar el " +
+                            "ecualizador en tiempo real."
                 )
             },
             confirmButton = {
@@ -135,21 +135,28 @@ fun FullScreenPlayer(
         )
     }
 
-    val initialIndex = songList.indexOf(song).coerceAtLeast(0)
-    val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { songList.size })
+    // DEFENSA: si songList todavía no llegó (o no contiene la canción actual, por ejemplo
+    // justo al reabrir la app mientras se restaura la librería en segundo plano), usamos una
+    // lista mínima con solo la canción actual. Así el pager SIEMPRE tiene al menos 1 página
+    // válida: nunca queda con pageCount=0 (carátula invisible) ni desincronizado al saltar
+    // de canción (lo que provocaba el cierre de la app).
+    val effectiveSongList = if (songList.contains(song)) songList else listOf(song)
 
-    LaunchedEffect(song) {
-        val targetIndex = songList.indexOf(song)
-        if (targetIndex in songList.indices && pagerState.currentPage != targetIndex) {
+    val initialIndex = effectiveSongList.indexOf(song).coerceAtLeast(0)
+    val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { effectiveSongList.size })
+
+    LaunchedEffect(song, effectiveSongList) {
+        val targetIndex = effectiveSongList.indexOf(song)
+        if (targetIndex in effectiveSongList.indices && pagerState.currentPage != targetIndex) {
             pagerState.animateScrollToPage(targetIndex, animationSpec = tween(400))
         }
     }
 
     LaunchedEffect(pagerState.isScrollInProgress) {
         if (!pagerState.isScrollInProgress) {
-            val targetSong = songList.getOrNull(pagerState.currentPage)
+            val targetSong = effectiveSongList.getOrNull(pagerState.currentPage)
             if (targetSong != null && targetSong.id != song.id) {
-                playerManager.playSong(targetSong, songList)
+                playerManager.playSong(targetSong, effectiveSongList)
             }
         }
     }
@@ -225,7 +232,7 @@ fun FullScreenPlayer(
                 .weight(1f),
             verticalAlignment = Alignment.CenterVertically
         ) { page ->
-            val pageSong = songList.getOrNull(page)
+            val pageSong = effectiveSongList.getOrNull(page)
             if (pageSong != null) {
 
                 val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
@@ -399,7 +406,7 @@ fun FullScreenPlayer(
             }
 
             Surface(
-                onClick = onPlayPause, // <-- CORREGIDO: Ahora dispara la acción hacia MainActivity
+                onClick = onPlayPause,
                 shape = CircleShape,
                 color = MaterialTheme.colorScheme.primary,
                 modifier = Modifier.size(76.dp)
@@ -421,10 +428,6 @@ fun FullScreenPlayer(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Visualizador de espectro: va DEBAJO de los botones, en su propio espacio,
-        // así que nunca los tapa ni les baja opacidad. En escala de grises: usa el mismo
-        // color adaptativo que ya usan textos/íconos de esta pantalla (blanco si hay
-        // imagen/gif de fondo, o el color de tema si no).
         AudioVisualizerBars(
             audioSessionId = playerManager.audioSessionId.value,
             isPlaying = isPlaying,

@@ -3,7 +3,7 @@
 ![Estado del Proyecto](https://img.shields.io/badge/Estado-En_Desarrollo_Activo-brightgreen)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Android-blue)
 
-MusicFlame es un reproductor de música versátil y moderno que combina tu biblioteca local, el extenso catálogo de YouTube y el poder de la inteligencia artificial (Gemini) en una sola aplicación. Diseñado con un enfoque en la personalización y el rendimiento.
+**MusicFlame** es un reproductor de música versátil y moderno que combina tu biblioteca local, el extenso catálogo de YouTube y el poder de la inteligencia artificial (Gemini) en una sola aplicación. Diseñado con un enfoque en la personalización, la estética y el rendimiento.
 
 ---
 
@@ -43,21 +43,61 @@ Descargar e instalar MusicFlame es muy sencillo. No necesitas compilar el códig
 4. Abre el archivo en tu dispositivo Android. *(Es posible que debas conceder permisos para instalar aplicaciones de orígenes desconocidos).*
 5. ¡Listo! Abre la app, concede los permisos de lectura de audio y disfruta.
 
+---
 
-## 🛠️ Aviso de Desarrollo
+## 🛠️ Aviso de Desarrollo (¡Trabajando en la v3.1!)
 
 > **⚠️ App en construcción continua**
-> MusicFlame es un proyecto en desarrollo activo. Lanzamos actualizaciones frecuentemente para añadir funciones y optimizar el rendimiento. Es posible que encuentres algún *bug* o comportamiento inesperado. Si notas algo extraño, por favor repórtalo abriendo un *Issue* o enviando un correo.
+> MusicFlame es un proyecto en desarrollo activo. Actualmente estamos trabajando arduamente en la **versión 3.1**, la cual traerá cambios importantes, incluyendo una sección entera de la app que será completamente reemplazada (¡pronto sabrán cuál!).
 >
-> **📌 Nota:** La última actualización fue bastante grande (rediseño de varias pantallas, papelera de playlists, personalización avanzada, entre otros cambios), así que voy a tomarme un tiempo antes de la siguiente tanda de cambios. ¡Gracias por la paciencia!
+> **📌 Nota:** La actualización anterior fue bastante grande (rediseño de varias pantallas, papelera de playlists, personalización avanzada, etc.), por lo que nos tomaremos un tiempo para pulir esta próxima versión. Si notas algo extraño o un *bug*, por favor repórtalo. ¡Gracias por la paciencia!
 
 ---
 
-## 🤝 Contribuciones y Contacto
+## 👥 Colaboradores y Testers
 
-¡Las contribuciones son bienvenidas! Si deseas ayudar a programar, realizar *testing*, mejorar el diseño o editar este repositorio, no dudes en sumarte.
+Gracias a estas increíbles personas por sus contribuciones en el control de calidad, *testing* y reporte de errores. ¡Su ayuda es fundamental para que MusicFlame funcione al 100%!
 
-*   **Desarrollador:** ShimuroNaga
-*   **Desarrollador:** Naofresita18
-*   **Contacto y reporte de bugs:** oomo87284@gmail.com
-  
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+<table>
+  <tbody>
+    <tr>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/naofresita18">
+          <img src="https://github.com/naofresita18.png" width="100px;" alt="naofresita18"/><br />
+          <sub><b>naofresita18</b></sub>
+        </a><br />
+        <a href="#testing-naofresita18" title="Testing">🧪</a> 
+        <a href="#bug-naofresita18" title="Bug reports">🐛</a>
+      </td>
+      <td align="center" valign="top" width="14.28%">
+        <a href="https://github.com/deivid-boop">
+          <img src="https://github.com/deivid-boop.png" width="100px;" alt="deivid-boop"/><br />
+          <sub><b>deivid-boop</b></sub>
+        </a><br />
+        <a href="#testing-deivid-boop" title="Testing">🧪</a> 
+        <a href="#bug-deivid-boop" title="Bug reports">🐛</a>
+      </td>
+    </tr>
+  </tbody>
+</table>
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+---
+
+## 🤝 Comunidad y Contacto
+
+¡Las sugerencias y reportes son bienvenidos! 
+
+*   **Desarrollador Principal:** ShimuroNaga
+*   **Correo de contacto / Reporte de bugs:** oomo87284@gmail.com
+
+### 👾 Servidor de Discord
+Tenemos un servidor de Discord para hablar sobre el desarrollo, reportar errores o enterarte de las novedades de la versión 3.1. 
+* Puedes intentar unirte usando el **enlace de invitación que se encuentra dentro de la propia aplicación**.
+* Si el enlace de la app ha caducado, **mándame un correo** y te enviaré una invitación nueva directamente. ¡Te esperamos!
+ 

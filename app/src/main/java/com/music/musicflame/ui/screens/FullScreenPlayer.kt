@@ -1,5 +1,10 @@
 package com.music.musicflame.ui.screens
 
+import android.Manifest
+import android.content.Context
+import android.content.pm.PackageManager
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.ExperimentalFoundationApi
@@ -28,12 +33,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.core.content.ContextCompat
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
+import com.music.musicflame.ui.components.AudioVisualizerBars
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.safeScreenPadding
 import kotlinx.coroutines.delay
@@ -63,8 +70,70 @@ fun FullScreenPlayer(
 
     val bgColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.65f) else MaterialTheme.colorScheme.background
 
-    // <-- AQUÍ SUCEDE LA MAGIA: Al cambiar esto a LocalAppTextColor, se propaga automáticamente a todos los textos e íconos de esta pantalla
-    val adaptiveContentColor = if (hasBackgroundImage) Color.White else LocalAppTextColor.current
+    // Ahora SIEMPRE respeta el color que el usuario eligió en Ajustes, haya o no
+    // imagen/gif de fondo. Antes se forzaba a blanco encima de fondos, ignorando su elección.
+    val adaptiveContentColor = LocalAppTextColor.current
+
+    // --- PERMISO DEL VISUALIZADOR (RECORD_AUDIO) ---
+    // Se pide AQUÍ, contextual, solo la primera vez que el usuario abre esta pantalla,
+    // y con un diálogo propio explicando el porqué ANTES del diálogo del sistema. Así no
+    // se ve como una app rara pidiendo micrófono al abrir sin explicación.
+    //
+    // hasRecordAudioPermission es un State (no un simple Boolean calculado una vez): así,
+    // en cuanto el usuario acepta el permiso, el visualizador reacciona AL TOQUE, sin
+    // necesitar salir de esta pantalla y volver a entrar.
+    var hasRecordAudioPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.RECORD_AUDIO
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var showVisualizerPermissionDialog by remember { mutableStateOf(false) }
+    val recordAudioLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasRecordAudioPermission = isGranted
+    }
+
+    LaunchedEffect(Unit) {
+        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val alreadyAsked = prefs.getBoolean("visualizer_permission_asked", false)
+
+        if (!hasRecordAudioPermission && !alreadyAsked) {
+            showVisualizerPermissionDialog = true
+        }
+    }
+
+    if (showVisualizerPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showVisualizerPermissionDialog = false },
+            title = { Text("Visualizador de audio") },
+            text = {
+                Text(
+                    "Para animar las barras con el ritmo de tu música, Android exige el " +
+                    "permiso de \"grabar audio\", aunque MusicFlame no graba ni guarda nada. " +
+                    "Solo se usa para leer el sonido que ya está sonando y dibujar el " +
+                    "ecualizador en tiempo real."
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showVisualizerPermissionDialog = false
+                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                        .edit().putBoolean("visualizer_permission_asked", true).apply()
+                    recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }) { Text("Permitir") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showVisualizerPermissionDialog = false
+                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                        .edit().putBoolean("visualizer_permission_asked", true).apply()
+                }) { Text("Ahora no") }
+            }
+        )
+    }
 
     val initialIndex = songList.indexOf(song).coerceAtLeast(0)
     val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { songList.size })
@@ -253,10 +322,15 @@ fun FullScreenPlayer(
                     isDragging = false
                     playerManager.seekTo(currentPositionMs)
                 },
+                // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
+                // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
+                // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
+                // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
+                // relación con la paleta dinámica.
                 colors = SliderDefaults.colors(
-                    thumbColor = adaptiveContentColor,
+                    thumbColor = MaterialTheme.colorScheme.primary,
                     activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = adaptiveContentColor.copy(alpha = 0.2f)
+                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
                 ),
                 modifier = Modifier.fillMaxWidth().height(24.dp)
             )
@@ -344,6 +418,23 @@ fun FullScreenPlayer(
                 Icon(Icons.Filled.SkipNext, "Siguiente", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
             }
         }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Visualizador de espectro: va DEBAJO de los botones, en su propio espacio,
+        // así que nunca los tapa ni les baja opacidad. En escala de grises: usa el mismo
+        // color adaptativo que ya usan textos/íconos de esta pantalla (blanco si hay
+        // imagen/gif de fondo, o el color de tema si no).
+        AudioVisualizerBars(
+            audioSessionId = playerManager.audioSessionId.value,
+            isPlaying = isPlaying,
+            hasRecordAudioPermission = hasRecordAudioPermission,
+            color = adaptiveContentColor,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp)
+                .padding(horizontal = 8.dp)
+        )
 
         Spacer(modifier = Modifier.height(16.dp))
     }

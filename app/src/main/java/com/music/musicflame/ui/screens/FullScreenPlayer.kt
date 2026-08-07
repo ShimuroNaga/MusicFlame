@@ -316,7 +316,17 @@ fun FullScreenPlayer(
         Spacer(modifier = Modifier.height(16.dp))
 
         val totalDuration = if (playerManager.duration > 0) playerManager.duration else song.duration
-        val progress = (currentPositionMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+        // FIX: si ni el MediaController ni el Song tienen una duración válida todavía
+        // (típicamente justo tras reconectar/saltar de canción, antes de que ExoPlayer
+        // termine de preparar el nuevo MediaItem), totalDuration puede ser 0. Dividir
+        // entre 0 en floats da NaN, y coerceIn NO limpia el NaN (cualquier comparación
+        // con NaN da false, así que pasa de largo). Ese NaN llegaba al Slider, que
+        // truena al intentar redondearlo para accesibilidad ("Cannot round NaN value").
+        val progress = if (totalDuration > 0) {
+            (currentPositionMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+        } else {
+            0f
+        }
 
         Column(modifier = Modifier.fillMaxWidth()) {
             Slider(

@@ -3,6 +3,7 @@ package com.music.musicflame.data
 import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
+import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
@@ -13,6 +14,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
+import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import com.music.musicflame.R
@@ -35,6 +37,11 @@ class MusicPlayerManager(private val context: Context) {
 
     private val _cycleMode = mutableIntStateOf(0)
     val cycleMode: State<Int> = _cycleMode
+
+    // NUEVO: audioSessionId real de ExoPlayer, para enganchar el Visualizer en la UI.
+    // MediaController no expone esta propiedad directo, se pide vía comando personalizado.
+    private val _audioSessionId = mutableIntStateOf(0)
+    val audioSessionId: State<Int> = _audioSessionId
 
     val cycleIconRes: Int
         get() = when (_cycleMode.intValue) {
@@ -65,6 +72,7 @@ class MusicPlayerManager(private val context: Context) {
             // el mini-reproductor aparecía vacío hasta la siguiente canción.
             syncCurrentSongState(controller)
             _isPlayingState.value = controller.isPlaying
+            requestAudioSessionId(controller)
 
             controller.addListener(object : Player.Listener {
                 private var lastIndex = controller.currentMediaItemIndex
@@ -79,6 +87,7 @@ class MusicPlayerManager(private val context: Context) {
                     lastIndex = currentIndex
 
                     syncCurrentSongState(controller)
+                    requestAudioSessionId(controller)
                 }
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -125,6 +134,26 @@ class MusicPlayerManager(private val context: Context) {
         val mediaId = mediaItem.mediaId
         val songFromPlaylist = currentPlaylist.find { it.id.toString() == mediaId }
         _currentSong.value = songFromPlaylist ?: buildSongFromMediaItem(mediaItem)
+    }
+
+    // NUEVO: le pide al servicio (que sí tiene el ExoPlayer real) el audioSessionId actual.
+    // Es async porque sendCustomCommand cruza al proceso/hilo del MediaSession vía Binder.
+    private fun requestAudioSessionId(controller: MediaController) {
+        val future = controller.sendCustomCommand(
+            SessionCommand(MusicPlaybackService.CUSTOM_COMMAND_GET_AUDIO_SESSION_ID, Bundle.EMPTY),
+            Bundle.EMPTY
+        )
+        future.addListener({
+            try {
+                val result = future.get()
+                val sessionId = result.extras.getInt(MusicPlaybackService.KEY_AUDIO_SESSION_ID, 0)
+                if (sessionId != 0) {
+                    _audioSessionId.intValue = sessionId
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+            }
+        }, MoreExecutors.directExecutor())
     }
 
     private fun buildSongFromMediaItem(mediaItem: MediaItem): Song {

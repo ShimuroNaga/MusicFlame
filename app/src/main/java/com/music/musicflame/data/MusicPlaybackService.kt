@@ -31,6 +31,13 @@ import android.media.AudioManager
 
 @OptIn(UnstableApi::class)
 class MusicPlaybackService : MediaSessionService() {
+
+    companion object {
+        // Públicas para que MusicPlayerManager pueda pedir el audioSessionId sin duplicar strings
+        const val CUSTOM_COMMAND_GET_AUDIO_SESSION_ID = "com.music.musicflame.GET_AUDIO_SESSION_ID"
+        const val KEY_AUDIO_SESSION_ID = "audio_session_id"
+    }
+
     private var mediaSession: MediaSession? = null
     lateinit var player: ExoPlayer
 
@@ -178,6 +185,7 @@ class MusicPlaybackService : MediaSessionService() {
             val sessionCommands = connectionResult.availableSessionCommands.buildUpon()
                 .add(SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY))
                 .add(SessionCommand(CUSTOM_COMMAND_CYCLE_MODE, Bundle.EMPTY))
+                .add(SessionCommand(CUSTOM_COMMAND_GET_AUDIO_SESSION_ID, Bundle.EMPTY))
                 .build()
 
             return MediaSession.ConnectionResult.accept(
@@ -199,6 +207,17 @@ class MusicPlaybackService : MediaSessionService() {
             customCommand: SessionCommand,
             args: Bundle
         ): ListenableFuture<SessionResult> {
+            // NUEVO: el visualizador de audio en la UI necesita el audioSessionId real de
+            // ExoPlayer para engancharse con android.media.audiofx.Visualizer. El MediaController
+            // no expone esta propiedad (no es parte de la interfaz Player genérica), así que se
+            // la mandamos como un comando de sesión aparte, con return inmediato.
+            if (customCommand.customAction == CUSTOM_COMMAND_GET_AUDIO_SESSION_ID) {
+                val resultBundle = Bundle().apply {
+                    putInt(KEY_AUDIO_SESSION_ID, player.audioSessionId)
+                }
+                return Futures.immediateFuture(SessionResult(SessionResult.RESULT_SUCCESS, resultBundle))
+            }
+
             var layoutNeedsUpdate = false
 
             when (customCommand.customAction) {

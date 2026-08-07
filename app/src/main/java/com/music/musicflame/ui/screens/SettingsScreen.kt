@@ -239,10 +239,6 @@ fun SettingsScreen(
     val bassBoost = remember { mutableStateOf(settingsRepo.getBassBoost()) }
     val virtualizer = remember { mutableStateOf(settingsRepo.getVirtualizer()) }
     val eqVolume = remember { mutableStateOf(settingsRepo.getEqVolume()) }
-
-    // El color de texto global (elegido por el usuario en "Color de texto") ahora
-    // controla el highEmphasis/mediumEmphasis de toda esta pantalla, en lugar de
-    // depender únicamente de colorScheme.onBackground.
     val highEmphasis = LocalAppTextColor.current
     val mediumEmphasis = LocalAppTextColor.current.copy(alpha = 0.7f)
     val trailingColor = MaterialTheme.colorScheme.primary

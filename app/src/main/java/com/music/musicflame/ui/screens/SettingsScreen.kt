@@ -960,6 +960,29 @@ fun SettingsScreen(
                                             .clip(CircleShape)
                                     )
                                 },
+                                colors = listItemColors // Añadido aquí para mantener el mismo diseño
+                            )
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Tester") },
+                                supportingContent = { Text("Deivid") },
+                                leadingContent = {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data("https://github.com/deivid-boop.png")
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Avatar de deivid-boop",
+                                        contentScale = ContentScale.Crop,
+                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                    )
+                                },
                                 colors = listItemColors
                             )
                         }

@@ -34,6 +34,10 @@ class SettingsRepository(context: Context) {
     fun getUseRoundCorners(): Boolean = prefs.getBoolean("use_round_corners", true)
     fun saveUseRoundCorners(enabled: Boolean) = prefs.edit().putBoolean("use_round_corners", enabled).apply()
 
+    // Opacidad del fondo gris del widget de home screen (0f = transparente, 1f = opaco)
+    fun getWidgetBackgroundOpacity(): Float = prefs.getFloat("widget_bg_opacity", 0.8f)
+    fun saveWidgetBackgroundOpacity(value: Float) = prefs.edit().putFloat("widget_bg_opacity", value).apply()
+
     // --- FORMA DE LA CARÁTULA: SQUARE, DIAMOND o CIRCLE ---
     fun getAlbumArtShape(): com.music.musicflame.AlbumArtShapeType {
         val name = prefs.getString("album_art_shape", com.music.musicflame.AlbumArtShapeType.SQUARE.name)

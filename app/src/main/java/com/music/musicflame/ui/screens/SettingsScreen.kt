@@ -109,6 +109,7 @@ import com.music.musicflame.R
 import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.ui.theme.LocalAppTextColor
+import com.music.musicflame.widget.MusicFlameWidgetProvider
 
 @Composable
 fun VerticalSlider(
@@ -214,6 +215,7 @@ fun SettingsScreen(
     val playerGifUri = remember { mutableStateOf(settingsRepo.getPlayerGifUri()) }
 
     val backgroundBrightness = remember { mutableStateOf(settingsRepo.getBackgroundBrightness()) }
+    val widgetBackgroundOpacity = remember { mutableStateOf(settingsRepo.getWidgetBackgroundOpacity()) }
 
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
     var isIgnoringBattery by remember { mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName)) }
@@ -609,6 +611,38 @@ fun SettingsScreen(
                         }
 
                         item {
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text("Opacidad del fondo del widget", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Spacer(Modifier.height(4.dp))
+                                Slider(
+                                    value = widgetBackgroundOpacity.value,
+                                    onValueChange = {
+                                        widgetBackgroundOpacity.value = it
+                                        settingsRepo.saveWidgetBackgroundOpacity(it)
+                                        MusicFlameWidgetProvider.refreshAllWidgets(context)
+                                    },
+                                    valueRange = 0f..1f,
+                                    steps = 9, // pasos de 10% en 10%
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = trailingColor,
+                                        activeTrackColor = trailingColor
+                                    )
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Transparente", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Opaco", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                                Text(
+                                    "El texto del widget siempre lleva una sombra para seguir viéndose claro aunque el fondo quede casi transparente.",
+                                    fontSize = 11.sp,
+                                    color = mediumEmphasis,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+                            }
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
                             ListItem(
                                 headlineContent = { Text("Color de texto") },
                                 supportingContent = { Text("Color actual: ${appTextColorPref.value}") },
@@ -952,29 +986,6 @@ fun SettingsScreen(
                                             .crossfade(true)
                                             .build(),
                                         contentDescription = "Avatar de Naofresita18",
-                                        contentScale = ContentScale.Crop,
-                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
-                                        modifier = Modifier
-                                            .size(40.dp)
-                                            .clip(CircleShape)
-                                    )
-                                },
-                                colors = listItemColors // Añadido aquí para mantener el mismo diseño
-                            )
-                        }
-
-                        item {
-                            ListItem(
-                                headlineContent = { Text("Tester") },
-                                supportingContent = { Text("Deivid") },
-                                leadingContent = {
-                                    AsyncImage(
-                                        model = ImageRequest.Builder(context)
-                                            .data("https://github.com/deivid-boop.png")
-                                            .crossfade(true)
-                                            .build(),
-                                        contentDescription = "Avatar de deivid-boop",
                                         contentScale = ContentScale.Crop,
                                         placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                                         error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),

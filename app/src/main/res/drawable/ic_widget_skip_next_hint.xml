@@ -1,0 +1,39 @@
+<!--
+  Ícono personalizado "Adelantar / Atrasar" para el widget de home screen.
+
+  - El glifo principal (dos triángulos + barra) es el "skip next" de toda la vida:
+    representa la acción de UN toque -> siguiente canción.
+  - El pequeño círculo con el triángulo invertido en la esquina inferior izquierda
+    es una insignia que insinúa la acción secundaria oculta: DOS toques -> canción anterior.
+    No es un botón aparte, es solo una pista visual dentro del mismo ícono.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24"
+    android:autoMirrored="true">
+
+    <!-- Glifo principal: skip next, ligeramente reducido y desplazado arriba-derecha
+         para dejar espacio a la insignia de "doble toque" abajo-izquierda -->
+    <group
+        android:pivotX="12"
+        android:pivotY="9"
+        android:scaleX="0.82"
+        android:scaleY="0.82"
+        android:translateX="1.1"
+        android:translateY="-0.6">
+        <path
+            android:fillColor="@android:color/white"
+            android:pathData="M6,18l8.5,-6L6,6v12zM16,6v12h2V6h-2z" />
+    </group>
+
+    <!-- Insignia "doble toque = atrás": círculo translúcido + triángulo invertido -->
+    <path
+        android:fillColor="#33FFFFFF"
+        android:pathData="M1,18a5,5 0,1,0 10,0a5,5 0,1,0 -10,0z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M8.5,15.4L3.7,18L8.5,20.6Z" />
+
+</vector>

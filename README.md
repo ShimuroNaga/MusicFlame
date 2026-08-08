@@ -101,3 +101,4 @@ Tenemos un servidor de Discord para hablar sobre el desarrollo, reportar errores
 * Puedes intentar unirte usando el **enlace de invitación que se encuentra dentro de la propia aplicación**.
 * Si el enlace de la app ha caducado, **mándame un correo** y te enviaré una invitación nueva directamente. ¡Te esperamos!
  
+PD:Si alguien quiere subir la aplicación a alguna parte fuera de mi Repositorio tiene que avisarme con antelación a mi CORREO o DISCORD si no me tendré que ver que retiren su publicación ESTA PROHIBIDO SUBIRLO SIN PERMISO

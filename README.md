@@ -100,5 +100,14 @@ Gracias a estas increíbles personas por sus contribuciones en el control de cal
 Tenemos un servidor de Discord para hablar sobre el desarrollo, reportar errores o enterarte de las novedades de la versión 3.1. 
 * Puedes intentar unirte usando el **enlace de invitación que se encuentra dentro de la propia aplicación**.
 * Si el enlace de la app ha caducado, **mándame un correo** y te enviaré una invitación nueva directamente. ¡Te esperamos!
- 
-PD:Si alguien quiere subir la aplicación a alguna parte fuera de mi Repositorio tiene que avisarme con antelación a mi CORREO o DISCORD si no me tendré que ver que retiren su publicación ESTA PROHIBIDO SUBIRLO SIN PERMISO
+
+---
+
+> ## ⛔ ADVERTENCIA DE PROPIEDAD E INFRACCIÓN
+> 
+> **NO INTENTES SUBIR ESTA APLICACIÓN A OTRAS PLATAFORMAS O REPOSITORIOS EXTERNOS.**
+> 
+> MusicFlame es un proyecto de código abierto alojado **únicamente en este repositorio oficial**. Está **estrictamente prohibido** republicar, resubir o distribuir archivos APK de esta aplicación en tiendas de apps alternativas, foros o webs de terceros sin autorización previa. 
+> 
+> *   Si deseas compartirla o alojarla en otro lado, **debes contactarme obligatoriamente antes** a través de mi [correo](mailto:oomo87284@gmail.com) o por Discord para pedir permiso explícito.
+> *   **Cualquier intento de rehosting no autorizado** será detectado de inmediato y se procederá a emitir una **denuncia de copyright (DMCA)** o aviso legal para el baneo y retiro forzoso de la publicación.

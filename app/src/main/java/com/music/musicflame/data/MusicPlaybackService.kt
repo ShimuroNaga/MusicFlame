@@ -27,6 +27,8 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
+import com.music.musicflame.widget.MusicFlameWidgetProvider
+import com.music.musicflame.widget.WidgetPrefs
 import android.media.AudioManager
 
 @OptIn(UnstableApi::class)
@@ -149,6 +151,11 @@ class MusicPlaybackService : MediaSessionService() {
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 super.onMediaItemTransition(mediaItem, reason)
                 checkIfCurrentSongIsFavorite()
+                syncWidgetState()
+            }
+
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                syncWidgetState()
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -163,6 +170,28 @@ class MusicPlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(CustomMediaSessionCallback())
             .build()
+    }
+
+    /**
+     * Escribe el estado actual (canción + play/pause) en el "buzón" que lee el widget
+     * de home screen, y le pide que se repinte. Barato de llamar: si el usuario no tiene
+     * el widget añadido, refreshAllWidgets() no hace nada.
+     */
+    private fun syncWidgetState() {
+        val mediaItem = player.currentMediaItem
+        val hasSong = mediaItem != null
+        val metadata = mediaItem?.mediaMetadata
+
+        WidgetPrefs.save(
+            context = this,
+            hasSong = hasSong,
+            title = metadata?.title?.toString() ?: "",
+            artist = metadata?.artist?.toString() ?: "",
+            albumArtUri = metadata?.artworkUri?.toString(),
+            isPlaying = player.isPlaying,
+            mediaId = mediaItem?.mediaId
+        )
+        MusicFlameWidgetProvider.refreshAllWidgets(this)
     }
 
     private fun checkIfCurrentSongIsFavorite() {

@@ -131,6 +131,12 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // --- Anti-tampering: verificación de firma ---
+        if (!AppConfig.isEnvironmentReady(this)) {
+            finishAffinity()
+            return
+        }
+
         playerManager = MusicPlayerManager(this)
         playlistRepo = PlaylistRepository(this)
         favoritesRepo = FavoritesRepository(this)

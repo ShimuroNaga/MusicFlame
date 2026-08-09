@@ -1,6 +1,7 @@
 package com.music.musicflame.ui.components
 
 import android.os.Build.VERSION.SDK_INT
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -15,10 +16,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
@@ -32,18 +36,106 @@ import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
 import com.music.musicflame.AlbumArtShapeType
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sign
+import kotlin.math.sin
 
-// Forma de rombo (diamante) que se ajusta al tamaño exacto del contenedor.
-private class DiamondShape : Shape {
+// Hexágono regular inscrito en el tamaño exacto del contenedor (punta arriba y abajo).
+private class HexagonShape : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val w = size.width
+        val h = size.height
         val path = Path().apply {
-            moveTo(size.width / 2f, 0f)
-            lineTo(size.width, size.height / 2f)
-            lineTo(size.width / 2f, size.height)
-            lineTo(0f, size.height / 2f)
+            moveTo(w * 0.5f, 0f)
+            lineTo(w, h * 0.25f)
+            lineTo(w, h * 0.75f)
+            lineTo(w * 0.5f, h)
+            lineTo(0f, h * 0.75f)
+            lineTo(0f, h * 0.25f)
             close()
         }
         return Outline.Generic(path)
+    }
+}
+
+// Squircle: superelipse (|x|^n + |y|^n = 1) que da esquinas con curvatura continua,
+// más suave que un simple RoundedCornerShape.
+private class SquircleShape(private val n: Double = 4.0) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val w = size.width
+        val h = size.height
+        val cx = w / 2f
+        val cy = h / 2f
+        val steps = 72
+        val path = Path()
+        for (i in 0..steps) {
+            val t = (i.toDouble() / steps) * 2 * Math.PI
+            val cosT = cos(t)
+            val sinT = sin(t)
+            val x = (sign(cosT) * kotlin.math.abs(cosT).pow(2.0 / n)) * cx + cx
+            val y = (sign(sinT) * kotlin.math.abs(sinT).pow(2.0 / n)) * cy + cy
+            if (i == 0) path.moveTo(x.toFloat(), y.toFloat()) else path.lineTo(x.toFloat(), y.toFloat())
+        }
+        path.close()
+        return Outline.Generic(path)
+    }
+}
+
+// Devuelve la Shape de recorte que corresponde a cada estilo de carátula.
+// Centralizado aquí para que AlbumArt() y la vista previa del selector de Ajustes
+// usen exactamente la misma geometría.
+private fun clipShapeFor(shape: AlbumArtShapeType, cornerRadius: Dp): Shape = when (shape) {
+    AlbumArtShapeType.CIRCLE -> CircleShape
+    AlbumArtShapeType.VINYL -> CircleShape
+    AlbumArtShapeType.HEXAGON -> HexagonShape()
+    AlbumArtShapeType.SQUIRCLE -> SquircleShape()
+    AlbumArtShapeType.SQUARE -> RoundedCornerShape(cornerRadius)
+}
+
+// Surcos finos + hoyo central del disco de vinilo, dibujados encima del contenido.
+@Composable
+private fun VinylOverlay(size: Dp) {
+    Canvas(modifier = Modifier.size(size)) {
+        val radius = this.size.minDimension / 2f
+        val center = Offset(this.size.width / 2f, this.size.height / 2f)
+        val grooveColor = Color.Black.copy(alpha = 0.18f)
+        listOf(0.62f, 0.75f, 0.88f).forEach { fraction ->
+            drawCircle(
+                color = grooveColor,
+                radius = radius * fraction,
+                center = center,
+                style = Stroke(width = radius * 0.02f)
+            )
+        }
+        // Hoyo central del disco
+        drawCircle(
+            color = Color.Black.copy(alpha = 0.85f),
+            radius = radius * 0.14f,
+            center = center
+        )
+    }
+}
+
+// Miniatura minimalista usada en el selector "Forma de la carátula" de Ajustes > Apariencia:
+// un swatch de color sólido recortado a la forma real, para que el usuario la vea, no la lea.
+@Composable
+fun AlbumArtShapePreview(
+    shape: AlbumArtShapeType,
+    size: Dp = 40.dp,
+    color: Color = MaterialTheme.colorScheme.primary
+) {
+    val clipShape = remember(shape) { clipShapeFor(shape, size / 5) }
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(clipShape)
+            .background(color),
+        contentAlignment = Alignment.Center
+    ) {
+        if (shape == AlbumArtShapeType.VINYL) {
+            VinylOverlay(size)
+        }
     }
 }
 
@@ -56,13 +148,7 @@ fun AlbumArt(
 ) {
     val context = LocalContext.current
 
-    val clipShape = remember(shape, cornerRadius) {
-        when (shape) {
-            AlbumArtShapeType.CIRCLE -> CircleShape
-            AlbumArtShapeType.DIAMOND -> DiamondShape()
-            AlbumArtShapeType.SQUARE -> RoundedCornerShape(cornerRadius)
-        }
-    }
+    val clipShape = remember(shape, cornerRadius) { clipShapeFor(shape, cornerRadius) }
 
     // Configuramos el lector de GIFs y lo guardamos en caché con 'remember'
     // para no ralentizar la aplicación.
@@ -121,6 +207,11 @@ fun AlbumArt(
                 modifier = Modifier.size(size / 2),
                 tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
+        }
+
+        // Detalle de disco de vinilo: surcos finos + hoyo central, dibujados encima de la carátula.
+        if (shape == AlbumArtShapeType.VINYL) {
+            VinylOverlay(size)
         }
     }
 }

@@ -38,7 +38,7 @@ class SettingsRepository(context: Context) {
     fun getWidgetBackgroundOpacity(): Float = prefs.getFloat("widget_bg_opacity", 0.8f)
     fun saveWidgetBackgroundOpacity(value: Float) = prefs.edit().putFloat("widget_bg_opacity", value).apply()
 
-    // --- FORMA DE LA CARÁTULA: SQUARE, DIAMOND o CIRCLE ---
+    // --- FORMA DE LA CARÁTULA: SQUARE, CIRCLE, HEXAGON, VINYL o SQUIRCLE ---
     fun getAlbumArtShape(): com.music.musicflame.AlbumArtShapeType {
         val name = prefs.getString("album_art_shape", com.music.musicflame.AlbumArtShapeType.SQUARE.name)
             ?: com.music.musicflame.AlbumArtShapeType.SQUARE.name

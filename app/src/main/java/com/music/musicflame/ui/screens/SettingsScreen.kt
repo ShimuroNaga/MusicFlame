@@ -698,8 +698,10 @@ fun SettingsScreen(
                                     Text(
                                         "Actual: " + when (albumArtShapePref.value) {
                                             com.music.musicflame.AlbumArtShapeType.SQUARE -> "Cuadrado"
-                                            com.music.musicflame.AlbumArtShapeType.DIAMOND -> "Rombo"
                                             com.music.musicflame.AlbumArtShapeType.CIRCLE -> "Círculo"
+                                            com.music.musicflame.AlbumArtShapeType.HEXAGON -> "Hexágono"
+                                            com.music.musicflame.AlbumArtShapeType.VINYL -> "Vinilo"
+                                            com.music.musicflame.AlbumArtShapeType.SQUIRCLE -> "Squircle"
                                         }
                                     )
                                 },
@@ -1179,13 +1181,32 @@ fun SettingsScreen(
                     Column {
                         listOf(
                             com.music.musicflame.AlbumArtShapeType.SQUARE to "Cuadrado",
-                            com.music.musicflame.AlbumArtShapeType.DIAMOND to "Rombo",
-                            com.music.musicflame.AlbumArtShapeType.CIRCLE to "Círculo"
+                            com.music.musicflame.AlbumArtShapeType.CIRCLE to "Círculo",
+                            com.music.musicflame.AlbumArtShapeType.HEXAGON to "Hexágono",
+                            com.music.musicflame.AlbumArtShapeType.VINYL to "Vinilo",
+                            com.music.musicflame.AlbumArtShapeType.SQUIRCLE to "Squircle"
                         ).forEach { (shape, label) ->
-                            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { tempShape.value = shape }.padding(vertical = 8.dp)) {
-                                RadioButton(selected = tempShape.value == shape, onClick = { tempShape.value = shape })
-                                Spacer(Modifier.width(8.dp))
-                                Text(label, fontSize = 14.sp)
+                            val isSelected = tempShape.value == shape
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempShape.value = shape }
+                                    .padding(vertical = 10.dp)
+                            ) {
+                                com.music.musicflame.ui.components.AlbumArtShapePreview(
+                                    shape = shape,
+                                    size = 40.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant
+                                )
+                                Spacer(Modifier.width(14.dp))
+                                Text(
+                                    label,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RadioButton(selected = isSelected, onClick = { tempShape.value = shape })
                             }
                         }
                     }

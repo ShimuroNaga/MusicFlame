@@ -13,7 +13,8 @@ object AppIconManager {
         "brilliant" to "$PACKAGE.IconBrilliant",
         "pixel" to "$PACKAGE.IconPixel",
         "cookies" to "$PACKAGE.IconCookies",
-        "gray" to "$PACKAGE.IconGray"
+        "gray" to "$PACKAGE.IconGray",
+        "remix" to "$PACKAGE.IconRemixFlame"
     )
 
     fun setIcon(context: Context, key: String) {

@@ -25,17 +25,8 @@ import com.music.musicflame.data.Song
 import com.music.musicflame.data.groupSongsIntoAlbums
 import com.music.musicflame.data.loadSongsFromDevice
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.theme.LocalAppTextColor
 
-/**
- * Pantalla de Álbumes. Agrupa las canciones del dispositivo por álbum
- * (usando AlbumRepository.kt) y las muestra en una grilla; al tocar un
- * álbum se abre AlbumDetailScreen.kt.
- *
- * El álbum seleccionado, igual que la playlist seleccionada, vive en
- * MainActivity para que la barra superior "de afuera" pueda mostrar el
- * nombre del álbum + botón de regresar + exportar, en vez de que esta
- * pantalla dibuje su propia barra encima.
- */
 @Composable
 fun AlbumScreen(
     modifier: Modifier = Modifier,
@@ -53,7 +44,7 @@ fun AlbumScreen(
 
     Box(modifier = modifier.fillMaxSize()) {
         if (selectedAlbum == null) {
-            AlbumGrid(albums = albums, onAlbumClick = onAlbumClick)
+            AlbumGrid(albums = albums, hasBackgroundImage = hasBackgroundImage, onAlbumClick = onAlbumClick)
         } else {
             AlbumDetailScreen(
                 album = selectedAlbum,
@@ -69,28 +60,29 @@ fun AlbumScreen(
 }
 
 @Composable
-private fun AlbumGrid(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
+private fun AlbumGrid(albums: List<Album>, hasBackgroundImage: Boolean, onAlbumClick: (Album) -> Unit) {
     val columns = LocalAlbumGridColumns.current
 
     if (albums.isEmpty()) {
+        val emptyTextColor = if (hasBackgroundImage) LocalAppTextColor.current.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
                     Icons.Filled.Album,
                     contentDescription = null,
                     modifier = Modifier.size(48.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                    tint = emptyTextColor
                 )
                 Spacer(Modifier.height(8.dp))
-                Text("No se encontraron álbumes", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(
+                    "No se encontraron álbumes",
+                    color = if (hasBackgroundImage) LocalAppTextColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
         return
     }
 
-    // AlbumArt pinta a un tamaño fijo (no responsivo), así que calculamos
-    // manualmente cuánto le toca a cada carátula según cuántas columnas
-    // eligió el usuario en Ajustes > Apariencia.
     val configuration = LocalConfiguration.current
     val gridPadding = 16.dp
     val itemSpacing = 16.dp
@@ -104,13 +96,16 @@ private fun AlbumGrid(albums: List<Album>, onAlbumClick: (Album) -> Unit) {
         modifier = Modifier.fillMaxSize()
     ) {
         items(albums, key = { it.name + it.artist }) { album ->
-            AlbumCard(album = album, artSize = itemSize, onClick = { onAlbumClick(album) })
+            AlbumCard(album = album, artSize = itemSize, hasBackgroundImage = hasBackgroundImage, onClick = { onAlbumClick(album) })
         }
     }
 }
 
 @Composable
-private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, onClick: () -> Unit) {
+private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, hasBackgroundImage: Boolean, onClick: () -> Unit) {
+    val titleColor = if (hasBackgroundImage) LocalAppTextColor.current else MaterialTheme.colorScheme.onSurface
+    val subtitleColor = if (hasBackgroundImage) LocalAppTextColor.current.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -134,13 +129,13 @@ private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, onClic
             fontWeight = FontWeight.Bold,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurface
+            color = titleColor
         )
         Text(
             "${album.artist} · ${album.songCount} canciones",
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = subtitleColor,
             style = MaterialTheme.typography.bodySmall
         )
     }

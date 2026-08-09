@@ -489,9 +489,11 @@ fun PlaylistCard(
     val dialogRadius = if (isRounded) 28.dp else 0.dp
 
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
+    // Rojo vino fijo para Favoritos (no depende de Material You dinámico)
+    val favoritesWineRed = Color(0xFF6D1B2A)
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
-        isFavorites -> if (hasBackgroundImage) Color(0xFF8B1A2A).copy(alpha = 0.5f) else Color(0xFF8B1A2A)
+        isFavorites -> if (hasBackgroundImage) favoritesWineRed.copy(alpha = 0.7f) else favoritesWineRed
         else -> if (hasBackgroundImage) {
             // Si el tema es claro, la tarjeta es blanca; si es oscuro, negra.
             if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
@@ -541,8 +543,12 @@ fun PlaylistCard(
                     contentAlignment = Alignment.Center
                 ) {
                     if (isFavorites && playlist.customCoverUri == null) {
+                        // La tarjeta de Favoritos es vino fijo, no dinámica. Usamos onSurface
+                        // (el tono de texto estándar de Material You que usa el resto de la app)
+                        // en vez de onTertiaryContainer, que sacaba un matiz raro (verde) del wallpaper.
+                        val favoritesIconTint = Color.White
                         Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
+                            Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = favoritesIconTint)
                         }
                     } else if (playlist.customCoverUri != null) {
                         AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
@@ -562,16 +568,17 @@ fun PlaylistCard(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
+                val favoritesTextColor = if (hasBackgroundImage) LocalAppTextColor.current else MaterialTheme.colorScheme.primary
                 Text(
                     text = playlist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (isFavorites) Color.White else LocalAppTextColor.current
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (isFavorites) favoritesTextColor else LocalAppTextColor.current
                 )
                 Text(
                     text = "$songCount ${if (songCount == 1) "canción" else "canciones"} • $totalDurationFormatted",
                     fontSize = 13.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (isFavorites) Color.White.copy(alpha = 0.85f) else LocalAppTextColor.current.copy(alpha = 0.7f)
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (isFavorites) favoritesTextColor.copy(alpha = 0.85f) else LocalAppTextColor.current.copy(alpha = 0.7f)
                 )
             }
         }

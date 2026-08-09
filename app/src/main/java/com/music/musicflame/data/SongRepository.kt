@@ -21,6 +21,10 @@ data class Song(
 fun loadSongsFromDevice(context: Context): List<Song> {
     val songs = mutableListOf<Song>()
     val settingsRepo = SettingsRepository(context)
+    // Carátulas y nombres personalizados por el usuario (ver SongCustomizationRepository).
+    // Se aplican aquí para que TODAS las pantallas (canciones, álbumes, playlists, mix...)
+    // muestren siempre la versión personalizada sin tener que tocarlas una por una.
+    val customizations = SongCustomizationRepository(context).getAll()
 
     val minSeconds = settingsRepo.getDurationFilterMin()
     val maxSeconds = settingsRepo.getDurationFilterMax()
@@ -61,20 +65,23 @@ fun loadSongsFromDevice(context: Context): List<Song> {
             val shouldInclude = if (filterMode == "only") fallsInsideRange else !fallsInsideRange
 
             if (shouldInclude) {
+                val id = it.getLong(idCol)
                 val albumId = it.getLong(albumIdCol)
-                val albumArtUri = ContentUris.withAppendedId(
+                val defaultAlbumArtUri = ContentUris.withAppendedId(
                     Uri.parse("content://media/external/audio/albumart"), albumId
                 ).toString()
 
+                val customization = customizations[id]
+
                 songs.add(
                     Song(
-                        id = it.getLong(idCol),
-                        title = it.getString(titleCol) ?: "Desconocido",
+                        id = id,
+                        title = customization?.title ?: (it.getString(titleCol) ?: "Desconocido"),
                         artist = it.getString(artistCol) ?: "Artista Desconocido",
                         album = it.getString(albumCol) ?: "Desconocido",
                         duration = duration,
                         path = it.getString(pathCol) ?: "",
-                        albumArtUri = albumArtUri,
+                        albumArtUri = customization?.coverUri ?: defaultAlbumArtUri,
                         dateAdded = it.getLong(dateAddedCol)
                         // youtubeVideoId queda null para canciones locales, es lo esperado
                     )
@@ -83,4 +90,37 @@ fun loadSongsFromDevice(context: Context): List<Song> {
         }
     }
     return songs
+}
+
+/** Consulta a MediaStore el título ORIGINAL de una canción (ignorando cualquier personalización). */
+fun getOriginalSongTitle(context: Context, songId: Long): String {
+    val projection = arrayOf(MediaStore.Audio.Media.TITLE)
+    val selection = "${MediaStore.Audio.Media._ID} = ?"
+    context.contentResolver.query(
+        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        projection, selection, arrayOf(songId.toString()), null
+    )?.use { c ->
+        if (c.moveToFirst()) {
+            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)) ?: "Desconocido"
+        }
+    }
+    return "Desconocido"
+}
+
+/** Consulta a MediaStore la carátula ORIGINAL (por álbum) de una canción, sin personalización. */
+fun getDefaultAlbumArtUri(context: Context, songId: Long): String? {
+    val projection = arrayOf(MediaStore.Audio.Media.ALBUM_ID)
+    val selection = "${MediaStore.Audio.Media._ID} = ?"
+    context.contentResolver.query(
+        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        projection, selection, arrayOf(songId.toString()), null
+    )?.use { c ->
+        if (c.moveToFirst()) {
+            val albumId = c.getLong(c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID))
+            return ContentUris.withAppendedId(
+                Uri.parse("content://media/external/audio/albumart"), albumId
+            ).toString()
+        }
+    }
+    return null
 }

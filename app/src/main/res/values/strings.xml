@@ -7,4 +7,13 @@
     <string name="nav_trash">Papelera</string>
     <string name="app_name_pixel">PixelFlame</string>
     <string name="app_name_cookies">CookieFlame</string>
+
+    <!-- Widget de home screen -->
+    <string name="widget_music_flame_description">Reproductor compacto de MusicFlame: carátula, nombre de la canción, play/pause y siguiente (agrándalo para tener también un botón de anterior).</string>
+    <string name="widget_no_song">MusicFlame</string>
+    <string name="widget_select_song">Sin reproducción</string>
+    <string name="widget_album_art_desc">Carátula de la canción actual</string>
+    <string name="widget_play_pause_desc">Reproducir o pausar</string>
+    <string name="widget_previous_desc">Canción anterior</string>
+    <string name="widget_next_desc">Siguiente canción</string>
 </resources>

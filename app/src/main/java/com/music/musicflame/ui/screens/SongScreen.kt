@@ -117,7 +117,12 @@ fun SongsScreen(
     syncedFileNames: Set<String> = emptySet(),
     // --- MODO DE SELECCIÓN POR TAP (sin necesidad de mantener presionado) ---
     selectionModeActive: Boolean = false,
-    onToggleSelectionModeButton: () -> Unit = {}
+    onToggleSelectionModeButton: () -> Unit = {},
+    // --- Aplica cambios de carátula/nombre AL INSTANTE sobre la lista ya cargada,
+    // sin releer todo el dispositivo. patchTrigger debe cambiar (ej. un contador
+    // incremental) cada vez que hay nuevos pendingPatches que aplicar. ---
+    patchTrigger: Int = 0,
+    pendingPatches: List<SongEditPatch> = emptyList()
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -170,8 +175,24 @@ fun SongsScreen(
 
     LaunchedEffect(Unit) { refreshSongs() }
 
-    // Reacciona cuando cambia la búsqueda, el modo, o los recomendados de YouTube
-    LaunchedEffect(sortType.value, songs.size, searchQuery, searchMode, youtubeRecommendedSongs) {
+    // Aplica los cambios de carátula/nombre directo sobre la lista en memoria (instantáneo,
+    // sin volver a consultar MediaStore). Se dispara solo cuando patchTrigger cambia.
+    LaunchedEffect(patchTrigger) {
+        if (patchTrigger > 0 && pendingPatches.isNotEmpty()) {
+            pendingPatches.forEach { patch ->
+                val idx = songs.indexOfFirst { it.id == patch.songId }
+                if (idx != -1) {
+                    var updated = songs[idx]
+                    if (patch.newTitle != null) updated = updated.copy(title = patch.newTitle)
+                    if (patch.newCoverUri != null) updated = updated.copy(albumArtUri = patch.newCoverUri)
+                    songs[idx] = updated
+                }
+            }
+        }
+    }
+
+    // Reacciona cuando cambia la búsqueda, el modo, los recomendados de YouTube, o se aplica un patch
+    LaunchedEffect(sortType.value, songs.size, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger) {
         if (searchMode == SearchMode.LOCAL) {
             val sortedBase = when (sortType.value) {
                 SortType.DATE_CREATED -> songs.sortedByDescending { it.dateAdded }

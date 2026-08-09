@@ -87,6 +87,7 @@ class MainActivity : ComponentActivity() {
     private lateinit var playerManager: MusicPlayerManager
     private lateinit var playlistRepo: PlaylistRepository
     private lateinit var favoritesRepo: FavoritesRepository
+    private lateinit var songCustomizationRepo: SongCustomizationRepository
     private var selectedPlaylistForCover: String? = null
 
     private val importM3ULauncher = registerForActivityResult(ActivityResultContracts.GetContent()) { uri ->
@@ -140,6 +141,7 @@ class MainActivity : ComponentActivity() {
         playerManager = MusicPlayerManager(this)
         playlistRepo = PlaylistRepository(this)
         favoritesRepo = FavoritesRepository(this)
+        songCustomizationRepo = SongCustomizationRepository(this)
 
         setContent {
             MusicFlameTheme {
@@ -341,6 +343,11 @@ class MainActivity : ComponentActivity() {
                 var newPlaylistNameFromSelection by remember { mutableStateOf("") }
                 var showMultiDeleteDialog by remember { mutableStateOf(false) }
                 var showDeletePlaylistsDialog by remember { mutableStateOf(false) }
+
+                // --- Editar carátula (imagen/GIF) y nombre de canción(es), desde la selección múltiple ---
+                var showEditSongDialog by remember { mutableStateOf(false) }
+                var songsPatchTrigger by remember { mutableIntStateOf(0) }
+                var pendingSongPatches by remember { mutableStateOf<List<SongEditPatch>>(emptyList()) }
 
 
                 var youtubeVideoId by remember { mutableStateOf<String?>(null) }
@@ -642,6 +649,22 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     }
                                                 )
+                                                // --- NUEVO: EDITAR CARÁTULA (imagen/GIF) Y NOMBRE ---
+                                                if (selectedSongs.isNotEmpty()) {
+                                                    DropdownMenuItem(
+                                                        text = {
+                                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                                Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
+                                                                Spacer(Modifier.width(8.dp))
+                                                                Text(if (selectedSongs.size == 1) "Editar carátula y nombre" else "Editar carátula de todas")
+                                                            }
+                                                        },
+                                                        onClick = {
+                                                            showSelectionMenu = false
+                                                            showEditSongDialog = true
+                                                        }
+                                                    )
+                                                }
                                                 DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Mover a papelera") } },
                                                     onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }
@@ -969,7 +992,9 @@ class MainActivity : ComponentActivity() {
                                                 },
                                                 syncedFileNames = syncedFileNames,
                                                 selectionModeActive = manualSongSelectionMode,
-                                                onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode }
+                                                onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode },
+                                                patchTrigger = songsPatchTrigger,
+                                                pendingPatches = pendingSongPatches
                                             )
 
                                             if (youtubeVideoId != null) {
@@ -1125,6 +1150,27 @@ class MainActivity : ComponentActivity() {
                                     },
                                     dismissButton = {
                                         TextButton(onClick = { showCreatePlaylistFromSelection = false }) { Text("Cancelar") }
+                                    }
+                                )
+                            }
+
+                            // --- Diálogo: Editar carátula (imagen/GIF) y nombre de canción(es) ---
+                            if (showEditSongDialog && selectedSongs.isNotEmpty()) {
+                                EditSongDialog(
+                                    selectedSongs = selectedSongs.toList(),
+                                    customizationRepo = songCustomizationRepo,
+                                    onDismiss = { showEditSongDialog = false },
+                                    onSaved = { patches ->
+                                        showEditSongDialog = false
+                                        pendingSongPatches = patches
+                                        songsPatchTrigger++
+                                        val count = selectedSongs.size
+                                        selectedSongs.clear(); manualSongSelectionMode = false
+                                        Toast.makeText(
+                                            context,
+                                            if (count == 1) "Canción actualizada" else "$count canciones actualizadas",
+                                            Toast.LENGTH_SHORT
+                                        ).show()
                                     }
                                 )
                             }

@@ -91,6 +91,21 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Alias: icono RemixFlame (cambia también el nombre a RemixFlame) -->
+        <activity-alias
+            android:name=".IconRemixFlame"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_remixflame"
+            android:roundIcon="@mipmap/ic_launcher_remixflame"
+            android:label="@string/app_name_remixflame">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Alias: icono Gris -->
         <activity-alias
             android:name=".IconGray"

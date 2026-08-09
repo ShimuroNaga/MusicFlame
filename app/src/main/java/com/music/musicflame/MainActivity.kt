@@ -71,7 +71,7 @@ val LocalUseRoundCorners = compositionLocalOf { true }
 
 // --- FORMA DE LA CARÁTULA (configurable desde Ajustes > Apariencia) ---
 enum class AlbumArtShapeType {
-    SQUARE, DIAMOND, CIRCLE
+    SQUARE, CIRCLE, HEXAGON, VINYL, SQUIRCLE
 }
 val LocalAlbumArtShape = compositionLocalOf { AlbumArtShapeType.SQUARE }
 

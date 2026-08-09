@@ -27,6 +27,7 @@ import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SystemUpdate
+import androidx.compose.material.icons.filled.Warning
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -327,7 +328,8 @@ fun SettingsScreen(
                                 Triple("Cuenta", "Cuenta de Google y sesión", Icons.Filled.AccountCircle),
                                 Triple("Apariencia", "Fondo, colores, carátula, ícono", Icons.Filled.Palette),
                                 Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
-                                Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info)
+                                Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info),
+                                Triple("Aviso de Uso", "Redistribución, promoción y términos", Icons.Filled.Warning)
                             ).forEach { (catKey, subtitle, icon) ->
                                 Card(
                                     modifier = Modifier
@@ -1039,6 +1041,65 @@ fun SettingsScreen(
                                     context.startActivity(intent)
                                 }
                             )
+                        }
+                    }
+
+                    // AVISO DE USO
+                    if (activeSection.value == "Aviso de Uso") {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Default.Warning,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            "Aviso de Uso y Redistribución",
+                                            fontWeight = FontWeight.Black,
+                                            fontSize = 16.sp,
+                                            color = MaterialTheme.colorScheme.onErrorContainer
+                                        )
+                                    }
+                                    Spacer(Modifier.height(12.dp))
+                                    Text(
+                                        "MusicFlame es un proyecto personal e independiente. Antes de redistribuir, republicar o promocionar esta aplicación en otra tienda, canal, página o red social, deben respetarse las siguientes condiciones:",
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+
+                                    val avisoReglas = listOf(
+                                        "Contacto previo obligatorio: cualquier redistribución o promoción (subida a otras tiendas, sitios web, canales o redes sociales) requiere autorización previa por parte del desarrollador.",
+                                        "Reparto de ingresos: si dicha redistribución genera ingresos de cualquier tipo (anuncios, donaciones, suscripciones, etc.), el 50% de los mismos deberá entregarse al desarrollador original, previo acuerdo.",
+                                        "Créditos intactos: no está permitido eliminar, ocultar ni modificar el nombre del desarrollador, la identidad de la app ni su firma digital.",
+                                        "Sin venta no autorizada: MusicFlame no puede venderse ni ofrecerse como producto de pago sin consentimiento explícito y por escrito.",
+                                        "Incumplimiento: toda redistribución no autorizada será reportada y removida de la plataforma correspondiente, y el responsable quedará vetado de futuras versiones, actualizaciones y soporte."
+                                    )
+
+                                    avisoReglas.forEach { regla ->
+                                        Row(modifier = Modifier.padding(vertical = 4.dp)) {
+                                            Text("•  ", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+                                            Text(regla, fontSize = 13.sp, color = MaterialTheme.colorScheme.onErrorContainer)
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(10.dp))
+                                    Text(
+                                        "Para solicitar autorización o coordinar una colaboración, contacta al desarrollador a través del repositorio de GitHub o el servidor de Discord de la comunidad (sección \"Especificaciones\" > \"Comunidad\").",
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Medium,
+                                        color = MaterialTheme.colorScheme.onErrorContainer
+                                    )
+                                }
+                            }
                         }
                     }
                 }

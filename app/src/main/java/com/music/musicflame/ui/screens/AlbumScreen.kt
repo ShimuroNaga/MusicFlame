@@ -64,7 +64,7 @@ private fun AlbumGrid(albums: List<Album>, hasBackgroundImage: Boolean, onAlbumC
     val columns = LocalAlbumGridColumns.current
 
     if (albums.isEmpty()) {
-        val emptyTextColor = if (hasBackgroundImage) LocalAppTextColor.current.copy(alpha = 0.6f) else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+        val emptyTextColor = LocalAppTextColor.current.copy(alpha = 0.6f)
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Icon(
@@ -76,7 +76,7 @@ private fun AlbumGrid(albums: List<Album>, hasBackgroundImage: Boolean, onAlbumC
                 Spacer(Modifier.height(8.dp))
                 Text(
                     "No se encontraron álbumes",
-                    color = if (hasBackgroundImage) LocalAppTextColor.current else MaterialTheme.colorScheme.onSurfaceVariant
+                    color = LocalAppTextColor.current
                 )
             }
         }
@@ -103,8 +103,8 @@ private fun AlbumGrid(albums: List<Album>, hasBackgroundImage: Boolean, onAlbumC
 
 @Composable
 private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, hasBackgroundImage: Boolean, onClick: () -> Unit) {
-    val titleColor = if (hasBackgroundImage) LocalAppTextColor.current else MaterialTheme.colorScheme.onSurface
-    val subtitleColor = if (hasBackgroundImage) LocalAppTextColor.current.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant
+    val titleColor = LocalAppTextColor.current
+    val subtitleColor = LocalAppTextColor.current.copy(alpha = 0.7f)
 
     Column(
         modifier = Modifier

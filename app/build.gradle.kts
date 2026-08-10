@@ -133,11 +133,10 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     // YouTube Player
     implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0")
-    // Librerías oficiales de Google API Client para interactuar con Drive
-    // Librerías completas de Google Drive y Autenticación
     implementation("com.google.api-client:google-api-client-android:1.34.1")
     implementation("com.google.api-client:google-api-client-gson:1.34.1")
     implementation("com.google.http-client:google-http-client-android:1.43.3")
     implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    implementation("androidx.core:core-splashscreen:1.0.1")
 }

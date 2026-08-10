@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <style name="Theme.MusicFlame.Splash" parent="Theme.MusicFlame">
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimationDuration">300</item>
+        <item name="postSplashScreenTheme">@style/Theme.MusicFlame</item>
+    </style>
+
+    <style name="Theme.MusicFlame.Splash.Default">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_foreground</item>
+    </style>
+
+    <style name="Theme.MusicFlame.Splash.Brilliant">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_brilliant_foreground</item>
+    </style>
+
+    <style name="Theme.MusicFlame.Splash.Pixel">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_pixel_foreground</item>
+    </style>
+
+    <style name="Theme.MusicFlame.Splash.Cookies">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_cookies_foreground</item>
+    </style>
+
+    <style name="Theme.MusicFlame.Splash.Gray">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_gray_foreground</item>
+    </style>
+
+    <style name="Theme.MusicFlame.Splash.Remix">
+        <item name="android:windowSplashScreenAnimatedIcon">@mipmap/ic_launcher_remixflame_foreground</item>
+    </style>
+
+</resources>

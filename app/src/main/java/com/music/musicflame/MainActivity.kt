@@ -130,7 +130,51 @@ class MainActivity : ComponentActivity() {
 
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
+        // --- Splash dinámico: el icono del splash sigue al icono de app elegido ---
+        // Debe ir ANTES de super.onCreate() para que el SplashScreen tome el tema correcto.
+        val selectedIconKey = SettingsRepository(this).getSelectedAppIcon()
+        setTheme(AppIconManager.splashThemeFor(selectedIconKey))
+
         super.onCreate(savedInstanceState)
+
+        // Animación de salida "pulso de llama": el icono late 2 veces (como
+        // un parpadeo de fuego) y luego crece y se desvanece.
+        splashScreen.setOnExitAnimationListener { splashScreenView ->
+            val iconView = splashScreenView.iconView
+
+            val flamePulse = android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                iconView,
+                android.animation.PropertyValuesHolder.ofFloat(
+                    android.view.View.SCALE_X, 1f, 1.2f, 0.96f, 1.12f, 1f
+                ),
+                android.animation.PropertyValuesHolder.ofFloat(
+                    android.view.View.SCALE_Y, 1f, 1.2f, 0.96f, 1.12f, 1f
+                )
+            ).apply {
+                duration = 190L
+                interpolator = android.view.animation.AccelerateDecelerateInterpolator()
+            }
+
+            val growAndFade = android.animation.ObjectAnimator.ofPropertyValuesHolder(
+                iconView,
+                android.animation.PropertyValuesHolder.ofFloat(android.view.View.SCALE_X, 1f, 1.3f),
+                android.animation.PropertyValuesHolder.ofFloat(android.view.View.SCALE_Y, 1f, 1.3f),
+                android.animation.PropertyValuesHolder.ofFloat(android.view.View.ALPHA, 1f, 0f)
+            ).apply {
+                duration = 110L
+                interpolator = android.view.animation.AccelerateInterpolator()
+            }
+
+            android.animation.AnimatorSet().apply {
+                playSequentially(flamePulse, growAndFade)
+                addListener(object : android.animation.AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: android.animation.Animator) {
+                        splashScreenView.remove()
+                    }
+                })
+                start()
+            }
+        }
 
         // --- Anti-tampering: verificación de firma ---
         if (!AppConfig.isEnvironmentReady(this)) {

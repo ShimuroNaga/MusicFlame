@@ -568,7 +568,7 @@ fun PlaylistCard(
             Spacer(modifier = Modifier.width(16.dp))
 
             Column(modifier = Modifier.weight(1f)) {
-                val favoritesTextColor = if (hasBackgroundImage) LocalAppTextColor.current else MaterialTheme.colorScheme.primary
+                val favoritesTextColor = LocalAppTextColor.current
                 Text(
                     text = playlist.name,
                     fontSize = 16.sp,

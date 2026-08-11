@@ -173,7 +173,25 @@ fun SongsScreen(
         songs.addAll(loaded.filter { it.id !in trashedIds })
     }
 
-    LaunchedEffect(Unit) { refreshSongs() }
+    val lyricsRepo = remember { LyricsRepository(context) }
+    // IDs de canciones que sabemos tienen letra disponible (guardada de antes o
+    // encontrada por el escaneo automático). Vive en memoria para no releer el
+    // JSON guardado en cada recomposición de cada fila de la lista.
+    val lyricsAvailableIds = remember { mutableStateOf(setOf<Long>()) }
+
+    LaunchedEffect(Unit) {
+        refreshSongs()
+        lyricsAvailableIds.value = songs.filter { lyricsRepo.hasLyrics(it.id) }.map { it.id }.toSet()
+        // Busca en segundo plano (sin bloquear la UI ni pedir nada al usuario)
+        // qué canciones de la biblioteca tienen letra disponible. Se guía por
+        // el nombre de la canción aunque el mp3 no tenga el artista en sus
+        // etiquetas, y no repite canciones ya revisadas en una corrida anterior.
+        scope.launch {
+            lyricsRepo.scanLibrary(songs.toList(), onFound = { found ->
+                lyricsAvailableIds.value = lyricsAvailableIds.value + found.id
+            })
+        }
+    }
 
     // Aplica los cambios de carátula/nombre directo sobre la lista en memoria (instantáneo,
     // sin volver a consultar MediaStore). Se dispara solo cuando patchTrigger cambia.
@@ -472,13 +490,26 @@ fun SongsScreen(
                                                 )
                                             }
                                         }
-                                        Text(
-                                            text = song.artist,
-                                            fontSize = 13.sp,
-                                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
-                                            maxLines = 1,
-                                            overflow = TextOverflow.Ellipsis
-                                        )
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(
+                                                text = song.artist,
+                                                fontSize = 13.sp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f, fill = false)
+                                            )
+                                            // Letra disponible (encontrada por el escaneo automático o insertada a mano).
+                                            if (lyricsAvailableIds.value.contains(song.id)) {
+                                                Spacer(Modifier.width(4.dp))
+                                                Icon(
+                                                    imageVector = Icons.Filled.Subject,
+                                                    contentDescription = "Letra disponible",
+                                                    tint = (if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor).copy(alpha = 0.5f),
+                                                    modifier = Modifier.size(13.dp)
+                                                )
+                                            }
+                                        }
                                     }
 
                                     // --- NUEVO BOTÓN DE FAVORITOS ---

@@ -79,10 +79,16 @@ fun MusicFlameTheme(
         baseColorScheme
     }
 
+    // Contraste automático: si el usuario dejó el color de texto en un preset
+    // (Negro/Blanco) que resulta invisible sobre el fondo que terminó activo
+    // (por ejemplo Negro sobre "Fondo oscuro", o Blanco sobre "Fondo blanco"),
+    // se corrige solo. Esto aplica a toda la app porque se resuelve aquí, en
+    // el tema global, no en cada pantalla por separado.
+    // "Personalizado" nunca se toca: es una elección explícita del usuario.
     val appTextColor = when (appTextColorState.value) {
-        "Blanco" -> Color.White
+        "Blanco" -> if (isDarkTheme) Color.White else Color.Black
         "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
-        else -> Color.Black
+        else -> if (isDarkTheme) Color.White else Color.Black // "Negro" (o valor por defecto)
     }
 
     MaterialTheme(

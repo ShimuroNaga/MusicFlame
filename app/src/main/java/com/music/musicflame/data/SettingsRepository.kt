@@ -142,4 +142,8 @@ class SettingsRepository(context: Context) {
         songIds.forEach { array.put(it) }
         prefs.edit().putString("mix_songs", array.toString()).apply()
     }
+
+    // --- ONBOARDING DE PRIMER USO ---
+    fun isOnboardingCompleted(): Boolean = prefs.getBoolean("onboarding_completed", false)
+    fun setOnboardingCompleted(completed: Boolean) = prefs.edit().putBoolean("onboarding_completed", completed).apply()
 }

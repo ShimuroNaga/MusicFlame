@@ -63,6 +63,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import com.music.musicflame.ui.components.YoutubePlayerScreen
+import com.music.musicflame.ui.screens.onboarding.OnboardingScreen
 
 // ⚠️ Reemplaza esto con tu "Web Client ID" de Google Cloud Console.
 private const val WEB_CLIENT_ID = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k.apps.googleusercontent.com"
@@ -250,6 +251,9 @@ class MainActivity : ComponentActivity() {
 
                 val settingsRepo = remember { SettingsRepository(context) }
                 val trashRepo = remember { TrashRepository(context) }
+
+                // --- Onboarding de primer uso: se muestra una sola vez ---
+                var showOnboarding by remember { mutableStateOf(!settingsRepo.isOnboardingCompleted()) }
 
                 // --- SISTEMA DE ACTUALIZACIONES ---
                 val updatePreferences = remember { UpdatePreferences(context) }
@@ -1289,6 +1293,16 @@ class MainActivity : ComponentActivity() {
                                     hasBackgroundImage = hasBackgroundImage
                                 )
                             }
+                        }
+
+                        // --- Onboarding de primer uso: cubre toda la pantalla hasta completarse ---
+                        if (showOnboarding) {
+                            OnboardingScreen(
+                                isUserSignedIn = isUserLoggedIn,
+                                userName = userName,
+                                onSignInClick = { signInLauncher.launch(googleSignInClient.signInIntent) },
+                                onFinished = { showOnboarding = false }
+                            )
                         }
                     }
                 }

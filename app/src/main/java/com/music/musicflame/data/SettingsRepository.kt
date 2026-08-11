@@ -143,6 +143,22 @@ class SettingsRepository(context: Context) {
         prefs.edit().putString("mix_songs", array.toString()).apply()
     }
 
+    // --- LYRICS (letra sincronizada) ---
+    // Velocidad de la animación entre líneas: 0.5 (lenta) a 2.0 (rápida). 1.0 = normal.
+    fun getLyricsSpeed(): Float = prefs.getFloat("lyrics_speed", 1.0f)
+    fun saveLyricsSpeed(value: Float) = prefs.edit().putFloat("lyrics_speed", value).apply()
+
+    // Tipo de animación entre líneas: "Deslizar", "Desvanecer" o "Rebote".
+    fun getLyricsAnimationType(): String = prefs.getString("lyrics_animation_type", "Deslizar") ?: "Deslizar"
+    fun saveLyricsAnimationType(type: String) = prefs.edit().putString("lyrics_animation_type", type).apply()
+
+    // Color del texto de la letra: "Adaptativo" (Material You), "Blanco", "Negro" o "Personalizado".
+    fun getLyricsTextColorMode(): String = prefs.getString("lyrics_text_color_mode", "Adaptativo") ?: "Adaptativo"
+    fun saveLyricsTextColorMode(mode: String) = prefs.edit().putString("lyrics_text_color_mode", mode).apply()
+
+    fun getLyricsCustomColorHex(): String = prefs.getString("lyrics_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
+    fun saveLyricsCustomColorHex(value: String) = prefs.edit().putString("lyrics_custom_color_hex", value).apply()
+
     // --- ONBOARDING DE PRIMER USO ---
     fun isOnboardingCompleted(): Boolean = prefs.getBoolean("onboarding_completed", false)
     fun setOnboardingCompleted(completed: Boolean) = prefs.edit().putBoolean("onboarding_completed", completed).apply()

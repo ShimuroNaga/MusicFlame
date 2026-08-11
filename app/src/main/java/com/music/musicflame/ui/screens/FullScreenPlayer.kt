@@ -7,8 +7,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.pager.HorizontalPager
@@ -16,6 +18,7 @@ import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -174,7 +177,17 @@ fun FullScreenPlayer(
         }
     }
 
-    Column(
+    var showLyrics by remember { mutableStateOf(false) }
+    val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
+    val lyricsRepoRef = remember { com.music.musicflame.data.LyricsRepository(context) }
+    val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
+    val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
+    val lyricsColorMode = remember { settingsRepo.getLyricsTextColorMode() }
+    val lyricsCustomHex = remember { settingsRepo.getLyricsCustomColorHex() }
+    val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, lyricsCustomHex)
+    val lyricsState = com.music.musicflame.ui.components.rememberLyricsState(song, lyricsRepoRef)
+
+    Box(
         modifier = Modifier
             .fillMaxSize()
             .background(bgColor)
@@ -184,10 +197,97 @@ fun FullScreenPlayer(
             // 3 botones) abajo, en cualquier celular. Va primero para que sea lo único
             // que separa el contenido de los bordes reales del sistema.
             .safeScreenPadding()
-            // Aire visual extra, chico, para no duplicar el espacio que ya reservó
-            // safeScreenPadding() (antes esto sumaba 24dp encima del inset y dejaba
-            // un hueco negro enorme abajo).
-            .padding(horizontal = 24.dp, vertical = 8.dp),
+            // --- LYRICS: deslizar la PANTALLA (no la carátula) hacia la derecha muestra
+            // la letra sincronizada de la canción actual; deslizar a la izquierda vuelve.
+            // Al vivir en el contenedor exterior (padre del HorizontalPager de carátulas y
+            // del Slider), cualquier drag que empiece sobre esos controles lo consumen ellos
+            // primero y este gesto no se activa ahí; solo reacciona en el resto de la pantalla.
+            .pointerInput(Unit) {
+                var totalDrag = 0f
+                detectHorizontalDragGestures(
+                    onDragStart = { totalDrag = 0f },
+                    onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+                    onDragEnd = {
+                        if (!showLyrics && totalDrag > 120f) showLyrics = true
+                        else if (showLyrics && totalDrag < -120f) showLyrics = false
+                        totalDrag = 0f
+                    },
+                    onDragCancel = { totalDrag = 0f }
+                )
+            }
+    ) {
+        androidx.compose.animation.AnimatedContent(
+            targetState = showLyrics,
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 24.dp, vertical = 8.dp),
+            transitionSpec = {
+                if (targetState) {
+                    (androidx.compose.animation.slideInHorizontally(tween(280)) { it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
+                        (androidx.compose.animation.slideOutHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeOut(tween(280)))
+                } else {
+                    (androidx.compose.animation.slideInHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
+                        (androidx.compose.animation.slideOutHorizontally(tween(280)) { it } + androidx.compose.animation.fadeOut(tween(280)))
+                }
+            },
+            label = "fullscreen_lyrics_toggle"
+        ) { lyricsVisible ->
+            if (lyricsVisible) {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        IconButton(onClick = { showLyrics = false }) {
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                contentDescription = "Volver",
+                                tint = adaptiveContentColor
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Column {
+                            Text(
+                                text = song.title,
+                                fontWeight = FontWeight.Black,
+                                fontSize = 16.sp,
+                                color = adaptiveContentColor,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = song.artist,
+                                fontSize = 12.sp,
+                                color = adaptiveContentColor.copy(alpha = 0.7f),
+                                maxLines = 1
+                            )
+                        }
+                    }
+                    com.music.musicflame.ui.components.LyricsView(
+                        song = song,
+                        positionMs = currentPositionMs,
+                        lyrics = lyricsState.lyrics,
+                        speed = lyricsSpeed,
+                        animationType = lyricsAnimType,
+                        textColor = lyricsTextColor,
+                        isLoading = lyricsState.isLoading,
+                        searchFailed = lyricsState.searchFailed,
+                        onSearchOnline = lyricsState.onSearchOnline,
+                        onInsertManual = lyricsState.onInsertManual,
+                        onSearchYoutube = {
+                            val query = android.net.Uri.encode("${song.artist} ${song.title}")
+                            val intent = android.content.Intent(
+                                android.content.Intent.ACTION_VIEW,
+                                android.net.Uri.parse("https://www.youtube.com/results?search_query=$query")
+                            )
+                            context.startActivity(intent)
+                        },
+                        modifier = Modifier.weight(1f)
+                    )
+                }
+            } else {
+    Column(
+        modifier = Modifier.fillMaxSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Box(modifier = Modifier.fillMaxWidth()) {
@@ -450,5 +550,8 @@ fun FullScreenPlayer(
         )
 
         Spacer(modifier = Modifier.height(16.dp))
+    }
+            }
+        }
     }
 }

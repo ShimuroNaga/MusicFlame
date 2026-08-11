@@ -20,13 +20,17 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.filled.Search
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalIconButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -82,11 +86,13 @@ fun LyricsView(
     onSearchOnline: () -> Unit,
     onInsertManual: (String) -> Unit,
     onSearchYoutube: () -> Unit,
+    onDeleteLyrics: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val listState = rememberLazyListState()
     val activeIndex = lyrics.activeIndex(positionMs)
     var showInsertDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
 
     LaunchedEffect(activeIndex) {
         if (activeIndex >= 0) {
@@ -126,7 +132,7 @@ fun LyricsView(
                     if (searchFailed) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Puede que el título/artista no coincida exacto. Prueba insertándola tú a mano, o abre YouTube para confirmar cuál es la canción exacta y luego regresa aquí a insertar su letra.",
+                            "Puede que el título/artista no coincida exacto. Prueba insertándola tú a mano, o usa \"Verificar en YouTube\" y toca el video correcto: MusicFlame intentará traer la letra automáticamente.",
                             color = textColor.copy(alpha = 0.6f),
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center
@@ -162,7 +168,7 @@ fun LyricsView(
                         }
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "Esto solo abre una búsqueda en YouTube para que confirmes el título/artista correctos. No sube ni importa nada automáticamente: si encuentras la letra, tendrás que insertarla tú con el botón \"Insertar\".",
+                            "Se abre YouTube dentro de la app. Al tocar el video correcto, MusicFlame lee su título e intenta buscar la letra automáticamente. Si aun así no la encuentra, podrás insertarla tú con el botón \"Insertar\".",
                             color = textColor.copy(alpha = 0.5f),
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center
@@ -225,6 +231,24 @@ fun LyricsView(
                 }
             }
         }
+
+        // Papelera: borra DEFINITIVAMENTE la letra de esta canción (y solo esta),
+        // para cuando el usuario se equivocó de letra. Solo aparece si hay una
+        // letra cargada (no tiene sentido "borrar" cuando ya está vacía).
+        if (lyrics.lines.isNotEmpty()) {
+            FilledTonalIconButton(
+                onClick = { showDeleteConfirm = true },
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer
+                ),
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(16.dp)
+            ) {
+                Icon(Icons.Filled.Delete, contentDescription = "Borrar letra de esta canción")
+            }
+        }
     }
 
     if (showInsertDialog) {
@@ -234,6 +258,23 @@ fun LyricsView(
             onConfirm = { text ->
                 onInsertManual(text)
                 showInsertDialog = false
+            }
+        )
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("Borrar letra", fontWeight = FontWeight.Black) },
+            text = { Text("Esto borrará definitivamente la letra guardada de esta canción (solo de esta). ¿Continuar?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showDeleteConfirm = false
+                    onDeleteLyrics()
+                }) { Text("Borrar", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
             }
         )
     }
@@ -342,12 +383,51 @@ fun rememberLyricsState(song: Song?, repo: LyricsRepository): LyricsState {
         searchFailed = false
     }
 
+    /**
+     * Borra definitivamente la letra de la canción ACTUAL (y solo esa), pensado
+     * para el botón de papelera cuando el usuario se equivocó de letra. Deja el
+     * estado como si nunca se hubiera buscado, para que se pueda reintentar.
+     */
+    fun deleteLyrics() {
+        val s = song ?: return
+        repo.clearLyrics(s.id)
+        parsed = ParsedLyrics.EMPTY
+        searchFailed = false
+    }
+
+    /**
+     * Se llama cuando "Verificar en YouTube" extrae automáticamente el título
+     * del video que el usuario tocó. Intenta encontrar la letra guiándose por
+     * ese título (con la misma cascada: lrclib -> otras plataformas), sin que
+     * el usuario tenga que insertar nada a mano si sí se encuentra.
+     */
+    fun searchFromYoutubeTitle(extractedTitle: String) {
+        val s = song ?: return
+        isLoading = true
+        scope.launch {
+            val result = repo.searchByFreeText(extractedTitle)
+            val raw = result?.syncedLyrics?.takeIf { it.isNotBlank() } ?: result?.plainLyrics
+            if (raw != null) {
+                repo.saveLyrics(s.id, raw, LyricsSource.ONLINE)
+                parsed = LyricsParser.parse(raw)
+                searchFailed = false
+            } else {
+                // No se pudo extraer letra ni siquiera con el título confirmado en YouTube;
+                // se deja la opción de insertar a mano, sin fingir que sí se encontró algo.
+                searchFailed = true
+            }
+            isLoading = false
+        }
+    }
+
     return LyricsState(
         lyrics = parsed,
         isLoading = isLoading,
         searchFailed = searchFailed,
         onSearchOnline = ::searchOnline,
-        onInsertManual = ::insertManual
+        onInsertManual = ::insertManual,
+        onDeleteLyrics = ::deleteLyrics,
+        onYoutubeTitleFound = ::searchFromYoutubeTitle
     )
 }
 
@@ -356,5 +436,7 @@ data class LyricsState(
     val isLoading: Boolean,
     val searchFailed: Boolean,
     val onSearchOnline: () -> Unit,
-    val onInsertManual: (String) -> Unit
+    val onInsertManual: (String) -> Unit,
+    val onDeleteLyrics: () -> Unit = {},
+    val onYoutubeTitleFound: (String) -> Unit = {}
 )

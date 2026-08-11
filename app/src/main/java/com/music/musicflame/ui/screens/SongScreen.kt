@@ -122,7 +122,12 @@ fun SongsScreen(
     // sin releer todo el dispositivo. patchTrigger debe cambiar (ej. un contador
     // incremental) cada vez que hay nuevos pendingPatches que aplicar. ---
     patchTrigger: Int = 0,
-    pendingPatches: List<SongEditPatch> = emptyList()
+    pendingPatches: List<SongEditPatch> = emptyList(),
+    // Cambia (contador incremental) cada vez que la letra guardada de alguna
+    // canción se modifica desde otra pantalla (ej. al borrarla o encontrarla
+    // desde el reproductor a pantalla completa), para refrescar el icono de
+    // "letra disponible" sin tener que recargar toda la lista.
+    lyricsRefreshTrigger: Int = 0
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -206,6 +211,15 @@ fun SongsScreen(
                     songs[idx] = updated
                 }
             }
+        }
+    }
+
+    // Vuelve a leer qué canciones tienen letra guardada cuando algo cambió desde
+    // otra pantalla (letra borrada, encontrada, o insertada a mano en el reproductor
+    // a pantalla completa). No repite el escaneo online, solo relee lo ya guardado.
+    LaunchedEffect(lyricsRefreshTrigger) {
+        if (lyricsRefreshTrigger > 0) {
+            lyricsAvailableIds.value = songs.filter { lyricsRepo.hasLyrics(it.id) }.map { it.id }.toSet()
         }
     }
 

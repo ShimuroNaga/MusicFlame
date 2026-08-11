@@ -397,6 +397,10 @@ class MainActivity : ComponentActivity() {
                 var songsPatchTrigger by remember { mutableIntStateOf(0) }
                 var pendingSongPatches by remember { mutableStateOf<List<SongEditPatch>>(emptyList()) }
 
+                // --- Refresca el icono de "letra disponible" en la lista cuando cambia
+                // desde el reproductor a pantalla completa (borrar, encontrar, insertar). ---
+                var lyricsRefreshTrigger by remember { mutableIntStateOf(0) }
+
 
                 var youtubeVideoId by remember { mutableStateOf<String?>(null) }
                 var youtubeRecommendedSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
@@ -1042,7 +1046,8 @@ class MainActivity : ComponentActivity() {
                                                 selectionModeActive = manualSongSelectionMode,
                                                 onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode },
                                                 patchTrigger = songsPatchTrigger,
-                                                pendingPatches = pendingSongPatches
+                                                pendingPatches = pendingSongPatches,
+                                                lyricsRefreshTrigger = lyricsRefreshTrigger
                                             )
 
                                             if (youtubeVideoId != null) {
@@ -1290,7 +1295,8 @@ class MainActivity : ComponentActivity() {
                                         sendBroadcast(intent)
                                     },
                                     onSkipNext = { playerManager.skipNext() }, onSkipPrevious = { playerManager.skipPrevious() }, onAddToPlaylist = { songToAddToPlaylist = currentSong; showAddToPlaylist = true },
-                                    hasBackgroundImage = hasBackgroundImage
+                                    hasBackgroundImage = hasBackgroundImage,
+                                    onLyricsChanged = { lyricsRefreshTrigger++ }
                                 )
                             }
                         }

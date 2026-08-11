@@ -44,6 +44,7 @@ import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.components.AudioVisualizerBars
+import com.music.musicflame.ui.components.YoutubeVerifyWebView
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.safeScreenPadding
 import kotlinx.coroutines.delay
@@ -62,7 +63,11 @@ fun FullScreenPlayer(
     onSkipNext: () -> Unit,
     onSkipPrevious: () -> Unit,
     onAddToPlaylist: () -> Unit,
-    hasBackgroundImage: Boolean = false
+    hasBackgroundImage: Boolean = false,
+    // Se llama cada vez que la letra guardada de alguna canción cambia (se borra,
+    // se encuentra online, o se inserta a mano), para que la lista de canciones
+    // pueda refrescar el icono de "letra disponible" sin tener que reabrir la app.
+    onLyricsChanged: () -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -186,6 +191,19 @@ fun FullScreenPlayer(
     val lyricsCustomHex = remember { settingsRepo.getLyricsCustomColorHex() }
     val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, lyricsCustomHex)
     val lyricsState = com.music.musicflame.ui.components.rememberLyricsState(song, lyricsRepoRef)
+    var showYoutubeVerify by remember { mutableStateOf(false) }
+
+    // Avisa hacia arriba (para refrescar el icono de "letra disponible" en la
+    // lista) cada vez que una búsqueda de letra en curso termina, sea la
+    // automática al abrir la canción, un "Reintentar" manual, o la disparada
+    // por la verificación en YouTube.
+    var wasLoadingLyrics by remember { mutableStateOf(false) }
+    LaunchedEffect(lyricsState.isLoading) {
+        if (wasLoadingLyrics && !lyricsState.isLoading) {
+            onLyricsChanged()
+        }
+        wasLoadingLyrics = lyricsState.isLoading
+    }
 
     Box(
         modifier = Modifier
@@ -273,14 +291,14 @@ fun FullScreenPlayer(
                         isLoading = lyricsState.isLoading,
                         searchFailed = lyricsState.searchFailed,
                         onSearchOnline = lyricsState.onSearchOnline,
-                        onInsertManual = lyricsState.onInsertManual,
-                        onSearchYoutube = {
-                            val query = android.net.Uri.encode("${song.artist} ${song.title}")
-                            val intent = android.content.Intent(
-                                android.content.Intent.ACTION_VIEW,
-                                android.net.Uri.parse("https://www.youtube.com/results?search_query=$query")
-                            )
-                            context.startActivity(intent)
+                        onInsertManual = { raw ->
+                            lyricsState.onInsertManual(raw)
+                            onLyricsChanged()
+                        },
+                        onSearchYoutube = { showYoutubeVerify = true },
+                        onDeleteLyrics = {
+                            lyricsState.onDeleteLyrics()
+                            onLyricsChanged()
                         },
                         modifier = Modifier.weight(1f)
                     )
@@ -551,6 +569,28 @@ fun FullScreenPlayer(
 
                     Spacer(modifier = Modifier.height(16.dp))
                 }
+            }
+        }
+
+        // Overlay: verificación del video correcto en YouTube, dentro de la app.
+        // Al tocar un video se extrae su título real automáticamente y se intenta
+        // buscar la letra con él, sin que el usuario tenga que insertarla a mano
+        // (salvo que ni así se encuentre, en cuyo caso queda esa opción disponible).
+        if (showYoutubeVerify) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
+                YoutubeVerifyWebView(
+                    query = "${song.artist} ${song.title}",
+                    onTitleExtracted = { extractedTitle ->
+                        lyricsState.onYoutubeTitleFound(extractedTitle)
+                        showYoutubeVerify = false
+                    },
+                    onClose = { showYoutubeVerify = false },
+                    modifier = Modifier.fillMaxSize()
+                )
             }
         }
     }

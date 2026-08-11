@@ -1,6 +1,8 @@
 package com.music.musicflame.ui.components
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -10,6 +12,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -24,7 +27,6 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -124,7 +126,7 @@ fun LyricsView(
                     if (searchFailed) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Puede que el título/artista no coincida exacto. Prueba insertándola tú o buscando la canción exacta en YouTube.",
+                            "Puede que el título/artista no coincida exacto. Prueba insertándola tú a mano, o abre YouTube para confirmar cuál es la canción exacta y luego regresa aquí a insertar su letra.",
                             color = textColor.copy(alpha = 0.6f),
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center
@@ -156,8 +158,15 @@ fun LyricsView(
                         TextButton(onClick = onSearchYoutube) {
                             Icon(Icons.Filled.PlayCircle, contentDescription = null, modifier = Modifier.height(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Buscar canción exacta en YouTube")
+                            Text("Verificar en YouTube")
                         }
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            "Esto solo abre una búsqueda en YouTube para que confirmes el título/artista correctos. No sube ni importa nada automáticamente: si encuentras la letra, tendrás que insertarla tú con el botón \"Insertar\".",
+                            color = textColor.copy(alpha = 0.5f),
+                            fontSize = 11.sp,
+                            textAlign = TextAlign.Center
+                        )
                     }
                 }
             }
@@ -171,7 +180,12 @@ fun LyricsView(
                     itemsIndexed(lyrics.lines) { index, line ->
                         val isActive = index == activeIndex
                         val targetAlpha = if (!lyrics.isSynced) 1f else if (isActive) 1f else 0.35f
-                        val targetScale = if (lyrics.isSynced && isActive) 1.08f else 1f
+                        // "Rebote": la línea activa crece un poco más y con overshoot (spring).
+                        val targetScale = if (lyrics.isSynced && isActive && animationType == "Rebote") 1.14f else 1f
+                        // "Deslizar": la línea sube ligeramente al activarse; el resto descansa un poco más abajo.
+                        val targetOffset = if (lyrics.isSynced && animationType == "Deslizar") {
+                            if (isActive) 0.dp else 8.dp
+                        } else 0.dp
                         val animDurationMs = (350 / speed.coerceIn(0.5f, 2f)).toInt().coerceIn(120, 700)
 
                         val alpha by animateFloatAsState(
@@ -181,8 +195,17 @@ fun LyricsView(
                         )
                         val scale by animateFloatAsState(
                             targetValue = targetScale,
-                            animationSpec = tween(durationMillis = animDurationMs),
+                            animationSpec = if (animationType == "Rebote") {
+                                spring(dampingRatio = androidx.compose.animation.core.Spring.DampingRatioMediumBouncy)
+                            } else {
+                                tween(durationMillis = animDurationMs)
+                            },
                             label = "lyricScale"
+                        )
+                        val offsetY by animateDpAsState(
+                            targetValue = targetOffset,
+                            animationSpec = tween(durationMillis = animDurationMs),
+                            label = "lyricOffsetY"
                         )
 
                         Text(
@@ -193,6 +216,7 @@ fun LyricsView(
                             textAlign = TextAlign.Center,
                             modifier = Modifier
                                 .fillMaxWidth()
+                                .offset(y = offsetY)
                                 .let { m ->
                                     if (animationType == "Rebote") m.scale(scale) else m
                                 }
@@ -200,13 +224,6 @@ fun LyricsView(
                     }
                 }
             }
-        }
-
-        IconButton(
-            onClick = { showInsertDialog = true },
-            modifier = Modifier.align(Alignment.BottomEnd).padding(20.dp)
-        ) {
-            Icon(Icons.Filled.Edit, contentDescription = "Editar letra", tint = textColor.copy(alpha = 0.8f))
         }
     }
 
@@ -277,6 +294,7 @@ fun rememberLyricsState(song: Song?, repo: LyricsRepository): LyricsState {
         val s = song ?: return
         isLoading = true
         searchFailed = false
+        repo.clearChecked(s.id) // fuerza el reintento aunque el escaneo automático ya la haya revisado
         scope.launch {
             val result = repo.searchOnline(
                 title = s.title,
@@ -289,6 +307,7 @@ fun rememberLyricsState(song: Song?, repo: LyricsRepository): LyricsState {
                 parsed = LyricsParser.parse(raw)
                 searchFailed = false
             } else {
+                repo.markChecked(s.id)
                 searchFailed = true
             }
             isLoading = false
@@ -305,6 +324,11 @@ fun rememberLyricsState(song: Song?, repo: LyricsRepository): LyricsState {
         val stored = repo.getLyrics(song.id)
         if (stored != null) {
             parsed = LyricsParser.parse(stored.raw)
+        } else if (repo.isChecked(song.id)) {
+            // El escaneo automático de la biblioteca ya revisó esta canción y
+            // no encontró letra; evitamos repetir la misma búsqueda sin necesidad.
+            parsed = ParsedLyrics.EMPTY
+            searchFailed = true
         } else {
             parsed = ParsedLyrics.EMPTY
             searchOnline() // auto-búsqueda: el usuario no tiene que tocar nada

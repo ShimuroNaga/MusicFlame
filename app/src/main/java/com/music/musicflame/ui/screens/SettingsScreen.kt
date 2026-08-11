@@ -1002,6 +1002,28 @@ fun SettingsScreen(
                                 colors = listItemColors
                             )
                         }
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Tester") },
+                                supportingContent = { Text("deivid-boop") },
+                                leadingContent = {
+                                    AsyncImage(
+                                        model = ImageRequest.Builder(context)
+                                            .data("https://github.com/deivid-boop.png")
+                                            .crossfade(true)
+                                            .build(),
+                                        contentDescription = "Avatar de deivid-boop",
+                                        contentScale = ContentScale.Crop,
+                                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                        }
 
                         item { sectionHeader("Comunidad") }
 

@@ -18,7 +18,7 @@ import androidx.compose.ui.unit.dp
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.ui.theme.LocalAppTextColor
 
-private const val TOTAL_STEPS = 5
+private const val TOTAL_STEPS = 6
 
 /**
  * Wizard de primer uso: se muestra UNA sola vez (controlado por
@@ -123,7 +123,8 @@ fun OnboardingScreen(
                         userName = userName,
                         onSignInClick = onSignInClick
                     )
-                    5 -> OnboardingCommunityStep()
+                    5 -> OnboardingLyricsStep(settingsRepo = settingsRepo)
+                    6 -> OnboardingCommunityStep()
                 }
             }
         }

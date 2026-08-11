@@ -330,26 +330,45 @@ fun SettingsScreen(
                                 Triple("Apariencia", "Fondo, colores, carátula, ícono", Icons.Filled.Palette),
                                 Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
                                 Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info),
+                                Triple("Lyrics", "Velocidad, animación y color de la letra", Icons.Filled.MusicNote),
                                 Triple("Aviso de Uso", "Redistribución, promoción y términos", Icons.Filled.Warning)
                             ).forEach { (catKey, subtitle, icon) ->
+                                val isLyricsCard = catKey == "Lyrics"
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 16.dp, vertical = 6.dp)
                                         .clickable { activeSection.value = catKey },
-                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    colors = CardDefaults.cardColors(
+                                        containerColor = if (isLyricsCard)
+                                            MaterialTheme.colorScheme.tertiaryContainer
+                                        else MaterialTheme.colorScheme.surfaceContainerHigh
+                                    )
                                 ) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth().padding(16.dp),
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Icon(icon, contentDescription = null, tint = trailingColor)
+                                        Icon(
+                                            icon,
+                                            contentDescription = null,
+                                            tint = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else trailingColor
+                                        )
                                         Spacer(Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
-                                            Text(catKey, fontWeight = FontWeight.Bold, fontSize = 16.sp, color = highEmphasis)
-                                            Text(subtitle, fontSize = 12.sp, color = mediumEmphasis)
+                                            Text(
+                                                catKey, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                                                color = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else highEmphasis
+                                            )
+                                            Text(
+                                                subtitle, fontSize = 12.sp,
+                                                color = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f) else mediumEmphasis
+                                            )
                                         }
-                                        Icon(Icons.Filled.ChevronRight, contentDescription = null, tint = mediumEmphasis)
+                                        Icon(
+                                            Icons.Filled.ChevronRight, contentDescription = null,
+                                            tint = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else mediumEmphasis
+                                        )
                                     }
                                 }
                             }
@@ -1066,6 +1085,133 @@ fun SettingsScreen(
                                     context.startActivity(intent)
                                 }
                             )
+                        }
+                    }
+
+                    // LYRICS
+                    if (activeSection.value == "Lyrics") {
+                        item {
+                            val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
+                            var speed by remember { mutableStateOf(settingsRepo.getLyricsSpeed()) }
+                            var animType by remember { mutableStateOf(settingsRepo.getLyricsAnimationType()) }
+                            var colorMode by remember { mutableStateOf(settingsRepo.getLyricsTextColorMode()) }
+                            var customHex by remember { mutableStateOf(settingsRepo.getLyricsCustomColorHex()) }
+
+                            Card(
+                                modifier = Modifier.fillMaxWidth().padding(16.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Text(
+                                        "Lyrics",
+                                        fontWeight = FontWeight.Black,
+                                        fontSize = 16.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Text(
+                                        "Controla cómo se anima y se ve la letra sincronizada al deslizar dentro de una lista de reproducción.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                    )
+
+                                    Spacer(Modifier.height(20.dp))
+                                    Text(
+                                        "Velocidad de animación: ${"%.1f".format(speed)}x",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    androidx.compose.material3.Slider(
+                                        value = speed,
+                                        onValueChange = {
+                                            speed = it
+                                            settingsRepo.saveLyricsSpeed(it)
+                                        },
+                                        valueRange = 0.5f..2f,
+                                        colors = androidx.compose.material3.SliderDefaults.colors(
+                                            thumbColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                            activeTrackColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    )
+                                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                        Text("Lenta", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                                        Text("Rápida", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                                    }
+
+                                    Spacer(Modifier.height(20.dp))
+                                    Text(
+                                        "Tipo de animación",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Deslizar", "Desvanecer", "Rebote").forEach { opt ->
+                                            val selected = animType == opt
+                                            androidx.compose.material3.FilterChip(
+                                                selected = selected,
+                                                onClick = {
+                                                    animType = opt
+                                                    settingsRepo.saveLyricsAnimationType(opt)
+                                                },
+                                                label = { Text(opt, fontSize = 12.sp) },
+                                                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                    selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(20.dp))
+                                    Text(
+                                        "Color del texto",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                    )
+                                    Spacer(Modifier.height(8.dp))
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Adaptativo", "Blanco", "Negro", "Personalizado").forEach { opt ->
+                                            val selected = colorMode == opt
+                                            androidx.compose.material3.FilterChip(
+                                                selected = selected,
+                                                onClick = {
+                                                    colorMode = opt
+                                                    settingsRepo.saveLyricsTextColorMode(opt)
+                                                },
+                                                label = { Text(opt, fontSize = 12.sp) },
+                                                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                                    selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                    selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
+                                                )
+                                            )
+                                        }
+                                    }
+
+                                    if (colorMode == "Personalizado") {
+                                        Spacer(Modifier.height(12.dp))
+                                        androidx.compose.material3.OutlinedTextField(
+                                            value = customHex,
+                                            onValueChange = {
+                                                customHex = it
+                                                settingsRepo.saveLyricsCustomColorHex(it)
+                                            },
+                                            label = { Text("Color (#RRGGBB)") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(16.dp))
+                                    Text(
+                                        "Para ver la letra: abre el reproductor a pantalla completa y desliza la pantalla (no la carátula) hacia la derecha.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
                         }
                     }
 

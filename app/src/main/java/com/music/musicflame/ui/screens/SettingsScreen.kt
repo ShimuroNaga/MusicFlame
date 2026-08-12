@@ -1095,7 +1095,6 @@ fun SettingsScreen(
                             var speed by remember { mutableStateOf(settingsRepo.getLyricsSpeed()) }
                             var animType by remember { mutableStateOf(settingsRepo.getLyricsAnimationType()) }
                             var colorMode by remember { mutableStateOf(settingsRepo.getLyricsTextColorMode()) }
-                            var customHex by remember { mutableStateOf(settingsRepo.getLyricsCustomColorHex()) }
 
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -1173,7 +1172,7 @@ fun SettingsScreen(
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        listOf("Adaptativo", "Blanco", "Negro", "Personalizado").forEach { opt ->
+                                        listOf("Blanco", "Negro").forEach { opt ->
                                             val selected = colorMode == opt
                                             androidx.compose.material3.FilterChip(
                                                 selected = selected,
@@ -1188,20 +1187,6 @@ fun SettingsScreen(
                                                 )
                                             )
                                         }
-                                    }
-
-                                    if (colorMode == "Personalizado") {
-                                        Spacer(Modifier.height(12.dp))
-                                        androidx.compose.material3.OutlinedTextField(
-                                            value = customHex,
-                                            onValueChange = {
-                                                customHex = it
-                                                settingsRepo.saveLyricsCustomColorHex(it)
-                                            },
-                                            label = { Text("Color (#RRGGBB)") },
-                                            singleLine = true,
-                                            modifier = Modifier.fillMaxWidth()
-                                        )
                                     }
 
                                     Spacer(Modifier.height(16.dp))

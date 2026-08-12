@@ -23,8 +23,9 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
 
     var speed by remember { mutableStateOf(settingsRepo.getLyricsSpeed()) }
     var animType by remember { mutableStateOf(settingsRepo.getLyricsAnimationType()) }
+    // Igual que en la card "Lyrics" de SettingsScreen.kt: SOLO Blanco/Negro.
+    // Nunca "Adaptativo" (seguir el color de Apariencia) ni "Personalizado" (hex libre).
     var colorMode by remember { mutableStateOf(settingsRepo.getLyricsTextColorMode()) }
-    var customHex by remember { mutableStateOf(settingsRepo.getLyricsCustomColorHex()) }
 
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
         item {
@@ -98,7 +99,7 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
                     )
                     Spacer(Modifier.height(8.dp))
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf("Adaptativo", "Blanco", "Negro", "Personalizado").forEach { opt ->
+                        listOf("Blanco", "Negro").forEach { opt ->
                             FilterChip(
                                 selected = colorMode == opt,
                                 onClick = {
@@ -112,20 +113,6 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
                                 )
                             )
                         }
-                    }
-
-                    if (colorMode == "Personalizado") {
-                        Spacer(Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = customHex,
-                            onValueChange = {
-                                customHex = it
-                                settingsRepo.saveLyricsCustomColorHex(it)
-                            },
-                            label = { Text("Color (#RRGGBB)") },
-                            singleLine = true,
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
                 }
             }

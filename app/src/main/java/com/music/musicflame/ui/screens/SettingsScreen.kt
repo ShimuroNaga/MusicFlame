@@ -1210,6 +1210,12 @@ fun SettingsScreen(
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                     )
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "Nota: la letra encontrada mediante \"Verificar en YouTube\" no trae marcas de tiempo, así que se muestra estática, sin la animación de línea activa. Si la insertas tú manualmente en formato LRC, sí tendrá animación.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                    )
                                 }
                             }
                         }

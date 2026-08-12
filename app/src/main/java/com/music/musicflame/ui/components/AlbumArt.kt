@@ -177,6 +177,13 @@ fun AlbumArt(
                 model = ImageRequest.Builder(context)
                     .data(albumArtUri)
                     .crossfade(true)
+                    // Las formas Hexágono y Squircle usan un Outline.Generic (path),
+                    // lo que obliga a Compose a recortar en un layer de software.
+                    // Un hardware bitmap (el default de Coil desde Android 8+) no se
+                    // puede dibujar en ese layer y la app truena con:
+                    // "Software rendering doesn't support hardware bitmaps".
+                    // Por eso desactivamos hardware bitmaps aquí.
+                    .allowHardware(false)
                     .build(),
                 // ¡AQUÍ ES DONDE CONECTAMOS EL DECODIFICADOR DE GIFS!
                 imageLoader = imageLoader,

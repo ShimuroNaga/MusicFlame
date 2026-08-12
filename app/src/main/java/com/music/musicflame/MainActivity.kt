@@ -48,7 +48,6 @@ import coil.compose.AsyncImage
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
-import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.Scope
@@ -108,23 +107,6 @@ class MainActivity : ComponentActivity() {
                     playlistRepo.updatePlaylistCover(playlistId, it.toString())
                 }
                 selectedPlaylistForCover = null
-            }
-        }
-    }
-
-    private suspend fun getYouTubeAccessToken(context: android.content.Context): String? {
-        return withContext(Dispatchers.IO) {
-            try {
-                val account = GoogleSignIn.getLastSignedInAccount(context)?.account
-                if (account != null) {
-                    val scope = "oauth2:https://www.googleapis.com/auth/youtube.readonly"
-                    GoogleAuthUtil.getToken(context, account, scope)
-                } else {
-                    null
-                }
-            } catch (e: Exception) {
-                android.util.Log.e("YOUTUBE_AUTH", "Error obteniendo token", e)
-                null
             }
         }
     }
@@ -208,7 +190,7 @@ class MainActivity : ComponentActivity() {
                         .requestEmail()
                         .requestProfile()
                         .requestIdToken(WEB_CLIENT_ID)
-                        .requestScopes(youtubeScope, driveScope)
+                        .requestScopes(driveScope)
                         .build()
                 }
                 val googleSignInClient = remember { GoogleSignIn.getClient(context, gso) }
@@ -405,108 +387,22 @@ class MainActivity : ComponentActivity() {
                 var youtubeVideoId by remember { mutableStateOf<String?>(null) }
                 var youtubeRecommendedSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
-                suspend fun fetchSubscriptionVideos(token: String): List<Song> = withContext(Dispatchers.IO) {
-                    try {
-                        val authHeader = "Bearer $token"
-                        val subsResponse = com.music.musicflame.api.RetrofitClient.instance.getMySubscriptions(authHeader = authHeader)
-                        val channelIds = subsResponse.items.mapNotNull { it.snippet?.resourceId?.channelId }.distinct()
-                        if (channelIds.isEmpty()) return@withContext emptyList()
-
-                        val channelsResponse = com.music.musicflame.api.RetrofitClient.instance.getChannelsContentDetails(
-                            channelIds = channelIds.take(50).joinToString(",")
-                        )
-                        val uploadsPlaylistIds = channelsResponse.items.mapNotNull { it.contentDetails?.relatedPlaylists?.uploads }
-
-                        uploadsPlaylistIds.take(8).flatMap { playlistId ->
-                            try {
-                                val itemsResponse = com.music.musicflame.api.RetrofitClient.instance.getPlaylistItems(playlistId = playlistId)
-                                itemsResponse.items.mapNotNull { item ->
-                                    val videoId = item.snippet?.resourceId?.videoId ?: return@mapNotNull null
-                                    Song(
-                                        id = videoId.hashCode().toLong(),
-                                        title = item.snippet.title ?: "Sin título",
-                                        artist = item.snippet.channelTitle ?: "Desconocido",
-                                        albumArtUri = item.snippet.thumbnails?.high?.url ?: "",
-                                        path = "",
-                                        dateAdded = 0L,
-                                        duration = 0L,
-                                        youtubeVideoId = videoId
-                                    )
-                                }
-                            } catch (e: Exception) {
-                                if (e is kotlinx.coroutines.CancellationException) throw e
-                                emptyList()
-                            }
-                        }
-                    } catch (e: Exception) {
-                        if (e is kotlinx.coroutines.CancellationException) throw e
-                        emptyList()
-                    }
-                }
-
                 fun fetchInitialYoutubeVideos() {
                     coroutineScope.launch {
                         try {
-                            if (isYouTubeLinked) {
-                                val token = getYouTubeAccessToken(context)
-
-                                if (token != null) {
-                                    val authHeader = "Bearer $token"
-                                    val likedResponse = try {
-                                        com.music.musicflame.api.RetrofitClient.instance.getLikedVideos(authHeader = authHeader)
-                                    } catch (e: Exception) {
-                                        if (e is kotlinx.coroutines.CancellationException) throw e
-                                        null
-                                    }
-
-                                    val likedSongs = likedResponse?.items?.mapNotNull { item ->
-                                        val realVideoId = item.id?.videoId ?: (item.id as? String) ?: return@mapNotNull null
-                                        Song(
-                                            id = realVideoId.hashCode().toLong(),
-                                            title = item.snippet?.title ?: "Sin título",
-                                            artist = item.snippet?.channelTitle ?: "Desconocido",
-                                            albumArtUri = item.snippet?.thumbnails?.high?.url ?: "",
-                                            path = "",
-                                            dateAdded = 0L,
-                                            duration = 0L,
-                                            youtubeVideoId = realVideoId
-                                        )
-                                    } ?: emptyList()
-
-                                    val subscriptionSongs = fetchSubscriptionVideos(token)
-                                    youtubeRecommendedSongs = (likedSongs + subscriptionSongs).distinctBy { it.youtubeVideoId }
-
-                                } else {
-                                    val response = com.music.musicflame.api.RetrofitClient.instance.getPopularMusicVideos()
-                                    youtubeRecommendedSongs = response.items.mapNotNull { item ->
-                                        val realVideoId = item.id?.videoId ?: (item.id as? String) ?: return@mapNotNull null
-                                        Song(
-                                            id = realVideoId.hashCode().toLong(),
-                                            title = item.snippet?.title ?: "Sin título",
-                                            artist = item.snippet?.channelTitle ?: "Desconocido",
-                                            albumArtUri = item.snippet?.thumbnails?.high?.url ?: "",
-                                            path = "",
-                                            dateAdded = 0L,
-                                            duration = 0L,
-                                            youtubeVideoId = realVideoId
-                                        )
-                                    }
-                                }
-                            } else {
-                                val response = com.music.musicflame.api.RetrofitClient.instance.getPopularMusicVideos()
-                                youtubeRecommendedSongs = response.items.mapNotNull { item ->
-                                    val realVideoId = item.id?.videoId ?: (item.id as? String) ?: return@mapNotNull null
-                                    Song(
-                                        id = realVideoId.hashCode().toLong(),
-                                        title = item.snippet?.title ?: "Sin título",
-                                        artist = item.snippet?.channelTitle ?: "Desconocido",
-                                        albumArtUri = item.snippet?.thumbnails?.high?.url ?: "",
-                                        path = "",
-                                        dateAdded = 0L,
-                                        duration = 0L,
-                                        youtubeVideoId = realVideoId
-                                    )
-                                }
+                            val response = com.music.musicflame.api.RetrofitClient.instance.getPopularMusicVideos()
+                            youtubeRecommendedSongs = response.items.mapNotNull { item ->
+                                val realVideoId = item.id?.videoId ?: (item.id as? String) ?: return@mapNotNull null
+                                Song(
+                                    id = realVideoId.hashCode().toLong(),
+                                    title = item.snippet?.title ?: "Sin título",
+                                    artist = item.snippet?.channelTitle ?: "Desconocido",
+                                    albumArtUri = item.snippet?.thumbnails?.high?.url ?: "",
+                                    path = "",
+                                    dateAdded = 0L,
+                                    duration = 0L,
+                                    youtubeVideoId = realVideoId
+                                )
                             }
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) throw e

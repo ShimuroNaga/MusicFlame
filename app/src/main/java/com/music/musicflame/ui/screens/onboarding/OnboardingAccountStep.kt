@@ -42,7 +42,7 @@ fun OnboardingAccountStep(
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Opcional — vincula tu cuenta para usar YouTube y Google Drive dentro de MusicFlame. Puedes hacerlo luego desde Ajustes si prefieres saltarlo ahora.",
+            text = "Opcional — vincula tu cuenta para usar  Google Drive dentro de MusicFlame. Puedes hacerlo luego desde Ajustes si prefieres saltarlo ahora.",
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = mediumEmphasis

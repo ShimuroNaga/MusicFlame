@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
@@ -73,8 +74,6 @@ fun FullScreenPlayer(
 
     val isRounded = LocalUseRoundCorners.current
     val artRadius = if (isRounded) 24.dp else 0.dp
-
-    val currentCycleState = playerManager.cycleMode.value
 
     val bgColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.65f) else MaterialTheme.colorScheme.background
 
@@ -188,8 +187,20 @@ fun FullScreenPlayer(
     val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
     val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
     val lyricsColorMode = remember { settingsRepo.getLyricsTextColorMode() }
-    val lyricsCustomHex = remember { settingsRepo.getLyricsCustomColorHex() }
-    val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, lyricsCustomHex)
+    val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, "")
+
+    // Color de las barras del visualizador: SIEMPRE blanco o negro, nunca elegible por el
+    // usuario. Se adapta solo según lo que haya detrás de las barras:
+    //  - Con imagen/gif de fondo: siempre se pone un overlay oscuro semitransparente
+    //    (ver bgColor más abajo), así que blanco es lo que mejor contrasta ahí.
+    //  - Sin imagen/gif: se mira el color de fondo real que está usando el tema
+    //    (blanco/claro -> barras negras, oscuro -> barras blancas), usando su
+    //    luminancia en vez de asumir "modo claro = tema claro" (por AMOLED, Material You, etc).
+    val equalizerBarsColor = if (hasBackgroundImage) {
+        Color.White
+    } else {
+        if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.Black else Color.White
+    }
     val lyricsState = com.music.musicflame.ui.components.rememberLyricsState(song, lyricsRepoRef)
     var showYoutubeVerify by remember { mutableStateOf(false) }
 
@@ -560,7 +571,7 @@ fun FullScreenPlayer(
                         audioSessionId = playerManager.audioSessionId.value,
                         isPlaying = isPlaying,
                         hasRecordAudioPermission = hasRecordAudioPermission,
-                        color = adaptiveContentColor,
+                        color = equalizerBarsColor,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)
@@ -572,10 +583,6 @@ fun FullScreenPlayer(
             }
         }
 
-        // Overlay: verificación del video correcto en YouTube, dentro de la app.
-        // Al tocar un video se extrae su título real automáticamente y se intenta
-        // buscar la letra con él, sin que el usuario tenga que insertarla a mano
-        // (salvo que ni así se encuentre, en cuyo caso queda esa opción disponible).
         if (showYoutubeVerify) {
             Box(
                 modifier = Modifier

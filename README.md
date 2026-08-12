@@ -2,6 +2,7 @@
 
 ![Estado del Proyecto](https://img.shields.io/badge/Estado-En_Desarrollo_Activo-brightgreen)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Android-blue)
+![Versión](https://img.shields.io/badge/Versión-3.1-orange)
 
 **MusicFlame** es un reproductor de música versátil y moderno que combina tu biblioteca local con el extenso catálogo de YouTube en una sola aplicación. Diseñado con un enfoque en la personalización, la estética y el rendimiento.
 
@@ -76,7 +77,7 @@ Descargar e instalar MusicFlame es muy sencillo. No necesitas compilar el códig
 
 ## 🛠️ Aviso de Desarrollo
 
-> **⚠️ App en construcción continua**
+> **✅ ¡Ya llegó la versión 3.1!**
 > MusicFlame es un proyecto en desarrollo activo. La sección de IA (Gemini) fue retirada y reemplazada por la nueva pestaña de **Álbumes** y otras funciones nativas, tal como se explica arriba.
 >
 > **📌 Nota:** Esta ha sido una actualización grande (nueva sección de Álbumes, papelera de playlists, respaldo en Drive, letras sincronizadas, visualizador de audio real, personalización avanzada, etc.), por lo que nos tomaremos un tiempo para pulir todo bien. Si notas algo extraño o un *bug*, por favor repórtalo. ¡Gracias por la paciencia!

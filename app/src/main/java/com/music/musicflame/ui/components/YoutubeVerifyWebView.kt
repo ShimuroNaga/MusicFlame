@@ -31,6 +31,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 
+/**
+ * Pantalla dentro de la app (no navegador externo) que muestra los resultados
+ * de búsqueda de YouTube para la canción actual. En cuanto el usuario toca un
+ * video, se lee el título real de esa página (el mismo texto que ya se ve en
+ * pantalla) y se manda a [onTitleExtracted] para que la app intente buscar la
+ * letra automáticamente con ese título, sin que el usuario tenga que copiar
+ * ni escribir nada a mano.
+ *
+ * No se descarga ni se toca la letra desde aquí: solo se lee el título de la
+ * página que YouTube ya muestra.
+ */
 @SuppressLint("SetJavaScriptEnabled")
 @Composable
 fun YoutubeVerifyWebView(
@@ -120,6 +131,11 @@ fun YoutubeVerifyWebView(
     }
 }
 
+/**
+ * evaluateJavascript devuelve el resultado como un string JSON-encoded
+ * (ej. "\"Cancion - Artista - YouTube\""). Esto le quita las comillas
+ * externas y des-escapa lo básico para dejar el texto plano real.
+ */
 private fun decodeJsStringResult(raw: String?): String? {
     if (raw.isNullOrBlank() || raw == "null") return null
     var s = raw.trim()

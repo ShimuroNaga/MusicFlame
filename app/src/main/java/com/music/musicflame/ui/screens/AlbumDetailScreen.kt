@@ -93,7 +93,9 @@ fun AlbumDetailScreen(
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
     selectionModeActive: Boolean = false,
-    onToggleSelectionModeButton: () -> Unit = {}
+    onToggleSelectionModeButton: () -> Unit = {},
+    // NUEVO: id de la canción sonando ahora, para el icono al lado del título.
+    currentPlayingSongId: Long? = null
 ) {
     val isRounded = LocalUseRoundCorners.current
     val albumArtShape = LocalAlbumArtShape.current
@@ -280,7 +282,8 @@ fun AlbumDetailScreen(
                         albumArtShape = albumArtShape,
                         isSelected = selectedSongs.contains(song),
                         isSelectionMode = isSelectionMode,
-                        onToggleSelection = { onToggleSelection(song) }
+                        onToggleSelection = { onToggleSelection(song) },
+                        isCurrentlyPlaying = currentPlayingSongId != null && currentPlayingSongId == song.id
                     )
                 }
                 item { Spacer(Modifier.height(80.dp)) }

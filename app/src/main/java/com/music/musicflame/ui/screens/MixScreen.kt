@@ -59,7 +59,9 @@ fun MixScreen(
     hasBackgroundImage: Boolean = false,
     // --- PARÁMETROS PARA LA SELECCIÓN GLOBAL ---
     selectedSongs: List<Song> = emptyList(),
-    onToggleSelection: (Song) -> Unit = {}
+    onToggleSelection: (Song) -> Unit = {},
+    // NUEVO: id de la canción sonando ahora, para el icono al lado del título.
+    currentPlayingSongId: Long? = null
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -244,7 +246,8 @@ fun MixScreen(
                         albumArtShape = albumArtShape,
                         isSelected = selectedSongs.contains(song),
                         isSelectionMode = isSelectionMode,
-                        onToggleSelection = { onToggleSelection(song) }
+                        onToggleSelection = { onToggleSelection(song) },
+                        isCurrentlyPlaying = currentPlayingSongId != null && currentPlayingSongId == song.id
                     )
                 }
 

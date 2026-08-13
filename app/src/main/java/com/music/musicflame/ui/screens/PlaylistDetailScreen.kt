@@ -134,7 +134,10 @@ fun PlaylistDetailScreen(
     onToggleSelection: (Song) -> Unit = {},
     // --- MODO DE SELECCIÓN POR TAP (sin necesidad de mantener presionado) ---
     selectionModeActive: Boolean = false,
-    onToggleSelectionModeButton: () -> Unit = {}
+    onToggleSelectionModeButton: () -> Unit = {},
+    // NUEVO: id de la canción que está sonando ahora mismo (playerManager.currentSong?.id),
+    // para pintar el icono de "sonando" al lado de su título en la lista.
+    currentPlayingSongId: Long? = null
 ) {
     val context = LocalContext.current
     val favoritesRepo = remember { FavoritesRepository(context) }
@@ -371,7 +374,8 @@ fun PlaylistDetailScreen(
                         albumArtShape = albumArtShape,
                         isSelected = selectedSongs.contains(song),
                         isSelectionMode = isSelectionMode,
-                        onToggleSelection = { onToggleSelection(song) }
+                        onToggleSelection = { onToggleSelection(song) },
+                        isCurrentlyPlaying = currentPlayingSongId != null && currentPlayingSongId == song.id
                     )
                 }
 
@@ -449,7 +453,9 @@ fun SongItemCard(
     albumArtShape: com.music.musicflame.AlbumArtShapeType = com.music.musicflame.AlbumArtShapeType.SQUARE,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    onToggleSelection: (() -> Unit)? = null
+    onToggleSelection: (() -> Unit)? = null,
+    // NUEVO: true cuando esta es la canción que está sonando ahora mismo.
+    isCurrentlyPlaying: Boolean = false
 ) {
     // Animación suave del color de fondo al ser seleccionado
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
@@ -528,15 +534,21 @@ fun SongItemCard(
                     .weight(1f)
                     .padding(start = 12.dp)
             ) {
-                Text(
-                    text = song.title,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    // <-- Aplicando LocalAppTextColor
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isCurrentlyPlaying) {
+                        com.music.musicflame.ui.components.NowPlayingIndicator(modifier = Modifier.height(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = song.title,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        // <-- Aplicando LocalAppTextColor
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
+                    )
+                }
                 Text(
                     text = song.artist,
                     fontSize = 13.sp,

@@ -255,11 +255,13 @@ fun FullScreenPlayer(
                     onDragEnd = {
                         when {
                             showQueueScreen -> {
-                                // Ya estamos en la Cola: swipe derecha vuelve a la vista normal.
+                                // Ya estamos en la Cola: swipe derecha vuelve a la vista normal
+                                // (mismo lado que la abre, como toggle).
                                 if (totalDrag > 120f) showQueueScreen = false
                             }
                             showLyrics -> {
-                                // Ya estamos en la Letra: swipe izquierda vuelve a la vista normal.
+                                // Ya estamos en la Letra: swipe izquierda vuelve a la vista normal
+                                // (mismo lado que la abre, como toggle).
                                 if (totalDrag < -120f) showLyrics = false
                             }
                             else -> {

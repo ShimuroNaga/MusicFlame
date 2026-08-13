@@ -34,7 +34,11 @@ fun SongItemCard(
     albumArtShape: AlbumArtShapeType = AlbumArtShapeType.SQUARE,
     isSelected: Boolean = false,
     isSelectionMode: Boolean = false,
-    onToggleSelection: () -> Unit = {}
+    onToggleSelection: () -> Unit = {},
+    // NUEVO: true cuando esta es la canción que está sonando ahora mismo.
+    // Muestra el mismo icono de "sonando" (barritas) que ya usa QueueScreen,
+    // a un lado del título.
+    isCurrentlyPlaying: Boolean = false
 ) {
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
     val containerColor = when {
@@ -79,15 +83,21 @@ fun SongItemCard(
             }
 
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
-                Text(
-                    text = song.title,
-                    fontWeight = FontWeight.Medium,
-                    fontSize = 15.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                    // <-- APLICANDO EL COLOR GLOBAL (Mantiene el color de selección si está activa)
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
-                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isCurrentlyPlaying) {
+                        NowPlayingIndicator(modifier = Modifier.height(14.dp))
+                        Spacer(Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = song.title,
+                        fontWeight = FontWeight.Medium,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        // <-- APLICANDO EL COLOR GLOBAL (Mantiene el color de selección si está activa)
+                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
+                    )
+                }
                 Text(
                     text = song.artist,
                     fontSize = 13.sp,

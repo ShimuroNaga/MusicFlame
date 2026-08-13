@@ -944,7 +944,8 @@ class MainActivity : ComponentActivity() {
                                                 onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode },
                                                 patchTrigger = songsPatchTrigger,
                                                 pendingPatches = pendingSongPatches,
-                                                lyricsRefreshTrigger = lyricsRefreshTrigger
+                                                lyricsRefreshTrigger = lyricsRefreshTrigger,
+                                                currentPlayingSongId = currentSong?.id
                                             )
 
                                             if (youtubeVideoId != null) {
@@ -978,7 +979,8 @@ class MainActivity : ComponentActivity() {
                                                 selectedSongs = selectedSongs,
                                                 onToggleSelection = onToggleSong,
                                                 selectionModeActive = manualSongSelectionMode,
-                                                onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode }
+                                                onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode },
+                                                currentPlayingSongId = currentSong?.id
                                             )
                                         } else PlaylistsScreen(
                                             onPlaylistClick = { playlist, isFavorites -> selectedPlaylist = playlist; selectedPlaylistIsFavorites = isFavorites },
@@ -990,7 +992,7 @@ class MainActivity : ComponentActivity() {
                                             selectionModeActive = manualPlaylistSelectionMode,
                                             onToggleSelectionModeButton = { manualPlaylistSelectionMode = !manualPlaylistSelectionMode }
                                         )
-                                        Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong)
+                                        Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong, currentPlayingSongId = currentSong?.id)
                                         Screen.Album -> AlbumScreen(
                                             hasBackgroundImage = hasBackgroundImage,
                                             selectedAlbum = selectedAlbum,
@@ -999,7 +1001,8 @@ class MainActivity : ComponentActivity() {
                                             selectedSongs = selectedSongs,
                                             onToggleSelection = onToggleSong,
                                             selectionModeActive = manualSongSelectionMode,
-                                            onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode }
+                                            onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode },
+                                            currentPlayingSongId = currentSong?.id
                                         )
                                         Screen.Trash -> TrashScreen(
                                             onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },

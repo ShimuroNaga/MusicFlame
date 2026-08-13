@@ -37,7 +37,9 @@ fun AlbumScreen(
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
     selectionModeActive: Boolean = false,
-    onToggleSelectionModeButton: () -> Unit = {}
+    onToggleSelectionModeButton: () -> Unit = {},
+    // NUEVO: id de la canción sonando ahora, para el icono al lado del título.
+    currentPlayingSongId: Long? = null
 ) {
     val context = LocalContext.current
     val albums = remember { groupSongsIntoAlbums(loadSongsFromDevice(context)) }
@@ -53,7 +55,8 @@ fun AlbumScreen(
                 selectedSongs = selectedSongs,
                 onToggleSelection = onToggleSelection,
                 selectionModeActive = selectionModeActive,
-                onToggleSelectionModeButton = onToggleSelectionModeButton
+                onToggleSelectionModeButton = onToggleSelectionModeButton,
+                currentPlayingSongId = currentPlayingSongId
             )
         }
     }

@@ -282,12 +282,7 @@ fun QueueScreen(
                                 Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         if (isCurrent) {
-                                            Icon(
-                                                imageVector = Icons.Filled.GraphicEq,
-                                                contentDescription = "Sonando ahora",
-                                                tint = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.size(16.dp)
-                                            )
+                                            com.music.musicflame.ui.components.NowPlayingIndicator(modifier = Modifier.height(14.dp))
                                             Spacer(Modifier.width(6.dp))
                                         }
                                         Text(

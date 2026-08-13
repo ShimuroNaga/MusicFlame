@@ -127,7 +127,10 @@ fun SongsScreen(
     // canción se modifica desde otra pantalla (ej. al borrarla o encontrarla
     // desde el reproductor a pantalla completa), para refrescar el icono de
     // "letra disponible" sin tener que recargar toda la lista.
-    lyricsRefreshTrigger: Int = 0
+    lyricsRefreshTrigger: Int = 0,
+    // NUEVO: id de la canción sonando ahora (playerManager.currentSong?.id), para
+    // pintar el icono de "sonando" al lado de su título en la lista.
+    currentPlayingSongId: Long? = null
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -362,14 +365,20 @@ fun SongsScreen(
                                     Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
                                         AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape)
                                         Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
-                                            Text(
-                                                text = song.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis,
-                                                color = normalTextColor
-                                            )
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                if (currentPlayingSongId != null && currentPlayingSongId == song.id) {
+                                                    com.music.musicflame.ui.components.NowPlayingIndicator(modifier = Modifier.height(14.dp))
+                                                    Spacer(Modifier.width(6.dp))
+                                                }
+                                                Text(
+                                                    text = song.title,
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 16.sp,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis,
+                                                    color = normalTextColor
+                                                )
+                                            }
                                             Text(
                                                 text = song.artist,
                                                 fontSize = 13.sp,
@@ -483,6 +492,10 @@ fun SongsScreen(
                                     // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---
                                     Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
+                                            if (currentPlayingSongId != null && currentPlayingSongId == song.id) {
+                                                com.music.musicflame.ui.components.NowPlayingIndicator(modifier = Modifier.height(14.dp))
+                                                Spacer(Modifier.width(6.dp))
+                                            }
                                             Text(
                                                 text = song.title,
                                                 fontWeight = FontWeight.Bold,

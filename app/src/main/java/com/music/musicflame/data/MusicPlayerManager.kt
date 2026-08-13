@@ -9,10 +9,13 @@ import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.snapshots.SnapshotStateList
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Player
+import androidx.media3.common.Timeline
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionCommand
@@ -50,6 +53,20 @@ class MusicPlayerManager(private val context: Context) {
     // MediaController no expone esta propiedad directo, se pide vía comando personalizado.
     private val _audioSessionId = mutableIntStateOf(0)
     val audioSessionId: State<Int> = _audioSessionId
+
+    // --- COLA (QUEUE) REACTIVA ---
+    // _queue siempre refleja el ORDEN REAL DE REPRODUCCIÓN (respeta el shuffle de
+    // ExoPlayer si está activo), para que la pantalla de cola muestre "la próxima
+    // canción" tal cual va a sonar y no el orden crudo en el que se agregaron.
+    // queueWindowIndices guarda, en paralelo, el índice real (window index) de
+    // cada canción dentro del MediaController, que es el que necesita moveMediaItem
+    // para reordenar de verdad (independiente de si están mezcladas o no).
+    private val _queue: SnapshotStateList<Song> = mutableStateListOf()
+    val queue: List<Song> get() = _queue
+    private var queueWindowIndices: List<Int> = emptyList()
+
+    private val _shuffleEnabledState = mutableStateOf(false)
+    val shuffleEnabledState: State<Boolean> = _shuffleEnabledState
 
     // --- SLEEP TIMER ---
     private val managerScope = CoroutineScope(Dispatchers.Main)
@@ -183,7 +200,9 @@ class MusicPlayerManager(private val context: Context) {
             // el mini-reproductor aparecía vacío hasta la siguiente canción.
             syncCurrentSongState(controller)
             _isPlayingState.value = controller.isPlaying
+            _shuffleEnabledState.value = controller.shuffleModeEnabled
             requestAudioSessionId(controller)
+            refreshQueue(controller)
 
             controller.addListener(object : Player.Listener {
                 private var lastIndex = controller.currentMediaItemIndex
@@ -241,10 +260,22 @@ class MusicPlayerManager(private val context: Context) {
                 // NUEVO: Escuchamos cambios desde la notificación para actualizar la UI en vivo
                 override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
                     syncCycleModeState(controller)
+                    _shuffleEnabledState.value = shuffleModeEnabled
+                    // Si se activa/desactiva el mezclar (mix) desde el mini-reproductor o
+                    // desde la pantalla de cola, se re-arma el orden mostrado al instante.
+                    refreshQueue(controller)
                 }
 
                 override fun onRepeatModeChanged(repeatMode: Int) {
                     syncCycleModeState(controller)
+                }
+
+                // NUEVO: se dispara cada vez que la lista de reproducción cambia de
+                // verdad (se agregan canciones, se quitan, o se reordenan con
+                // moveMediaItem) y también cuando ExoPlayer recalcula el orden
+                // mezclado. Es el punto central para mantener la cola sincronizada.
+                override fun onTimelineChanged(timeline: Timeline, reason: Int) {
+                    refreshQueue(controller)
                 }
             })
 
@@ -321,29 +352,33 @@ class MusicPlayerManager(private val context: Context) {
         )
     }
 
+    // Extraído de playSong() para poder reutilizarlo también al agregar canciones
+    // a la cola (addToQueue) sin duplicar la construcción de metadata/artwork.
+    private fun buildMediaItem(s: Song): MediaItem {
+        val artUriString = s.albumArtUri?.toString()
+        val finalArtworkUri: Uri = if (!artUriString.isNullOrEmpty()) {
+            Uri.parse(artUriString)
+        } else {
+            Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+        }
+
+        val metadata = MediaMetadata.Builder()
+            .setTitle(s.title)
+            .setArtist(s.artist)
+            .setArtworkUri(finalArtworkUri)
+            .build()
+
+        return MediaItem.Builder()
+            .setMediaId(s.id.toString())
+            .setUri(s.path)
+            .setMediaMetadata(metadata)
+            .build()
+    }
+
     fun playSong(song: Song, songList: List<Song>) {
         currentPlaylist = songList
 
-        val mediaItems = songList.map { s ->
-            val artUriString = s.albumArtUri?.toString()
-            val finalArtworkUri: Uri = if (!artUriString.isNullOrEmpty()) {
-                Uri.parse(artUriString)
-            } else {
-                Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
-            }
-
-            val metadata = MediaMetadata.Builder()
-                .setTitle(s.title)
-                .setArtist(s.artist)
-                .setArtworkUri(finalArtworkUri)
-                .build()
-
-            MediaItem.Builder()
-                .setMediaId(s.id.toString())
-                .setUri(s.path)
-                .setMediaMetadata(metadata)
-                .build()
-        }
+        val mediaItems = songList.map { s -> buildMediaItem(s) }
 
         val startIndex = songList.indexOf(song)
 
@@ -357,12 +392,77 @@ class MusicPlayerManager(private val context: Context) {
             setMediaItems(mediaItems, indexToPlay, 0)
             prepare()
             play()
+            refreshQueue(this)
         }
 
         // ESTADÍSTICAS: esto cubre la selección inicial/manual de una canción desde
         // cualquier lista (Songs, Mix, Playlist, etc.), que dispara la transición con
         // razón PLAYLIST_CHANGED y no la contaba el listener de arriba.
         statsRepo.incrementPlayCount(song.id)
+    }
+
+    // NUEVO: agrega canciones AL FINAL de la cola actual sin interrumpir lo que está
+    // sonando (a diferencia de playSong, no llama a setMediaItems ni prepare/play).
+    // Usado por el botón "+" de la pantalla de Cola dentro del reproductor a pantalla completa.
+    fun addToQueue(songs: List<Song>) {
+        val controller = mediaController ?: return
+        if (songs.isEmpty()) return
+        currentPlaylist = currentPlaylist + songs
+        controller.addMediaItems(songs.map { s -> buildMediaItem(s) })
+        refreshQueue(controller)
+    }
+
+    // NUEVO: recalcula el orden visible de la cola (_queue) a partir del Timeline
+    // real de Media3, recorriéndolo en el mismo orden en que ExoPlayer va a
+    // reproducirlo (respeta el shuffle activo). Guarda en paralelo el "window
+    // index" real de cada canción para poder reordenarla después con moveMediaItem.
+    private fun refreshQueue(controller: Player) {
+        val timeline = controller.currentTimeline
+        if (timeline.isEmpty) {
+            _queue.clear()
+            queueWindowIndices = emptyList()
+            return
+        }
+
+        val shuffled = controller.shuffleModeEnabled
+        val window = Timeline.Window()
+        val order = mutableListOf<Int>()
+        var idx = timeline.getFirstWindowIndex(shuffled)
+        while (idx != C.INDEX_UNSET) {
+            order.add(idx)
+            idx = timeline.getNextWindowIndex(idx, Player.REPEAT_MODE_OFF, shuffled)
+        }
+
+        val newQueue = order.map { windowIndex ->
+            val mediaId = timeline.getWindow(windowIndex, window).mediaItem.mediaId
+            currentPlaylist.find { it.id.toString() == mediaId } ?: buildSongFromMediaItem(window.mediaItem)
+        }
+
+        queueWindowIndices = order
+        _queue.clear()
+        _queue.addAll(newQueue)
+    }
+
+    // NUEVO: reordena la cola por arrastre (drag & drop) desde la pantalla de Cola.
+    // fromDisplayIndex/toDisplayIndex son posiciones dentro de la lista MOSTRADA en
+    // pantalla (_queue, que ya viene en orden de reproducción real incluyendo shuffle).
+    // Se traducen al "window index" real que Media3 necesita para moveMediaItem, así
+    // que la canción arrastrada pasa a sonar justo en su nueva posición, mezclada o no.
+    fun moveQueueItem(fromDisplayIndex: Int, toDisplayIndex: Int) {
+        val controller = mediaController ?: return
+        if (fromDisplayIndex == toDisplayIndex) return
+        if (fromDisplayIndex !in queueWindowIndices.indices || toDisplayIndex !in queueWindowIndices.indices) return
+
+        val fromWindow = queueWindowIndices[fromDisplayIndex]
+        val toWindow = queueWindowIndices[toDisplayIndex]
+        controller.moveMediaItem(fromWindow, toWindow)
+
+        // Reflejamos el cambio YA en la lista mostrada (optimista), sin esperar a que
+        // onTimelineChanged llegue de vuelta: así el drag se siente instantáneo. Igual
+        // refreshQueue() se termina llamando solo por el listener y corrige cualquier
+        // diferencia (por ejemplo, si el shuffle reacomoda algo más al reordenar).
+        val moved = _queue.removeAt(fromDisplayIndex)
+        _queue.add(toDisplayIndex, moved)
     }
 
     fun togglePlayPause() {

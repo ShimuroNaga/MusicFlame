@@ -951,7 +951,7 @@ fun SettingsScreen(
                     }
                     if (activeSection.value == "Especificaciones") {
                         item { sectionHeader("Sobre") }
-                        item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.11") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                        item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.1") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
 
                         // BOTÓN DE ACTUALIZACIONES (CARD)
                         item {

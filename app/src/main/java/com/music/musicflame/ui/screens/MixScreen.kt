@@ -12,12 +12,14 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.foundation.clickable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -39,6 +41,16 @@ import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+// --- ESTADÍSTICAS: fila combinada de canción + su estadística + si es favorita ---
+private data class SongStatRow(val song: Song, val stat: SongStat, val isFavorite: Boolean)
+
+private fun formatListenedTime(ms: Long): String {
+    val totalMinutes = ms / 60000L
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) "${hours}h ${minutes}min" else "${minutes}min"
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MixScreen(
@@ -58,6 +70,28 @@ fun MixScreen(
     val isGenerating = remember { mutableStateOf(false) }
     var canGenerate by remember { mutableStateOf(true) }
     val showSaveDialog = remember { mutableStateOf(false) }
+
+    // --- ESTADÍSTICAS: top 20 canciones más escuchadas, en vivo ---
+    val statsRows = remember { mutableStateListOf<SongStatRow>() }
+    val showStats = remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        val statsRepo = StatsRepository(context)
+        val favoritesRepo = FavoritesRepository(context)
+        // La lista de canciones del dispositivo no cambia a cada tick, así que la
+        // cargamos una sola vez y solo refrescamos estadísticas/favoritos en el loop.
+        val songsById = loadSongsFromDevice(context).associateBy { it.id }
+        while (true) {
+            val top = statsRepo.getTopPlayed(20)
+            val rows = top.mapNotNull { (id, stat) ->
+                val song = songsById[id] ?: return@mapNotNull null
+                SongStatRow(song = song, stat = stat, isFavorite = favoritesRepo.isFavorite(id))
+            }
+            statsRows.clear()
+            statsRows.addAll(rows)
+            delay(2000)
+        }
+    }
 
     val todayFormatted = remember { SimpleDateFormat("dd/MM/yyyy", Locale.getDefault()).format(Date()) }
     val isRounded = LocalUseRoundCorners.current
@@ -212,6 +246,121 @@ fun MixScreen(
                         isSelectionMode = isSelectionMode,
                         onToggleSelection = { onToggleSelection(song) }
                     )
+                }
+
+                // --- ESTADÍSTICAS: top 20 canciones más escuchadas, en vivo ---
+                item { Spacer(Modifier.height(8.dp)) }
+
+                item {
+                    val statsTextColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(headerRadius))
+                            .clickable { showStats.value = !showStats.value },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.secondaryContainer
+                        ),
+                        shape = RoundedCornerShape(headerRadius)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(Icons.Filled.BarChart, null, tint = statsTextColor)
+                            Spacer(Modifier.width(12.dp))
+                            Column(Modifier.weight(1f)) {
+                                Text("Estadísticas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = statsTextColor)
+                                val topSongLabel = statsRows.firstOrNull()?.song?.title
+                                Text(
+                                    if (topSongLabel != null) "Más escuchada: $topSongLabel" else "Top 20 canciones más escuchadas",
+                                    fontSize = 12.sp,
+                                    color = statsTextColor.copy(alpha = 0.8f)
+                                )
+                            }
+                            Icon(
+                                if (showStats.value) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                null,
+                                tint = statsTextColor
+                            )
+                        }
+                    }
+                }
+
+                if (showStats.value) {
+                    if (statsRows.isEmpty()) {
+                        item {
+                            Text(
+                                "Aún no hay estadísticas. ¡Reproduce alguna canción para empezar a registrar!",
+                                fontSize = 13.sp,
+                                color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                            )
+                        }
+                    } else {
+                        itemsIndexed(statsRows, key = { _, row -> "stat_${row.song.id}" }) { index, row ->
+                            val rowTextColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                                ),
+                                shape = RoundedCornerShape(itemRadius)
+                            ) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        "${index + 1}",
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = rowTextColor.copy(alpha = 0.6f),
+                                        modifier = Modifier.width(24.dp)
+                                    )
+                                    Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                                        Text(
+                                            row.song.title,
+                                            fontSize = 14.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = rowTextColor,
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                        Text(
+                                            row.song.artist,
+                                            fontSize = 12.sp,
+                                            color = rowTextColor.copy(alpha = 0.7f),
+                                            maxLines = 1,
+                                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                                        )
+                                    }
+                                    if (row.isFavorite) {
+                                        Icon(
+                                            Icons.Filled.Favorite,
+                                            contentDescription = "Favorita",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                        Spacer(Modifier.width(10.dp))
+                                    }
+                                    Column(horizontalAlignment = Alignment.End) {
+                                        Text(
+                                            "${row.stat.playCount}x",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = rowTextColor
+                                        )
+                                        Text(
+                                            formatListenedTime(row.stat.totalListenedMs),
+                                            fontSize = 11.sp,
+                                            color = rowTextColor.copy(alpha = 0.7f)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
 
                 // Espacio extra para que la lista no quede oculta detrás de los botones flotantes

@@ -30,6 +30,7 @@ import kotlinx.coroutines.launch
 class MusicPlayerManager(private val context: Context) {
 
     private var mediaController: MediaController? = null
+    private val statsRepo = StatsRepository(context)
 
     // --- MEMORIA INTERNA ---
     private var currentPlaylist = listOf<Song>()
@@ -115,6 +116,44 @@ class MusicPlayerManager(private val context: Context) {
         }
     }
 
+    // --- ESTADÍSTICAS ---
+    private var listenedAccumMs = 0L
+
+    private fun incrementPlayCountForCurrent(controller: Player) {
+        controller.currentMediaItem?.mediaId?.toLongOrNull()?.let { statsRepo.incrementPlayCount(it) }
+    }
+
+    // Vuelca a disco el tiempo acumulado (en memoria) escuchado de la canción actual.
+    // Se llama antes de cambiar de canción y al liberar el manager, para no perder
+    // los últimos segundos que todavía no se habían guardado.
+    private fun flushListenedTime() {
+        val song = _currentSong.value
+        if (song != null && listenedAccumMs > 0L) {
+            statsRepo.addListenedTime(song.id, listenedAccumMs)
+        }
+        listenedAccumMs = 0L
+    }
+
+    // Corre mientras el manager esté vivo: cada segundo, si hay música sonando, suma
+    // tiempo escuchado a la canción actual. Para no escribir a SharedPreferences cada
+    // segundo, solo se vuelca a disco cada 5 segundos acumulados (o al cambiar de
+    // canción / liberar el manager, vía flushListenedTime()).
+    private fun startStatsTicker() {
+        managerScope.launch {
+            while (isActive) {
+                delay(1000L)
+                val song = _currentSong.value
+                if (_isPlayingState.value && song != null) {
+                    listenedAccumMs += 1000L
+                    if (listenedAccumMs >= 5000L) {
+                        statsRepo.addListenedTime(song.id, listenedAccumMs)
+                        listenedAccumMs = 0L
+                    }
+                }
+            }
+        }
+    }
+
     val cycleIconRes: Int
         get() = when (_cycleMode.intValue) {
             0 -> R.drawable.ic_straight_arrow
@@ -164,6 +203,13 @@ class MusicPlayerManager(private val context: Context) {
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
                         handleSongEndedForSleepTimer()
                     }
+                    // ESTADÍSTICAS: solo contamos aquí el salto manual (SEEK, botón
+                    // siguiente/anterior). El avance automático y el loop de "repetir
+                    // una" se cuentan en onPositionDiscontinuity de abajo, para no
+                    // duplicar el conteo (ambos callbacks se disparan para esos casos).
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                        incrementPlayCountForCurrent(controller)
+                    }
                     lastIndex = currentIndex
 
                     syncCurrentSongState(controller)
@@ -179,7 +225,8 @@ class MusicPlayerManager(private val context: Context) {
                 // con razón REPEAT de forma confiable. onPositionDiscontinuity con razón
                 // AUTO_TRANSITION sí se dispara siempre que la canción termina y vuelve a
                 // empezar sola (incluyendo el loop de repetir-una), así que lo usamos como
-                // segunda vía para el sleep timer en modo "fin de canción actual".
+                // segunda vía para el sleep timer, y también como el lugar donde contamos
+                // las reproducciones que ocurren solas (avance automático o repetir-una).
                 override fun onPositionDiscontinuity(
                     oldPosition: Player.PositionInfo,
                     newPosition: Player.PositionInfo,
@@ -187,6 +234,7 @@ class MusicPlayerManager(private val context: Context) {
                 ) {
                     if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
                         handleSongEndedForSleepTimer()
+                        incrementPlayCountForCurrent(controller)
                     }
                 }
 
@@ -201,6 +249,8 @@ class MusicPlayerManager(private val context: Context) {
             })
 
         }, MoreExecutors.directExecutor())
+
+        startStatsTicker()
     }
 
     // NUEVO: Método que averigua el estado actual real de Media3 y actualiza el icono
@@ -223,11 +273,18 @@ class MusicPlayerManager(private val context: Context) {
     private fun syncCurrentSongState(controller: Player) {
         val mediaItem = controller.currentMediaItem
         if (mediaItem == null) {
+            flushListenedTime()
             _currentSong.value = null
             return
         }
 
         val mediaId = mediaItem.mediaId
+        // Si la canción cambió, volcamos a disco el tiempo acumulado de la anterior
+        // antes de perder la referencia (si es la misma canción -ej. solo se refrescan
+        // metadatos-, no hacemos nada acá).
+        if (_currentSong.value?.id?.toString() != mediaId) {
+            flushListenedTime()
+        }
         val songFromPlaylist = currentPlaylist.find { it.id.toString() == mediaId }
         _currentSong.value = songFromPlaylist ?: buildSongFromMediaItem(mediaItem)
     }
@@ -290,6 +347,10 @@ class MusicPlayerManager(private val context: Context) {
 
         val startIndex = songList.indexOf(song)
 
+        // Antes de arrancar la nueva canción, volcamos el tiempo escuchado que
+        // quedó pendiente de la que estaba sonando (si había alguna).
+        flushListenedTime()
+
         mediaController?.apply {
             val indexToPlay = if (startIndex >= 0) startIndex else 0
             playbackHistory.clear()
@@ -297,6 +358,11 @@ class MusicPlayerManager(private val context: Context) {
             prepare()
             play()
         }
+
+        // ESTADÍSTICAS: esto cubre la selección inicial/manual de una canción desde
+        // cualquier lista (Songs, Mix, Playlist, etc.), que dispara la transición con
+        // razón PLAYLIST_CHANGED y no la contaba el listener de arriba.
+        statsRepo.incrementPlayCount(song.id)
     }
 
     fun togglePlayPause() {
@@ -356,6 +422,7 @@ class MusicPlayerManager(private val context: Context) {
     fun seekTo(positionMs: Long) { mediaController?.seekTo(positionMs) }
     fun release() {
         cancelSleepTimer()
+        flushListenedTime()
         mediaController?.release()
         mediaController = null
     }

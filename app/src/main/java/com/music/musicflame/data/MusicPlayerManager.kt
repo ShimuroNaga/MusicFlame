@@ -7,6 +7,7 @@ import android.os.Bundle
 import androidx.annotation.OptIn
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -18,6 +19,12 @@ import androidx.media3.session.SessionCommand
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.MoreExecutors
 import com.music.musicflame.R
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 @OptIn(UnstableApi::class)
 class MusicPlayerManager(private val context: Context) {
@@ -42,6 +49,71 @@ class MusicPlayerManager(private val context: Context) {
     // MediaController no expone esta propiedad directo, se pide vía comando personalizado.
     private val _audioSessionId = mutableIntStateOf(0)
     val audioSessionId: State<Int> = _audioSessionId
+
+    // --- SLEEP TIMER ---
+    private val managerScope = CoroutineScope(Dispatchers.Main)
+    private var sleepTimerJob: Job? = null
+
+    // Modo "fin de canción actual": no hay cuenta regresiva, se pausa en el próximo
+    // onMediaItemTransition disparado por avance automático (fin de la canción).
+    private var sleepTimerEndOfSong = false
+
+    private val _sleepTimerActive = mutableStateOf(false)
+    val sleepTimerActive: State<Boolean> = _sleepTimerActive
+
+    private val _sleepTimerRemainingMs = mutableLongStateOf(0L)
+    val sleepTimerRemainingMs: State<Long> = _sleepTimerRemainingMs
+
+    private val _sleepTimerEndOfSongState = mutableStateOf(false)
+    val sleepTimerEndOfSongActive: State<Boolean> = _sleepTimerEndOfSongState
+
+    /** Arranca el temporizador de apagado con una duración fija en minutos. */
+    fun startSleepTimer(minutes: Int) {
+        cancelSleepTimer()
+        sleepTimerEndOfSong = false
+        _sleepTimerEndOfSongState.value = false
+        _sleepTimerActive.value = true
+        _sleepTimerRemainingMs.longValue = minutes * 60_000L
+
+        sleepTimerJob = managerScope.launch {
+            while (isActive && _sleepTimerRemainingMs.longValue > 0) {
+                delay(1000L)
+                _sleepTimerRemainingMs.longValue = (_sleepTimerRemainingMs.longValue - 1000L).coerceAtLeast(0L)
+            }
+            if (isActive) {
+                pause()
+                _sleepTimerActive.value = false
+            }
+        }
+    }
+
+    /** Arranca el temporizador en modo "pausar al terminar la canción actual". */
+    fun startSleepTimerEndOfSong() {
+        cancelSleepTimer()
+        sleepTimerEndOfSong = true
+        _sleepTimerEndOfSongState.value = true
+        _sleepTimerActive.value = true
+        _sleepTimerRemainingMs.longValue = 0L
+    }
+
+    fun cancelSleepTimer() {
+        sleepTimerJob?.cancel()
+        sleepTimerJob = null
+        sleepTimerEndOfSong = false
+        _sleepTimerEndOfSongState.value = false
+        _sleepTimerActive.value = false
+        _sleepTimerRemainingMs.longValue = 0L
+    }
+
+    // Se llama desde el listener de onMediaItemTransition ya existente cuando la canción
+    // cambia por avance automático (o sea, terminó sola). Si el modo "fin de canción" está
+    // activo, pausamos y apagamos el temporizador.
+    private fun handleSongEndedForSleepTimer() {
+        if (sleepTimerEndOfSong) {
+            pause()
+            cancelSleepTimer()
+        }
+    }
 
     val cycleIconRes: Int
         get() = when (_cycleMode.intValue) {
@@ -84,6 +156,14 @@ class MusicPlayerManager(private val context: Context) {
                             playbackHistory.add(lastIndex)
                         }
                     }
+                    // La canción anterior terminó sola, ya sea avanzando a la siguiente
+                    // (AUTO) o repitiéndose a sí misma con "repetir una" activo (REPEAT).
+                    // En ambos casos, si el sleep timer está en modo "fin de canción
+                    // actual", pausamos aquí; si no, el modo repetir-una la dejaba sonar
+                    // para siempre sin que el timer se enterara.
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                        handleSongEndedForSleepTimer()
+                    }
                     lastIndex = currentIndex
 
                     syncCurrentSongState(controller)
@@ -92,6 +172,22 @@ class MusicPlayerManager(private val context: Context) {
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     _isPlayingState.value = isPlaying
+                }
+
+                // RESPALDO: en algunos dispositivos/versiones de Media3, cuando "repetir una
+                // canción" está activo, el MediaController no reenvía onMediaItemTransition
+                // con razón REPEAT de forma confiable. onPositionDiscontinuity con razón
+                // AUTO_TRANSITION sí se dispara siempre que la canción termina y vuelve a
+                // empezar sola (incluyendo el loop de repetir-una), así que lo usamos como
+                // segunda vía para el sleep timer en modo "fin de canción actual".
+                override fun onPositionDiscontinuity(
+                    oldPosition: Player.PositionInfo,
+                    newPosition: Player.PositionInfo,
+                    reason: Int
+                ) {
+                    if (reason == Player.DISCONTINUITY_REASON_AUTO_TRANSITION) {
+                        handleSongEndedForSleepTimer()
+                    }
                 }
 
                 // NUEVO: Escuchamos cambios desde la notificación para actualizar la UI en vivo
@@ -258,7 +354,11 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     fun seekTo(positionMs: Long) { mediaController?.seekTo(positionMs) }
-    fun release() { mediaController?.release(); mediaController = null }
+    fun release() {
+        cancelSleepTimer()
+        mediaController?.release()
+        mediaController = null
+    }
 
     val isPlaying: Boolean get() = mediaController?.isPlaying == true
     val isShuffleEnabled: Boolean get() = mediaController?.shuffleModeEnabled == true

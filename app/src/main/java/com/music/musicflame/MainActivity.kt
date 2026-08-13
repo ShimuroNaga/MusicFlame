@@ -862,6 +862,7 @@ class MainActivity : ComponentActivity() {
                             if (showSettings) {
                                 SettingsScreen(
                                     modifier = Modifier.padding(innerPadding),
+                                    playerManager = playerManager,
                                     onBackgroundImageChanged = {
                                         backgroundImageUri.value = settingsRepo.getBackgroundImageUri()
                                         playerGifUri.value = settingsRepo.getPlayerGifUri()

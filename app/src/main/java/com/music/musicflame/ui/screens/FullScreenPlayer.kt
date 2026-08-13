@@ -5,8 +5,13 @@ import android.content.Context
 import android.content.pm.PackageManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -182,6 +187,11 @@ fun FullScreenPlayer(
     }
 
     var showLyrics by remember { mutableStateOf(false) }
+    // NUEVO: pantalla de Cola editable — solo existe/se abre desde el reproductor
+    // a pantalla completa. Vive como overlay independiente (igual que la
+    // verificación de YouTube más abajo) para no interferir con el gesto de
+    // swipe que ya usa esta pantalla para mostrar la letra.
+    var showQueueScreen by remember { mutableStateOf(false) }
     val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
     val lyricsRepoRef = remember { com.music.musicflame.data.LyricsRepository(context) }
     val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
@@ -226,19 +236,38 @@ fun FullScreenPlayer(
             // 3 botones) abajo, en cualquier celular. Va primero para que sea lo único
             // que separa el contenido de los bordes reales del sistema.
             .safeScreenPadding()
-            // --- LYRICS: deslizar la PANTALLA (no la carátula) hacia la derecha muestra
-            // la letra sincronizada de la canción actual; deslizar a la izquierda vuelve.
+            // --- LETRA Y COLA: cada una se controla con SU PROPIO lado, y ese mismo lado
+            // sirve tanto para entrar como para salir (toggle), sin mezclarlos:
+            //   - Swipe IZQUIERDA: entra y sale de la Letra.
+            //   - Swipe DERECHA: entra y sale de la Cola.
+            // Se desactiva por completo mientras la verificación de YouTube está abierta
+            // (esa pantalla necesita todos los gestos para su propio WebView).
             // Al vivir en el contenedor exterior (padre del HorizontalPager de carátulas y
-            // del Slider), cualquier drag que empiece sobre esos controles lo consumen ellos
-            // primero y este gesto no se activa ahí; solo reacciona en el resto de la pantalla.
-            .pointerInput(Unit) {
+            // del Slider, y también padre del overlay de la Cola), cualquier drag que
+            // empiece sobre esos controles lo consumen ellos primero y este gesto no se
+            // activa ahí; solo reacciona en el resto de la pantalla.
+            .pointerInput(showYoutubeVerify) {
+                if (showYoutubeVerify) return@pointerInput
                 var totalDrag = 0f
                 detectHorizontalDragGestures(
                     onDragStart = { totalDrag = 0f },
                     onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
                     onDragEnd = {
-                        if (!showLyrics && totalDrag < -120f) showLyrics = true
-                        else if (showLyrics && totalDrag > 120f) showLyrics = false
+                        when {
+                            showQueueScreen -> {
+                                // Ya estamos en la Cola: swipe derecha vuelve a la vista normal.
+                                if (totalDrag > 120f) showQueueScreen = false
+                            }
+                            showLyrics -> {
+                                // Ya estamos en la Letra: swipe izquierda vuelve a la vista normal.
+                                if (totalDrag < -120f) showLyrics = false
+                            }
+                            else -> {
+                                // Vista normal: izquierda abre Letra, derecha abre Cola.
+                                if (totalDrag < -120f) showLyrics = true
+                                else if (totalDrag > 120f) showQueueScreen = true
+                            }
+                        }
                         totalDrag = 0f
                     },
                     onDragCancel = { totalDrag = 0f }
@@ -348,6 +377,19 @@ fun FullScreenPlayer(
                                 fontWeight = FontWeight.Medium,
                                 fontSize = 14.sp,
                                 color = adaptiveContentColor
+                            )
+                        }
+
+                        // NUEVO: botón de Cola — único punto de entrada a QueueScreen.
+                        // "Queue" solo existe dentro del reproductor a pantalla completa.
+                        IconButton(
+                            onClick = { showQueueScreen = true },
+                            modifier = Modifier.align(Alignment.CenterEnd).offset(x = 12.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.QueueMusic,
+                                contentDescription = "Cola de reproducción",
+                                tint = adaptiveContentColor
                             )
                         }
                     }
@@ -580,6 +622,35 @@ fun FullScreenPlayer(
 
                     Spacer(modifier = Modifier.height(16.dp))
                 }
+            }
+        }
+
+        // Misma animación que la Letra (slide + fade, 280ms): entra deslizando desde la
+        // derecha -tal como se abre, con swipe derecha- y sale deslizando hacia la derecha.
+        AnimatedVisibility(
+            visible = showQueueScreen,
+            enter = slideInHorizontally(tween(280)) { it } + fadeIn(tween(280)),
+            exit = slideOutHorizontally(tween(280)) { it } + fadeOut(tween(280))
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(bgColor)
+                    .safeScreenPadding()
+                    // Escudo: igual que el resto de la pantalla, no deja pasar toques
+                    // hacia lo que esté detrás (mini-reproductor, lista, etc.)
+                    .pointerInput(Unit) { detectTapGestures { } }
+            ) {
+                QueueScreen(
+                    playerManager = playerManager,
+                    currentSong = song,
+                    adaptiveContentColor = adaptiveContentColor,
+                    hasBackgroundImage = hasBackgroundImage,
+                    onClose = { showQueueScreen = false },
+                    onSongClick = { clickedSong ->
+                        playerManager.playSong(clickedSong, playerManager.queue)
+                    }
+                )
             }
         }
 

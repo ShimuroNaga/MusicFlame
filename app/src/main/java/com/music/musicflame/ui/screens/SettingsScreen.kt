@@ -47,6 +47,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -163,13 +164,15 @@ fun SettingsScreen(
     onRefreshUserProfile: () -> Unit = { /* Lógica opcional para re-sincronizar la sesión */ },
     isDriveLinked: Boolean = false,
     onLinkDriveClick: () -> Unit = { /* Lógica para pedir el scope de Google Drive */ },
-    onCheckForUpdates: () -> Unit
+    onCheckForUpdates: () -> Unit,
+    playerManager: com.music.musicflame.data.MusicPlayerManager
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
     val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
 
     val showDurationFilterDialog = remember { mutableStateOf(false) }
+    val showSleepTimerDialog = remember { mutableStateOf(false) }
     val showThemeDialog = remember { mutableStateOf(false) }
     val showEqualizerDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
@@ -812,6 +815,43 @@ fun SettingsScreen(
                             HorizontalDivider(color = dividerColor)
                         }
 
+                        item {
+                            val sleepActive by playerManager.sleepTimerActive
+                            val sleepEndOfSong by playerManager.sleepTimerEndOfSongActive
+                            val sleepRemainingMs by playerManager.sleepTimerRemainingMs
+
+                            ListItem(
+                                headlineContent = { Text("Temporizador de apagado") },
+                                supportingContent = {
+                                    Text(
+                                        when {
+                                            sleepEndOfSong -> "Se pausará al terminar la canción actual"
+                                            sleepActive -> {
+                                                val totalSeconds = (sleepRemainingMs / 1000L).coerceAtLeast(0L)
+                                                val mm = totalSeconds / 60
+                                                val ss = totalSeconds % 60
+                                                "Pausando en %02d:%02d".format(mm, ss)
+                                            }
+                                            else -> "Pausa la reproducción automáticamente"
+                                        }
+                                    )
+                                },
+                                trailingContent = {
+                                    if (sleepActive) {
+                                        TextButton(onClick = { playerManager.cancelSleepTimer() }) {
+                                            Text("Cancelar", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.error)
+                                        }
+                                    } else {
+                                        TextButton(onClick = { showSleepTimerDialog.value = true }) {
+                                            Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        }
+                                    }
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
                         item { sectionHeader("Reproducción") }
 
                         item {
@@ -911,7 +951,7 @@ fun SettingsScreen(
                     }
                     if (activeSection.value == "Especificaciones") {
                         item { sectionHeader("Sobre") }
-                        item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.1") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                        item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.11") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
 
                         // BOTÓN DE ACTUALIZACIONES (CARD)
                         item {
@@ -1201,6 +1241,18 @@ fun SettingsScreen(
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                     )
+                                    Spacer(Modifier.height(4.dp))
+                                    Text(
+                                        "Obtener letra sincronizada (LRC) manualmente: lrclib.net",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer,
+                                        textDecoration = androidx.compose.ui.text.style.TextDecoration.Underline,
+                                        modifier = Modifier.clickable {
+                                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://lrclib.net"))
+                                            context.startActivity(intent)
+                                        }
+                                    )
                                 }
                             }
                         }
@@ -1302,6 +1354,56 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showSleepTimerDialog.value) {
+            val customMinutes = remember { mutableStateOf("") }
+            AlertDialog(
+                onDismissRequest = { showSleepTimerDialog.value = false },
+                title = { Text("Temporizador de apagado", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        listOf(15, 30, 45, 60, 90).forEach { minutes ->
+                            TextButton(
+                                onClick = {
+                                    playerManager.startSleepTimer(minutes)
+                                    showSleepTimerDialog.value = false
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text("$minutes minutos", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
+                            }
+                        }
+                        TextButton(
+                            onClick = {
+                                playerManager.startSleepTimerEndOfSong()
+                                showSleepTimerDialog.value = false
+                            },
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text("Al terminar la canción actual", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
+                        }
+                        Spacer(Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = customMinutes.value,
+                            onValueChange = { customMinutes.value = it.filter { c -> c.isDigit() } },
+                            label = { Text("Minutos personalizados") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        val minutes = customMinutes.value.toIntOrNull()
+                        if (minutes != null && minutes > 0) {
+                            playerManager.startSleepTimer(minutes)
+                        }
+                        showSleepTimerDialog.value = false
+                    }) { Text("Iniciar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showSleepTimerDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

@@ -19,6 +19,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.session.CommandButton
+import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
 import androidx.media3.session.MediaSessionService
 import androidx.media3.session.SessionCommand
@@ -297,7 +298,11 @@ class MusicPlaybackService : MediaSessionService() {
             }
 
             if (layoutNeedsUpdate) {
-                session.setCustomLayout(controller, getCustomLayout())
+                // Antes esto se llamaba dos veces seguidas (una por controller y otra global),
+                // lo que disparaba dos actualizaciones de notificación casi simultáneas y
+                // provocaba que el sistema "pisara" un render con el otro, dejando botones
+                // trabados o superpuestos. Con una sola llamada global es suficiente: se
+                // propaga a todos los controllers conectados (incluida la notificación).
                 session.setCustomLayout(getCustomLayout())
             }
 
@@ -306,12 +311,25 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     private fun getCustomLayout(): ImmutableList<CommandButton> {
+        // NOTA IMPORTANTE sobre el bug de botones "comidos"/trabados en la notificación:
+        // Con 2 botones custom + los 3 nativos (anterior/play-pausa/siguiente) llegamos a 5
+        // acciones, el máximo que soporta MediaStyle. Sin decirle explícitamente a Media3
+        // cuál va en la vista compacta, su selección automática es inestable en esta versión
+        // de la librería (se reordena/pisa en cada refresco de ícono), causando que los
+        // botones se vean superpuestos o dejen de responder. Al fijar
+        // COMMAND_KEY_COMPACT_VIEW_INDEX explícitamente, la vista compacta queda estable:
+        // solo el botón de Favorito se promueve ahí, y el cíclico queda en la vista expandida.
+        val favoriteExtras = Bundle().apply {
+            putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, 0)
+        }
+
         // 1. Botón Favorito (Corazón)
         val favoriteIcon = if (isCurrentSongFavorite) R.drawable.ic_favorite_on else R.drawable.ic_favorite_off
         val favoriteButton = CommandButton.Builder()
             .setDisplayName("Favorito")
             .setSessionCommand(SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY))
             .setIconResId(favoriteIcon)
+            .setExtras(favoriteExtras)
             .build()
 
         // 2. Botón Cíclico Único (Calculamos el estado actual)

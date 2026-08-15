@@ -35,8 +35,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Checklist
+import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Sort
 import androidx.compose.material3.AlertDialog
@@ -79,7 +81,11 @@ import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.data.FavoritesRepository
 import com.music.musicflame.data.Playlist
+import com.music.musicflame.data.PlaylistKind
 import com.music.musicflame.data.PlaylistRepository
+import com.music.musicflame.data.SmartPlaylistIds
+import com.music.musicflame.data.buildMostPlayedPlaylist
+import com.music.musicflame.data.buildNeverPlayedPlaylist
 import com.music.musicflame.data.loadSongsFromDevice
 import com.music.musicflame.ui.components.AlbumArt
 import com.music.musicflame.ui.theme.LocalAppTextColor
@@ -103,7 +109,7 @@ fun formatPlaylistDuration(ms: Long): String {
 @Composable
 fun PlaylistsScreen(
     modifier: Modifier = Modifier,
-    onPlaylistClick: (Playlist, Boolean) -> Unit = { _, _ -> },
+    onPlaylistClick: (Playlist, PlaylistKind) -> Unit = { _, _ -> },
     onImportClick: () -> Unit = {},
     onChangeCoverClick: (String) -> Unit = {},
     hasBackgroundImage: Boolean = false,
@@ -128,6 +134,9 @@ fun PlaylistsScreen(
     val sortType = remember { mutableStateOf(PlaylistSortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
     val favoriteCount = remember { mutableStateOf(0) }
+    // --- Playlists inteligentes: se recalculan al entrar y en cada "pull to refresh" ---
+    val mostPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.MOST_PLAYED, "Lo Más Sonado", emptyList(), isDefault = true)) }
+    val neverPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.NEVER_PLAYED, "Por Descubrir", emptyList(), isDefault = true)) }
 
     val isRounded = LocalUseRoundCorners.current
     val fabRadius = if (isRounded) 16.dp else 0.dp
@@ -173,6 +182,8 @@ fun PlaylistsScreen(
         playlists.clear()
         playlists.addAll(playlistRepo.getPlaylists())
         favoriteCount.value = favoritesRepo.getAllFavoriteIds().size
+        mostPlayedPlaylist.value = buildMostPlayedPlaylist(context)
+        neverPlayedPlaylist.value = buildNeverPlayedPlaylist(context)
         displayPlaylists.clear()
         displayPlaylists.addAll(playlists)
     }
@@ -219,6 +230,8 @@ fun PlaylistsScreen(
                         playlists.clear()
                         playlists.addAll(playlistRepo.getPlaylists())
                         favoriteCount.value = favoritesRepo.getAllFavoriteIds().size
+                        mostPlayedPlaylist.value = buildMostPlayedPlaylist(context)
+                        neverPlayedPlaylist.value = buildNeverPlayedPlaylist(context)
                         displayPlaylists.clear()
                         displayPlaylists.addAll(
                             when (sortType.value) {
@@ -256,14 +269,42 @@ fun PlaylistsScreen(
                         PlaylistCard(
                             playlist = favoritesPlaylist,
                             songCount = favoriteCount.value,
-                            isFavorites = true,
-                            onPlaylistClick = { onPlaylistClick(it, true) },
+                            kind = PlaylistKind.FAVORITES,
+                            onPlaylistClick = { onPlaylistClick(it, PlaylistKind.FAVORITES) },
                             onChangeCoverClick = { onChangeCoverClick("favorites") },
                             onResetCoverClick = { favoritesRepo.saveCoverUri("") },
                             hasBackgroundImage = hasBackgroundImage,
                             isSelected = selectedPlaylists.contains(favoritesPlaylist),
                             isSelectionMode = isSelectionMode,
                             onToggleSelection = { onToggleSelection(favoritesPlaylist) }
+                        )
+                    }
+
+                    item {
+                        PlaylistCard(
+                            playlist = mostPlayedPlaylist.value,
+                            songCount = mostPlayedPlaylist.value.songIds.size,
+                            kind = PlaylistKind.MOST_PLAYED,
+                            onPlaylistClick = { onPlaylistClick(it, PlaylistKind.MOST_PLAYED) },
+                            onChangeCoverClick = {},
+                            hasBackgroundImage = hasBackgroundImage,
+                            isSelected = selectedPlaylists.contains(mostPlayedPlaylist.value),
+                            isSelectionMode = isSelectionMode,
+                            onToggleSelection = { onToggleSelection(mostPlayedPlaylist.value) }
+                        )
+                    }
+
+                    item {
+                        PlaylistCard(
+                            playlist = neverPlayedPlaylist.value,
+                            songCount = neverPlayedPlaylist.value.songIds.size,
+                            kind = PlaylistKind.NEVER_PLAYED,
+                            onPlaylistClick = { onPlaylistClick(it, PlaylistKind.NEVER_PLAYED) },
+                            onChangeCoverClick = {},
+                            hasBackgroundImage = hasBackgroundImage,
+                            isSelected = selectedPlaylists.contains(neverPlayedPlaylist.value),
+                            isSelectionMode = isSelectionMode,
+                            onToggleSelection = { onToggleSelection(neverPlayedPlaylist.value) }
                         )
                     }
 
@@ -302,8 +343,8 @@ fun PlaylistsScreen(
                             PlaylistCard(
                                 playlist = playlist,
                                 songCount = playlist.songIds.size,
-                                isFavorites = false,
-                                onPlaylistClick = { onPlaylistClick(it, false) },
+                                kind = PlaylistKind.REGULAR,
+                                onPlaylistClick = { onPlaylistClick(it, PlaylistKind.REGULAR) },
                                 onChangeCoverClick = onChangeCoverClick,
                                 onResetCoverClick = { playlistRepo.updatePlaylistCover(it, "") },
                                 hasBackgroundImage = hasBackgroundImage,
@@ -461,7 +502,7 @@ fun PlaylistsScreen(
 fun PlaylistCard(
     playlist: Playlist,
     songCount: Int,
-    isFavorites: Boolean,
+    kind: PlaylistKind,
     onPlaylistClick: (Playlist) -> Unit,
     onChangeCoverClick: (String) -> Unit,
     onResetCoverClick: (String) -> Unit = {},
@@ -473,6 +514,9 @@ fun PlaylistCard(
     val context = LocalContext.current
     val playlistRepo = remember { PlaylistRepository(context) }
     val showCoverDialog = remember { mutableStateOf(false) }
+    // Las playlists inteligentes no tienen carátula personalizable: su ícono
+    // (fuego / brújula) es fijo, igual que el corazón de Favoritos.
+    val coverIsEditable = kind == PlaylistKind.REGULAR || kind == PlaylistKind.FAVORITES
 
     val totalDurationFormatted = remember(playlist.songIds) {
         val allSongs = loadSongsFromDevice(context)
@@ -489,11 +533,17 @@ fun PlaylistCard(
     val dialogRadius = if (isRounded) 28.dp else 0.dp
 
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
-    // Rojo vino fijo para Favoritos (no depende de Material You dinámico)
+    // Rojo vino fijo para Favoritos (no depende de Material You dinámico).
+    // Naranja/fuego para "Lo Más Sonado" (a tono con el nombre "MusicFlame") y
+    // un azul/teal para "Por Descubrir" (sensación de exploración).
     val favoritesWineRed = Color(0xFF6D1B2A)
+    val mostPlayedFlameOrange = Color(0xFF9A4B0C)
+    val neverPlayedDiscoveryTeal = Color(0xFF14555C)
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
-        isFavorites -> if (hasBackgroundImage) favoritesWineRed.copy(alpha = 0.7f) else favoritesWineRed
+        kind == PlaylistKind.FAVORITES -> if (hasBackgroundImage) favoritesWineRed.copy(alpha = 0.7f) else favoritesWineRed
+        kind == PlaylistKind.MOST_PLAYED -> if (hasBackgroundImage) mostPlayedFlameOrange.copy(alpha = 0.7f) else mostPlayedFlameOrange
+        kind == PlaylistKind.NEVER_PLAYED -> if (hasBackgroundImage) neverPlayedDiscoveryTeal.copy(alpha = 0.7f) else neverPlayedDiscoveryTeal
         else -> if (hasBackgroundImage) {
             // Si el tema es claro, la tarjeta es blanca; si es oscuro, negra.
             if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
@@ -538,17 +588,25 @@ fun PlaylistCard(
                         .clip(RoundedCornerShape(albumRadius))
                         .combinedClickable(
                             onClick = { },
-                            onLongClick = { if (!isSelectionMode) showCoverDialog.value = true }
+                            onLongClick = { if (!isSelectionMode && coverIsEditable) showCoverDialog.value = true }
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isFavorites && playlist.customCoverUri == null) {
+                    if (kind == PlaylistKind.FAVORITES && playlist.customCoverUri == null) {
                         // La tarjeta de Favoritos es vino fijo, no dinámica. Usamos onSurface
                         // (el tono de texto estándar de Material You que usa el resto de la app)
                         // en vez de onTertiaryContainer, que sacaba un matiz raro (verde) del wallpaper.
                         val favoritesIconTint = Color.White
                         Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
                             Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = favoritesIconTint)
+                        }
+                    } else if (kind == PlaylistKind.MOST_PLAYED) {
+                        Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                            Icon(imageVector = Icons.Filled.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
+                        }
+                    } else if (kind == PlaylistKind.NEVER_PLAYED) {
+                        Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                            Icon(imageVector = Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
                         }
                     } else if (playlist.customCoverUri != null) {
                         AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
@@ -573,18 +631,18 @@ fun PlaylistCard(
                     text = playlist.name,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (isFavorites) favoritesTextColor else LocalAppTextColor.current
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (kind != PlaylistKind.REGULAR) favoritesTextColor else LocalAppTextColor.current
                 )
                 Text(
                     text = "$songCount ${if (songCount == 1) "canción" else "canciones"} • $totalDurationFormatted",
                     fontSize = 13.sp,
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (isFavorites) favoritesTextColor.copy(alpha = 0.85f) else LocalAppTextColor.current.copy(alpha = 0.7f)
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (kind != PlaylistKind.REGULAR) favoritesTextColor.copy(alpha = 0.85f) else LocalAppTextColor.current.copy(alpha = 0.7f)
                 )
             }
         }
     }
 
-    if (showCoverDialog.value) {
+    if (showCoverDialog.value && coverIsEditable) {
         AlertDialog(
             shape = RoundedCornerShape(dialogRadius),
             onDismissRequest = { showCoverDialog.value = false },

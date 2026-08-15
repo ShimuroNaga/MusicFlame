@@ -15,6 +15,54 @@ data class Playlist(
     val customCoverUri: String? = null
 )
 
+/**
+ * Distingue de qué "tipo" es una playlist para la UI y navegación:
+ * - REGULAR: una playlist normal, creada a mano por el usuario (vive en PlaylistRepository).
+ * - FAVORITES: la playlist virtual de Favoritos (vive en FavoritesRepository).
+ * - MOST_PLAYED / NEVER_PLAYED: "playlists inteligentes", no se guardan en ningún lado;
+ *   se recalculan cada vez a partir de StatsRepository + la biblioteca actual.
+ */
+enum class PlaylistKind { REGULAR, FAVORITES, MOST_PLAYED, NEVER_PLAYED }
+
+/** IDs fijos (no cambian) que identifican a cada playlist inteligente en la UI. */
+object SmartPlaylistIds {
+    const val MOST_PLAYED = "smart_most_played"
+    const val NEVER_PLAYED = "smart_never_played"
+}
+
+private const val MOST_PLAYED_LIMIT = 30
+
+/**
+ * "Lo Más Sonado": las canciones con más reproducciones reales (StatsRepository),
+ * limitadas a las que siguen existiendo en el dispositivo. No se guarda songIds en
+ * ningún lado: se recalcula cada vez que se pide, así que se mantiene sola sin que
+ * el usuario tenga que arrastrar canciones a mano.
+ */
+fun buildMostPlayedPlaylist(context: Context): Playlist {
+    val statsRepo = StatsRepository(context)
+    val libraryIds = loadSongsFromDevice(context).map { it.id }.toSet()
+    val topIds = statsRepo.getTopPlayed(MOST_PLAYED_LIMIT)
+        .filter { (id, stat) -> stat.playCount > 0 && id in libraryIds }
+        .map { it.first }
+    return Playlist(id = SmartPlaylistIds.MOST_PLAYED, name = "Lo Más Sonado", songIds = topIds, isDefault = true)
+}
+
+/**
+ * "Por Descubrir": canciones de la biblioteca que nunca se han reproducido
+ * (sin registro en StatsRepository, o con playCount 0), ordenadas por fecha de
+ * agregado (las más nuevas primero). También se recalcula cada vez, nunca hay
+ * que agregar canciones a mano.
+ */
+fun buildNeverPlayedPlaylist(context: Context): Playlist {
+    val statsRepo = StatsRepository(context)
+    val playedIds = statsRepo.getAllStats().filterValues { it.playCount > 0 }.keys
+    val neverPlayedIds = loadSongsFromDevice(context)
+        .filter { it.id !in playedIds }
+        .sortedByDescending { it.dateAdded }
+        .map { it.id }
+    return Playlist(id = SmartPlaylistIds.NEVER_PLAYED, name = "Por Descubrir", songIds = neverPlayedIds, isDefault = true)
+}
+
 class PlaylistRepository(context: Context) {
     private val prefs = context.getSharedPreferences("playlists", Context.MODE_PRIVATE)
 

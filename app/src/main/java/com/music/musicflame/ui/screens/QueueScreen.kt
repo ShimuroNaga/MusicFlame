@@ -10,7 +10,8 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
+import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
@@ -42,6 +43,11 @@ import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.loadSongsFromDevice
 import com.music.musicflame.ui.components.AlbumArt
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 
 // --- Motor de arrastre/reordenamiento de la lista ---
 // Patrón estándar para reorder con LazyColumn en Compose (no hay soporte nativo):
@@ -52,6 +58,7 @@ import com.music.musicflame.ui.components.AlbumArt
 // empezar desde el propio icono de "3 puntitos".
 private class QueueDragState(
     private val listState: LazyListState,
+    private val scope: CoroutineScope,
     private val onMove: (from: Int, to: Int) -> Unit,
     private val onSwap: () -> Unit = {}
 ) {
@@ -59,6 +66,7 @@ private class QueueDragState(
         private set
     private var draggedDistance by mutableStateOf(0f)
     private var draggingItemInitialOffset by mutableStateOf(0)
+    private var autoScrollJob: Job? = null
 
     private val draggingItemLayoutInfo
         get() = listState.layoutInfo.visibleItemsInfo.firstOrNull { it.index == draggingItemIndex }
@@ -75,6 +83,8 @@ private class QueueDragState(
         draggedDistance = 0f
     }
 
+    // El item sigue al dedo 1:1 (sin animación de por medio, se mueve exactamente
+    // lo que se mueve el dedo): así se siente "libre" en vez de tironeado.
     fun onDrag(delta: Offset) {
         draggedDistance += delta.y
         val draggingItem = draggingItemLayoutInfo ?: return
@@ -91,13 +101,68 @@ private class QueueDragState(
             draggingItemIndex = targetItem.index
             onSwap()
         }
+
+        checkForAutoScroll()
+    }
+
+    // --- Auto-scroll: si arrastro el item hasta cerca del borde superior/inferior
+    // visible de la lista, esta se desplaza sola mientras siga ahí, como en
+    // Spotify/YT Music. Antes, al llegar al borde, el arrastre simplemente se
+    // "topaba" y no dejaba seguir moviendo la canción (sensación de "duro").
+    private fun checkForAutoScroll() {
+        val draggingItem = draggingItemLayoutInfo
+        if (draggingItem == null) {
+            autoScrollJob?.cancel()
+            return
+        }
+        val startOffset = draggingItem.offset + draggingItemOffset
+        val endOffset = startOffset + draggingItem.size
+        val viewportStart = listState.layoutInfo.viewportStartOffset
+        val viewportEnd = listState.layoutInfo.viewportEndOffset
+        val edgeZone = 100f
+
+        val speed = when {
+            startOffset < viewportStart + edgeZone -> -18f
+            endOffset > viewportEnd - edgeZone -> 18f
+            else -> 0f
+        }
+
+        if (speed == 0f) {
+            autoScrollJob?.cancel()
+            return
+        }
+
+        if (autoScrollJob?.isActive == true) return
+
+        autoScrollJob = scope.launch {
+            while (isActive) {
+                val item = draggingItemLayoutInfo ?: break
+                val s = item.offset + draggingItemOffset
+                val e = s + item.size
+                val vs = listState.layoutInfo.viewportStartOffset
+                val ve = listState.layoutInfo.viewportEndOffset
+                val currentSpeed = when {
+                    s < vs + edgeZone -> -18f
+                    e > ve - edgeZone -> 18f
+                    else -> 0f
+                }
+                if (currentSpeed == 0f) break
+                val consumed = listState.scrollBy(currentSpeed)
+                // Compensa el scroll para que el item se mantenga "pegado" al dedo.
+                draggedDistance += consumed
+                delay(16)
+            }
+        }
     }
 
     fun onDragEnd() {
+        autoScrollJob?.cancel()
         draggingItemIndex = null
         draggedDistance = 0f
         draggingItemInitialOffset = 0
     }
+
+    fun onDragCancel() = onDragEnd()
 }
 
 @Composable
@@ -105,7 +170,10 @@ private fun rememberQueueDragState(
     listState: LazyListState,
     onMove: (from: Int, to: Int) -> Unit,
     onSwap: () -> Unit = {}
-) = remember(listState) { QueueDragState(listState, onMove, onSwap) }
+): QueueDragState {
+    val scope = rememberCoroutineScope()
+    return remember(listState) { QueueDragState(listState, scope, onMove, onSwap) }
+}
 
 // Botón cuadrado flotante, mismo estilo que el usado en SongScreen para la barra inferior.
 @Composable
@@ -257,19 +325,21 @@ fun QueueScreen(
                         // para que suba/baje suavemente en vez de aparecer de golpe.
                         val density = LocalDensity.current
                         val elevationPx by animateFloatAsState(
-                            targetValue = with(density) { (if (isBeingDragged) 10.dp else 0.dp).toPx() },
+                            targetValue = with(density) { (if (isBeingDragged) 12.dp else 0.dp).toPx() },
                             animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioNoBouncy,
-                                stiffness = Spring.StiffnessMedium
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessHigh
                             ),
                             label = "queueItemElevation"
                         )
                         // Pequeño "pop" de escala al levantar el item, como en Spotify/YT Music.
+                        // StiffnessHigh para que reaccione casi al instante al tocar (nada de
+                        // demora perceptible, que era parte de la sensación de "duro").
                         val scale by animateFloatAsState(
-                            targetValue = if (isBeingDragged) 1.03f else 1f,
+                            targetValue = if (isBeingDragged) 1.04f else 1f,
                             animationSpec = spring(
-                                dampingRatio = Spring.DampingRatioMediumBouncy,
-                                stiffness = Spring.StiffnessMedium
+                                dampingRatio = Spring.DampingRatioLowBouncy,
+                                stiffness = Spring.StiffnessHigh
                             ),
                             label = "queueItemScale"
                         )
@@ -295,37 +365,48 @@ fun QueueScreen(
                                 // El que se arrastra ya tiene su posición manual vía
                                 // translationY, así que animateItem() lo pelearía.
                                 .then(if (!isBeingDragged) Modifier.animateItem() else Modifier)
+                                // --- Agarre libre: en modo reordenar, con mantener presionado
+                                // en CUALQUIER parte de la fila (no solo el icono) se levanta la
+                                // canción y se arrastra libremente seguiendo el dedo. El icono de
+                                // "3 puntitos" se deja solo como pista visual de que se puede
+                                // reordenar, ya no es el único punto que responde al gesto. ---
+                                .then(
+                                    if (reorderModeActive) {
+                                        Modifier.pointerInput(index) {
+                                            detectDragGesturesAfterLongPress(
+                                                onDragStart = {
+                                                    haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                    dragState.onDragStart(index)
+                                                },
+                                                onDrag = { change, dragAmount ->
+                                                    change.consume()
+                                                    dragState.onDrag(dragAmount)
+                                                },
+                                                onDragEnd = { dragState.onDragEnd() },
+                                                onDragCancel = { dragState.onDragCancel() }
+                                            )
+                                        }
+                                    } else Modifier
+                                )
                                 .clickable(enabled = !reorderModeActive) { onSongClick(song) },
                             colors = CardDefaults.cardColors(containerColor = containerColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage || isBeingDragged) 0.dp else 4.dp),
                             shape = RoundedCornerShape(cardRadius)
                         ) {
                             Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                // --- Manija de arrastre: los "3 puntitos" a la izquierda de la carátula.
-                                // Solo aparece (y solo responde al gesto) en "modo reordenar". ---
+                                // --- Icono de "3 puntitos": ahora es solo una PISTA VISUAL de que
+                                // la fila es arrastrable. El gesto real de arrastre ya no vive
+                                // aquí (era un blanco muy chico y por eso costaba "agarrar" bien
+                                // la canción); ahora se puede mantener presionado en cualquier
+                                // parte de la fila (ver pointerInput en el Card de más arriba). ---
                                 AnimatedVisibility(visible = reorderModeActive) {
                                     Box(
-                                        modifier = Modifier
-                                            .size(32.dp)
-                                            .pointerInput(index) {
-                                                detectDragGestures(
-                                                    onDragStart = {
-                                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-                                                        dragState.onDragStart(index)
-                                                    },
-                                                    onDrag = { change, dragAmount ->
-                                                        change.consume()
-                                                        dragState.onDrag(dragAmount)
-                                                    },
-                                                    onDragEnd = { dragState.onDragEnd() },
-                                                    onDragCancel = { dragState.onDragEnd() }
-                                                )
-                                            },
+                                        modifier = Modifier.size(32.dp),
                                         contentAlignment = Alignment.Center
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.DragIndicator,
-                                            contentDescription = "Arrastrar para reordenar",
+                                            contentDescription = "Mantén presionada la canción para reordenar",
                                             tint = adaptiveContentColor.copy(alpha = 0.6f)
                                         )
                                     }

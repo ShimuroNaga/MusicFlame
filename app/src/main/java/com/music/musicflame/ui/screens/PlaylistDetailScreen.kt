@@ -126,7 +126,7 @@ fun exportToM3U(context: Context, playlist: Playlist): Boolean {
 @Composable
 fun PlaylistDetailScreen(
     playlist: Playlist,
-    isFavorites: Boolean,
+    kind: PlaylistKind,
     onBack: () -> Unit,
     onSongClick: (Song, List<Song>) -> Unit,
     hasBackgroundImage: Boolean = false,
@@ -162,10 +162,13 @@ fun PlaylistDetailScreen(
 
     LaunchedEffect(Unit) {
         val allSongs = loadSongsFromDevice(context)
-        val songIds = if (isFavorites) {
-            favoritesRepo.getAllFavoriteIds()
-        } else {
-            playlist.songIds
+        val songIds = when (kind) {
+            PlaylistKind.FAVORITES -> favoritesRepo.getAllFavoriteIds()
+            // Se recalculan aquí también (no solo en PlaylistsScreen) para que si el
+            // usuario entra al detalle justo después de escuchar algo, vea el dato fresco.
+            PlaylistKind.MOST_PLAYED -> buildMostPlayedPlaylist(context).songIds
+            PlaylistKind.NEVER_PLAYED -> buildNeverPlayedPlaylist(context).songIds
+            PlaylistKind.REGULAR -> playlist.songIds
         }
 
         // Mantener el orden exacto en el que fueron guardados
@@ -349,6 +352,26 @@ fun PlaylistDetailScreen(
                 }
             }
 
+            if (songs.isEmpty() && kind == PlaylistKind.MOST_PLAYED) {
+                Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "Todavía no tienes canciones reproducidas.\nEscucha algo y vuelve por aquí.",
+                        color = LocalAppTextColor.current.copy(alpha = 0.6f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                }
+            } else if (songs.isEmpty() && kind == PlaylistKind.NEVER_PLAYED) {
+                Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        text = "¡Ya le diste play a todo tu catálogo!",
+                        color = LocalAppTextColor.current.copy(alpha = 0.6f),
+                        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 32.dp)
+                    )
+                }
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
@@ -361,7 +384,7 @@ fun PlaylistDetailScreen(
                     SongItemCard(
                         song = song,
                         onClick = { onSongClick(song, displaySongs) },
-                        onDelete = if (isFavorites) {
+                        onDelete = if (kind == PlaylistKind.FAVORITES) {
                             {
                                 favoritesRepo.removeFavorite(song.id)
                                 songs.remove(song)

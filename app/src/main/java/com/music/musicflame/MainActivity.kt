@@ -333,7 +333,7 @@ class MainActivity : ComponentActivity() {
                 var showAddToPlaylist by remember { mutableStateOf(false) }
 
                 var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
-                var selectedPlaylistIsFavorites by remember { mutableStateOf(false) }
+                var selectedPlaylistKind by remember { mutableStateOf(PlaylistKind.REGULAR) }
                 var selectedAlbum by remember { mutableStateOf<com.music.musicflame.data.Album?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
 
@@ -636,7 +636,7 @@ class MainActivity : ComponentActivity() {
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         val favoritesPlaylist = Playlist("favorites", "Favoritos", favoriteIds.toList())
-                                                        val allPlaylists = listOf(favoritesPlaylist) + playlistRepo.getPlaylists()
+                                                        val allPlaylists = listOf(favoritesPlaylist, buildMostPlayedPlaylist(context), buildNeverPlayedPlaylist(context)) + playlistRepo.getPlaylists()
                                                         selectedPlaylists.clear()
                                                         selectedPlaylists.addAll(allPlaylists)
                                                     }
@@ -647,7 +647,12 @@ class MainActivity : ComponentActivity() {
                                                         showPlaylistSelectionMenu = false
                                                         var successCount = 0
                                                         selectedPlaylists.forEach { playlist ->
-                                                            val exportable = if (playlist.id == "favorites") playlist.copy(songIds = favoriteIds.toList()) else playlist
+                                                            val exportable = when (playlist.id) {
+                                                                "favorites" -> playlist.copy(songIds = favoriteIds.toList())
+                                                                SmartPlaylistIds.MOST_PLAYED -> buildMostPlayedPlaylist(context)
+                                                                SmartPlaylistIds.NEVER_PLAYED -> buildNeverPlayedPlaylist(context)
+                                                                else -> playlist
+                                                            }
                                                             if (playlistRepo.exportToM3U(context, exportable)) successCount++
                                                         }
                                                         Toast.makeText(context, "$successCount de ${selectedPlaylists.size} exportadas a Descargas", Toast.LENGTH_SHORT).show()
@@ -756,7 +761,12 @@ class MainActivity : ComponentActivity() {
                                             if (selectedPlaylist != null) {
                                                 IconButton(onClick = {
                                                     val playlist = selectedPlaylist!!
-                                                    val exportable = if (selectedPlaylistIsFavorites) playlist.copy(songIds = favoriteIds.toList()) else playlist
+                                                    val exportable = when (selectedPlaylistKind) {
+                                                        PlaylistKind.FAVORITES -> playlist.copy(songIds = favoriteIds.toList())
+                                                        PlaylistKind.MOST_PLAYED -> buildMostPlayedPlaylist(context)
+                                                        PlaylistKind.NEVER_PLAYED -> buildNeverPlayedPlaylist(context)
+                                                        PlaylistKind.REGULAR -> playlist
+                                                    }
                                                     val success = playlistRepo.exportToM3U(context, exportable)
                                                     Toast.makeText(context, if (success) "Playlist exportada a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
                                                 }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
@@ -972,7 +982,7 @@ class MainActivity : ComponentActivity() {
                                         Screen.Playlists -> if (selectedPlaylist != null) {
                                             PlaylistDetailScreen(
                                                 playlist = selectedPlaylist!!,
-                                                isFavorites = selectedPlaylistIsFavorites,
+                                                kind = selectedPlaylistKind,
                                                 onBack = { selectedPlaylist = null },
                                                 onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },
                                                 hasBackgroundImage = hasBackgroundImage,
@@ -983,7 +993,7 @@ class MainActivity : ComponentActivity() {
                                                 currentPlayingSongId = currentSong?.id
                                             )
                                         } else PlaylistsScreen(
-                                            onPlaylistClick = { playlist, isFavorites -> selectedPlaylist = playlist; selectedPlaylistIsFavorites = isFavorites },
+                                            onPlaylistClick = { playlist, kind -> selectedPlaylist = playlist; selectedPlaylistKind = kind },
                                             onImportClick = { importM3ULauncher.launch("audio/x-mpegurl") },
                                             onChangeCoverClick = { playlistId -> selectedPlaylistForCover = playlistId; pickImageLauncher.launch("image/*") },
                                             hasBackgroundImage = hasBackgroundImage,
@@ -1148,13 +1158,15 @@ class MainActivity : ComponentActivity() {
                             }
 
                             if (showDeletePlaylistsDialog) {
-                                val deletablePlaylists = selectedPlaylists.filter { it.id != "favorites" }
+                                val deletablePlaylists = selectedPlaylists.filter {
+                                    it.id != "favorites" && it.id != SmartPlaylistIds.MOST_PLAYED && it.id != SmartPlaylistIds.NEVER_PLAYED
+                                }
                                 AlertDialog(
                                     onDismissRequest = { showDeletePlaylistsDialog = false },
                                     title = { Text("Mover a papelera", fontWeight = FontWeight.Bold) },
                                     text = {
                                         if (deletablePlaylists.isEmpty()) {
-                                            Text("La playlist de Favoritos no se puede mover a la papelera.")
+                                            Text("Favoritos y las playlists inteligentes (Lo Más Sonado, Por Descubrir) no se pueden mover a la papelera.")
                                         } else {
                                             Text("¿Mover ${deletablePlaylists.size} playlists a la papelera?\nLas canciones no se borrarán del dispositivo, solo la playlist. Podrás restaurarla dentro de 30 días.")
                                         }

@@ -1,6 +1,9 @@
 package com.music.musicflame.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.Spring
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInVertically
@@ -21,15 +24,18 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.data.MusicPlayerManager
@@ -46,7 +52,8 @@ import com.music.musicflame.ui.components.AlbumArt
 // empezar desde el propio icono de "3 puntitos".
 private class QueueDragState(
     private val listState: LazyListState,
-    private val onMove: (from: Int, to: Int) -> Unit
+    private val onMove: (from: Int, to: Int) -> Unit,
+    private val onSwap: () -> Unit = {}
 ) {
     var draggingItemIndex by mutableStateOf<Int?>(null)
         private set
@@ -82,6 +89,7 @@ private class QueueDragState(
         if (targetItem != null) {
             onMove(draggingItem.index, targetItem.index)
             draggingItemIndex = targetItem.index
+            onSwap()
         }
     }
 
@@ -95,8 +103,9 @@ private class QueueDragState(
 @Composable
 private fun rememberQueueDragState(
     listState: LazyListState,
-    onMove: (from: Int, to: Int) -> Unit
-) = remember(listState) { QueueDragState(listState, onMove) }
+    onMove: (from: Int, to: Int) -> Unit,
+    onSwap: () -> Unit = {}
+) = remember(listState) { QueueDragState(listState, onMove, onSwap) }
 
 // Botón cuadrado flotante, mismo estilo que el usado en SongScreen para la barra inferior.
 @Composable
@@ -169,9 +178,13 @@ fun QueueScreen(
             }
     }
 
-    val dragState = rememberQueueDragState(listState) { from, to ->
-        playerManager.moveQueueItem(from, to)
-    }
+    val haptics = LocalHapticFeedback.current
+
+    val dragState = rememberQueueDragState(
+        listState = listState,
+        onMove = { from, to -> playerManager.moveQueueItem(from, to) },
+        onSwap = { haptics.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+    )
 
     Box(modifier = modifier.fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize()) {
@@ -231,19 +244,57 @@ fun QueueScreen(
 
                         val containerColor = when {
                             isCurrent -> MaterialTheme.colorScheme.primaryContainer
+                            // Tono ligeramente más claro mientras se arrastra, para reforzar
+                            // la sensación de que el item está "levantado" del resto.
+                            isBeingDragged -> MaterialTheme.colorScheme.surfaceContainerHighest
                             hasBackgroundImage -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
                             else -> MaterialTheme.colorScheme.surfaceContainerHigh
                         }
+
+                        // shadowElevation de graphicsLayer trabaja en PÍXELES, no en dp.
+                        // Antes se pasaba "12f" a secas (~4dp reales o menos según densidad),
+                        // por eso la sombra casi no se notaba. Se convierte bien y se anima
+                        // para que suba/baje suavemente en vez de aparecer de golpe.
+                        val density = LocalDensity.current
+                        val elevationPx by animateFloatAsState(
+                            targetValue = with(density) { (if (isBeingDragged) 10.dp else 0.dp).toPx() },
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioNoBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "queueItemElevation"
+                        )
+                        // Pequeño "pop" de escala al levantar el item, como en Spotify/YT Music.
+                        val scale by animateFloatAsState(
+                            targetValue = if (isBeingDragged) 1.03f else 1f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = Spring.StiffnessMedium
+                            ),
+                            label = "queueItemScale"
+                        )
 
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
+                                // El item arrastrado se dibuja por encima de los demás
+                                // (si no, su sombra/escala quedarían tapadas al pasar sobre ellos).
+                                .zIndex(if (isBeingDragged) 1f else 0f)
                                 .graphicsLayer {
                                     translationY = if (isBeingDragged) dragState.draggingItemOffset else 0f
-                                    shadowElevation = if (isBeingDragged) 12f else 0f
+                                    scaleX = scale
+                                    scaleY = scale
+                                    shadowElevation = elevationPx
+                                    // OJO: sin .clip() aquí. Card ya recorta con su propio
+                                    // "shape" más abajo; si se recorta también en este layer,
+                                    // se corta la sombra que graphicsLayer dibuja hacia afuera.
                                 }
-                                .clip(RoundedCornerShape(cardRadius))
+                                // Solo los items que NO se están arrastrando animan su
+                                // reacomodo automático (posición controlada por LazyColumn).
+                                // El que se arrastra ya tiene su posición manual vía
+                                // translationY, así que animateItem() lo pelearía.
+                                .then(if (!isBeingDragged) Modifier.animateItem() else Modifier)
                                 .clickable(enabled = !reorderModeActive) { onSongClick(song) },
                             colors = CardDefaults.cardColors(containerColor = containerColor),
                             elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage || isBeingDragged) 0.dp else 4.dp),
@@ -258,7 +309,10 @@ fun QueueScreen(
                                             .size(32.dp)
                                             .pointerInput(index) {
                                                 detectDragGestures(
-                                                    onDragStart = { dragState.onDragStart(index) },
+                                                    onDragStart = {
+                                                        haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                                                        dragState.onDragStart(index)
+                                                    },
                                                     onDrag = { change, dragAmount ->
                                                         change.consume()
                                                         dragState.onDrag(dragAmount)

@@ -99,7 +99,7 @@ private fun ListScrollbar(listState: LazyListState, modifier: Modifier = Modifie
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class, androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 fun SongsScreen(
     modifier: Modifier = Modifier,
@@ -145,6 +145,15 @@ fun SongsScreen(
     val pullState = rememberPullToRefreshState()
     val sortType = remember { mutableStateOf(SortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
+
+    // --- NUEVO: Filtros del buscador (Artista / Álbum / Año / Género) ---
+    // Complementan la búsqueda por texto que ya existía; no la reemplazan.
+    var showFilterSheet by remember { mutableStateOf(false) }
+    var filterArtist by remember { mutableStateOf<String?>(null) }
+    var filterAlbum by remember { mutableStateOf<String?>(null) }
+    var filterYear by remember { mutableStateOf<Int?>(null) }
+    var filterGenre by remember { mutableStateOf<String?>(null) }
+    val activeFilterCount = listOfNotNull(filterArtist, filterAlbum, filterYear, filterGenre).size
     val listState = rememberLazyListState()
 
     // --- Mostrar/ocultar los botones inferiores según la dirección del scroll ---
@@ -201,8 +210,8 @@ fun SongsScreen(
         }
     }
 
-    // Aplica los cambios de carátula/nombre directo sobre la lista en memoria (instantáneo,
-    // sin volver a consultar MediaStore). Se dispara solo cuando patchTrigger cambia.
+    // Aplica los cambios de carátula/nombre/artista/álbum directo sobre la lista en memoria
+    // (instantáneo, sin volver a consultar MediaStore). Se dispara solo cuando patchTrigger cambia.
     LaunchedEffect(patchTrigger) {
         if (patchTrigger > 0 && pendingPatches.isNotEmpty()) {
             pendingPatches.forEach { patch ->
@@ -211,6 +220,9 @@ fun SongsScreen(
                     var updated = songs[idx]
                     if (patch.newTitle != null) updated = updated.copy(title = patch.newTitle)
                     if (patch.newCoverUri != null) updated = updated.copy(albumArtUri = patch.newCoverUri)
+                    // --- NUEVO: editor de etiquetas/metadata (artista y álbum) ---
+                    if (patch.newArtist != null) updated = updated.copy(artist = patch.newArtist)
+                    if (patch.newAlbum != null) updated = updated.copy(album = patch.newAlbum)
                     songs[idx] = updated
                 }
             }
@@ -226,23 +238,31 @@ fun SongsScreen(
         }
     }
 
-    // Reacciona cuando cambia la búsqueda, el modo, los recomendados de YouTube, o se aplica un patch
-    LaunchedEffect(sortType.value, songs.size, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger) {
+    // Reacciona cuando cambia la búsqueda, el modo, los recomendados de YouTube, se aplica un patch,
+    // o cambia alguno de los filtros (Artista/Álbum/Año/Género).
+    LaunchedEffect(sortType.value, songs.size, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger, filterArtist, filterAlbum, filterYear, filterGenre) {
         if (searchMode == SearchMode.LOCAL) {
             val sortedBase = when (sortType.value) {
                 SortType.DATE_CREATED -> songs.sortedByDescending { it.dateAdded }
                 SortType.A_Z -> songs.sortedBy { it.title.lowercase() }
                 SortType.Z_A -> songs.sortedByDescending { it.title.lowercase() }
             }
-            displaySongs.clear()
-            if (searchQuery.isBlank()) {
-                displaySongs.addAll(sortedBase)
+            val textFiltered = if (searchQuery.isBlank()) {
+                sortedBase
             } else {
-                displaySongs.addAll(sortedBase.filter {
+                sortedBase.filter {
                     it.title.contains(searchQuery, ignoreCase = true) ||
                             it.artist.contains(searchQuery, ignoreCase = true)
-                })
+                }
             }
+            val fullyFiltered = textFiltered.filter { song ->
+                (filterArtist == null || song.artist == filterArtist) &&
+                        (filterAlbum == null || song.album == filterAlbum) &&
+                        (filterYear == null || song.year == filterYear) &&
+                        (filterGenre == null || song.genre == filterGenre)
+            }
+            displaySongs.clear()
+            displaySongs.addAll(fullyFiltered)
         } else {
             // --- BÚSQUEDA EN YOUTUBE ---
             if (searchQuery.isNotBlank()) {
@@ -580,18 +600,143 @@ fun SongsScreen(
                         onClick = onToggleSelectionModeButton
                     )
 
-                    Box {
-                        MFIconButton(
-                            icon = Icons.Filled.Sort,
-                            contentDescription = "Ordenar",
-                            hasBackgroundImage = hasBackgroundImage,
-                            onClick = { showSortMenu.value = true }
-                        )
-                        DropdownMenu(expanded = showSortMenu.value, onDismissRequest = { showSortMenu.value = false }) {
-                            listOf("Fecha creada" to SortType.DATE_CREATED, "A - Z" to SortType.A_Z, "Z - A" to SortType.Z_A).forEach { (label, type) -> DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = sortType.value == type, onClick = null); Spacer(Modifier.width(8.dp)); Text(label) } }, onClick = { sortType.value = type; showSortMenu.value = false }) }
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // --- NUEVO: botón de filtros, ARRIBA del de ordenar ---
+                        Box {
+                            MFIconButton(
+                                icon = Icons.Filled.FilterList,
+                                contentDescription = "Filtrar",
+                                hasBackgroundImage = hasBackgroundImage,
+                                onClick = { showFilterSheet = true }
+                            )
+                            if (activeFilterCount > 0) {
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.TopEnd)
+                                        .size(16.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(MaterialTheme.colorScheme.error),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = activeFilterCount.toString(),
+                                        color = MaterialTheme.colorScheme.onError,
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Box {
+                            MFIconButton(
+                                icon = Icons.Filled.Sort,
+                                contentDescription = "Ordenar",
+                                hasBackgroundImage = hasBackgroundImage,
+                                onClick = { showSortMenu.value = true }
+                            )
+                            DropdownMenu(expanded = showSortMenu.value, onDismissRequest = { showSortMenu.value = false }) {
+                                listOf("Fecha creada" to SortType.DATE_CREATED, "A - Z" to SortType.A_Z, "Z - A" to SortType.Z_A).forEach { (label, type) -> DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = sortType.value == type, onClick = null); Spacer(Modifier.width(8.dp)); Text(label) } }, onClick = { sortType.value = type; showSortMenu.value = false }) }
+                            }
                         }
                     }
                 }
+            }
+
+            // --- NUEVO: hoja inferior con los filtros de Artista / Álbum / Año / Género ---
+            if (showFilterSheet) {
+                val allArtists = remember(songs.size) { songs.map { it.artist }.filter { it.isNotBlank() }.distinct().sorted() }
+                val allAlbums = remember(songs.size) { songs.map { it.album }.filter { it.isNotBlank() }.distinct().sorted() }
+                val allYears = remember(songs.size) { songs.mapNotNull { it.year }.distinct().sortedDescending() }
+                val allGenres = remember(songs.size) { songs.mapNotNull { it.genre }.filter { it.isNotBlank() }.distinct().sorted() }
+
+                ModalBottomSheet(onDismissRequest = { showFilterSheet = false }) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 20.dp)
+                            .padding(bottom = 24.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text("Filtros", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            if (activeFilterCount > 0) {
+                                TextButton(onClick = {
+                                    filterArtist = null; filterAlbum = null; filterYear = null; filterGenre = null
+                                }) { Text("Limpiar") }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        FilterCategorySection(
+                            title = "Artista",
+                            options = allArtists,
+                            selected = filterArtist,
+                            onSelect = { filterArtist = if (filterArtist == it) null else it }
+                        )
+                        FilterCategorySection(
+                            title = "Álbum",
+                            options = allAlbums,
+                            selected = filterAlbum,
+                            onSelect = { filterAlbum = if (filterAlbum == it) null else it }
+                        )
+                        FilterCategorySection(
+                            title = "Año",
+                            options = allYears.map { it.toString() },
+                            selected = filterYear?.toString(),
+                            onSelect = { picked -> filterYear = if (filterYear?.toString() == picked) null else picked.toIntOrNull() }
+                        )
+                        FilterCategorySection(
+                            title = "Género",
+                            options = allGenres,
+                            selected = filterGenre,
+                            onSelect = { filterGenre = if (filterGenre == it) null else it }
+                        )
+
+                        if (allArtists.isEmpty() && allAlbums.isEmpty() && allYears.isEmpty() && allGenres.isEmpty()) {
+                            Text(
+                                "No hay suficientes datos en tu biblioteca para filtrar todavía.",
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontSize = 13.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+// --- NUEVO: una sección de chips seleccionables para una categoría de filtro
+// (Artista/Álbum/Año/Género). Si la categoría no tiene opciones (ej. ninguna
+// canción tiene género etiquetado), no se muestra nada para esa categoría.
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@Composable
+private fun FilterCategorySection(
+    title: String,
+    options: List<String>,
+    selected: String?,
+    onSelect: (String) -> Unit
+) {
+    if (options.isEmpty()) return
+    Column(modifier = Modifier.padding(bottom = 16.dp)) {
+        Text(title, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, modifier = Modifier.padding(bottom = 8.dp))
+        androidx.compose.foundation.layout.FlowRow(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            options.forEach { option ->
+                FilterChip(
+                    selected = selected == option,
+                    onClick = { onSelect(option) },
+                    label = { Text(option, fontSize = 13.sp) }
+                )
             }
         }
     }

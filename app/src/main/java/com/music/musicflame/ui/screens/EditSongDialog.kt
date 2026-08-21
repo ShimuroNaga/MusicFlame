@@ -19,18 +19,23 @@ import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongCustomizationRepository
 import com.music.musicflame.data.getDefaultAlbumArtUri
 import com.music.musicflame.data.getOriginalSongTitle
+import com.music.musicflame.data.getOriginalSongArtist
+import com.music.musicflame.data.getOriginalSongAlbum
 import com.music.musicflame.ui.components.AlbumArt
 
 /**
  * Resultado de una edición: qué canción cambió y cuáles son sus valores FINALES
  * (no deltas), para que SongsScreen pueda aplicarlos al instante sobre la lista
  * que ya tiene en memoria, sin tener que releer todo el dispositivo de nuevo.
- * null en newTitle/newCoverUri significa "ese campo no cambió".
+ * null en cualquier campo significa "ese campo no cambió".
  */
 data class SongEditPatch(
     val songId: Long,
     val newTitle: String? = null,
-    val newCoverUri: String? = null
+    val newCoverUri: String? = null,
+    // --- NUEVO: editor de etiquetas/metadata ---
+    val newArtist: String? = null,
+    val newAlbum: String? = null
 )
 
 /**
@@ -60,6 +65,11 @@ fun EditSongDialog(
     var pickedCoverUri by remember { mutableStateOf<String?>(null) }
     var resetCover by remember { mutableStateOf(false) }
     var resetTitle by remember { mutableStateOf(false) }
+    // --- NUEVO: editor de etiquetas/metadata (artista y álbum) ---
+    var artistText by remember(song?.id) { mutableStateOf(song?.artist ?: "") }
+    var albumText by remember(song?.id) { mutableStateOf(song?.album ?: "") }
+    var resetArtist by remember { mutableStateOf(false) }
+    var resetAlbum by remember { mutableStateOf(false) }
 
     val pickCoverLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -80,13 +90,17 @@ fun EditSongDialog(
     }
 
     val hasChanges = pickedCoverUri != null || resetCover ||
-            (isSingle && (resetTitle || (titleText.isNotBlank() && titleText != song?.title)))
+            (isSingle && (
+                    resetTitle || (titleText.isNotBlank() && titleText != song?.title) ||
+                            resetArtist || (artistText.isNotBlank() && artistText != song?.artist) ||
+                            resetAlbum || (albumText.isNotBlank() && albumText != song?.album)
+                    ))
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (isSingle) "Editar carátula y nombre"
+                if (isSingle) "Editar etiquetas y carátula"
                 else "Editar carátula (${selectedSongs.size} canciones)"
             )
         },
@@ -139,9 +153,51 @@ fun EditSongDialog(
                             Text("Restablecer nombre original")
                         }
                     }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // --- NUEVO: editor de etiquetas/metadata (artista) ---
+                    OutlinedTextField(
+                        value = artistText,
+                        onValueChange = { artistText = it; resetArtist = false },
+                        label = { Text("Artista") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (existingCustomization?.artist != null) {
+                        TextButton(onClick = {
+                            resetArtist = true
+                            artistText = getOriginalSongArtist(context, song!!.id)
+                        }) {
+                            Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Restablecer artista original")
+                        }
+                    }
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // --- NUEVO: editor de etiquetas/metadata (álbum) ---
+                    OutlinedTextField(
+                        value = albumText,
+                        onValueChange = { albumText = it; resetAlbum = false },
+                        label = { Text("Álbum") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (existingCustomization?.album != null) {
+                        TextButton(onClick = {
+                            resetAlbum = true
+                            albumText = getOriginalSongAlbum(context, song!!.id)
+                        }) {
+                            Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
+                            Spacer(Modifier.width(4.dp))
+                            Text("Restablecer álbum original")
+                        }
+                    }
                 } else {
                     Text(
-                        text = "El nombre solo se puede editar seleccionando una sola canción.",
+                        text = "El nombre, artista y álbum solo se pueden editar seleccionando una sola canción.",
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp)
@@ -156,22 +212,30 @@ fun EditSongDialog(
                     val patches = mutableListOf<SongEditPatch>()
 
                     if (isSingle && song != null) {
-                        // Solo mandamos el nuevo título si el usuario realmente lo cambió;
+                        // Solo mandamos cada campo si el usuario realmente lo cambió;
                         // así no creamos una personalización redundante que sea igual al original.
                         val newTitle = if (!resetTitle && titleText.isNotBlank() && titleText != song.title) titleText else null
+                        val newArtist = if (!resetArtist && artistText.isNotBlank() && artistText != song.artist) artistText else null
+                        val newAlbum = if (!resetAlbum && albumText.isNotBlank() && albumText != song.album) albumText else null
                         customizationRepo.setCustomization(
                             songId = song.id,
                             title = newTitle,
                             coverUri = pickedCoverUri,
+                            artist = newArtist,
+                            album = newAlbum,
                             clearTitle = resetTitle,
-                            clearCover = resetCover
+                            clearCover = resetCover,
+                            clearArtist = resetArtist,
+                            clearAlbum = resetAlbum
                         )
 
-                        // Valor FINAL a mostrar ya mismo en la lista (sin releer MediaStore):
+                        // Valores FINALES a mostrar ya mismo en la lista (sin releer MediaStore):
                         val finalTitle = newTitle ?: if (resetTitle) getOriginalSongTitle(context, song.id) else null
                         val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, song.id) else null
-                        if (finalTitle != null || finalCover != null) {
-                            patches.add(SongEditPatch(song.id, finalTitle, finalCover))
+                        val finalArtist = newArtist ?: if (resetArtist) getOriginalSongArtist(context, song.id) else null
+                        val finalAlbum = newAlbum ?: if (resetAlbum) getOriginalSongAlbum(context, song.id) else null
+                        if (finalTitle != null || finalCover != null || finalArtist != null || finalAlbum != null) {
+                            patches.add(SongEditPatch(song.id, finalTitle, finalCover, finalArtist, finalAlbum))
                         }
                     } else if (selectedSongs.isNotEmpty() && (pickedCoverUri != null || resetCover)) {
                         customizationRepo.setCoverForSongs(

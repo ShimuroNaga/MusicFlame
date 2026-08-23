@@ -276,6 +276,33 @@ fun FullScreenPlayer(
                 )
             }
     ) {
+        // --- ECUALIZADOR DE FONDO ---
+        // Vive DETRÁS de todo (carátula/controles Y letra): un solo Composable
+        // persistente, en vez de uno adentro de cada rama del AnimatedContent
+        // de abajo. Así:
+        //  - Nunca se re-crea (ni pierde su estado del Visualizer) al cambiar
+        //    entre la vista normal y la Letra.
+        //  - Se ve incluso mientras la Letra está abierta (más tenue, para no
+        //    pelear con el texto), en vez de desaparecer.
+        // Ocupa todo el ancho y se estira desde el fondo de la pantalla hacia
+        // arriba, respetando ya el inset real de la barra de navegación (gestos
+        // o 3 botones) porque este Box padre ya tiene .safeScreenPadding().
+        AudioVisualizerBars(
+            audioSessionId = playerManager.audioSessionId.value,
+            isPlaying = isPlaying,
+            hasRecordAudioPermission = hasRecordAudioPermission,
+            color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor,
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                // 26% del alto disponible (ya sin status bar/nav bar, por el
+                // .safeScreenPadding() del Box padre): mucho más grande que el
+                // strip fijo de 48dp de antes, pero sin tragarse el slider de
+                // arriba. Es solo un número -> fácil de subir/bajar a gusto.
+                .fillMaxHeight(0.26f)
+                .padding(horizontal = 8.dp)
+        )
+
         androidx.compose.animation.AnimatedContent(
             targetState = showLyrics,
             modifier = Modifier
@@ -609,19 +636,11 @@ fun FullScreenPlayer(
                         }
                     }
 
-                    Spacer(modifier = Modifier.height(20.dp))
-
-                    AudioVisualizerBars(
-                        audioSessionId = playerManager.audioSessionId.value,
-                        isPlaying = isPlaying,
-                        hasRecordAudioPermission = hasRecordAudioPermission,
-                        color = equalizerBarsColor,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(48.dp)
-                            .padding(horizontal = 8.dp)
-                    )
-
+                    // Antes había un Spacer + el ecualizador fijo (48dp) aquí. Ahora el
+                    // ecualizador vive en la capa de fondo persistente (ver más arriba, antes
+                    // del AnimatedContent), así que solo dejamos aire de respiro al final;
+                    // el resto del espacio hacia abajo lo llena visualmente el ecualizador
+                    // de fondo, que se ve alrededor/detrás de estos controles.
                     Spacer(modifier = Modifier.height(16.dp))
                 }
             }

@@ -19,6 +19,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.Dp
@@ -28,7 +29,12 @@ import androidx.compose.runtime.getValue
 @Composable
 fun NowPlayingIndicator(
     modifier: Modifier = Modifier,
-    color: Color = MaterialTheme.colorScheme.primary,
+    // FIX: antes usaba siempre el color primario del tema (que puede ser cualquier
+    // tono con Material You dinámico y a veces se pierde contra el fondo). Ahora,
+    // por defecto, es blanco o negro puro según la luminancia REAL del fondo activo:
+    // fondo oscuro -> barras blancas, fondo claro -> barras negras. Sigue siendo
+    // sobreescribible si alguna pantalla necesita otro color a propósito.
+    color: Color = if (MaterialTheme.colorScheme.background.luminance() < 0.5f) Color.White else Color.Black,
     barWidth: Dp = 3.dp,
     height: Dp = 14.dp,
     spacing: Dp = 2.dp

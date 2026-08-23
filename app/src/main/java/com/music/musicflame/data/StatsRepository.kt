@@ -80,9 +80,17 @@ class StatsRepository(context: Context) {
     fun getAllStats(): Map<Long, SongStat> =
         readAll().mapNotNull { (key, value) -> key.toLongOrNull()?.let { it to value } }.toMap()
 
-    /** Top N canciones ordenadas por número de reproducciones (de más a menos). */
-    fun getTopPlayed(limit: Int = 20): List<Pair<Long, SongStat>> =
+    /**
+     * Top N canciones ordenadas por número de reproducciones (de más a menos).
+     *
+     * Solo se consideran canciones que llegaron a un mínimo de reproducciones
+     * acumuladas (minPlayCount, no tienen que ser seguidas/consecutivas). Esto
+     * evita que una canción escuchada una sola vez aparezca de entrada en el
+     * Top 20 de "Tu Mix" solo porque hay pocas canciones con estadísticas todavía.
+     */
+    fun getTopPlayed(limit: Int = 20, minPlayCount: Int = 3): List<Pair<Long, SongStat>> =
         getAllStats().entries
+            .filter { it.value.playCount >= minPlayCount }
             .sortedWith(compareByDescending<Map.Entry<Long, SongStat>> { it.value.playCount }
                 .thenByDescending { it.value.totalListenedMs })
             .take(limit)

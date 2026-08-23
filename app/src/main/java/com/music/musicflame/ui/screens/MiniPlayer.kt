@@ -2,6 +2,7 @@ package com.music.musicflame.ui.screens
 
 import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectVerticalDragGestures
@@ -245,7 +246,10 @@ fun MiniPlayer(
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             // <-- APLICANDO COLOR GLOBAL PRINCIPAL
-                            color = LocalAppTextColor.current
+                            color = LocalAppTextColor.current,
+                            // NUEVO: si el título no cabe, se desliza solo (marquee) en
+                            // vez de quedar cortado con "...".
+                            modifier = Modifier.basicMarquee()
                         )
                         Text(
                             text = currentSong?.artist ?: "Selecciona una canción",

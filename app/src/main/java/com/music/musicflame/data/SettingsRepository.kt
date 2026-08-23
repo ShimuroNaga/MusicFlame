@@ -110,6 +110,11 @@ class SettingsRepository(context: Context) {
     fun saveAlbumGridColumns(columns: Int) = prefs.edit().putInt("album_grid_columns", columns).apply()
     fun getAlbumGridColumns(): Int = prefs.getInt("album_grid_columns", 2)
 
+    // Cantidad de barras del ecualizador gráfico animado del reproductor a pantalla
+    // completa. 32 = estándar (default), 6 = mínimo, 64 = máximo.
+    fun saveEqualizerBarCount(count: Int) = prefs.edit().putInt("equalizer_bar_count", count).apply()
+    fun getEqualizerBarCount(): Int = prefs.getInt("equalizer_bar_count", 32)
+
     fun getPlayerGifUri(): String? = prefs.getString("player_gif_uri", null)
     fun savePlayerGifUri(uri: String) = prefs.edit().putString("player_gif_uri", uri).apply()
     fun removePlayerGifUri() = prefs.edit().remove("player_gif_uri").apply()

@@ -171,6 +171,11 @@ class MusicPlaybackService : MediaSessionService() {
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(CustomMediaSessionCallback())
             .build()
+
+        // Registramos el proveedor de notificación personalizado (ver la clase
+        // OrderedMediaNotificationProvider al final del archivo) para fijar el orden
+        // exacto de los botones: Cíclico - Anterior - Play/Pausa - Siguiente - Favorito.
+        setMediaNotificationProvider(OrderedMediaNotificationProvider(this))
     }
 
     /**
@@ -311,17 +316,12 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     private fun getCustomLayout(): ImmutableList<CommandButton> {
-        // NOTA IMPORTANTE sobre el bug de botones "comidos"/trabados en la notificación:
-        // Con 2 botones custom + los 3 nativos (anterior/play-pausa/siguiente) llegamos a 5
-        // acciones, el máximo que soporta MediaStyle. Sin decirle explícitamente a Media3
-        // cuál va en la vista compacta, su selección automática es inestable en esta versión
-        // de la librería (se reordena/pisa en cada refresco de ícono), causando que los
-        // botones se vean superpuestos o dejen de responder. Al fijar
-        // COMMAND_KEY_COMPACT_VIEW_INDEX explícitamente, la vista compacta queda estable:
-        // solo el botón de Favorito se promueve ahí, y el cíclico queda en la vista expandida.
-        val favoriteExtras = Bundle().apply {
-            putInt(DefaultMediaNotificationProvider.COMMAND_KEY_COMPACT_VIEW_INDEX, 0)
-        }
+        // NOTA: el orden final y los índices de vista compacta ya NO se deciden acá.
+        // Esta lista solo declara QUÉ botones personalizados existen (Favorito y
+        // Cíclico); el ORDEN real en el que aparecen en la notificación (Cíclico -
+        // Anterior - Play/Pausa - Siguiente - Favorito) lo arma
+        // OrderedMediaNotificationProvider.getMediaButtons() al final de este archivo,
+        // que es el que de verdad decide cómo se intercalan con los controles nativos.
 
         // 1. Botón Favorito (Corazón)
         val favoriteIcon = if (isCurrentSongFavorite) R.drawable.ic_favorite_on else R.drawable.ic_favorite_off
@@ -329,7 +329,6 @@ class MusicPlaybackService : MediaSessionService() {
             .setDisplayName("Favorito")
             .setSessionCommand(SessionCommand(CUSTOM_COMMAND_FAVORITE, Bundle.EMPTY))
             .setIconResId(favoriteIcon)
-            .setExtras(favoriteExtras)
             .build()
 
         // 2. Botón Cíclico Único (Calculamos el estado actual)
@@ -466,5 +465,109 @@ class MusicPlaybackService : MediaSessionService() {
             mediaSession = null
         }
         super.onDestroy()
+    }
+
+    /**
+     * Proveedor de notificación personalizado. Controla el ORDEN EXACTO de los botones
+     * y arregla el bug de los botones "trabados"/reordenados al azar (visto en las
+     * capturas: Favorito, Anterior, Pausa, Cíclico... y Siguiente directamente
+     * desaparecido).
+     *
+     * Por defecto, Media3 arma la notificación así: primero SIEMPRE Anterior /
+     * Play-Pausa / Siguiente (en ese orden fijo, sin forma de moverlos), y DESPUÉS
+     * pega los botones personalizados (Cíclico, Favorito) al final. Por eso nunca se
+     * podía dejar el Cíclico primero solo reordenando getCustomLayout().
+     *
+     * Además, antes solo se marcaba el índice de vista compacta en el botón de
+     * Favorito (índice 0) y en ningún otro. Eso desactivaba por completo la selección
+     * automática que hace Media3 para Anterior/Play-Pausa/Siguiente (que solo se
+     * activa si NINGÚN botón declara un índice explícito), dejando el resultado en
+     * manos de cómo cada fabricante arma su propio widget de notificación/pantalla de
+     * bloqueo — lo que se veía como orden inestable y el botón de Siguiente
+     * "comido".
+     *
+     * Ahora se arma la lista completa a mano, en el orden pedido:
+     *   [Cíclico] - [Anterior] - [Play/Pausa] - [Siguiente] - [Favorito]
+     * y se fija el índice de vista compacta EXPLÍCITO en los 3 controles nativos
+     * (0, 1 y 2), para que siempre viajen juntos y en orden en la vista compacta,
+     * dejando Cíclico y Favorito solo para la vista expandida/completa.
+     */
+    private inner class OrderedMediaNotificationProvider(context: Context) :
+        DefaultMediaNotificationProvider(context) {
+
+        override fun getMediaButtons(
+            session: MediaSession,
+            playerCommands: Player.Commands,
+            customLayout: ImmutableList<CommandButton>,
+            showPauseButton: Boolean
+        ): ImmutableList<CommandButton> {
+            val cycleButton = customLayout.firstOrNull {
+                it.sessionCommand?.customAction == CUSTOM_COMMAND_CYCLE_MODE
+            }
+            val favoriteButton = customLayout.firstOrNull {
+                it.sessionCommand?.customAction == CUSTOM_COMMAND_FAVORITE
+            }
+
+            val buttons = ImmutableList.Builder<CommandButton>()
+
+            // 1. Cíclico (mezclar / repetir todo / repetir una), primero de todos.
+            cycleButton?.let { buttons.add(it) }
+
+            // 2. Anterior — índice de vista compacta fijo en 0.
+            if (playerCommands.containsAny(
+                    Player.COMMAND_SEEK_TO_PREVIOUS,
+                    Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+                )
+            ) {
+                val extras = Bundle().apply { putInt(COMMAND_KEY_COMPACT_VIEW_INDEX, 0) }
+                buttons.add(
+                    CommandButton.Builder()
+                        .setPlayerCommand(Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM)
+                        .setIconResId(R.drawable.ic_widget_skip_previous)
+                        .setDisplayName("Anterior")
+                        .setExtras(extras)
+                        .build()
+                )
+            }
+
+            // 3. Play/Pausa — índice de vista compacta fijo en 1.
+            if (playerCommands.contains(Player.COMMAND_PLAY_PAUSE)) {
+                val extras = Bundle().apply { putInt(COMMAND_KEY_COMPACT_VIEW_INDEX, 1) }
+                buttons.add(
+                    CommandButton.Builder()
+                        .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
+                        .setIconResId(if (showPauseButton) R.drawable.ic_widget_pause else R.drawable.ic_widget_play)
+                        .setDisplayName(if (showPauseButton) "Pausar" else "Reproducir")
+                        .setExtras(extras)
+                        .build()
+                )
+            }
+
+            // 4. Siguiente — índice de vista compacta fijo en 2. Este es justo el botón
+            // que se estaba perdiendo en tus capturas: al darle un índice explícito
+            // (igual que Anterior y Play/Pausa) queda garantizado que viaje siempre
+            // junto a ellos en la vista compacta, sin depender del criterio del
+            // fabricante del teléfono.
+            if (playerCommands.containsAny(
+                    Player.COMMAND_SEEK_TO_NEXT,
+                    Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM
+                )
+            ) {
+                val extras = Bundle().apply { putInt(COMMAND_KEY_COMPACT_VIEW_INDEX, 2) }
+                buttons.add(
+                    CommandButton.Builder()
+                        .setPlayerCommand(Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM)
+                        .setIconResId(R.drawable.ic_widget_skip_next)
+                        .setDisplayName("Siguiente")
+                        .setExtras(extras)
+                        .build()
+                )
+            }
+
+            // 5. Favorito, al final de todos, tal como se pidió.
+            favoriteButton?.let { buttons.add(it) }
+
+            return buttons.build()
+        }
     }
 }

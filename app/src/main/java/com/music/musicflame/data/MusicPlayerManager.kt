@@ -155,13 +155,39 @@ class MusicPlayerManager(private val context: Context) {
     // tiempo escuchado a la canción actual. Para no escribir a SharedPreferences cada
     // segundo, solo se vuelca a disco cada 5 segundos acumulados (o al cambiar de
     // canción / liberar el manager, vía flushListenedTime()).
+    //
+    // IMPORTANTE: antes esto asumía que entre cada vuelta del loop pasaba EXACTAMENTE
+    // 1 segundo real (listenedAccumMs += 1000L a ciegas). Cuando el sistema operativo
+    // suspende/congela el proceso en segundo plano (ahorro de batería, Doze, etc.) y
+    // luego lo reanuda, ese supuesto no se cumple: puede pasar mucho más tiempo real
+    // entre una vuelta y otra sin que la canción haya sonado de verdad, e igual se
+    // sumaba como si hubiera sonado. Eso era lo que inflaba canciones de 3 minutos a
+    // "21 horas" o "40 horas" de escucha. Ahora medimos el tiempo real transcurrido
+    // (wall-clock) entre ticks y limitamos cuánto se puede sumar por tick, así nunca
+    // se cuenta más tiempo del que realmente pudo haber sonado.
     private fun startStatsTicker() {
         managerScope.launch {
+            var lastTickAt = System.currentTimeMillis()
             while (isActive) {
                 delay(1000L)
+                val now = System.currentTimeMillis()
+                val elapsedMs = now - lastTickAt
+                lastTickAt = now
+
+                val controller = mediaController
                 val song = _currentSong.value
-                if (_isPlayingState.value && song != null) {
-                    listenedAccumMs += 1000L
+                // Consultamos el estado real del reproductor (controller.isPlaying),
+                // no solo el flag cacheado _isPlayingState, para no arrastrar un
+                // "reproduciendo" viejo si el proceso estuvo suspendido y el flag
+                // no llegó a actualizarse a tiempo.
+                val reallyPlaying = controller?.isPlaying == true
+
+                if (reallyPlaying && song != null) {
+                    // Tope de seguridad: como mucho contamos 1.5x el segundo esperado
+                    // por tick. Cualquier salto mayor (proceso congelado, reloj del
+                    // sistema alterado, etc.) se descarta en vez de sumarse entero.
+                    val safeDeltaMs = elapsedMs.coerceIn(0L, 1500L)
+                    listenedAccumMs += safeDeltaMs
                     if (listenedAccumMs >= 5000L) {
                         statsRepo.addListenedTime(song.id, listenedAccumMs)
                         listenedAccumMs = 0L
@@ -237,6 +263,45 @@ class MusicPlayerManager(private val context: Context) {
 
                 override fun onIsPlayingChanged(isPlaying: Boolean) {
                     _isPlayingState.value = isPlaying
+                    // NUEVO: en cuanto detectamos que de verdad se pausó (pérdida de
+                    // audio focus, botón de pausa, auriculares desconectados, etc.),
+                    // volcamos a disco lo acumulado hasta este instante en vez de
+                    // esperar a los 5 segundos de margen o a que cambie de canción.
+                    // Así el tiempo escuchado queda al día apenas se pausa, sin dejar
+                    // nada "flotando" en memoria que dependa de un tick futuro.
+                    if (!isPlaying) {
+                        flushListenedTime()
+                    }
+                }
+
+                // NUEVO: vía de respaldo para el mismo propósito que onIsPlayingChanged.
+                // En algunos dispositivos/fabricantes, el callback de "isPlaying" no
+                // siempre llega de forma confiable a través del binder cuando la app
+                // está en segundo plano o el sistema recorta procesos. Este callback
+                // se dispara en más situaciones (por ejemplo, pérdida de audio focus
+                // que baja playWhenReady sin que isPlaying se entere a tiempo), y acá
+                // simplemente volvemos a preguntarle a Media3 su estado real
+                // (controller.isPlaying, que ya combina playWhenReady + estado de
+                // reproducción + foco de audio) en vez de asumir nada por nuestra
+                // cuenta.
+                override fun onPlayWhenReadyChanged(playWhenReady: Boolean, reason: Int) {
+                    val reallyPlaying = controller.isPlaying
+                    _isPlayingState.value = reallyPlaying
+                    if (!reallyPlaying) {
+                        flushListenedTime()
+                    }
+                }
+
+                // NUEVO: misma idea, para cuando el reproductor pasa a BUFFERING, IDLE
+                // o ENDED (ninguno de esos estados es "reproduciendo de verdad", aunque
+                // playWhenReady siga en true). Volvemos a preguntar el estado real acá
+                // también, como tercera red de seguridad.
+                override fun onPlaybackStateChanged(playbackState: Int) {
+                    val reallyPlaying = controller.isPlaying
+                    _isPlayingState.value = reallyPlaying
+                    if (!reallyPlaying) {
+                        flushListenedTime()
+                    }
                 }
 
                 // RESPALDO: en algunos dispositivos/versiones de Media3, cuando "repetir una

@@ -76,6 +76,11 @@ fun MixScreen(
     // --- ESTADÍSTICAS: top 20 canciones más escuchadas, en vivo ---
     val statsRows = remember { mutableStateListOf<SongStatRow>() }
     val showStats = remember { mutableStateOf(false) }
+    // NUEVO: distinguimos "no hay NADA registrado todavía" de "hay canciones
+    // sonando pero ninguna llegó aún a las 10 reproducciones mínimas" — antes
+    // ambos casos mostraban el mismo mensaje ("Reproduce algo para empezar"),
+    // lo cual era engañoso si ya llevabas horas escuchando música.
+    val hasAnyStatsRecorded = remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         val statsRepo = StatsRepository(context)
@@ -84,6 +89,7 @@ fun MixScreen(
         // cargamos una sola vez y solo refrescamos estadísticas/favoritos en el loop.
         val songsById = loadSongsFromDevice(context).associateBy { it.id }
         while (true) {
+            hasAnyStatsRecorded.value = statsRepo.getAllStats().isNotEmpty()
             val top = statsRepo.getTopPlayed(20)
             val rows = top.mapNotNull { (id, stat) ->
                 val song = songsById[id] ?: return@mapNotNull null
@@ -294,7 +300,16 @@ fun MixScreen(
                     if (statsRows.isEmpty()) {
                         item {
                             Text(
-                                "Aún no hay estadísticas. ¡Reproduce alguna canción para empezar a registrar!",
+                                // NUEVO: mensaje distinto según el caso real. Antes decía
+                                // siempre "reproduce algo para empezar", incluso si ya
+                                // llevabas horas escuchando música pero ninguna canción
+                                // había llegado todavía a las 10 reproducciones mínimas
+                                // para aparecer en este Top 20 — lo que parecía un bug
+                                // (como si nada se estuviera registrando) sin serlo.
+                                if (hasAnyStatsRecorded.value)
+                                    "Todavía ninguna canción llegó a las 3 reproducciones necesarias para aparecer acá (no hace falta que sean seguidas). ¡Sigue escuchando!"
+                                else
+                                    "Aún no hay estadísticas. ¡Reproduce alguna canción para empezar a registrar!",
                                 fontSize = 13.sp,
                                 color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)

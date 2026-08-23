@@ -28,30 +28,33 @@ private const val BAR_COUNT = 32
 // (que es donde vive el ritmo), a costa de un poquito más de trabajo por frame.
 private const val CAPTURE_SIZE = 1024
 
-// "Ataque" (cuando la barra SUBE, tipo llega un golpe de batería): muy rápido, casi
+// "Ataque" (cuando la barra SUBE, tipo llega un golpe de batería): prácticamente
 // instantáneo, para que se sienta pegado al audio real.
-private const val ATTACK = 0.85f
-// "Caída" (cuando la barra BAJA): lento, para que no se vea nerviosa/parpadeante, sino que
-// "resbale" hacia abajo como en los videos de ecualizador.
-private const val RELEASE = 0.16f
+private const val ATTACK = 0.94f
+// "Caída" (cuando la barra BAJA): antes muy lenta (0.16) para que se viera tipo
+// "resbalando"; subida a 0.26 a pedido: cae más rápido, se ve más ágil/nerviosa y
+// menos como un promedio suavizado, más como el pulso real de la canción.
+private const val RELEASE = 0.26f
 
 // Qué tan rápido se ajusta el auto-gain GLOBAL (una sola escala para todas las
 // barras) a la energía reciente de la canción. Antes era por barra, y eso
 // "aplanaba" todo: un hi-hat bajito se veía tan alto como un golpe de bombo.
 // Con un gain global, la altura relativa entre barras SÍ refleja la mezcla real.
-// Bajado de 0.985 a 0.94: así el gain "olvida" más rápido un pico viejo (ej. un
-// golpe fuerte que ya pasó) y no deja las 32 barras aplastadas/casi muertas
-// durante los segundos siguientes más tranquilos de la canción.
-private const val GAIN_DECAY = 0.94f
+// Bajado de 0.94 a 0.88: el gain "olvida" un pico viejo todavía más rápido, así
+// las barras usan más rango dinámico en las partes tranquilas de la canción en
+// vez de quedar aplastadas cerca del techo por un golpe fuerte que ya pasó.
+private const val GAIN_DECAY = 0.88f
 
 // Detección simple de "golpe" en graves (kick/bajo, que es donde vive el ritmo):
 // si la energía de las barras graves sube fuerte respecto a su propio promedio
 // reciente, se considera un golpe y se le da un empujoncito extra a TODA la fila
 // de barras ese frame, para que se sienta un "pulso" sincronizado con la canción.
-private const val BASS_BAND_FRACTION = 0.22f // % de barras (desde la izquierda) que cuentan como graves
-private const val BEAT_AVG_DECAY = 0.90f     // qué tan rápido se actualiza el promedio de graves
-private const val BEAT_TRIGGER_RATIO = 1.25f // cuánto debe superar al promedio para contar como golpe
-private const val BEAT_BOOST = 1.22f         // empuje extra que se aplica a todas las barras en un golpe
+// Ajustado para que dispare más seguido (RATIO más bajo) y empuje más fuerte
+// (BOOST más alto), así el pulso se siente mucho más marcado y "vivo".
+private const val BASS_BAND_FRACTION = 0.25f // % de barras (desde la izquierda) que cuentan como graves
+private const val BEAT_AVG_DECAY = 0.88f     // qué tan rápido se actualiza el promedio de graves
+private const val BEAT_TRIGGER_RATIO = 1.15f // cuánto debe superar al promedio para contar como golpe
+private const val BEAT_BOOST = 1.4f          // empuje extra que se aplica a todas las barras en un golpe
 
 /**
  * Barras de espectro tipo ecualizador, en escala de grises (un solo [color] sólido).
@@ -212,8 +215,9 @@ fun AudioVisualizerBars(
                                 for (bar in 0 until barCount) {
                                     val normalized = (rawLevels[bar] / globalGain * beatMultiplier).coerceIn(0f, 1f)
                                     // Curva perceptual: empuja los valores medios hacia arriba
-                                    // para que se vea más "vivo" y menos plano.
-                                    rawLevels[bar] = normalized.pow(0.6f)
+                                    // para que se vea más "vivo" y menos plano. Bajado de 0.6 a
+                                    // 0.5 para más contraste todavía entre silencios y golpes.
+                                    rawLevels[bar] = normalized.pow(0.5f)
                                 }
 
                                 // Ataque rápido / caída lenta, calculado aquí (barato, 32 floats)
@@ -266,7 +270,7 @@ fun AudioVisualizerBars(
         val barWidth = size.width / (barCount * 1.5f)
         val spacing = barWidth * 0.5f
         val maxBarHeight = size.height
-        val minHeightFraction = 0.05f
+        val minHeightFraction = 0.03f
 
         for (index in 0 until barCount) {
             val level = displayLevels[index].coerceIn(0f, 1f)

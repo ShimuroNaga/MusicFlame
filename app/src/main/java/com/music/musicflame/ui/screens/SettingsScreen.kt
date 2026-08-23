@@ -185,6 +185,7 @@ fun SettingsScreen(
     val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
     val albumGridColumns = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
+    val equalizerBarCount = remember { mutableStateOf(settingsRepo.getEqualizerBarCount()) }
 
     // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
     val activeSection = remember { mutableStateOf<String?>(null) }
@@ -631,6 +632,42 @@ fun SettingsScreen(
                                     Text("Grande", fontSize = 12.sp, color = mediumEmphasis)
                                     Text("Chico", fontSize = 12.sp, color = mediumEmphasis)
                                 }
+                            }
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // NUEVO: cantidad de barras del ecualizador gráfico animado que se
+                            // ve en el reproductor a pantalla completa. 6 = mínimo, 32 =
+                            // estándar (default), 64 = máximo.
+                            Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                Text("Barras del ecualizador gráfico", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Spacer(Modifier.height(4.dp))
+                                Slider(
+                                    value = equalizerBarCount.value.toFloat(),
+                                    onValueChange = {
+                                        val count = it.toInt()
+                                        equalizerBarCount.value = count
+                                        settingsRepo.saveEqualizerBarCount(count)
+                                    },
+                                    valueRange = 6f..64f,
+                                    steps = 57, // un paso por cada valor entero entre 6 y 64
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = trailingColor,
+                                        activeTrackColor = trailingColor
+                                    )
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("6 (mínimo)", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("${equalizerBarCount.value} barras", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                    Text("64 (máximo)", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                                Text(
+                                    "Se aplica la próxima vez que abras el reproductor a pantalla completa.",
+                                    fontSize = 11.sp,
+                                    color = mediumEmphasis,
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
                             }
                             HorizontalDivider(color = dividerColor)
                         }

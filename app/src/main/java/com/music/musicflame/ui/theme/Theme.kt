@@ -15,6 +15,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import com.music.musicflame.data.SettingsRepository
 
@@ -79,10 +80,10 @@ fun MusicFlameTheme(
         baseColorScheme
     }
 
+    val isDarkBackground = finalColorScheme.background.luminance() < 0.5f
     val appTextColor = when (appTextColorState.value) {
-        "Blanco" -> Color.White
         "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
-        else -> Color.Black // "Negro" (o valor por defecto)
+        else -> if (isDarkBackground) Color.White else Color.Black // "Negro", "Blanco" o cualquier default
     }
 
     MaterialTheme(

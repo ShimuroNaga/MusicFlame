@@ -7,15 +7,18 @@ import android.os.Looper
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.pow
@@ -28,33 +31,51 @@ private const val BAR_COUNT = 32
 // (que es donde vive el ritmo), a costa de un poquito más de trabajo por frame.
 private const val CAPTURE_SIZE = 1024
 
-// "Ataque" (cuando la barra SUBE, tipo llega un golpe de batería): prácticamente
-// instantáneo, para que se sienta pegado al audio real.
-private const val ATTACK = 0.94f
-// "Caída" (cuando la barra BAJA): antes muy lenta (0.16) para que se viera tipo
-// "resbalando"; subida a 0.26 a pedido: cae más rápido, se ve más ágil/nerviosa y
-// menos como un promedio suavizado, más como el pulso real de la canción.
-private const val RELEASE = 0.26f
+// Techo real de frecuencia que se reparte entre las barras. Antes se usaba el
+// Nyquist completo (~20-22kHz con audio a 44.1/48kHz), pero casi ninguna canción
+// tiene energía real por encima de ~14kHz (el "brillo"/aire de platillos vive
+// como mucho ahí) — por eso las últimas 3-5 barras de la derecha casi siempre
+// quedaban vacías, aunque el resto sí reaccionara: estaban mirando una zona sin
+// señal real, no que no funcionaran. Al recortar el rango hasta acá, TODAS las
+// barras -incluidas las últimas- caen en zonas con contenido musical real.
+private const val TARGET_MAX_FREQUENCY_HZ = 14000f
+
+// --- ANIMACIÓN A 60FPS, DESACOPLADA DEL MUESTREO DE AUDIO ---
+// El Visualizer entrega FFT a una tasa baja (Visualizer.getMaxCaptureRate()/2,
+// típicamente ~10-20 veces por segundo). Antes las barras SOLO se movían cuando
+// llegaba un dato nuevo, así que aunque el audio fuera real, el movimiento se veía
+// "a saltos" (rígido). Ahora el FFT solo marca la META (targetLevels) y un loop de
+// animación aparte (withFrameNanos, a la velocidad real de la pantalla) interpola
+// hacia esa meta todo el tiempo, con una tasa "por segundo" (no por callback), así
+// la velocidad de la animación no depende de cuántos fps tenga el celular.
+// ATTACK/RELEASE_PER_SEC son tasas de suavizado exponencial: más alto = llega más
+// rápido a la meta. El ataque es MUY rápido (pegado al golpe real); la caída es
+// bastante más lenta pero ya no arrastra tanto como para verse plana.
+private const val ATTACK_PER_SEC = 26f
+private const val RELEASE_PER_SEC = 9f
 
 // Qué tan rápido se ajusta el auto-gain GLOBAL (una sola escala para todas las
 // barras) a la energía reciente de la canción. Antes era por barra, y eso
 // "aplanaba" todo: un hi-hat bajito se veía tan alto como un golpe de bombo.
 // Con un gain global, la altura relativa entre barras SÍ refleja la mezcla real.
-// Bajado de 0.94 a 0.88: el gain "olvida" un pico viejo todavía más rápido, así
-// las barras usan más rango dinámico en las partes tranquilas de la canción en
-// vez de quedar aplastadas cerca del techo por un golpe fuerte que ya pasó.
-private const val GAIN_DECAY = 0.88f
+// Bajado más (0.88 -> 0.82): el gain "olvida" un pico viejo todavía más rápido, así
+// las barras usan más rango dinámico en las partes tranquilas de la canción en vez
+// de quedar aplastadas cerca del techo por un golpe fuerte que ya pasó, y en temas
+// con audio sostenido y fuerte no se quedan "pegadas" arriba sin margen para picar.
+private const val GAIN_DECAY = 0.82f
 
-// Detección simple de "golpe" en graves (kick/bajo, que es donde vive el ritmo):
-// si la energía de las barras graves sube fuerte respecto a su propio promedio
-// reciente, se considera un golpe y se le da un empujoncito extra a TODA la fila
-// de barras ese frame, para que se sienta un "pulso" sincronizado con la canción.
-// Ajustado para que dispare más seguido (RATIO más bajo) y empuje más fuerte
-// (BOOST más alto), así el pulso se siente mucho más marcado y "vivo".
-private const val BASS_BAND_FRACTION = 0.25f // % de barras (desde la izquierda) que cuentan como graves
-private const val BEAT_AVG_DECAY = 0.88f     // qué tan rápido se actualiza el promedio de graves
-private const val BEAT_TRIGGER_RATIO = 1.15f // cuánto debe superar al promedio para contar como golpe
-private const val BEAT_BOOST = 1.4f          // empuje extra que se aplica a todas las barras en un golpe
+// Detección de "golpe" POR BANDA (graves, medios, agudos) en vez de una sola
+// global: antes solo los graves disparaban, y cuando disparaban empujaban TODAS
+// las barras por igual (un flash plano parejo). Así no se sentía "como en los
+// videos de música", donde el bombo pega en los graves, el redoblante/hi-hat
+// pega en los agudos, y cada uno en SU propio momento, no todos juntos.
+// Ahora cada banda tiene su propio promedio y dispara su propio golpe, que solo
+// empuja las barras DE ESA banda — así se ven golpes independientes recorriendo
+// el espectro en vez de un pulso uniforme.
+private const val BEAT_BAND_COUNT = 4          // graves / medio-graves / medio-agudos / agudos
+private const val BEAT_AVG_DECAY = 0.88f       // qué tan rápido se actualiza el promedio de cada banda
+private const val BEAT_TRIGGER_RATIO = 1.22f   // cuánto debe superar su propio promedio para contar como golpe
+private const val BEAT_BOOST = 1.7f            // empuje extra que se aplica SOLO a las barras de esa banda
 
 /**
  * Barras de espectro tipo ecualizador, en escala de grises (un solo [color] sólido).
@@ -67,9 +88,10 @@ private const val BEAT_BOOST = 1.4f          // empuje extra que se aplica a tod
  * - Auto-gain GLOBAL (una sola escala para las 32 barras) en vez de una por barra:
  *   así se conservan las diferencias reales de energía entre graves y agudos, y un
  *   golpe de bombo de verdad se ve más alto que un hi-hat de fondo.
- * - Detección liviana de golpe en graves: cuando la energía baja sube fuerte
- *   respecto a su propio promedio reciente, toda la fila de barras recibe un
- *   empujón sincronizado, para que se note el pulso del ritmo.
+ * - Detección de golpe POR BANDA (graves/medios/agudos): cada banda dispara su
+ *   propio golpe contra su propio promedio reciente y empuja SOLO sus barras,
+ *   no todas — así el bombo pega en los graves y el hi-hat pega en los agudos,
+ *   cada uno en su momento, como en un analizador de espectro real.
  *
  * Optimizado para no trabar la UI: todo el cálculo de FFT corre en un
  * HandlerThread aparte (no en el hilo principal).
@@ -83,8 +105,11 @@ fun AudioVisualizerBars(
     modifier: Modifier = Modifier,
     barCount: Int = BAR_COUNT
 ) {
+    // Meta real, escrita por el análisis de audio (FFT) cada vez que llega un dato nuevo.
+    val targetLevels = remember { FloatArray(barCount) }
     // Buffer que YA se dibuja (leído por Canvas). Se muta en el sitio, nunca se re-crea,
-    // para no generar basura (garbage) en cada frame.
+    // para no generar basura (garbage) en cada frame. Un loop aparte lo va acercando a
+    // targetLevels a 60fps, así el movimiento se ve fluido aunque el FFT llegue más lento.
     val displayLevels = remember { FloatArray(barCount) }
     // Disparador liviano: Canvas lo lee para saber cuándo redibujar. El valor en sí no importa.
     var frameTick by remember { mutableIntStateOf(0) }
@@ -114,12 +139,22 @@ fun AudioVisualizerBars(
                 val rawLevels = FloatArray(barCount)
 
                 var globalGain = 1f
-                var bassAvg = 0f
+                // Promedio reciente de energía de CADA banda (para detectar su propio golpe).
+                val bandAvg = FloatArray(BEAT_BAND_COUNT)
+                // Frecuencia de muestreo real (Hz), la manda el propio Visualizer en cada
+                // callback (en milliHertz). La necesitamos para saber a qué bin corresponde
+                // TARGET_MAX_FREQUENCY_HZ, y recalcular los bordes si cambia (ej. cambia de
+                // canción y el audio tiene otro sample rate).
+                var sampleRateHz = 0
 
                 fun buildEdgesIfNeeded() {
-                    if (edges != null || bins < 2) return
+                    if (edges != null || bins < 2 || sampleRateHz <= 0) return
                     val minBin = 1
-                    val maxBin = bins - 1
+                    val nyquistBin = bins - 1
+                    // Bin correspondiente a TARGET_MAX_FREQUENCY_HZ (en vez de ir hasta el
+                    // Nyquist absoluto): así ninguna barra queda mirando una zona sin señal.
+                    val binsPerHz = bins.toFloat() / (sampleRateHz / 2f)
+                    val maxBin = (TARGET_MAX_FREQUENCY_HZ * binsPerHz).toInt().coerceIn(minBin + 1, nyquistBin)
                     val ratio = (maxBin.toFloat() / minBin.toFloat()).pow(1f / barCount)
                     val e = IntArray(barCount + 1)
                     for (i in 0..barCount) {
@@ -162,9 +197,14 @@ fun AudioVisualizerBars(
                             ) {
                                 if (fft == null || fft.size < 4) return
 
-                                if (bins != fft.size / 2 || magnitudes == null) {
+                                // samplingRate llega en milliHertz (Android). Si cambia (o es la
+                                // primera vez), recalculamos los bordes de las barras porque el
+                                // bin que corresponde a TARGET_MAX_FREQUENCY_HZ depende de esto.
+                                val newSampleRateHz = samplingRate / 1000
+                                if (bins != fft.size / 2 || magnitudes == null || sampleRateHz != newSampleRateHz) {
                                     bins = fft.size / 2
                                     magnitudes = FloatArray(bins)
+                                    sampleRateHz = newSampleRateHz
                                     edges = null
                                     buildEdgesIfNeeded()
                                 }
@@ -202,35 +242,44 @@ fun AudioVisualizerBars(
                                 // conservan las diferencias reales de energía entre graves y agudos.
                                 globalGain = max(globalGain * GAIN_DECAY, frameMax).coerceAtLeast(1f)
 
-                                // Detección de golpe en graves: energía promedio de las primeras
-                                // barras (kick/bajo) contra su propio promedio reciente.
-                                val bassBars = max(1, (barCount * BASS_BAND_FRACTION).toInt())
-                                var bassSum = 0f
-                                for (i in 0 until bassBars) bassSum += rawLevels[i]
-                                val bassNow = bassSum / bassBars
-                                val isBeat = bassAvg > 0f && bassNow > bassAvg * BEAT_TRIGGER_RATIO
-                                bassAvg = if (bassAvg == 0f) bassNow else bassAvg + (bassNow - bassAvg) * (1f - BEAT_AVG_DECAY)
-                                val beatMultiplier = if (isBeat) BEAT_BOOST else 1f
-
-                                for (bar in 0 until barCount) {
-                                    val normalized = (rawLevels[bar] / globalGain * beatMultiplier).coerceIn(0f, 1f)
-                                    // Curva perceptual: empuja los valores medios hacia arriba
-                                    // para que se vea más "vivo" y menos plano. Bajado de 0.6 a
-                                    // 0.5 para más contraste todavía entre silencios y golpes.
-                                    rawLevels[bar] = normalized.pow(0.5f)
+                                // Detección de golpe POR BANDA: dividimos las barras en
+                                // BEAT_BAND_COUNT tramos (graves -> agudos) y cada uno detecta
+                                // su propio golpe contra su propio promedio reciente. El boost
+                                // de ese golpe solo se aplica a las barras DE ESA banda, no a
+                                // todas — así el bombo pega en los graves y el hi-hat pega en
+                                // los agudos, cada uno en su momento, como en un video real.
+                                val barsPerBand = max(1, barCount / BEAT_BAND_COUNT)
+                                val beatMultiplier = FloatArray(barCount) { 1f }
+                                for (band in 0 until BEAT_BAND_COUNT) {
+                                    val bandStart = band * barsPerBand
+                                    val bandEnd = if (band == BEAT_BAND_COUNT - 1) barCount else min(bandStart + barsPerBand, barCount)
+                                    if (bandStart >= bandEnd) continue
+                                    var bandSum = 0f
+                                    for (i in bandStart until bandEnd) bandSum += rawLevels[i]
+                                    val bandNow = bandSum / (bandEnd - bandStart)
+                                    val avg = bandAvg[band]
+                                    val isBandBeat = avg > 0f && bandNow > avg * BEAT_TRIGGER_RATIO
+                                    bandAvg[band] = if (avg == 0f) bandNow else avg + (bandNow - avg) * (1f - BEAT_AVG_DECAY)
+                                    if (isBandBeat) {
+                                        for (i in bandStart until bandEnd) beatMultiplier[i] = BEAT_BOOST
+                                    }
                                 }
 
-                                // Ataque rápido / caída lenta, calculado aquí (barato, 32 floats)
-                                // y aplicado en el hilo principal para no pelear con Compose.
+                                for (bar in 0 until barCount) {
+                                    val normalized = (rawLevels[bar] / globalGain * beatMultiplier[bar]).coerceIn(0f, 1f)
+                                    // Curva perceptual: empuja los valores medios hacia arriba
+                                    // para que se vea más "vivo" y menos plano. Bajada de 0.5 a
+                                    // 0.42: silencio/audio bajo cae más cerca de 0 y lo fuerte
+                                    // pega más cerca del techo, más contraste entre ambos.
+                                    rawLevels[bar] = normalized.pow(0.42f)
+                                }
+
+                                // Solo actualizamos la META acá (barato, 32 floats). El
+                                // MOVIMIENTO hacia esa meta lo hace el loop de animación de
+                                // abajo, a 60fps, para que no se vea a saltos entre capturas.
                                 val target = rawLevels.copyOf()
                                 mainHandler.post {
-                                    for (i in 0 until barCount) {
-                                        val current = displayLevels[i]
-                                        val goal = target[i]
-                                        val rate = if (goal > current) ATTACK else RELEASE
-                                        displayLevels[i] = current + (goal - current) * rate
-                                    }
-                                    frameTick++
+                                    for (i in 0 until barCount) targetLevels[i] = target[i]
                                 }
                             }
                         },
@@ -256,9 +305,34 @@ fun AudioVisualizerBars(
                 }
             }
             handlerThread?.quitSafely()
-            // Reseteamos las barras a 0 para que la próxima vez (nueva canción, se
+            // Reseteamos meta Y pantalla a 0 para que la próxima vez (nueva canción, se
             // reanuda, etc.) no arranque "congelado" en el último valor.
+            for (i in targetLevels.indices) targetLevels[i] = 0f
             for (i in displayLevels.indices) displayLevels[i] = 0f
+            frameTick++
+        }
+    }
+
+    // Loop de animación a la velocidad real de la pantalla (~60fps o más), totalmente
+    // aparte de la tasa de captura del Visualizer. Cada frame acerca displayLevels a
+    // targetLevels (la meta real, marcada por el audio) usando un suavizado exponencial
+    // basado en TIEMPO transcurrido (dt), no en "pasos": así la velocidad percibida es
+    // igual sin importar el refresh rate del celular, y el movimiento se ve continuo y
+    // vivo en vez de a saltos cada vez que llega un dato de FFT nuevo.
+    LaunchedEffect(Unit) {
+        var lastFrameNanos = 0L
+        while (true) {
+            withFrameNanos { frameNanos ->
+                val dt = if (lastFrameNanos == 0L) 0f else (frameNanos - lastFrameNanos) / 1_000_000_000f
+                lastFrameNanos = frameNanos
+                for (i in 0 until barCount) {
+                    val current = displayLevels[i]
+                    val goal = targetLevels[i]
+                    val rate = if (goal > current) ATTACK_PER_SEC else RELEASE_PER_SEC
+                    val alpha = 1f - exp(-rate * dt)
+                    displayLevels[i] = current + (goal - current) * alpha
+                }
+            }
             frameTick++
         }
     }
@@ -270,7 +344,10 @@ fun AudioVisualizerBars(
         val barWidth = size.width / (barCount * 1.5f)
         val spacing = barWidth * 0.5f
         val maxBarHeight = size.height
-        val minHeightFraction = 0.03f
+        // Bajado de 0.03 a 0.015: en silencio/audio muy bajo las barras casi
+        // desaparecen (en vez de quedar en un piso visible todo el tiempo), para
+        // que el contraste contra los picos fuertes se note más.
+        val minHeightFraction = 0.015f
 
         for (index in 0 until barCount) {
             val level = displayLevels[index].coerceIn(0f, 1f)

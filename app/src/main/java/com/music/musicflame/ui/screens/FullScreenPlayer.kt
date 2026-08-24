@@ -15,6 +15,7 @@ import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
+import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
@@ -31,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
@@ -198,6 +200,11 @@ fun FullScreenPlayer(
     val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
     val lyricsColorMode = remember { settingsRepo.getLyricsTextColorMode() }
     val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, "")
+    // Cantidad de barras del ecualizador gráfico, configurable en Ajustes > Apariencia
+    // (6 mínimo, 32 estándar, 64 máximo). Antes se armaba la vista pero nunca se le
+    // pasaba este valor a AudioVisualizerBars más abajo, así que siempre quedaba en
+    // el default interno del componente sin importar lo que eligieras en el slider.
+    val equalizerBarCount = remember { settingsRepo.getEqualizerBarCount() }
 
     // Color de las barras del visualizador: SIEMPRE blanco o negro, nunca elegible por el
     // usuario. Se adapta solo según lo que haya detrás de las barras:
@@ -291,7 +298,15 @@ fun FullScreenPlayer(
             audioSessionId = playerManager.audioSessionId.value,
             isPlaying = isPlaying,
             hasRecordAudioPermission = hasRecordAudioPermission,
-            color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor,
+            // Antes: opacidad completa en la vista normal, compitiendo visualmente con
+            // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
+            // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
+            // que protagonista — y sumado al degradado de abajo, que lo termina de
+            // difuminar del todo justo donde arrancan los botones.
+            color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
+            // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
+            // este parámetro, así que el slider no tenía ningún efecto acá).
+            barCount = equalizerBarCount,
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .fillMaxWidth()
@@ -301,6 +316,27 @@ fun FullScreenPlayer(
                 // arriba. Es solo un número -> fácil de subir/bajar a gusto.
                 .fillMaxHeight(0.26f)
                 .padding(horizontal = 8.dp)
+        )
+
+        // --- DEGRADADO DE DIFUMINADO ---
+        // Se dibuja ENCIMA del ecualizador, ocupando la misma franja de abajo. Va de
+        // "color de fondo real de la pantalla" (bgColor) arriba del todo — tapando/
+        // difuminando las barras justo donde arrancan los botones de control — a
+        // totalmente transparente abajo, dejando las barras bien vivas cerca del
+        // borde inferior de la pantalla. Así el ecualizador se ve grande y vivo, pero
+        // sin pelearle protagonismo visual a los botones que quedan por encima.
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .fillMaxHeight(0.26f)
+                .background(
+                    Brush.verticalGradient(
+                        colors = listOf(bgColor, Color.Transparent),
+                        startY = 0f,
+                        endY = Float.POSITIVE_INFINITY
+                    )
+                )
         )
 
         androidx.compose.animation.AnimatedContent(
@@ -333,14 +369,18 @@ fun FullScreenPlayer(
                             )
                         }
                         Spacer(modifier = Modifier.width(4.dp))
-                        Column {
+                        // .weight(1f) para que la Column quede acotada al ancho
+                        // disponible de la fila; sin esto, el marquee del título no
+                        // tiene un límite de ancho contra el cual deslizarse.
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = song.title,
                                 fontWeight = FontWeight.Black,
                                 fontSize = 16.sp,
                                 color = adaptiveContentColor,
                                 maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.basicMarquee(velocity = (-30).dp)
                             )
                             Text(
                                 text = song.artist,
@@ -499,7 +539,11 @@ fun FullScreenPlayer(
                                     color = adaptiveContentColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    modifier = Modifier.padding(horizontal = 16.dp)
+                                    // Marquee hacia la derecha (velocity negativa invierte
+                                    // el sentido por defecto, que es hacia la izquierda).
+                                    modifier = Modifier
+                                        .padding(horizontal = 16.dp)
+                                        .basicMarquee(velocity = (-30).dp)
                                 )
                                 Spacer(modifier = Modifier.height(6.dp))
                                 Text(

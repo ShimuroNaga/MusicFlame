@@ -165,7 +165,7 @@ fun MiniPlayer(
             .clickable(enabled = currentSong != null) { onExpand() },
         shape = RoundedCornerShape(cornerRadius),
         colors = TransparentCardDefaults.surfaceContainer(hasBackgroundImage),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage) 0.dp else 4.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(
             modifier = Modifier

@@ -13,6 +13,8 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
@@ -30,10 +32,11 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
@@ -68,6 +71,7 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -94,6 +98,8 @@ import kotlinx.coroutines.launch
 import java.io.BufferedWriter
 import java.io.OutputStreamWriter
 import java.util.concurrent.TimeUnit
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 
 fun formatPlaylistDuration(ms: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(ms)
@@ -199,6 +205,24 @@ fun PlaylistsScreen(
         )
     }
 
+    // --- Mostrar/ocultar los botones inferiores según la dirección del scroll ---
+    // Misma lógica que en SongScreen: scroll hacia abajo los oculta, hacia arriba reaparecen.
+    val listState = rememberLazyListState()
+    var bottomButtonsVisible by remember { mutableStateOf(true) }
+    LaunchedEffect(listState) {
+        var previousIndex = listState.firstVisibleItemIndex
+        var previousOffset = listState.firstVisibleItemScrollOffset
+        snapshotFlow { listState.firstVisibleItemIndex to listState.firstVisibleItemScrollOffset }
+            .collect { (index, offset) ->
+                val scrollingUp = if (index != previousIndex) index < previousIndex else offset < previousOffset
+                val scrollingDown = if (index != previousIndex) index > previousIndex else offset > previousOffset
+                if (scrollingDown) bottomButtonsVisible = false
+                if (scrollingUp) bottomButtonsVisible = true
+                previousIndex = index
+                previousOffset = offset
+            }
+    }
+
     DisposableEffect(context) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(ctx: Context?, intent: Intent?) {
@@ -257,6 +281,7 @@ fun PlaylistsScreen(
                 }
             ) {
                 LazyColumn(
+                    state = listState,
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
@@ -360,9 +385,14 @@ fun PlaylistsScreen(
             }
 
             // --- GRUPO IZQUIERDO: seleccionar (checklist) y ordenar ---
-            if (!isSelectionMode) {
+            AnimatedVisibility(
+                visible = !isSelectionMode && bottomButtonsVisible,
+                modifier = Modifier.align(Alignment.BottomStart),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
                 Column(
-                    modifier = Modifier.align(Alignment.BottomStart).padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.Start,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -424,10 +454,17 @@ fun PlaylistsScreen(
                         }
                     }
                 }
+            }
 
-                // --- GRUPO DERECHO: nueva playlist e importar (al mismo nivel que el grupo izquierdo) ---
+            // --- GRUPO DERECHO: nueva playlist e importar (al mismo nivel que el grupo izquierdo) ---
+            AnimatedVisibility(
+                visible = !isSelectionMode && bottomButtonsVisible,
+                modifier = Modifier.align(Alignment.BottomEnd),
+                enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
+            ) {
                 Column(
-                    modifier = Modifier.align(Alignment.BottomEnd).padding(16.dp),
+                    modifier = Modifier.padding(16.dp),
                     horizontalAlignment = Alignment.End,
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
@@ -571,54 +608,68 @@ fun PlaylistCard(
                 .padding(16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(56.dp)
-                        .clip(RoundedCornerShape(albumRadius))
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Check, contentDescription = "Seleccionada", tint = MaterialTheme.colorScheme.onPrimary)
-                }
-            } else {
-                Box(
-                    modifier = Modifier
+            Box(
+                modifier = if (!isSelected) {
+                    Modifier
                         .size(56.dp)
                         .clip(RoundedCornerShape(albumRadius))
                         .combinedClickable(
                             onClick = { },
                             onLongClick = { if (!isSelectionMode && coverIsEditable) showCoverDialog.value = true }
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    if (kind == PlaylistKind.FAVORITES && playlist.customCoverUri == null) {
-                        // La tarjeta de Favoritos es vino fijo, no dinámica. Usamos onSurface
-                        // (el tono de texto estándar de Material You que usa el resto de la app)
-                        // en vez de onTertiaryContainer, que sacaba un matiz raro (verde) del wallpaper.
-                        val favoritesIconTint = Color.White
-                        Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = favoritesIconTint)
-                        }
-                    } else if (kind == PlaylistKind.MOST_PLAYED) {
-                        Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Filled.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
-                        }
-                    } else if (kind == PlaylistKind.NEVER_PLAYED) {
-                        Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                            Icon(imageVector = Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
-                        }
-                    } else if (playlist.customCoverUri != null) {
-                        AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
+                        )
+                } else {
+                    Modifier
+                        .size(56.dp)
+                        .clip(RoundedCornerShape(albumRadius))
+                },
+                contentAlignment = Alignment.Center
+            ) {
+                if (kind == PlaylistKind.FAVORITES && playlist.customCoverUri == null) {
+                    // La tarjeta de Favoritos es vino fijo, no dinámica. Usamos onSurface
+                    // (el tono de texto estándar de Material You que usa el resto de la app)
+                    // en vez de onTertiaryContainer, que sacaba un matiz raro (verde) del wallpaper.
+                    val favoritesIconTint = Color.White
+                    Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = favoritesIconTint)
+                    }
+                } else if (kind == PlaylistKind.MOST_PLAYED) {
+                    Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Filled.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
+                    }
+                } else if (kind == PlaylistKind.NEVER_PLAYED) {
+                    Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
+                    }
+                } else if (playlist.customCoverUri != null) {
+                    AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
+                } else {
+                    val firstSongId = playlist.songIds.firstOrNull()
+                    if (firstSongId != null) {
+                        val allSongs = remember { loadSongsFromDevice(context) }
+                        val firstSong = allSongs.find { it.id == firstSongId }
+                        AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
                     } else {
-                        val firstSongId = playlist.songIds.firstOrNull()
-                        if (firstSongId != null) {
-                            val allSongs = remember { loadSongsFromDevice(context) }
-                            val firstSong = allSongs.find { it.id == firstSongId }
-                            AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
-                        } else {
-                            Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
-                        }
+                        Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                    }
+                }
+
+                // Overlay + check centrado al seleccionar (estilo unificado, igual que al
+                // seleccionar una canción manteniendo pulsado): la carátula/ícono se mantiene
+                // visible debajo, no se reemplaza por completo.
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(56.dp)
+                            .clip(RoundedCornerShape(albumRadius))
+                            .background(Color.Black.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = "Seleccionada",
+                            tint = Color.White,
+                            modifier = Modifier.size(28.dp)
+                        )
                     }
                 }
             }

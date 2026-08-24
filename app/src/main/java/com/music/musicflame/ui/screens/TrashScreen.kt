@@ -326,19 +326,25 @@ fun TrashItemCard(
                 .padding(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // INDICADOR DE SELECCIÓN O CARÁTULA
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(50.dp)
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.CheckCircle, contentDescription = "Seleccionado", tint = MaterialTheme.colorScheme.onPrimary)
-                }
-            } else {
+            // CARÁTULA SIEMPRE VISIBLE, CON OVERLAY + CHECK AL SELECCIONAR (estilo unificado)
+            Box(contentAlignment = Alignment.Center) {
                 AlbumArt(trashedSong.song.albumArtUri, 50.dp, 8.dp, albumArtShape)
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(50.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(Color.Black.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = "Seleccionado",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
 
             Column(

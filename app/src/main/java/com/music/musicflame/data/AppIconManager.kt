@@ -3,7 +3,6 @@ package com.music.musicflame.data
 import android.content.ComponentName
 import android.content.Context
 import android.content.pm.PackageManager
-import com.music.musicflame.R
 
 object AppIconManager {
 
@@ -16,17 +15,6 @@ object AppIconManager {
         "cookies" to "$PACKAGE.IconCookies",
         "gray" to "$PACKAGE.IconGray",
         "remix" to "$PACKAGE.IconRemixFlame"
-    )
-
-    // Tema de splash que corresponde a cada icono. Debe mantenerse en sync
-    // con res/values/themes_splash.xml y con las keys de "aliases".
-    private val splashThemes = mapOf(
-        "default" to R.style.Theme_MusicFlame_Splash_Default,
-        "brilliant" to R.style.Theme_MusicFlame_Splash_Brilliant,
-        "pixel" to R.style.Theme_MusicFlame_Splash_Pixel,
-        "cookies" to R.style.Theme_MusicFlame_Splash_Cookies,
-        "gray" to R.style.Theme_MusicFlame_Splash_Gray,
-        "remix" to R.style.Theme_MusicFlame_Splash_Remix
     )
 
     fun setIcon(context: Context, key: String) {
@@ -43,8 +31,4 @@ object AppIconManager {
             )
         }
     }
-
-    /** Devuelve el resource id del tema de splash asociado a [key], con fallback al default. */
-    fun splashThemeFor(key: String): Int =
-        splashThemes[key] ?: R.style.Theme_MusicFlame_Splash_Default
 }

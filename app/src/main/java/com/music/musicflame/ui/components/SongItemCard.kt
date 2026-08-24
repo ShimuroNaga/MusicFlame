@@ -6,7 +6,7 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -67,19 +67,25 @@ fun SongItemCard(
             modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Indicador de selección o carátula
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .clip(RoundedCornerShape(if (radius > 0.dp) 8.dp else 0.dp))
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(Icons.Filled.Check, "Seleccionada", tint = MaterialTheme.colorScheme.onPrimary)
-                }
-            } else {
+            // Carátula siempre visible; al seleccionar se superpone un overlay + check (estilo unificado)
+            Box(contentAlignment = Alignment.Center) {
                 AlbumArt(albumArtUri = song.albumArtUri, size = 48.dp, cornerRadius = if (radius > 0.dp) 8.dp else 0.dp, shape = albumArtShape)
+                if (isSelected) {
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(RoundedCornerShape(if (radius > 0.dp) 8.dp else 0.dp))
+                            .background(Color.Black.copy(alpha = 0.4f)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.CheckCircle,
+                            contentDescription = "Seleccionada",
+                            tint = Color.White,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                }
             }
 
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {

@@ -30,6 +30,7 @@ import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.ui.components.AlbumArtShapePreview
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.ui.theme.parseCustomTextColor
+import com.music.musicflame.ui.theme.resolveIsDarkBackground
 
 // Mismos iconos, mismas claves y mismos labels que appIconOptions en SettingsScreen.kt
 private val appIconOptions = listOf(
@@ -73,7 +74,21 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
     var selectedIcon by remember { mutableStateOf(settingsRepo.getSelectedAppIcon()) }
     var selectedTheme by remember { mutableStateOf(settingsRepo.getAppTheme()) }
     var selectedShape by remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
-    var selectedTextColor by remember { mutableStateOf(settingsRepo.getAppTextColor()) }
+    // Antes se inicializaba con el string CRUDO guardado (settingsRepo.getAppTextColor()),
+    // que por defecto de fábrica es "Negro" sin importar el fondo real. Como MusicFlameTheme
+    // auto-corrige el color de texto real contra el fondo (ver Theme.kt), eso hacía que el
+    // wizard mostrara "Negro" seleccionado aunque el texto que se ve en pantalla fuera
+    // blanco (fondo oscuro) — justo el bug reportado. Ahora, si lo guardado es un preset
+    // ("Negro"/"Blanco"), se corrige para reflejar cuál de los dos es el que REALMENTE se
+    // está aplicando ahora mismo; "Personalizado" se respeta tal cual, sin tocar.
+    val isDarkBackgroundNow = resolveIsDarkBackground(settingsRepo)
+    var selectedTextColor by remember {
+        mutableStateOf(
+            settingsRepo.getAppTextColor().let { stored ->
+                if (stored == "Personalizado") stored else if (isDarkBackgroundNow) "Blanco" else "Negro"
+            }
+        )
+    }
     var customTextColorHex by remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
 
     // Con el ajuste global en MusicFlameTheme, "Negro" y "Blanco" ya se auto-

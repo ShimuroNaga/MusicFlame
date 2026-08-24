@@ -94,3 +94,37 @@ fun MusicFlameTheme(
         }
     }
 }
+
+/**
+ * Calcula si el fondo REAL que va a usar la app en este momento es oscuro o claro,
+ * con la MISMA lógica que usa MusicFlameTheme (arriba) para elegir texto blanco/negro
+ * automáticamente: tema elegido, colores dinámicos Material You, y modo AMOLED.
+ *
+ * Por qué existe: los presets "Negro"/"Blanco" ya NO determinan el color real (ver
+ * appTextColor arriba: siempre se auto-corrigen contra la luminancia del fondo). Pero
+ * pantallas como el wizard de bienvenida o Ajustes mostraban el string CRUDO guardado
+ * ("Negro" por defecto de fábrica) como si fuera el que se está aplicando de verdad,
+ * aunque el texto que realmente se ve en pantalla fuera blanco (por la
+ * auto-corrección). Con esta función, esas pantallas pueden preguntar "¿qué color se
+ * está usando DE VERDAD ahora mismo?" en vez de confiar en el string guardado.
+ */
+@Composable
+fun resolveIsDarkBackground(settingsRepo: SettingsRepository): Boolean {
+    val context = LocalContext.current
+    val isDarkTheme = when (settingsRepo.getAppTheme()) {
+        "Fondo oscuro" -> true
+        "Fondo blanco" -> false
+        else -> isSystemInDarkTheme()
+    }
+    val baseColorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+        if (isDarkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+    } else {
+        if (isDarkTheme) darkColorScheme() else lightColorScheme()
+    }
+    val finalBackground = if (isDarkTheme && settingsRepo.isAmoledModeEnabled()) {
+        Color.Black
+    } else {
+        baseColorScheme.background
+    }
+    return finalBackground.luminance() < 0.5f
+}

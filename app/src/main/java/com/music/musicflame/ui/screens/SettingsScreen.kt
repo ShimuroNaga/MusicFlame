@@ -214,7 +214,20 @@ fun SettingsScreen(
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
     val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
-    val appTextColorPref = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
+    // Igual que en el wizard de bienvenida: el string crudo guardado ("Negro" por
+    // defecto de fábrica) ya no refleja el color real que se aplica, porque
+    // MusicFlameTheme auto-corrige el texto contra la luminancia real del fondo. Si lo
+    // guardado es un preset, se corrige al que de verdad se está usando ahora mismo;
+    // "Personalizado" se respeta tal cual.
+    val isDarkBackgroundNowForTextColor = com.music.musicflame.ui.theme.resolveIsDarkBackground(settingsRepo)
+    val appTextColorPref = remember {
+        mutableStateOf(
+            settingsRepo.getAppTextColor().let { stored ->
+                if (stored == "Personalizado") stored
+                else if (isDarkBackgroundNowForTextColor) "Blanco" else "Negro"
+            }
+        )
+    }
     val customTextColorHex = remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
 
     val backgroundImageUri = remember { mutableStateOf(settingsRepo.getBackgroundImageUri()) }

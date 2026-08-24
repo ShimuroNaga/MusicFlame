@@ -484,7 +484,7 @@ fun SongItemCard(
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
     val backgroundColor by animateColorAsState(
         targetValue = when {
-            isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+            isSelected -> MaterialTheme.colorScheme.primaryContainer
             hasBackgroundImage -> {
                 if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
                 else Color.Black.copy(alpha = 0.5f)

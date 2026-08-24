@@ -495,18 +495,26 @@ fun SongsScreen(
                                 shape = RoundedCornerShape(cardRadius)
                             ) {
                                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    if (isSelected) {
-                                        Box(
-                                            modifier = Modifier
-                                                .size(50.dp)
-                                                .clip(RoundedCornerShape(albumRadius))
-                                                .background(MaterialTheme.colorScheme.primary),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Icon(Icons.Filled.Check, "Seleccionada", tint = MaterialTheme.colorScheme.onPrimary)
-                                        }
-                                    } else {
+                                    // Carátula siempre visible; al seleccionar se superpone un overlay + check
+                                    // (mismo estilo unificado que usan Tu Mix, Playlists, Papelera, etc.)
+                                    Box(contentAlignment = Alignment.Center) {
                                         AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape)
+                                        if (isSelected) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(50.dp)
+                                                    .clip(RoundedCornerShape(albumRadius))
+                                                    .background(Color.Black.copy(alpha = 0.4f)),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Filled.CheckCircle,
+                                                    contentDescription = "Seleccionada",
+                                                    tint = Color.White,
+                                                    modifier = Modifier.size(24.dp)
+                                                )
+                                            }
+                                        }
                                     }
 
                                     // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---

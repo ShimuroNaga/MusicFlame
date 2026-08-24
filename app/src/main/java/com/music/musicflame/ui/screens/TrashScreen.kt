@@ -299,7 +299,7 @@ fun TrashItemCard(
 
     // Color de fondo dinámico si está seleccionado
     val containerColor = when {
-        isSelected -> MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.8f)
+        isSelected -> MaterialTheme.colorScheme.primaryContainer
         hasBackgroundImage -> Color.Black.copy(alpha = 0.5f)
         else -> MaterialTheme.colorScheme.surfaceContainerHigh
     }

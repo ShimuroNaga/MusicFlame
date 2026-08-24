@@ -164,11 +164,15 @@ fun AlbumArt(
             .build()
     }
 
+    // El fondo gris (surfaceVariant) solo se pinta cuando hace falta como placeholder
+    // (cargando, sin carátula o error). Antes se pintaba SIEMPRE detrás de la Box entera,
+    // lo que dejaba un fino borde gris asomando por el anti-aliasing del recorte redondeado,
+    // incluso con la imagen ya cargada. Ahora, si la imagen carga bien, no hay ningún
+    // fondo detrás de ella: nada que pueda asomar por el borde.
     Box(
         modifier = Modifier
             .size(size)
-            .clip(clipShape)
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .clip(clipShape),
         contentAlignment = Alignment.Center
     ) {
         if (albumArtUri != null) {
@@ -193,27 +197,39 @@ fun AlbumArt(
             ) {
                 val painterState = painter.state
                 if (painterState is coil.compose.AsyncImagePainter.State.Success) {
-                    // Se encontró la carátula: mostramos la imagen real
+                    // Se encontró la carátula: mostramos la imagen real, sin fondo gris detrás
                     SubcomposeAsyncImageContent()
                 } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
                     // No hay carátula (o falló la URI heredada de MediaStore en Android 10+):
                     // mostramos el ícono de nota musical sobre el cuadro gris
-                    Icon(
-                        Icons.Filled.MusicNote,
-                        contentDescription = null,
-                        modifier = Modifier.size(size / 2),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Box(
+                        modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(size / 2),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    // Mientras carga (Loading): fondo gris de placeholder
+                    Box(modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant))
                 }
-                // Mientras carga (Loading) no mostramos nada: se ve el fondo gris de la Box
             }
         } else {
-            Icon(
-                Icons.Filled.MusicNote,
-                contentDescription = null,
-                modifier = Modifier.size(size / 2),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+            Box(
+                modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Filled.MusicNote,
+                    contentDescription = null,
+                    modifier = Modifier.size(size / 2),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
 
         // Detalle de disco de vinilo: surcos finos + hoyo central, dibujados encima de la carátula.

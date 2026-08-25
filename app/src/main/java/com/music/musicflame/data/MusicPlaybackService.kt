@@ -11,6 +11,8 @@ import android.media.audiofx.Virtualizer
 import android.media.audiofx.LoudnessEnhancer
 import android.media.audiofx.PresetReverb
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
@@ -39,6 +41,13 @@ class MusicPlaybackService : MediaSessionService() {
         // Públicas para que MusicPlayerManager pueda pedir el audioSessionId sin duplicar strings
         const val CUSTOM_COMMAND_GET_AUDIO_SESSION_ID = "com.music.musicflame.GET_AUDIO_SESSION_ID"
         const val KEY_AUDIO_SESSION_ID = "audio_session_id"
+
+        // Cada cuánto se revisa si la línea de letra activa cambió mientras suena
+        // la canción. No hace falta más precisión que esto para que el widget se
+        // sienta "en vivo": las líneas LRC casi nunca duran menos de un par de
+        // segundos, y actualizar el widget más seguido solo gasta batería sin
+        // aportar nada perceptible.
+        private const val LYRICS_TICK_INTERVAL_MS = 400L
     }
 
     private var mediaSession: MediaSession? = null
@@ -59,6 +68,20 @@ class MusicPlaybackService : MediaSessionService() {
     private var currentReverb = 0
 
     private lateinit var sharedPrefs: SharedPreferences
+
+    // --- LETRA EN VIVO EN EL WIDGET ---
+    private lateinit var lyricsRepo: LyricsRepository
+    private lateinit var lyricsSettingsRepo: SettingsRepository
+    private var currentParsedLyrics: ParsedLyrics = ParsedLyrics.EMPTY
+    private var lastAppliedLyricIndex: Int = -1
+    private var lyricsTickingActive = false
+    private val lyricsTickHandler = Handler(Looper.getMainLooper())
+    private val lyricsTickRunnable = object : Runnable {
+        override fun run() {
+            updateLyricLinesIfNeeded(player.currentMediaItem?.mediaId)
+            lyricsTickHandler.postDelayed(this, LYRICS_TICK_INTERVAL_MS)
+        }
+    }
 
     // NOTIFICACIÓN Y ACCIONES CUSTOM
     private val CUSTOM_COMMAND_FAVORITE = "com.music.musicflame.FAVORITE"
@@ -103,6 +126,8 @@ class MusicPlaybackService : MediaSessionService() {
         super.onCreate()
 
         sharedPrefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        lyricsRepo = LyricsRepository(this)
+        lyricsSettingsRepo = SettingsRepository(this)
 
         // Cargar valores iniciales
         currentBass = sharedPrefs.getFloat("bass_boost", 0f)
@@ -153,10 +178,27 @@ class MusicPlaybackService : MediaSessionService() {
                 super.onMediaItemTransition(mediaItem, reason)
                 checkIfCurrentSongIsFavorite()
                 syncWidgetState()
+                loadLyricsForCurrentSong()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
                 syncWidgetState()
+                if (isPlaying) startLyricsTickingIfNeeded() else stopLyricsTicking()
+            }
+
+            // NUEVO: única enganchada real que hace falta para la letra en vivo del
+            // widget. El tick periódico de arriba cubre el avance normal de la
+            // canción, pero no reacciona a saltos (el usuario arrastra la barra de
+            // progreso, toca una línea de la letra en FullScreenPlayer, o un
+            // "repetir una" reinicia la posición a 0): onPositionDiscontinuity SÍ
+            // se dispara siempre en esos casos, así que lo usamos para resincronizar
+            // la línea activa al instante en vez de esperar hasta 400ms.
+            override fun onPositionDiscontinuity(
+                oldPosition: Player.PositionInfo,
+                newPosition: Player.PositionInfo,
+                reason: Int
+            ) {
+                updateLyricLinesIfNeeded(player.currentMediaItem?.mediaId, force = true)
             }
 
             override fun onRepeatModeChanged(repeatMode: Int) {
@@ -198,6 +240,77 @@ class MusicPlaybackService : MediaSessionService() {
             mediaId = mediaItem?.mediaId
         )
         MusicFlameWidgetProvider.refreshAllWidgets(this)
+    }
+
+    /**
+     * Carga y parsea la letra guardada de la canción que acaba de empezar a
+     * sonar (lectura local, LyricsRepository ya la resolvió de antemano vía
+     * LyricsView/scanLibrary; acá NO se busca online, solo se lee lo que ya
+     * hay guardado). Si no hay letra o no está sincronizada, deja
+     * currentParsedLyrics vacía y el widget simplemente sigue mostrando el
+     * nombre del artista como siempre.
+     */
+    private fun loadLyricsForCurrentSong() {
+        val mediaItem = player.currentMediaItem
+        val mediaId = mediaItem?.mediaId
+        val songId = mediaId?.toLongOrNull()
+
+        lastAppliedLyricIndex = -1
+        WidgetPrefs.clearLyricsLines(this)
+
+        currentParsedLyrics = songId?.let { id ->
+            lyricsRepo.getLyrics(id)?.let { stored -> LyricsParser.parse(stored.raw) }
+        } ?: ParsedLyrics.EMPTY
+
+        stopLyricsTicking()
+        updateLyricLinesIfNeeded(mediaId, force = true)
+        if (player.isPlaying) startLyricsTickingIfNeeded()
+    }
+
+    /**
+     * Recalcula la línea activa para la posición actual de reproducción y, si
+     * cambió (o si [force]), la guarda para el widget junto con hasta 2 líneas
+     * siguientes de contexto. No hace nada si la letra no está sincronizada,
+     * si el usuario apagó "Letra en el widget" en Ajustes, o si no hay ningún
+     * widget añadido (barato de llamar siempre desde el tick y desde
+     * onPositionDiscontinuity).
+     */
+    private fun updateLyricLinesIfNeeded(mediaId: String?, force: Boolean = false) {
+        if (mediaId == null) return
+        if (!currentParsedLyrics.isSynced || currentParsedLyrics.lines.isEmpty()) return
+        if (!lyricsSettingsRepo.isLyricsInWidgetEnabled()) return
+        if (!MusicFlameWidgetProvider.hasWidgets(this)) return
+
+        val activeIndex = currentParsedLyrics.activeIndex(player.currentPosition)
+        if (!force && activeIndex == lastAppliedLyricIndex) return
+        lastAppliedLyricIndex = activeIndex
+
+        // Antes de la primera marca de tiempo (activeIndex == -1) mostramos las
+        // primeras líneas igual, para que el widget no se quede vacío desde el
+        // segundo 0 de la canción.
+        val startIndex = if (activeIndex >= 0) activeIndex else 0
+        val lines = (startIndex until startIndex + 3).mapNotNull { currentParsedLyrics.lines.getOrNull(it)?.text }
+
+        WidgetPrefs.saveLyricsLines(this, mediaId, lines)
+        MusicFlameWidgetProvider.refreshAllWidgets(this)
+    }
+
+    /** Arranca el tick de 400ms SOLO si de verdad hace falta (barato de llamar seguido). */
+    private fun startLyricsTickingIfNeeded() {
+        if (lyricsTickingActive) return
+        if (!player.isPlaying) return
+        if (!currentParsedLyrics.isSynced || currentParsedLyrics.lines.isEmpty()) return
+        if (!lyricsSettingsRepo.isLyricsInWidgetEnabled()) return
+        if (!MusicFlameWidgetProvider.hasWidgets(this)) return
+
+        lyricsTickingActive = true
+        lyricsTickHandler.postDelayed(lyricsTickRunnable, LYRICS_TICK_INTERVAL_MS)
+    }
+
+    private fun stopLyricsTicking() {
+        if (!lyricsTickingActive) return
+        lyricsTickingActive = false
+        lyricsTickHandler.removeCallbacks(lyricsTickRunnable)
     }
 
     private fun checkIfCurrentSongIsFavorite() {
@@ -452,6 +565,7 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     override fun onDestroy() {
+        stopLyricsTicking()
         unregisterReceiver(eqUpdateReceiver)
         unregisterReceiver(noisyReceiver)
         equalizer?.release()

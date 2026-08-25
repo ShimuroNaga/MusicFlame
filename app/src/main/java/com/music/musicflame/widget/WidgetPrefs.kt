@@ -33,6 +33,14 @@ object WidgetPrefs {
     private const val KEY_LYRICS_LINES = "widget_lyrics_lines"
     private const val KEY_LYRICS_MEDIA_ID = "widget_lyrics_media_id"
 
+    // Antes el tope era 3 (activa + 2 siguientes, lo único que consumían las
+    // variantes wide/compact con letra). La variante cuadrada nueva necesita
+    // varias líneas más de contexto para su bloque multilinea, así que subimos
+    // el tope acá; wide/compact simplemente siguen leyendo solo lines[0..2] y
+    // ni se enteran de que ahora se guardan más (ver extraLineIds en
+    // MusicFlameWidgetProvider.kt).
+    const val MAX_LYRICS_CONTEXT_LINES = 9
+
     data class WidgetSongState(
         val hasSong: Boolean,
         val title: String,
@@ -76,7 +84,7 @@ object WidgetPrefs {
      */
     fun saveLyricsLines(context: Context, mediaId: String?, lines: List<String>) {
         val array = JSONArray()
-        lines.take(3).forEach { array.put(it) }
+        lines.take(MAX_LYRICS_CONTEXT_LINES).forEach { array.put(it) }
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
             .putString(KEY_LYRICS_LINES, array.toString())
             .putString(KEY_LYRICS_MEDIA_ID, mediaId)

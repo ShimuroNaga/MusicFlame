@@ -195,14 +195,88 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             // el usuario agranda el widget verticalmente en un launcher que lo soporte
             // (ver resizeMode="horizontal|vertical" en musicflame_widget_info.xml); en
             // cualquier otro caso el widget se comporta exactamente igual que antes.
-            return RemoteViews(
-                mapOf(
-                    SizeF(180f, 40f) to compact,
-                    SizeF(250f, 40f) to wide,
-                    SizeF(250f, 74f) to wideLyrics,
-                    SizeF(180f, 90f) to compactLyrics
-                )
+            val sizeMap = mutableMapOf(
+                SizeF(180f, 40f) to compact,
+                SizeF(250f, 40f) to wide,
+                SizeF(250f, 74f) to wideLyrics,
+                SizeF(180f, 90f) to compactLyrics
             )
+
+            // Variante CUADRADA de letra completa (180x180dp): opt-in vía
+            // "Widget cuadrado de letra completa" en Ajustes > Lyrics, switch
+            // SEPARADO del de "Letra en vivo en el widget" de arriba. Si está
+            // apagado, ni siquiera se agrega al mapa: el widget se comporta
+            // exactamente igual que antes, sin este tamaño como opción.
+            if (settingsRepo.isFullLyricsSquareWidgetEnabled()) {
+                // Todas las líneas de contexto guardadas (hasta MAX_LYRICS_CONTEXT_LINES),
+                // unidas en un solo bloque; si no hay letra sincronizada (o está
+                // desactivada la letra en general) cae al nombre del artista, igual
+                // que el resto de las variantes.
+                val fullLyricsText = if (lyricsLines.isNotEmpty()) {
+                    lyricsLines.joinToString("\n")
+                } else {
+                    state.artist
+                }
+
+                val square = buildSquareLyricsViews(
+                    context, state, artBitmap, backgroundAlpha, fullLyricsText, lyricsColor
+                )
+                square.setOnClickPendingIntent(R.id.widget_previous, previousPendingIntent(context))
+                square.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
+                square.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
+                square.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
+
+                sizeMap[SizeF(180f, 180f)] = square
+            }
+
+            return RemoteViews(sizeMap)
+        }
+
+        /**
+         * Variante cuadrada: a diferencia de buildBaseViews() (que arma
+         * wide/compact con hasta 1-2 líneas separadas en TextViews propios),
+         * esta variante junta TODAS las líneas de contexto en un solo
+         * TextView multilinea con wrap y sin ellipsize (widget_lyrics_full_block),
+         * que crece hacia abajo llenando el espacio disponible. No se reusa
+         * buildBaseViews() porque el layout cuadrado no tiene widget_song_artist
+         * ni los TextViews de línea individual: tiene un layout propio de 4
+         * esquinas + título + bloque de letra (ver widget_music_flame_square_lyrics.xml).
+         */
+        private fun buildSquareLyricsViews(
+            context: Context,
+            state: WidgetPrefs.WidgetSongState,
+            artBitmap: Bitmap,
+            backgroundAlpha: Int,
+            fullLyricsText: String,
+            lyricsColor: Int
+        ): RemoteViews {
+            val views = RemoteViews(context.packageName, R.layout.widget_music_flame_square_lyrics)
+
+            if (state.hasSong) {
+                views.setTextViewText(R.id.widget_song_title, state.title)
+                views.setTextViewText(R.id.widget_lyrics_full_block, fullLyricsText)
+                views.setTextColor(R.id.widget_lyrics_full_block, lyricsColor)
+            } else {
+                views.setTextViewText(R.id.widget_song_title, context.getString(R.string.widget_no_song))
+                views.setTextViewText(R.id.widget_lyrics_full_block, context.getString(R.string.widget_select_song))
+                views.setTextColor(R.id.widget_lyrics_full_block, Color.parseColor("#E6FFFFFF"))
+            }
+
+            views.setImageViewResource(
+                R.id.widget_play_pause,
+                if (state.isPlaying) R.drawable.ic_widget_pause else R.drawable.ic_widget_play
+            )
+
+            views.setInt(R.id.widget_album_art, "setBackgroundColor", Color.TRANSPARENT)
+            views.setImageViewBitmap(R.id.widget_album_art, artBitmap)
+
+            views.setColorStateList(
+                R.id.widget_root,
+                "setBackgroundTintList",
+                ColorStateList.valueOf(Color.argb(backgroundAlpha, 28, 27, 31))
+            )
+
+            return views
         }
 
         /**

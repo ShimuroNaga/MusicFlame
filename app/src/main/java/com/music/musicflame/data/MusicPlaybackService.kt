@@ -288,8 +288,13 @@ class MusicPlaybackService : MediaSessionService() {
         // Antes de la primera marca de tiempo (activeIndex == -1) mostramos las
         // primeras líneas igual, para que el widget no se quede vacío desde el
         // segundo 0 de la canción.
+        // Antes solo se generaban 3 líneas (lo único que consumían wide/compact).
+        // Ahora se generan hasta WidgetPrefs.MAX_LYRICS_CONTEXT_LINES para que la
+        // variante cuadrada tenga contexto de sobra; wide/compact no cambian en
+        // nada porque solo leen lines[0..2] como siempre.
         val startIndex = if (activeIndex >= 0) activeIndex else 0
-        val lines = (startIndex until startIndex + 3).mapNotNull { currentParsedLyrics.lines.getOrNull(it)?.text }
+        val lines = (startIndex until startIndex + WidgetPrefs.MAX_LYRICS_CONTEXT_LINES)
+            .mapNotNull { currentParsedLyrics.lines.getOrNull(it)?.text }
 
         WidgetPrefs.saveLyricsLines(this, mediaId, lines)
         MusicFlameWidgetProvider.refreshAllWidgets(this)

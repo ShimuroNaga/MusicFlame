@@ -171,6 +171,13 @@ class SettingsRepository(context: Context) {
     fun isLyricsInWidgetEnabled(): Boolean = prefs.getBoolean("lyrics_in_widget_enabled", true)
     fun saveLyricsInWidgetEnabled(enabled: Boolean) = prefs.edit().putBoolean("lyrics_in_widget_enabled", enabled).apply()
 
+    // Widget cuadrado de letra completa (180x180dp): toggle SEPARADO del de
+    // arriba. Uno controla si hay letra en el widget en general; este controla
+    // si además se ofrece la variante cuadrada sin recorte. Por defecto
+    // desactivado (opt-in), a diferencia del anterior.
+    fun isFullLyricsSquareWidgetEnabled(): Boolean = prefs.getBoolean("full_lyrics_square_widget_enabled", false)
+    fun saveFullLyricsSquareWidgetEnabled(enabled: Boolean) = prefs.edit().putBoolean("full_lyrics_square_widget_enabled", enabled).apply()
+
     // --- ONBOARDING DE PRIMER USO ---
     fun isOnboardingCompleted(): Boolean = prefs.getBoolean("onboarding_completed", false)
     fun setOnboardingCompleted(completed: Boolean) = prefs.edit().putBoolean("onboarding_completed", completed).apply()

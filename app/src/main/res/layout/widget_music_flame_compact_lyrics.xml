@@ -1,0 +1,136 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Variante COMPACTA + EXPANDIDA (180x90dp) del widget de MusicFlame: letra en
+    vivo con 3 líneas (la activa + las 2 siguientes). Al ser más angosta que la
+    ancha, cada línea individual muestra menos texto, así que se compensa
+    mostrando una línea extra de contexto.
+
+    Solo aparece si el usuario agranda el widget verticalmente más allá de los
+    40dp de la variante compacta normal (ver maxResizeHeight en
+    musicflame_widget_info.xml). En launchers sin resize vertical, se sigue
+    usando widget_music_flame.xml de siempre.
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/widget_music_flame_background"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="10dp"
+    android:paddingTop="8dp"
+    android:paddingEnd="6dp"
+    android:paddingBottom="8dp">
+
+    <!-- CARÁTULA (siempre cuadrada) -->
+    <ImageView
+        android:id="@+id/widget_album_art"
+        android:layout_width="48dp"
+        android:layout_height="48dp"
+        android:background="@drawable/widget_album_art_background"
+        android:scaleType="centerCrop"
+        android:src="@drawable/ic_widget_music_placeholder"
+        android:contentDescription="@string/widget_album_art_desc" />
+
+    <!-- TÍTULO + LETRA EN VIVO (3 líneas: activa + 2 siguientes) -->
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:layout_marginStart="10dp"
+        android:layout_marginEnd="4dp"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/widget_song_title"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="@string/widget_no_song"
+            android:textColor="#FFFFFFFF"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="3" />
+
+        <!-- Línea activa (o el nombre del artista si no hay letra disponible/activada) -->
+        <TextView
+            android:id="@+id/widget_song_artist"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text="@string/widget_select_song"
+            android:textColor="#E6FFFFFF"
+            android:textSize="10sp"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="3" />
+
+        <!-- Líneas siguientes: solo visibles con letra sincronizada activada (GONE si no aplica) -->
+        <TextView
+            android:id="@+id/widget_lyrics_line2"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text=""
+            android:textColor="#99FFFFFF"
+            android:textSize="9sp"
+            android:visibility="gone"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="3" />
+
+        <TextView
+            android:id="@+id/widget_lyrics_line3"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:singleLine="true"
+            android:text=""
+            android:textColor="#73FFFFFF"
+            android:textSize="9sp"
+            android:visibility="gone"
+            android:shadowColor="#CC000000"
+            android:shadowDx="0"
+            android:shadowDy="1"
+            android:shadowRadius="3" />
+    </LinearLayout>
+
+    <!-- PLAY / PAUSE (centro) -->
+    <ImageButton
+        android:id="@+id/widget_play_pause"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:layout_marginEnd="2dp"
+        android:background="@drawable/widget_button_background"
+        android:contentDescription="@string/widget_play_pause_desc"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_widget_play" />
+
+    <!-- SIGUIENTE -->
+    <ImageButton
+        android:id="@+id/widget_next_or_prev"
+        android:layout_width="40dp"
+        android:layout_height="40dp"
+        android:background="@drawable/widget_button_background"
+        android:contentDescription="@string/widget_next_desc"
+        android:padding="8dp"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_widget_skip_next" />
+
+</LinearLayout>

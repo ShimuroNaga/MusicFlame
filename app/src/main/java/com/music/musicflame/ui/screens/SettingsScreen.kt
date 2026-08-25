@@ -1331,7 +1331,7 @@ fun SettingsScreen(
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                                             )
                                             Text(
-                                                "Agrega una variante cuadrada del widget (agrándalo en el home screen) que muestra varias líneas de letra sin cortarlas.",
+                                                "Cambia el widget del home screen a una variante con letra completa (mínimo 3 líneas) y controles en grid. Se aplica al instante, sin tener que agrandar el widget a mano.",
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                             )

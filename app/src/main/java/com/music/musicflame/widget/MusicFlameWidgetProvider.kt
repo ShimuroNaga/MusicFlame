@@ -202,11 +202,16 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                 SizeF(180f, 90f) to compactLyrics
             )
 
-            // Variante CUADRADA de letra completa (180x180dp): opt-in vía
+            // Variante de letra completa con grid de controles: opt-in vía
             // "Widget cuadrado de letra completa" en Ajustes > Lyrics, switch
-            // SEPARADO del de "Letra en vivo en el widget" de arriba. Si está
-            // apagado, ni siquiera se agrega al mapa: el widget se comporta
-            // exactamente igual que antes, sin este tamaño como opción.
+            // SEPARADO del de "Letra en vivo en el widget" de arriba.
+            //
+            // A diferencia del intento anterior (que la agregaba como un tamaño
+            // más dentro del sizeMap responsivo, obligando al usuario a agrandar
+            // el widget a mano en el home screen para verla), ahora es automático:
+            // en cuanto el switch está activo se devuelve directamente este único
+            // RemoteViews fijo, ignorando el mapa de tamaños. Al desactivar el
+            // switch, se vuelve a devolver el sizeMap de siempre (compact/wide/etc).
             if (settingsRepo.isFullLyricsSquareWidgetEnabled()) {
                 // Todas las líneas de contexto guardadas (hasta MAX_LYRICS_CONTEXT_LINES),
                 // unidas en un solo bloque; si no hay letra sincronizada (o está
@@ -218,29 +223,30 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                     state.artist
                 }
 
-                val square = buildSquareLyricsViews(
+                val quadLyrics = buildSquareLyricsViews(
                     context, state, artBitmap, backgroundAlpha, fullLyricsText, lyricsColor
                 )
-                square.setOnClickPendingIntent(R.id.widget_previous, previousPendingIntent(context))
-                square.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
-                square.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
-                square.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
+                quadLyrics.setOnClickPendingIntent(R.id.widget_previous, previousPendingIntent(context))
+                quadLyrics.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
+                quadLyrics.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
+                quadLyrics.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
 
-                sizeMap[SizeF(180f, 180f)] = square
+                return quadLyrics
             }
 
             return RemoteViews(sizeMap)
         }
 
         /**
-         * Variante cuadrada: a diferencia de buildBaseViews() (que arma
-         * wide/compact con hasta 1-2 líneas separadas en TextViews propios),
-         * esta variante junta TODAS las líneas de contexto en un solo
-         * TextView multilinea con wrap y sin ellipsize (widget_lyrics_full_block),
-         * que crece hacia abajo llenando el espacio disponible. No se reusa
-         * buildBaseViews() porque el layout cuadrado no tiene widget_song_artist
-         * ni los TextViews de línea individual: tiene un layout propio de 4
-         * esquinas + título + bloque de letra (ver widget_music_flame_square_lyrics.xml).
+         * Variante de letra completa con grid de controles: a diferencia de
+         * buildBaseViews() (que arma wide/compact con hasta 1-2 líneas separadas
+         * en TextViews propios), esta variante junta TODAS las líneas de contexto
+         * en un solo TextView multilinea con wrap y sin ellipsize
+         * (widget_lyrics_full_block, mínimo 3 líneas), a la izquierda; a la
+         * derecha va un grid fijo de 2x2 con Play/Pause y Siguiente arriba,
+         * Carátula y Anterior abajo. No se reusa buildBaseViews() porque este
+         * layout no tiene widget_song_artist ni TextViews de línea individual
+         * (ver widget_music_flame_square_lyrics.xml).
          */
         private fun buildSquareLyricsViews(
             context: Context,

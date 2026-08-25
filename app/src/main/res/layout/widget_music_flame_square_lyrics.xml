@@ -1,23 +1,17 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-    Variante CUADRADA de letra completa (180x180dp), opt-in vía el switch
-    "Widget cuadrado de letra completa" en Ajustes > Lyrics (independiente del
-    switch de "Letra en vivo en el widget" — ver SettingsRepository.kt).
+    Rediseño (ago 2026) de la variante de "letra completa" — reemplaza por
+    completo el diseño anterior (el del commit que expandía el widget al
+    activarse). Ya NO depende del tamaño físico del widget en el home screen:
+    se fuerza este layout fijo apenas el usuario activa el switch "Widget
+    cuadrado de letra completa" en Ajustes > Lyrics (ver
+    MusicFlameWidgetProvider.buildRemoteViews, que ahora devuelve este layout
+    directo en vez de agregarlo al mapa de tamaños responsivo). Al desactivar
+    el switch, el widget vuelve a comportarse como siempre (compact/wide).
 
-        [ Play/Pause ]     [ Título de la canción ]     [ Siguiente ]
-        [ Carátula   ]     [   Bloque de letra completa  ]  [ Anterior ]
-
-    La letra acá NO se corta ni hace scroll: es un bloque de texto multilinea
-    con wrap (sin ellipsize), igual de "vivo" que las otras variantes (mismo
-    tick de 400ms + onPositionDiscontinuity), pero mostrando varias líneas de
-    contexto en vez de 1-3 truncadas. Se eligió este enfoque en vez de scroll
-    automático letra por letra porque RemoteViews no tiene forma confiable de
-    animar texto: el marquee nativo depende de foco/selección que un widget de
-    home screen no garantiza, y simular el scroll a mano requeriría medir el
-    texto renderizado (algo que RemoteViews no expone). Un swap de texto
-    (setTextViewText) en un bloque que crece con wrap es el mismo mecanismo
-    que ya usan las variantes wide/compact con letra, así que es 100%
-    compatible sin trucos.
+        [        Título de la canción, centrado         ]
+        [ Letra (mín. 3 líneas) ]  [ Play/Pause | Siguiente ]
+                                   [ Carátula    | Anterior  ]
 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widget_root"
@@ -25,109 +19,139 @@
     android:layout_height="match_parent"
     android:background="@drawable/widget_music_flame_background"
     android:orientation="vertical"
+    android:gravity="center_vertical"
     android:padding="10dp">
 
-    <!-- FILA SUPERIOR: Play/Pause (esquina sup. izq.) | Título | Siguiente (esquina sup. der.) -->
+    <!-- TÍTULO: fila propia, ancho completo, centrado -->
+    <TextView
+        android:id="@+id/widget_song_title"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:ellipsize="end"
+        android:gravity="center"
+        android:maxLines="1"
+        android:singleLine="true"
+        android:text="@string/widget_no_song"
+        android:textColor="#FFFFFFFF"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        android:shadowColor="#CC000000"
+        android:shadowDx="0"
+        android:shadowDy="1"
+        android:shadowRadius="3" />
+
+    <!-- FILA INFERIOR: Letra (izquierda) | Grid 2x2 de controles+carátula (derecha) -->
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="44dp"
-        android:gravity="center_vertical"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
         android:orientation="horizontal">
 
-        <ImageButton
-            android:id="@+id/widget_play_pause"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="@drawable/widget_button_background"
-            android:contentDescription="@string/widget_play_pause_desc"
-            android:padding="9dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_widget_play" />
-
-        <TextView
-            android:id="@+id/widget_song_title"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
-            android:ellipsize="end"
-            android:gravity="center"
-            android:maxLines="1"
-            android:singleLine="true"
-            android:text="@string/widget_no_song"
-            android:textColor="#FFFFFFFF"
-            android:textSize="13sp"
-            android:textStyle="bold"
-            android:shadowColor="#CC000000"
-            android:shadowDx="0"
-            android:shadowDy="1"
-            android:shadowRadius="3" />
-
-        <ImageButton
-            android:id="@+id/widget_next_or_prev"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="@drawable/widget_button_background"
-            android:contentDescription="@string/widget_next_desc"
-            android:padding="9dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_widget_skip_next" />
-    </LinearLayout>
-
-    <!-- FILA INFERIOR (fills el resto): Carátula (esquina inf. izq.) | Letra completa | Anterior (esquina inf. der.) -->
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:layout_marginTop="8dp"
-        android:orientation="horizontal">
-
-        <ImageView
-            android:id="@+id/widget_album_art"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_gravity="bottom"
-            android:background="@drawable/widget_album_art_background"
-            android:scaleType="centerCrop"
-            android:src="@drawable/ic_widget_music_placeholder"
-            android:contentDescription="@string/widget_album_art_desc" />
-
-        <!-- Bloque de letra: multilinea con wrap, SIN ellipsize, crece hacia
-             abajo llenando todo el espacio disponible. Se actualiza entero
-             con setTextViewText cada vez que cambia la línea activa (mismo
-             tick/onPositionDiscontinuity de MusicPlaybackService), nunca hace
-             scroll ni animación, solo swap de texto. -->
+        <!-- LETRA: mínimo 3 líneas visibles, multilinea con wrap, SIN ellipsize.
+             Se actualiza entera con setTextViewText (mismo mecanismo que las
+             demás variantes), nunca hace scroll ni animación. -->
         <TextView
             android:id="@+id/widget_lyrics_full_block"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:layout_marginStart="8dp"
-            android:layout_marginEnd="8dp"
+            android:layout_marginEnd="10dp"
             android:ellipsize="none"
-            android:gravity="center"
+            android:gravity="start|top"
             android:includeFontPadding="false"
-            android:maxLines="9"
+            android:minLines="3"
+            android:maxLines="4"
             android:text="@string/widget_select_song"
             android:textColor="#E6FFFFFF"
-            android:textSize="13sp"
-            android:lineSpacingExtra="2dp"
+            android:textSize="18sp"
+            android:lineSpacingExtra="3dp"
             android:shadowColor="#CC000000"
             android:shadowDx="0"
             android:shadowDy="1"
             android:shadowRadius="3" />
 
-        <ImageButton
-            android:id="@+id/widget_previous"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:layout_gravity="bottom"
-            android:background="@drawable/widget_button_background"
-            android:contentDescription="@string/widget_previous_desc"
-            android:padding="9dp"
-            android:scaleType="fitCenter"
-            android:src="@drawable/ic_widget_skip_previous" />
+        <!-- GRID 2x2 cuadrado: Play/Pause (sup. izq.) | Siguiente (sup. der.)
+                                Carátula    (inf. izq.) | Anterior  (inf. der.) -->
+        <LinearLayout
+            android:layout_width="96dp"
+            android:layout_height="96dp"
+            android:background="@drawable/widget_album_art_background"
+            android:orientation="vertical">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal">
+
+                <ImageButton
+                    android:id="@+id/widget_play_pause"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_button_background"
+                    android:contentDescription="@string/widget_play_pause_desc"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_widget_play" />
+
+                <LinearLayout
+                    android:layout_width="1dp"
+                    android:layout_height="match_parent"
+                    android:background="#33FFFFFF"
+                    android:orientation="vertical" />
+
+                <ImageButton
+                    android:id="@+id/widget_next_or_prev"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_button_background"
+                    android:contentDescription="@string/widget_next_desc"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_widget_skip_next" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="1dp"
+                android:background="#33FFFFFF"
+                android:orientation="vertical" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/widget_album_art"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:scaleType="centerCrop"
+                    android:src="@drawable/ic_widget_music_placeholder"
+                    android:contentDescription="@string/widget_album_art_desc" />
+
+                <LinearLayout
+                    android:layout_width="1dp"
+                    android:layout_height="match_parent"
+                    android:background="#33FFFFFF"
+                    android:orientation="vertical" />
+
+                <ImageButton
+                    android:id="@+id/widget_previous"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1"
+                    android:background="@drawable/widget_button_background"
+                    android:contentDescription="@string/widget_previous_desc"
+                    android:padding="10dp"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_widget_skip_previous" />
+            </LinearLayout>
+        </LinearLayout>
     </LinearLayout>
 
 </LinearLayout>

@@ -29,7 +29,40 @@
             android:name=".MainActivity"
             android:exported="true"
             android:label="@string/app_name"
-            android:theme="@style/Theme.MusicFlame" />
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.MusicFlame">
+
+            <!-- Reproductor de audio: mimeType audio/* (cubre la mayoría de gestores
+                 de archivos modernos y de content://) -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="audio/*" />
+            </intent-filter>
+
+            <!-- Respaldo por extensión para gestores de archivos viejos que abren
+                 con scheme file:// (o content://) y mandan el mimeType vacío o mal
+                 armado. A propósito NO se declara mimeType acá: si el intent no
+                 trae type (común en file://), un filtro que sí lo declare puede no
+                 matchear; acá solo se evalúa scheme + host + patrón de path. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.mp3" />
+                <data android:pathPattern=".*\\.flac" />
+                <data android:pathPattern=".*\\.wav" />
+                <data android:pathPattern=".*\\.ogg" />
+                <data android:pathPattern=".*\\.m4a" />
+                <data android:pathPattern=".*\\.aac" />
+                <data android:pathPattern=".*\\.opus" />
+                <data android:pathPattern=".*\\.wma" />
+            </intent-filter>
+        </activity>
 
         <!-- Alias: icono Original (activo por defecto) -->
         <activity-alias

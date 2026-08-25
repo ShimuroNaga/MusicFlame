@@ -35,6 +35,12 @@ class MusicPlayerManager(private val context: Context) {
     private var mediaController: MediaController? = null
     private val statsRepo = StatsRepository(context)
 
+    // NUEVO: acciones en espera de que el MediaController termine de conectar
+    // (la conexión es async, ver init{}). Usado para reproducir un archivo
+    // recibido por Intent (ACTION_VIEW) apenas arranca MainActivity, sin
+    // carreras contra la conexión al servicio en segundo plano.
+    private val pendingActions = mutableListOf<() -> Unit>()
+
     // --- MEMORIA INTERNA ---
     private var currentPlaylist = listOf<Song>()
     private val playbackHistory = mutableListOf<Int>()
@@ -229,6 +235,15 @@ class MusicPlayerManager(private val context: Context) {
             _shuffleEnabledState.value = controller.shuffleModeEnabled
             requestAudioSessionId(controller)
             refreshQueue(controller)
+
+            // Disparamos cualquier acción que haya quedado esperando la conexión
+            // (por ejemplo, reproducir un archivo abierto desde otra app antes de
+            // que el MediaController terminara de conectar).
+            if (pendingActions.isNotEmpty()) {
+                val actionsToRun = pendingActions.toList()
+                pendingActions.clear()
+                actionsToRun.forEach { it() }
+            }
 
             controller.addListener(object : Player.Listener {
                 private var lastIndex = controller.currentMediaItemIndex
@@ -463,7 +478,12 @@ class MusicPlayerManager(private val context: Context) {
         // ESTADÍSTICAS: esto cubre la selección inicial/manual de una canción desde
         // cualquier lista (Songs, Mix, Playlist, etc.), que dispara la transición con
         // razón PLAYLIST_CHANGED y no la contaba el listener de arriba.
-        statsRepo.incrementPlayCount(song.id)
+        // Canciones externas (abiertas desde otra app, id sintético negativo, ver
+        // MainActivity.buildSongFromExternalUri) no viven en la biblioteca real, así
+        // que no tiene sentido acumularles estadísticas de reproducción.
+        if (song.id > 0) {
+            statsRepo.incrementPlayCount(song.id)
+        }
     }
 
     // NUEVO: agrega canciones AL FINAL de la cola actual sin interrumpir lo que está
@@ -528,6 +548,19 @@ class MusicPlayerManager(private val context: Context) {
         // diferencia (por ejemplo, si el shuffle reacomoda algo más al reordenar).
         val moved = _queue.removeAt(fromDisplayIndex)
         _queue.add(toDisplayIndex, moved)
+    }
+
+    /**
+     * Ejecuta [action] apenas el MediaController esté listo. Si ya está
+     * conectado, corre de inmediato; si no, se encola y se dispara solo
+     * cuando la conexión async del init{} termine.
+     */
+    fun whenReady(action: () -> Unit) {
+        if (mediaController != null) {
+            action()
+        } else {
+            pendingActions.add(action)
+        }
     }
 
     fun togglePlayPause() {

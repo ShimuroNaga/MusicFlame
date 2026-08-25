@@ -12,12 +12,15 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
 import android.net.Uri
 import android.util.SizeF
 import android.widget.RemoteViews
+import androidx.core.content.ContextCompat
+import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.MainActivity
 import com.music.musicflame.R
 import com.music.musicflame.data.SettingsRepository
@@ -27,6 +30,10 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.io.IOException
+import kotlin.math.cos
+import kotlin.math.pow
+import kotlin.math.sign
+import kotlin.math.sin
 
 /**
  * Widget de home screen de MusicFlame:
@@ -62,6 +69,12 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
         // Scope propio para refrescos disparados desde el servicio de reproducción
         // (que vive todo el tiempo que suene música, con o sin la app abierta).
         private val refreshScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+        // Tamaño (en px) del placeholder generado cuando no hay carátula real.
+        // No depende de la densidad del dispositivo: es solo el lienzo sobre el
+        // que se dibuja el ícono antes de recortarlo a la forma elegida; Android
+        // lo escala igual que cualquier otro bitmap dentro del ImageView.
+        private const val PLACEHOLDER_ART_SIZE_PX = 200
 
         /**
          * Llamado por MusicPlaybackService cada vez que cambia la canción o el
@@ -109,8 +122,16 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             context: Context,
             state: WidgetPrefs.WidgetSongState
         ): RemoteViews {
-            // Carátula redondeada: se calcula una sola vez y se reutiliza en ambas variantes.
-            val artBitmap = loadRoundedAlbumArt(context, state.albumArtUri)
+            // NUEVO: misma forma elegida en Ajustes > Apariencia (LocalAlbumArtShape /
+            // SettingsRepository.getAlbumArtShape()), en vez de la esquina redondeada
+            // fija que usaba el widget antes sin importar la preferencia del usuario.
+            val albumArtShape = SettingsRepository(context).getAlbumArtShape()
+
+            // Carátula recortada a la forma elegida; si no hay carátula (o falló la
+            // carga), se arma un placeholder recortado a esa misma forma en vez de
+            // caer en el cuadrado fijo de siempre.
+            val artBitmap = loadRoundedAlbumArt(context, state.albumArtUri, albumArtShape)
+                ?: buildPlaceholderArt(context, albumArtShape)
             val backgroundAlpha = (SettingsRepository(context).getWidgetBackgroundOpacity() * 255).toInt().coerceIn(0, 255)
 
             val compact = buildBaseViews(context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame)
@@ -139,7 +160,7 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
         private fun buildBaseViews(
             context: Context,
             state: WidgetPrefs.WidgetSongState,
-            artBitmap: Bitmap?,
+            artBitmap: Bitmap,
             backgroundAlpha: Int,
             layoutRes: Int
         ): RemoteViews {
@@ -158,11 +179,16 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                 if (state.isPlaying) R.drawable.ic_widget_pause else R.drawable.ic_widget_play
             )
 
-            if (artBitmap != null) {
-                views.setImageViewBitmap(R.id.widget_album_art, artBitmap)
-            } else {
-                views.setImageViewResource(R.id.widget_album_art, R.drawable.ic_widget_music_placeholder)
-            }
+            // El fondo decorativo fijo del layout (rectángulo translúcido detrás del
+            // ícono/carátula) queda redundante ahora: el bitmap que armamos (carátula
+            // real o placeholder) ya es autocontenido y cubre toda su forma. Si lo
+            // dejábamos prendido, en formas no cuadradas (Círculo, Hexágono, Vinilo,
+            // Squircle) se veía como un halo cuadrado asomando detrás del recorte.
+            views.setInt(R.id.widget_album_art, "setBackgroundColor", Color.TRANSPARENT)
+
+            // Ya viene recortada a la forma elegida (carátula real o placeholder,
+            // ver buildRemoteViews), así que siempre se aplica directo como bitmap.
+            views.setImageViewBitmap(R.id.widget_album_art, artBitmap)
 
             // Solo cambiamos el ALFA del fondo (vía tint), no el drawable -> conserva las
             // esquinas redondeadas del shape original sin importar la opacidad elegida.
@@ -217,8 +243,12 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             )
         }
 
-        /** Descarga/lee la carátula y la recorta a un cuadrado con esquinas redondeadas. */
-        private suspend fun loadRoundedAlbumArt(context: Context, artUriString: String?): Bitmap? {
+        /** Descarga/lee la carátula y la recorta a la forma elegida por el usuario. */
+        private suspend fun loadRoundedAlbumArt(
+            context: Context,
+            artUriString: String?,
+            shape: AlbumArtShapeType
+        ): Bitmap? {
             if (artUriString.isNullOrEmpty()) return null
 
             return withContext(Dispatchers.IO) {
@@ -233,7 +263,7 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                         else -> null
                     } ?: return@withContext null
 
-                    roundCorners(source, cornerRadiusPx = 20f)
+                    clipToShape(source, shape, cornerRadiusPx = 20f)
                 } catch (e: IOException) {
                     null
                 } catch (e: SecurityException) {
@@ -242,16 +272,117 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             }
         }
 
-        private fun roundCorners(bitmap: Bitmap, cornerRadiusPx: Float): Bitmap {
+        /**
+         * Bitmap de respaldo cuando no hay carátula (o falló la carga): el mismo
+         * ícono de nota musical de siempre, pero ahora sobre un fondo recortado a
+         * la forma elegida en Ajustes > Apariencia, en vez del cuadrado fijo.
+         */
+        private fun buildPlaceholderArt(context: Context, shape: AlbumArtShapeType): Bitmap {
+            val size = PLACEHOLDER_ART_SIZE_PX
+            val base = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(base)
+            canvas.drawColor(Color.rgb(58, 56, 64))
+
+            ContextCompat.getDrawable(context, R.drawable.ic_widget_music_placeholder)?.let { icon ->
+                val iconSize = (size * 0.5f).toInt()
+                val offset = (size - iconSize) / 2
+                icon.setBounds(offset, offset, offset + iconSize, offset + iconSize)
+                icon.setTint(Color.argb((0.4f * 255).toInt(), 255, 255, 255))
+                icon.draw(canvas)
+            }
+
+            return clipToShape(base, shape, cornerRadiusPx = size * 20f / 48f)
+        }
+
+        /**
+         * Recorta [bitmap] a la forma elegida en Ajustes > Apariencia, replicando
+         * la misma geometría que clipShapeFor() en ui/components/AlbumArt.kt
+         * (Compose). Antes el widget siempre recortaba a esquinas redondas fijas
+         * sin importar la preferencia del usuario.
+         */
+        private fun clipToShape(bitmap: Bitmap, shape: AlbumArtShapeType, cornerRadiusPx: Float): Bitmap {
+            val w = bitmap.width.toFloat()
+            val h = bitmap.height.toFloat()
             val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(output)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
-            val rect = RectF(0f, 0f, bitmap.width.toFloat(), bitmap.height.toFloat())
 
-            canvas.drawRoundRect(rect, cornerRadiusPx, cornerRadiusPx, paint)
+            canvas.drawPath(clipPathFor(shape, w, h, cornerRadiusPx), paint)
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
             canvas.drawBitmap(bitmap, 0f, 0f, paint)
+
+            // Detalle de disco de vinilo (surcos + hoyo central), igual que
+            // VinylOverlay() en AlbumArt.kt: se dibuja ENCIMA, después del recorte.
+            if (shape == AlbumArtShapeType.VINYL) {
+                drawVinylOverlay(canvas, w, h)
+            }
+
             return output
+        }
+
+        /**
+         * Path de recorte por forma. Misma geometría, punto por punto, que
+         * clipShapeFor() + HexagonShape/SquircleShape en AlbumArt.kt (Compose) —
+         * portada de androidx.compose.ui.graphics.Path a android.graphics.Path
+         * porque RemoteViews no puede usar Compose.
+         */
+        private fun clipPathFor(shape: AlbumArtShapeType, w: Float, h: Float, cornerRadiusPx: Float): Path {
+            return when (shape) {
+                AlbumArtShapeType.CIRCLE, AlbumArtShapeType.VINYL -> Path().apply {
+                    addOval(RectF(0f, 0f, w, h), Path.Direction.CW)
+                }
+                AlbumArtShapeType.HEXAGON -> Path().apply {
+                    moveTo(w * 0.5f, 0f)
+                    lineTo(w, h * 0.25f)
+                    lineTo(w, h * 0.75f)
+                    lineTo(w * 0.5f, h)
+                    lineTo(0f, h * 0.75f)
+                    lineTo(0f, h * 0.25f)
+                    close()
+                }
+                AlbumArtShapeType.SQUIRCLE -> Path().apply {
+                    // Superelipse |x|^n + |y|^n = 1 con n=4.0, mismos 72 pasos que
+                    // SquircleShape en AlbumArt.kt, para que la curvatura coincida.
+                    val cx = w / 2f
+                    val cy = h / 2f
+                    val steps = 72
+                    val n = 4.0
+                    for (i in 0..steps) {
+                        val t = (i.toDouble() / steps) * 2 * Math.PI
+                        val cosT = cos(t)
+                        val sinT = sin(t)
+                        val x = (sign(cosT) * kotlin.math.abs(cosT).pow(2.0 / n)) * cx + cx
+                        val y = (sign(sinT) * kotlin.math.abs(sinT).pow(2.0 / n)) * cy + cy
+                        if (i == 0) moveTo(x.toFloat(), y.toFloat()) else lineTo(x.toFloat(), y.toFloat())
+                    }
+                    close()
+                }
+                AlbumArtShapeType.SQUARE -> Path().apply {
+                    addRoundRect(RectF(0f, 0f, w, h), cornerRadiusPx, cornerRadiusPx, Path.Direction.CW)
+                }
+            }
+        }
+
+        /** Surcos finos + hoyo central, misma geometría que VinylOverlay() en AlbumArt.kt (Compose). */
+        private fun drawVinylOverlay(canvas: Canvas, w: Float, h: Float) {
+            val radius = minOf(w, h) / 2f
+            val cx = w / 2f
+            val cy = h / 2f
+
+            val groovePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb((0.18f * 255).toInt(), 0, 0, 0)
+                style = Paint.Style.STROKE
+                strokeWidth = radius * 0.02f
+            }
+            listOf(0.62f, 0.75f, 0.88f).forEach { fraction ->
+                canvas.drawCircle(cx, cy, radius * fraction, groovePaint)
+            }
+
+            val holePaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                color = Color.argb((0.85f * 255).toInt(), 0, 0, 0)
+                style = Paint.Style.FILL
+            }
+            canvas.drawCircle(cx, cy, radius * 0.14f, holePaint)
         }
     }
 }

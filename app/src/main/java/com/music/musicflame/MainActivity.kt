@@ -1,7 +1,10 @@
 package com.music.musicflame
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.os.Build.VERSION.SDK_INT
 import android.os.Bundle
 import android.widget.Toast
@@ -10,6 +13,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.lifecycle.lifecycleScope
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -125,6 +129,9 @@ class MainActivity : ComponentActivity() {
         playlistRepo = PlaylistRepository(this)
         favoritesRepo = FavoritesRepository(this)
         songCustomizationRepo = SongCustomizationRepository(this)
+
+        // App cerrada -> el archivo que la abrió viaja en el intent de onCreate.
+        handleIncomingMusicIntent(intent)
 
         setContent {
             MusicFlameTheme {
@@ -1184,6 +1191,114 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // App abierta (en foreground o en background, gracias a singleTask en el
+    // manifest) -> el archivo que la abrió llega acá en vez de por onCreate.
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent) // getIntent() debe quedar apuntando al intent más reciente
+        handleIncomingMusicIntent(intent)
+    }
+
+    // Punto único que procesan tanto onCreate como onNewIntent: si el intent es
+    // un ACTION_VIEW sobre un archivo de audio (abierto desde un gestor de
+    // archivos u otra app), lo manda directo a sonar SIN pasar por la biblioteca
+    // completa: se arma una "playlist" de una sola canción.
+    private fun handleIncomingMusicIntent(intent: Intent?) {
+        if (intent == null || intent.action != Intent.ACTION_VIEW) return
+        val uri = intent.data ?: return
+
+        // Muchos gestores de archivos solo otorgan permiso de lectura para esta
+        // sesión (vía FLAG_GRANT_READ_URI_PERMISSION); si además lo dejan
+        // persistir, lo tomamos, pero no es un error si no se puede.
+        try {
+            contentResolver.takePersistableUriPermission(
+                uri,
+                Intent.FLAG_GRANT_READ_URI_PERMISSION
+            )
+        } catch (e: SecurityException) {
+            // Permiso de solo esta sesión; no hay nada más que hacer.
+        }
+
+        lifecycleScope.launch {
+            val song = withContext(Dispatchers.IO) { buildSongFromExternalUri(uri) }
+            if (song != null) {
+                // whenReady evita la carrera con la conexión async al MediaController
+                // (MusicPlayerManager recién se acaba de instanciar en onCreate).
+                playerManager.whenReady {
+                    playerManager.playSong(song, listOf(song))
+                }
+            } else {
+                Toast.makeText(
+                    this@MainActivity,
+                    "No se pudo abrir ese archivo de audio",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    // Arma un Song "ligero" leyendo los metadatos directo del archivo con
+    // MediaMetadataRetriever, sin depender de que esté indexado en MediaStore
+    // (puede ser un archivo fuera de las carpetas de música, o el gestor de
+    // archivos puede haberlo abierto desde un content:// propio). Usa un id
+    // sintético negativo para no chocar nunca con ids reales de la biblioteca.
+    private fun buildSongFromExternalUri(uri: Uri): Song? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(this, uri)
+
+            val fileName = uri.lastPathSegment
+                ?.substringAfterLast('/')
+                ?.substringBeforeLast('.')
+
+            val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
+                ?.takeIf { it.isNotBlank() }
+                ?: fileName
+                ?: "Pista externa"
+            val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
+                ?.takeIf { it.isNotBlank() }
+                ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
+                    ?.takeIf { it.isNotBlank() }
+                ?: "Desconocido"
+            val album = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUM)
+                ?.takeIf { it.isNotBlank() } ?: "Desconocido"
+            val durationMs = retriever
+                .extractMetadata(MediaMetadataRetriever.METADATA_KEY_DURATION)
+                ?.toLongOrNull() ?: 0L
+
+            val albumArtUri = retriever.embeddedPicture?.let { saveEmbeddedArtToCache(it) }
+
+            Song(
+                id = EXTERNAL_SONG_ID_BASE - kotlin.math.abs(uri.toString().hashCode().toLong()),
+                title = title,
+                artist = artist,
+                album = album,
+                duration = durationMs,
+                path = uri.toString(),
+                albumArtUri = albumArtUri
+            )
+        } catch (e: Exception) {
+            // MediaMetadataRetriever no pudo abrirlo: pese al intent-filter, el
+            // archivo puede no ser un audio válido (o estar corrupto/protegido).
+            null
+        } finally {
+            try { retriever.release() } catch (e: Exception) {}
+        }
+    }
+
+    // Cachea la carátula embebida del archivo (si tiene) como JPG temporal, para
+    // que el mini-reproductor y el reproductor a pantalla completa la muestren
+    // igual que con canciones de la biblioteca.
+    private fun saveEmbeddedArtToCache(bytes: ByteArray): String? {
+        return try {
+            val file = java.io.File(cacheDir, "external_art_${System.currentTimeMillis()}.jpg")
+            file.outputStream().use { it.write(bytes) }
+            Uri.fromFile(file).toString()
+        } catch (e: Exception) {
+            null
+        }
+    }
+
     override fun onStop() {
         super.onStop()
         if (!SettingsRepository(this).getPlayInBackground()) playerManager.pause()
@@ -1192,6 +1307,13 @@ class MainActivity : ComponentActivity() {
     override fun onDestroy() {
         super.onDestroy()
         playerManager.release()
+    }
+
+    companion object {
+        // Offset negativo bien grande para que los ids sintéticos de canciones
+        // externas (abiertas por Intent) nunca choquen con los ids reales,
+        // siempre positivos, de MediaStore.
+        private const val EXTERNAL_SONG_ID_BASE = -1_000_000_000L
     }
 }
 

@@ -95,6 +95,14 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             }
         }
 
+        /** true si el usuario tiene al menos un widget de MusicFlame añadido al home screen. */
+        fun hasWidgets(context: Context): Boolean {
+            val appContext = context.applicationContext
+            val manager = AppWidgetManager.getInstance(appContext)
+            val componentName = ComponentName(appContext, MusicFlameWidgetProvider::class.java)
+            return manager.getAppWidgetIds(componentName).isNotEmpty()
+        }
+
         /**
          * Actualización "optimista" e instantánea de solo el ícono play/pause,
          * para que el widget responda al toque sin esperar a que el reproductor
@@ -125,53 +133,158 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             // NUEVO: misma forma elegida en Ajustes > Apariencia (LocalAlbumArtShape /
             // SettingsRepository.getAlbumArtShape()), en vez de la esquina redondeada
             // fija que usaba el widget antes sin importar la preferencia del usuario.
-            val albumArtShape = SettingsRepository(context).getAlbumArtShape()
+            val settingsRepo = SettingsRepository(context)
+            val albumArtShape = settingsRepo.getAlbumArtShape()
 
             // Carátula recortada a la forma elegida; si no hay carátula (o falló la
             // carga), se arma un placeholder recortado a esa misma forma en vez de
             // caer en el cuadrado fijo de siempre.
             val artBitmap = loadRoundedAlbumArt(context, state.albumArtUri, albumArtShape)
                 ?: buildPlaceholderArt(context, albumArtShape)
-            val backgroundAlpha = (SettingsRepository(context).getWidgetBackgroundOpacity() * 255).toInt().coerceIn(0, 255)
+            val backgroundAlpha = (settingsRepo.getWidgetBackgroundOpacity() * 255).toInt().coerceIn(0, 255)
 
-            val compact = buildBaseViews(context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame)
+            // LETRA EN VIVO: líneas guardadas por MusicPlaybackService cada vez que
+            // cambia la línea activa (ver LyricsTicker). Solo se usan si siguen
+            // siendo de la canción actual y si el usuario no lo desactivó en
+            // Ajustes > Lyrics.
+            val lyricsEnabled = settingsRepo.isLyricsInWidgetEnabled()
+            val lyricsLines = if (lyricsEnabled) WidgetPrefs.readLyricsLines(context, state.mediaId) else emptyList()
+            val lyricsColor = resolveLyricsColorInt(settingsRepo)
+
+            val compact = buildBaseViews(
+                context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame,
+                lyricsLines, lyricsColor, extraLineIds = emptyList()
+            )
             compact.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
             compact.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
             compact.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
 
-            val wide = buildBaseViews(context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame_wide)
+            val wide = buildBaseViews(
+                context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame_wide,
+                lyricsLines, lyricsColor, extraLineIds = emptyList()
+            )
             wide.setOnClickPendingIntent(R.id.widget_previous, previousPendingIntent(context))
             wide.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
             wide.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
             wide.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
 
+            // Variante ancha EXPANDIDA (250x74dp): activa + siguiente línea (2).
+            val wideLyrics = buildBaseViews(
+                context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame_wide_lyrics,
+                lyricsLines, lyricsColor, extraLineIds = listOf(R.id.widget_lyrics_line2)
+            )
+            wideLyrics.setOnClickPendingIntent(R.id.widget_previous, previousPendingIntent(context))
+            wideLyrics.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
+            wideLyrics.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
+            wideLyrics.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
+
+            // Variante compacta EXPANDIDA (180x90dp): activa + 2 siguientes líneas (3),
+            // compensando el ancho más angosto con una línea extra de contexto.
+            val compactLyrics = buildBaseViews(
+                context, state, artBitmap, backgroundAlpha, R.layout.widget_music_flame_compact_lyrics,
+                lyricsLines, lyricsColor, extraLineIds = listOf(R.id.widget_lyrics_line2, R.id.widget_lyrics_line3)
+            )
+            compactLyrics.setOnClickPendingIntent(R.id.widget_play_pause, playPausePendingIntent(context))
+            compactLyrics.setOnClickPendingIntent(R.id.widget_next_or_prev, nextOnlyPendingIntent(context))
+            compactLyrics.setOnClickPendingIntent(R.id.widget_root, openAppPendingIntent(context))
+
             // El sistema elige automáticamente cuál RemoteViews mostrar según el tamaño
             // real que el usuario le dio al widget en su home screen (API 31+, ya cubierto
-            // por el minSdk del proyecto). 180x40dp = 3 celdas (compacta), 250x40dp = 4 celdas (ancha).
+            // por el minSdk del proyecto). 180x40dp = 3 celdas (compacta), 250x40dp = 4
+            // celdas (ancha). Los tamaños expandidos (74/90dp de alto) solo se eligen si
+            // el usuario agranda el widget verticalmente en un launcher que lo soporte
+            // (ver resizeMode="horizontal|vertical" en musicflame_widget_info.xml); en
+            // cualquier otro caso el widget se comporta exactamente igual que antes.
             return RemoteViews(
                 mapOf(
                     SizeF(180f, 40f) to compact,
-                    SizeF(250f, 40f) to wide
+                    SizeF(250f, 40f) to wide,
+                    SizeF(250f, 74f) to wideLyrics,
+                    SizeF(180f, 90f) to compactLyrics
                 )
             )
         }
 
-        /** Contenido común a ambas variantes: texto, ícono play/pause, carátula y opacidad del fondo. Los PendingIntents se agregan aparte porque cada variante tiene botones distintos. */
+        /**
+         * Resuelve el color de la letra en el widget según Ajustes > Lyrics
+         * (mismo modo que usa LyricsView en el reproductor): "Blanco", "Negro" o
+         * "Personalizado" se aplican tal cual; "Adaptativo" no tiene un
+         * equivalente real en RemoteViews (no hay Material You aquí), así que
+         * cae a blanco, que es lo más legible sobre el fondo oscuro del widget.
+         */
+        private fun resolveLyricsColorInt(settingsRepo: SettingsRepository): Int {
+            return when (settingsRepo.getLyricsTextColorMode()) {
+                "Blanco" -> Color.WHITE
+                "Negro" -> Color.BLACK
+                "Personalizado" -> parseHexColorOrNull(settingsRepo.getLyricsCustomColorHex()) ?: Color.WHITE
+                else -> Color.WHITE
+            }
+        }
+
+        private fun parseHexColorOrNull(hex: String): Int? = try {
+            Color.parseColor(if (hex.startsWith("#")) hex else "#$hex")
+        } catch (e: Exception) {
+            null
+        }
+
+        /**
+         * Contenido común a las 4 variantes: texto, ícono play/pause, carátula y
+         * opacidad del fondo. Los PendingIntents se agregan aparte porque cada
+         * variante tiene botones distintos.
+         *
+         * [lyricsLines] trae hasta 3 líneas (activa + hasta 2 siguientes) cuando hay
+         * letra sincronizada y el usuario no la desactivó en Ajustes; si viene vacía
+         * (sin letra, canción no sincronizada, o desactivada) el widget se comporta
+         * exactamente como antes, mostrando el nombre del artista.
+         *
+         * [extraLineIds] son los TextViews de líneas siguientes que existen SOLO en
+         * las variantes expandidas (vacío en las clásicas de 40dp): se completan con
+         * lyricsLines[1], lyricsLines[2]... y quedan en GONE si no hay texto para esa
+         * línea, para que el layout no deje un hueco vacío.
+         */
         private fun buildBaseViews(
             context: Context,
             state: WidgetPrefs.WidgetSongState,
             artBitmap: Bitmap,
             backgroundAlpha: Int,
-            layoutRes: Int
+            layoutRes: Int,
+            lyricsLines: List<String>,
+            lyricsColor: Int,
+            extraLineIds: List<Int>
         ): RemoteViews {
             val views = RemoteViews(context.packageName, layoutRes)
 
             if (state.hasSong) {
                 views.setTextViewText(R.id.widget_song_title, state.title)
-                views.setTextViewText(R.id.widget_song_artist, state.artist)
+
+                val activeLyricLine = lyricsLines.getOrNull(0)
+                if (activeLyricLine != null) {
+                    // Letra en vivo: la línea de "artista" pasa a mostrar la línea
+                    // activa, con el color elegido en Ajustes > Lyrics.
+                    views.setTextViewText(R.id.widget_song_artist, activeLyricLine)
+                    views.setTextColor(R.id.widget_song_artist, lyricsColor)
+                } else {
+                    views.setTextViewText(R.id.widget_song_artist, state.artist)
+                    views.setTextColor(R.id.widget_song_artist, Color.parseColor("#E6FFFFFF"))
+                }
             } else {
                 views.setTextViewText(R.id.widget_song_title, context.getString(R.string.widget_no_song))
                 views.setTextViewText(R.id.widget_song_artist, context.getString(R.string.widget_select_song))
+                views.setTextColor(R.id.widget_song_artist, Color.parseColor("#E6FFFFFF"))
+            }
+
+            // Líneas siguientes (solo en variantes expandidas): una por cada id en
+            // extraLineIds, tomando lyricsLines[1], lyricsLines[2]... GONE si no hay
+            // texto para esa línea (canción sin letra, o llegando al final de la letra).
+            extraLineIds.forEachIndexed { index, viewId ->
+                val text = lyricsLines.getOrNull(index + 1)
+                if (!text.isNullOrBlank()) {
+                    views.setTextViewText(viewId, text)
+                    views.setTextColor(viewId, lyricsColor)
+                    views.setViewVisibility(viewId, android.view.View.VISIBLE)
+                } else {
+                    views.setViewVisibility(viewId, android.view.View.GONE)
+                }
             }
 
             views.setImageViewResource(

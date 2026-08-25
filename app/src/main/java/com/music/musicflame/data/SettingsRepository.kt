@@ -164,6 +164,13 @@ class SettingsRepository(context: Context) {
     fun getLyricsCustomColorHex(): String = prefs.getString("lyrics_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
     fun saveLyricsCustomColorHex(value: String) = prefs.edit().putString("lyrics_custom_color_hex", value).apply()
 
+    // Letra en vivo dentro del widget de home screen: reemplaza la línea de
+    // artista por la línea de letra sincronizada activa mientras suena la
+    // canción. Activado por defecto; el usuario puede apagarlo si prefiere
+    // ver siempre el nombre del artista en el widget.
+    fun isLyricsInWidgetEnabled(): Boolean = prefs.getBoolean("lyrics_in_widget_enabled", true)
+    fun saveLyricsInWidgetEnabled(enabled: Boolean) = prefs.edit().putBoolean("lyrics_in_widget_enabled", enabled).apply()
+
     // --- ONBOARDING DE PRIMER USO ---
     fun isOnboardingCompleted(): Boolean = prefs.getBoolean("onboarding_completed", false)
     fun setOnboardingCompleted(completed: Boolean) = prefs.edit().putBoolean("onboarding_completed", completed).apply()

@@ -1185,6 +1185,7 @@ fun SettingsScreen(
                             var speed by remember { mutableStateOf(settingsRepo.getLyricsSpeed()) }
                             var animType by remember { mutableStateOf(settingsRepo.getLyricsAnimationType()) }
                             var colorMode by remember { mutableStateOf(settingsRepo.getLyricsTextColorMode()) }
+                            var lyricsInWidget by remember { mutableStateOf(settingsRepo.isLyricsInWidgetEnabled()) }
 
                             Card(
                                 modifier = Modifier.fillMaxWidth().padding(16.dp),
@@ -1277,6 +1278,42 @@ fun SettingsScreen(
                                                 )
                                             )
                                         }
+                                    }
+
+                                    Spacer(Modifier.height(20.dp))
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
+                                    Spacer(Modifier.height(16.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                "Letra en vivo en el widget",
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 13.sp,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                            Text(
+                                                "Muestra la línea activa de la letra sincronizada en el widget de home screen, en vez del nombre del artista.",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                            )
+                                        }
+                                        Spacer(Modifier.width(12.dp))
+                                        Switch(
+                                            checked = lyricsInWidget,
+                                            onCheckedChange = {
+                                                lyricsInWidget = it
+                                                settingsRepo.saveLyricsInWidgetEnabled(it)
+                                                MusicFlameWidgetProvider.refreshAllWidgets(context)
+                                            },
+                                            colors = androidx.compose.material3.SwitchDefaults.colors(
+                                                checkedThumbColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                                checkedTrackColor = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                        )
                                     }
 
                                     Spacer(Modifier.height(16.dp))

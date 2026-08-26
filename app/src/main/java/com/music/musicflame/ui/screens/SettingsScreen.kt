@@ -182,6 +182,7 @@ fun SettingsScreen(
     val showSleepTimerDialog = remember { mutableStateOf(false) }
     val showThemeDialog = remember { mutableStateOf(false) }
     val showEqualizerDialog = remember { mutableStateOf(false) }
+    val showEqualizerStyleDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
 
     val durationMin = remember { mutableStateOf(settingsRepo.getDurationFilterMin().toString()) }
@@ -193,6 +194,10 @@ fun SettingsScreen(
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
     val albumGridColumns = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
     val equalizerBarCount = remember { mutableStateOf(settingsRepo.getEqualizerBarCount()) }
+    // Estilo visual del ecualizador gráfico (catálogo de personalizaciones
+    // estéticas, punto 4): barras clásicas, doble espejado, ondas de agua,
+    // círculo pulsante, partículas, barras finas o VU meter retro.
+    val equalizerStyle = remember { mutableStateOf(settingsRepo.getEqualizerStyle()) }
 
     // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
     val activeSection = remember { mutableStateOf<String?>(null) }
@@ -707,6 +712,27 @@ fun SettingsScreen(
                                     modifier = Modifier.padding(top = 4.dp)
                                 )
                             }
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // NUEVO: selector de estilo visual del ecualizador gráfico
+                            // (barras clásicas, doble espejado, ondas de agua, círculo
+                            // pulsante, partículas, barras finas o VU meter retro).
+                            // Parte del catálogo de personalizaciones estéticas — por
+                            // ahora libre para probar (ver
+                            // SettingsRepository.EQUALIZER_STYLES_UNLOCKED_FOR_TESTING).
+                            ListItem(
+                                headlineContent = { Text("Estilo de ecualizador gráfico") },
+                                supportingContent = { Text(equalizerStyle.value.displayName) },
+                                trailingContent = {
+                                    TextButton(onClick = { showEqualizerStyleDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showEqualizerStyleDialog.value = true }
+                            )
                             HorizontalDivider(color = dividerColor)
                         }
 
@@ -1777,6 +1803,18 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showEqualizerStyleDialog.value) {
+            com.music.musicflame.ui.components.EqualizerStylePickerDialog(
+                currentStyle = equalizerStyle.value,
+                onDismiss = { showEqualizerStyleDialog.value = false },
+                onConfirm = { newStyle ->
+                    equalizerStyle.value = newStyle
+                    settingsRepo.saveEqualizerStyle(newStyle)
+                    showEqualizerStyleDialog.value = false
+                }
             )
         }
 

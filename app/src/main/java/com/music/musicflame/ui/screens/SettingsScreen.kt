@@ -218,6 +218,23 @@ fun SettingsScreen(
         )
     }
 
+    // Estado de la sección "Pagos (opcional)" — se declara aquí (contexto @Composable
+    // de la función) en vez de dentro del bloque `if` de la LazyColumn, porque el
+    // lambda de contenido de LazyColumn es un LazyListScope normal, no @Composable,
+    // así que remember{} no puede invocarse ahí directamente salvo dentro de item{}.
+    val licenseRepo = remember { LicenseRepository(context) }
+    var licenseInput by remember { mutableStateOf("") }
+    var licenseStatus by remember { mutableStateOf(licenseRepo.getStatus()) }
+    var maskedKey by remember { mutableStateOf(licenseRepo.maskedKey()) }
+    var productName by remember { mutableStateOf(licenseRepo.getProductName()) }
+    var isValidating by remember { mutableStateOf(false) }
+    var errorMessage by remember { mutableStateOf<String?>(licenseRepo.getLastError()) }
+    val paymentsScope = rememberCoroutineScope()
+    // Bandera temporal: la sección está lista en UI pero aún bloqueada
+    // para interacción (checkout/backend todavía no confirmados).
+    // Cambiar a false cuando se habilite el flujo real.
+    val paymentsSectionLocked = true
+
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
     val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
@@ -1390,20 +1407,6 @@ fun SettingsScreen(
 
                     // PAGOS (OPCIONAL) — Licencia de apoyo vía Lemon Squeezy
                     if (activeSection.value == "Pagos (opcional)") {
-                        val licenseRepo = remember { LicenseRepository(context) }
-                        var licenseInput by remember { mutableStateOf("") }
-                        var licenseStatus by remember { mutableStateOf(licenseRepo.getStatus()) }
-                        var maskedKey by remember { mutableStateOf(licenseRepo.maskedKey()) }
-                        var productName by remember { mutableStateOf(licenseRepo.getProductName()) }
-                        var isValidating by remember { mutableStateOf(false) }
-                        var errorMessage by remember { mutableStateOf<String?>(licenseRepo.getLastError()) }
-                        val paymentsScope = rememberCoroutineScope()
-
-                        // Bandera temporal: la sección está lista en UI pero aún bloqueada
-                        // para interacción (checkout/backend todavía no confirmados).
-                        // Cambiar a false cuando se habilite el flujo real.
-                        val paymentsSectionLocked = true
-
                         item { sectionHeader("Licencia de apoyo (opcional)") }
 
                         item {

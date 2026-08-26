@@ -119,6 +119,29 @@ class SettingsRepository(context: Context) {
     fun savePlayerGifUri(uri: String) = prefs.edit().putString("player_gif_uri", uri).apply()
     fun removePlayerGifUri() = prefs.edit().remove("player_gif_uri").apply()
 
+    // --- ESTILO DE ECUALIZADOR GRÁFICO (catálogo de personalizaciones estéticas) ---
+    // Estilo elegido en Ajustes > Apariencia > "Estilo de ecualizador gráfico":
+    // barras clásicas, doble espejado, ondas de agua, círculo pulsante,
+    // partículas, barras finas o VU meter retro. Ver EqualizerStyle.kt.
+    fun getEqualizerStyle(): com.music.musicflame.ui.components.EqualizerStyle {
+        val name = prefs.getString("equalizer_style", com.music.musicflame.ui.components.EqualizerStyle.BARS.name)
+        return com.music.musicflame.ui.components.EqualizerStyle.fromNameOrDefault(name)
+    }
+    fun saveEqualizerStyle(style: com.music.musicflame.ui.components.EqualizerStyle) =
+        prefs.edit().putString("equalizer_style", style.name).apply()
+
+    companion object {
+        // NOTA PARA SESIÓN POSTERIOR: este catálogo (estilos de ecualizador, y
+        // en el futuro colores custom del ecualizador/letra/now-playing y el
+        // widget de disco giratorio) todavía NO está atado a
+        // LicenseRepository.isProUnlocked(). Por ahora queda libre para poder
+        // probar todo; cuando se decida cómo se va a vender, esta constante es
+        // el único lugar que hay que tocar para "cerrar la llave" de nuevo
+        // (reemplazar `true` por `licenseRepository.isProUnlocked()` donde se
+        // use, o convertirla en función).
+        const val EQUALIZER_STYLES_UNLOCKED_FOR_TESTING = true
+    }
+
     // --- PERSISTENCIA DEL MIX DIARIO ---
     fun getLastMixDate(): String {
         return prefs.getString("last_mix_date", "") ?: ""

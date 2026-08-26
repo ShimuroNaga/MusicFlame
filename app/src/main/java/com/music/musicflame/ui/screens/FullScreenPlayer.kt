@@ -51,7 +51,6 @@ import coil.request.ImageRequest
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
-import com.music.musicflame.ui.components.AudioVisualizerBars
 import com.music.musicflame.ui.components.YoutubeVerifyWebView
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.safeScreenPadding
@@ -205,6 +204,10 @@ fun FullScreenPlayer(
     // pasaba este valor a AudioVisualizerBars más abajo, así que siempre quedaba en
     // el default interno del componente sin importar lo que eligieras en el slider.
     val equalizerBarCount = remember { settingsRepo.getEqualizerBarCount() }
+    // Estilo visual del ecualizador (barras clásicas, espejado, ondas, círculo
+    // pulsante, partículas, barras finas o VU meter retro), configurable en
+    // Ajustes > Apariencia > "Estilo de ecualizador gráfico".
+    val equalizerStyle = remember { settingsRepo.getEqualizerStyle() }
 
     // Color de las barras del visualizador: SIEMPRE blanco o negro, nunca elegible por el
     // usuario. Se adapta solo según lo que haya detrás de las barras:
@@ -294,7 +297,8 @@ fun FullScreenPlayer(
         // Ocupa todo el ancho y se estira desde el fondo de la pantalla hacia
         // arriba, respetando ya el inset real de la barra de navegación (gestos
         // o 3 botones) porque este Box padre ya tiene .safeScreenPadding().
-        AudioVisualizerBars(
+        com.music.musicflame.ui.components.GraphicEqualizer(
+            style = equalizerStyle,
             audioSessionId = playerManager.audioSessionId.value,
             isPlaying = isPlaying,
             hasRecordAudioPermission = hasRecordAudioPermission,

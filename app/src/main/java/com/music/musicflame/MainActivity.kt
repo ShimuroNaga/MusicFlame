@@ -196,6 +196,14 @@ class MainActivity : ComponentActivity() {
 
                 val settingsRepo = remember { SettingsRepository(context) }
                 val trashRepo = remember { TrashRepository(context) }
+                val licenseRepo = remember { LicenseRepository(context) }
+
+                // Si ya hay una license key guardada, la revalidamos en segundo plano y en
+                // silencio (sin diálogos ni Toasts) para detectar si Lemon Squeezy la revocó
+                // o reembolsó. Si no hay internet, revalidateSilently() no toca el estado local.
+                LaunchedEffect(Unit) {
+                    licenseRepo.revalidateSilently()
+                }
 
                 // --- Onboarding de primer uso: se muestra una sola vez ---
                 var showOnboarding by remember { mutableStateOf(!settingsRepo.isOnboardingCompleted()) }

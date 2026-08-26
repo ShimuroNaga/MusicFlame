@@ -16,6 +16,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.CircleShape
@@ -28,6 +29,7 @@ import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Favorite
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -36,6 +38,7 @@ import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
 import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.CloudDone
+import androidx.compose.material.icons.filled.Lock
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
@@ -76,6 +79,7 @@ import androidx.compose.material3.ListItem
 import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
@@ -110,6 +114,9 @@ import androidx.compose.ui.res.painterResource
 import com.music.musicflame.R
 import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.SettingsRepository
+import com.music.musicflame.data.LicenseRepository
+import com.music.musicflame.data.LicenseStatus
+import com.music.musicflame.data.LicenseValidationResult
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.widget.MusicFlameWidgetProvider
 
@@ -348,6 +355,7 @@ fun SettingsScreen(
                                 Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
                                 Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info),
                                 Triple("Lyrics", "Velocidad, animación y color de la letra", Icons.Filled.MusicNote),
+                                Triple("Pagos (opcional)", "Licencia de apoyo y donación opcional", Icons.Filled.Favorite),
                                 Triple("Aviso de Uso", "Redistribución, promoción y términos", Icons.Filled.Warning)
                             ).forEach { (catKey, subtitle, icon) ->
                                 val isLyricsCard = catKey == "Lyrics"
@@ -1375,6 +1383,219 @@ fun SettingsScreen(
                                             context.startActivity(intent)
                                         }
                                     )
+                                }
+                            }
+                        }
+                    }
+
+                    // PAGOS (OPCIONAL) — Licencia de apoyo vía Lemon Squeezy
+                    if (activeSection.value == "Pagos (opcional)") {
+                        val licenseRepo = remember { LicenseRepository(context) }
+                        var licenseInput by remember { mutableStateOf("") }
+                        var licenseStatus by remember { mutableStateOf(licenseRepo.getStatus()) }
+                        var maskedKey by remember { mutableStateOf(licenseRepo.maskedKey()) }
+                        var productName by remember { mutableStateOf(licenseRepo.getProductName()) }
+                        var isValidating by remember { mutableStateOf(false) }
+                        var errorMessage by remember { mutableStateOf<String?>(licenseRepo.getLastError()) }
+                        val paymentsScope = rememberCoroutineScope()
+
+                        // Bandera temporal: la sección está lista en UI pero aún bloqueada
+                        // para interacción (checkout/backend todavía no confirmados).
+                        // Cambiar a false cuando se habilite el flujo real.
+                        val paymentsSectionLocked = true
+
+                        item { sectionHeader("Licencia de apoyo (opcional)") }
+
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .alpha(if (paymentsSectionLocked) 0.6f else 1f),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer
+                                )
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            Icons.Filled.Favorite,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Text(
+                                            "MusicFlame es y seguirá siendo gratis. Esta licencia es solo una forma opcional de apoyar el desarrollo; no desbloquea nada todavía.",
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onTertiaryContainer
+                                        )
+                                    }
+
+                                    if (paymentsSectionLocked) {
+                                        Spacer(Modifier.height(12.dp))
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Filled.Lock,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "Disponible próximamente. Esta sección todavía no está activa.",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(16.dp))
+
+                                    // --- INDICADOR DE ESTADO ---
+                                    when (licenseStatus) {
+                                        LicenseStatus.ACTIVE -> {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(
+                                                    Icons.Filled.CloudDone,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Column {
+                                                    Text(
+                                                        "Licencia activa" + (productName?.let { " · $it" } ?: ""),
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.onTertiaryContainer
+                                                    )
+                                                    Text(
+                                                        maskedKey ?: "",
+                                                        fontSize = 12.sp,
+                                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                                    )
+                                                }
+                                            }
+                                        }
+                                        LicenseStatus.INACTIVE -> {
+                                            Text(
+                                                "Sin activar",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                        LicenseStatus.ERROR -> {
+                                            Text(
+                                                "No se pudo verificar la última vez",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+
+                                    if (errorMessage != null) {
+                                        Spacer(Modifier.height(8.dp))
+                                        Text(
+                                            errorMessage ?: "",
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.error
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(16.dp))
+
+                                    // --- CAMPO PARA PEGAR LA LICENSE KEY ---
+                                    OutlinedTextField(
+                                        value = licenseInput,
+                                        onValueChange = { licenseInput = it },
+                                        label = { Text("License key") },
+                                        placeholder = { Text("Pega aquí la key que te llegó por correo") },
+                                        singleLine = true,
+                                        enabled = !isValidating && !paymentsSectionLocked,
+                                        modifier = Modifier.fillMaxWidth()
+                                    )
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                    ) {
+                                        OutlinedButton(
+                                            onClick = {
+                                                val intent = Intent(
+                                                    Intent.ACTION_VIEW,
+                                                    Uri.parse(LicenseRepository.CHECKOUT_URL)
+                                                )
+                                                context.startActivity(intent)
+                                            },
+                                            enabled = !paymentsSectionLocked,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            Text("Comprar")
+                                        }
+
+                                        Button(
+                                            onClick = {
+                                                val keyToValidate = licenseInput
+                                                isValidating = true
+                                                errorMessage = null
+                                                paymentsScope.launch {
+                                                    when (val result = licenseRepo.validateAndSave(keyToValidate)) {
+                                                        is LicenseValidationResult.Success -> {
+                                                            licenseStatus = LicenseStatus.ACTIVE
+                                                            maskedKey = licenseRepo.maskedKey()
+                                                            productName = result.productName
+                                                            licenseInput = ""
+                                                            errorMessage = null
+                                                            Toast.makeText(
+                                                                context,
+                                                                "¡Licencia activada! Gracias por tu apoyo.",
+                                                                Toast.LENGTH_LONG
+                                                            ).show()
+                                                        }
+                                                        is LicenseValidationResult.Invalid -> {
+                                                            licenseStatus = licenseRepo.getStatus()
+                                                            errorMessage = result.reason
+                                                        }
+                                                        LicenseValidationResult.NetworkError -> {
+                                                            errorMessage = "Sin conexión. Revisa tu internet e intenta de nuevo."
+                                                        }
+                                                    }
+                                                    isValidating = false
+                                                }
+                                            },
+                                            enabled = !isValidating && !paymentsSectionLocked && licenseInput.isNotBlank(),
+                                            modifier = Modifier.weight(1f)
+                                        ) {
+                                            if (isValidating) {
+                                                CircularProgressIndicator(
+                                                    modifier = Modifier.size(18.dp),
+                                                    strokeWidth = 2.dp,
+                                                    color = MaterialTheme.colorScheme.onPrimary
+                                                )
+                                            } else {
+                                                Text("Activar")
+                                            }
+                                        }
+                                    }
+
+                                    if (licenseRepo.getSavedLicenseKey() != null) {
+                                        Spacer(Modifier.height(4.dp))
+                                        TextButton(
+                                            onClick = {
+                                                licenseRepo.clearLicense()
+                                                licenseStatus = LicenseStatus.INACTIVE
+                                                maskedKey = null
+                                                productName = null
+                                                errorMessage = null
+                                                licenseInput = ""
+                                            },
+                                            enabled = !paymentsSectionLocked,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Quitar licencia", color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
                                 }
                             }
                         }

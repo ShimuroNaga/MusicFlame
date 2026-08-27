@@ -54,6 +54,7 @@ import com.music.musicflame.data.Song
 import com.music.musicflame.ui.components.YoutubeVerifyWebView
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.safeScreenPadding
+import com.music.musicflame.ui.utils.rememberSafeBottomPadding
 import kotlinx.coroutines.delay
 
 // Tamaño del aro del estilo "Círculo pulsante" (EqualizerStyle.PULSE_CIRCLE) cuando
@@ -223,18 +224,25 @@ fun FullScreenPlayer(
     // Ajustes > Apariencia > "Estilo de ecualizador gráfico".
     val equalizerStyle = remember { settingsRepo.getEqualizerStyle() }
 
-    // Color de las barras del visualizador: SIEMPRE blanco o negro, nunca elegible por el
-    // usuario. Se adapta solo según lo que haya detrás de las barras:
+    // Color de las barras del visualizador. Por defecto ("Adaptativo") sigue
+    // igual que antes: blanco o negro según lo que haya detrás de las barras:
     //  - Con imagen/gif de fondo: siempre se pone un overlay oscuro semitransparente
     //    (ver bgColor más abajo), así que blanco es lo que mejor contrasta ahí.
     //  - Sin imagen/gif: se mira el color de fondo real que está usando el tema
     //    (blanco/claro -> barras negras, oscuro -> barras blancas), usando su
     //    luminancia en vez de asumir "modo claro = tema claro" (por AMOLED, Material You, etc).
-    val equalizerBarsColor = if (hasBackgroundImage) {
+    // Con "Personalizado" (Ajustes > Apariencia > "Color del ecualizador") se
+    // usa el color elegido por el usuario en vez de esta lógica adaptativa.
+    val equalizerColorMode = remember { settingsRepo.getEqualizerColorMode() }
+    val equalizerCustomColorHex = remember { settingsRepo.getEqualizerCustomColorHex() }
+    val equalizerAdaptiveColor = if (hasBackgroundImage) {
         Color.White
     } else {
         if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.Black else Color.White
     }
+    val equalizerBarsColor = com.music.musicflame.ui.components.resolveEqualizerColor(
+        equalizerColorMode, equalizerCustomColorHex, equalizerAdaptiveColor
+    )
     val lyricsState = com.music.musicflame.ui.components.rememberLyricsState(song, lyricsRepoRef)
     var showYoutubeVerify by remember { mutableStateOf(false) }
 
@@ -368,9 +376,21 @@ fun FullScreenPlayer(
             )
             val mirroredColor = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f)
 
-            // Fila de ABAJO: sin cambios de fondo — literalmente el mismo dibujo
-            // que el estilo clásico (BarsEqualizerCanvas), pegada abajo con el
-            // mismo margen/tamaño de caja de siempre (26% de alto, 8dp horizontal).
+            // Empujón hacia ABAJO para que la fila de abajo tope con el borde
+            // REAL de la pantalla. El Box padre ya tiene .safeScreenPadding(),
+            // así que BottomCenter por sí solo alinea contra el borde SUPERIOR
+            // de la barra de navegación, no contra el borde físico de la
+            // pantalla — quedaba ese hueco que se veía en la captura. En vez de
+            // un número fijo (que no serviría igual en todos los celulares),
+            // usamos el inset real de la barra de navegación del dispositivo
+            // (rememberSafeBottomPadding, la misma fuente que usa
+            // safeScreenPadding()) para que se adapte solo a gestos, 3 botones
+            // o cualquier fabricante, igual que el resto de la pantalla.
+            val bottomRowLift = rememberSafeBottomPadding()
+
+            // Fila de ABAJO: mismo dibujo que el estilo clásico
+            // (BarsEqualizerCanvas), pero ahora empujada hacia abajo por
+            // [bottomRowLift] para que tope con el borde físico real.
             com.music.musicflame.ui.components.BarsEqualizerCanvas(
                 spectrum = mirroredSpectrum,
                 color = mirroredColor,
@@ -378,18 +398,21 @@ fun FullScreenPlayer(
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .fillMaxHeight(0.26f)
+                    .offset(y = bottomRowLift)
                     .padding(horizontal = 8.dp)
             )
 
             // Degradado de abajo: mismo tratamiento que el resto de los estilos
             // (bgColor arriba de la franja -> transparente abajo), para que la
             // fila de abajo se difumine contra los botones de control en vez de
-            // cortar en seco contra ellos.
+            // cortar en seco contra ellos. Se empuja junto con las barras para
+            // que el degradado siga terminando exactamente donde ellas terminan.
             Box(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
                     .fillMaxWidth()
                     .fillMaxHeight(0.26f)
+                    .offset(y = bottomRowLift)
                     .background(
                         Brush.verticalGradient(
                             colors = listOf(bgColor, Color.Transparent),

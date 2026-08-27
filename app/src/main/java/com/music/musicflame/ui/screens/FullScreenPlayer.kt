@@ -63,14 +63,6 @@ import kotlinx.coroutines.delay
 // invadir los botones de Anterior/Siguiente de al lado.
 private val PULSE_CIRCLE_RING_SIZE = 118.dp
 
-// Empujón extra hacia arriba para la fila de ARRIBA del "Doble espejado"
-// (EqualizerStyle.MIRRORED_BARS): sube la caja (26% de alto) por encima del
-// padding de status bar que ya le da .safeScreenPadding(), para que quede
-// bien pegada al borde real de la pantalla en vez de dejar aire de más.
-// Subí este número si la querés todavía más arriba (o bajalo/ponelo en 0.dp
-// para volver a respetar el padding de la barra de estado tal cual).
-private val MIRRORED_TOP_ROW_EXTRA_LIFT = 20.dp
-
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FullScreenPlayer(
@@ -324,14 +316,15 @@ fun FullScreenPlayer(
         // fondo), el círculo pulsante ahora se dibuja pegado al botón de
         // Play/Pause (vista normal) o flotando solo, sin botón detrás (vista de
         // Letra) — ver PULSE_CIRCLE_RING_SIZE más abajo, donde se usa.
-        // NOTA (doble espejado): tampoco se dibuja acá. Se maneja aparte, más
-        // abajo, porque ahora sus dos filas viven en dos cajas independientes
-        // (una pegada abajo, otra pegada al borde real de ARRIBA de la
-        // pantalla) en vez de compartir una sola caja como el resto de los
-        // estilos — ver el bloque "DOBLE ESPEJADO" más abajo.
-        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
-            equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS
-        ) {
+        // NOTA (doble espejado): antes tenía su propio bloque aparte, con las
+        // dos filas en cajas independientes pegadas a los bordes reales de
+        // arriba y abajo de la pantalla. Se sacó ese tratamiento especial: el
+        // usuario pidió que el doble espejado viva en la MISMA caja/posición
+        // que el resto de los estilos (la franja de abajo, 26% de alto), así
+        // que ahora pasa por acá igual que BARS/WATER_WAVE/etc. — usa
+        // MirroredBarsEqualizerCanvas por dentro (ver EqualizerCanvas), que ya
+        // dibuja las dos filas con su hueco en el medio dentro de una sola caja.
+        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
             com.music.musicflame.ui.components.GraphicEqualizer(
                 style = equalizerStyle,
                 audioSessionId = playerManager.audioSessionId.value,
@@ -355,110 +348,6 @@ fun FullScreenPlayer(
                     // arriba. Es solo un número -> fácil de subir/bajar a gusto.
                     .fillMaxHeight(0.26f)
                     .padding(horizontal = 8.dp)
-            )
-        }
-
-        // --- DOBLE ESPEJADO: fila de abajo + fila de arriba en el borde real de
-        // arriba de la pantalla ---
-        // Antes las dos filas vivían dentro de la MISMA caja de 26% pegada abajo
-        // (o sea, la fila "de arriba" en realidad solo llegaba hasta el 26% de
-        // alto, no hasta el borde real de la pantalla). Ahora son dos Canvas
-        // independientes, cada uno en su propia caja anclada a su borde real
-        // (BottomCenter / TopCenter), pero leyendo del MISMO [mirroredSpectrum]
-        // para que se muevan exactamente sincronizadas entre sí (mismos valores
-        // de barra en el mismo instante, no dos capturas de audio separadas).
-        if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS) {
-            val mirroredSpectrum = com.music.musicflame.ui.components.rememberAudioSpectrum(
-                audioSessionId = playerManager.audioSessionId.value,
-                isPlaying = isPlaying,
-                hasRecordAudioPermission = hasRecordAudioPermission,
-                barCount = equalizerBarCount
-            )
-            val mirroredColor = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f)
-
-            // Empujón hacia ABAJO para que la fila de abajo tope con el borde
-            // REAL de la pantalla. El Box padre ya tiene .safeScreenPadding(),
-            // así que BottomCenter por sí solo alinea contra el borde SUPERIOR
-            // de la barra de navegación, no contra el borde físico de la
-            // pantalla — quedaba ese hueco que se veía en la captura. En vez de
-            // un número fijo (que no serviría igual en todos los celulares),
-            // usamos el inset real de la barra de navegación del dispositivo
-            // (rememberSafeBottomPadding, la misma fuente que usa
-            // safeScreenPadding()) para que se adapte solo a gestos, 3 botones
-            // o cualquier fabricante, igual que el resto de la pantalla.
-            val bottomRowLift = rememberSafeBottomPadding()
-
-            // Fila de ABAJO: mismo dibujo que el estilo clásico
-            // (BarsEqualizerCanvas), pero ahora empujada hacia abajo por
-            // [bottomRowLift] para que tope con el borde físico real.
-            com.music.musicflame.ui.components.BarsEqualizerCanvas(
-                spectrum = mirroredSpectrum,
-                color = mirroredColor,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.26f)
-                    .offset(y = bottomRowLift)
-                    .padding(horizontal = 8.dp)
-            )
-
-            // Degradado de abajo: mismo tratamiento que el resto de los estilos
-            // (bgColor arriba de la franja -> transparente abajo), para que la
-            // fila de abajo se difumine contra los botones de control en vez de
-            // cortar en seco contra ellos. Se empuja junto con las barras para
-            // que el degradado siga terminando exactamente donde ellas terminan.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.26f)
-                    .offset(y = bottomRowLift)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(bgColor, Color.Transparent),
-                            startY = 0f,
-                            endY = Float.POSITIVE_INFINITY
-                        )
-                    )
-            )
-
-            // Fila de ARRIBA: el espejo, pegada al borde REAL de arriba de la
-            // pantalla (respetando el inset de status bar/notch, porque este Box
-            // padre ya tiene .safeScreenPadding()) — no al 26% de una caja que
-            // arranca desde abajo, como pasaba antes.
-            // MIRRORED_TOP_ROW_EXTRA_LIFT: un empujón extra hacia arriba, por
-            // encima de lo que ya sube el offset negativo de abajo, para que
-            // quede pegadísima al borde de la pantalla (incluso metiéndose un
-            // poco debajo de la barra de estado, que es semitransparente).
-            // Ajustable acá mismo si hace falta más o menos.
-            com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
-                spectrum = mirroredSpectrum,
-                color = mirroredColor,
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.26f)
-                    .offset(y = -MIRRORED_TOP_ROW_EXTRA_LIFT)
-                    .padding(horizontal = 8.dp)
-            )
-
-            // Degradado de arriba: el espejo del de abajo (ver más abajo), para
-            // que la fila de arriba se difumine contra el fondo real de la
-            // pantalla justo donde empiezan el botón de "Ocultar reproductor" y
-            // el título, en vez de cortar en seco contra ellos.
-            Box(
-                modifier = Modifier
-                    .align(Alignment.TopCenter)
-                    .fillMaxWidth()
-                    .fillMaxHeight(0.26f)
-                    .offset(y = -MIRRORED_TOP_ROW_EXTRA_LIFT)
-                    .background(
-                        Brush.verticalGradient(
-                            colors = listOf(Color.Transparent, bgColor),
-                            startY = 0f,
-                            endY = Float.POSITIVE_INFINITY
-                        )
-                    )
             )
         }
 
@@ -491,12 +380,9 @@ fun FullScreenPlayer(
         // borde inferior de la pantalla. Así el ecualizador se ve grande y vivo, pero
         // sin pelearle protagonismo visual a los botones que quedan por encima.
         // Con PULSE_CIRCLE no aplica (ya no hay ninguna franja de fondo ahí abajo
-        // que difuminar). Con MIRRORED_BARS tampoco, porque ese estilo ya tiene su
-        // propio degradado de abajo (ver el bloque de arriba) — dejar este además
-        // duplicaría el difuminado sobre la misma franja.
-        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
-            equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS
-        ) {
+        // que difuminar). Con MIRRORED_BARS sí aplica ahora — ya no tiene su
+        // propio bloque aparte, así que usa este mismo degradado como el resto.
+        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)

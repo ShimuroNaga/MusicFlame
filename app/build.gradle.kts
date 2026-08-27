@@ -139,4 +139,5 @@ dependencies {
     implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    implementation("androidx.palette:palette-ktx:1.0.0")
 }

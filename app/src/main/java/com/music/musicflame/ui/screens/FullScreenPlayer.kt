@@ -206,7 +206,11 @@ fun FullScreenPlayer(
     val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
     val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
     val lyricsColorMode = remember { settingsRepo.getLyricsTextColorMode() }
-    val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, "")
+    // Hex del color personalizado (catálogo, punto 2). Antes se pasaba "" a
+    // resolveLyricsTextColor y por eso "Personalizado" nunca pintaba nada
+    // distinto de negro (fallback de parseCustomTextColor ante texto vacío).
+    val lyricsCustomColorHex = remember { settingsRepo.getLyricsCustomColorHex() }
+    val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, lyricsCustomColorHex)
     // Cantidad de barras del ecualizador gráfico, configurable en Ajustes > Apariencia
     // (6 mínimo, 32 estándar, 64 máximo). Antes se armaba la vista pero nunca se le
     // pasaba este valor a AudioVisualizerBars más abajo, así que siempre quedaba en

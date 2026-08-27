@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
+import com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -91,7 +92,10 @@ fun SongItemCard(
             Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isCurrentlyPlaying) {
-                        NowPlayingIndicator(modifier = Modifier.height(14.dp))
+                        NowPlayingIndicator(
+                            modifier = Modifier.height(14.dp),
+                            color = LocalNowPlayingIndicatorColor.current
+                        )
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(

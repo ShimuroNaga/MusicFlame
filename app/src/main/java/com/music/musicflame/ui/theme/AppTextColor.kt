@@ -12,6 +12,18 @@ import androidx.compose.ui.graphics.Color
 val LocalAppTextColor = compositionLocalOf { Color.Black }
 
 /**
+ * Color único del indicador animado de "reproduciendo ahora" (punto 3 del
+ * catálogo, NowPlayingIndicator). Se resuelve una sola vez en MusicFlameTheme
+ * (modo "Adaptativo" = blanco/negro según luminancia real del fondo, igual que
+ * el default histórico del componente; "Personalizado" = el hex elegido en
+ * Ajustes > Apariencia > "Color del 'Now Playing'") y cualquier lista de
+ * canciones/cola/playlist lo lee de acá en vez de recibir SettingsRepository.
+ * El valor por defecto de abajo nunca se usa en la app real: MusicFlameTheme
+ * SIEMPRE lo sobreescribe desde la raíz, igual que con LocalAppTextColor.
+ */
+val LocalNowPlayingIndicatorColor = compositionLocalOf { Color.White }
+
+/**
  * Convierte el texto guardado por el usuario ("#RRGGBB", "#AARRGGBB" o "r,g,b"/"r,g,b,a")
  * en un Color real. Si el formato es inválido, cae de vuelta a negro para no romper la UI.
  */

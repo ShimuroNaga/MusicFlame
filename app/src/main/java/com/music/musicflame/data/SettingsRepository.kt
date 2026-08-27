@@ -143,6 +143,18 @@ class SettingsRepository(context: Context) {
     fun getEqualizerCustomColorHex(): String = prefs.getString("equalizer_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
     fun saveEqualizerCustomColorHex(value: String) = prefs.edit().putString("equalizer_custom_color_hex", value).apply()
 
+    // --- COLOR ÚNICO DEL "NOW PLAYING" INDICATOR (punto 3 del catálogo) ---
+    // Mismo patrón que el color del ecualizador (punto 1): "Adaptativo" (default,
+    // blanco/negro según luminancia del fondo, tal cual funcionaba antes) o
+    // "Personalizado" (now_playing_custom_color_hex, mismo formato #RRGGBB o
+    // r,g,b,a). Aplica al indicador animado de "reproduciendo ahora" en listas
+    // de canciones, cola y playlists (NowPlayingIndicator).
+    fun getNowPlayingColorMode(): String = prefs.getString("now_playing_color_mode", "Adaptativo") ?: "Adaptativo"
+    fun saveNowPlayingColorMode(mode: String) = prefs.edit().putString("now_playing_color_mode", mode).apply()
+
+    fun getNowPlayingCustomColorHex(): String = prefs.getString("now_playing_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
+    fun saveNowPlayingCustomColorHex(value: String) = prefs.edit().putString("now_playing_custom_color_hex", value).apply()
+
     companion object {
         // NOTA PARA SESIÓN POSTERIOR: este catálogo (estilos de ecualizador, y
         // en el futuro colores custom del ecualizador/letra/now-playing y el

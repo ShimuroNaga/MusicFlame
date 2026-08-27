@@ -559,7 +559,10 @@ fun SongItemCard(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (isCurrentlyPlaying) {
-                        com.music.musicflame.ui.components.NowPlayingIndicator(modifier = Modifier.height(14.dp))
+                        com.music.musicflame.ui.components.NowPlayingIndicator(
+                            modifier = Modifier.height(14.dp),
+                            color = com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor.current
+                        )
                         Spacer(Modifier.width(6.dp))
                     }
                     Text(

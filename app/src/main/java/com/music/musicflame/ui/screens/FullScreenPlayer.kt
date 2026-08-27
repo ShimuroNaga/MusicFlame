@@ -56,6 +56,20 @@ import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.safeScreenPadding
 import kotlinx.coroutines.delay
 
+// Tamaño del aro del estilo "Círculo pulsante" (EqualizerStyle.PULSE_CIRCLE) cuando
+// rodea al botón de Play/Pause (vista normal) o flota solo (vista de Letra). 118dp
+// deja ~21dp de aire alrededor del botón real de 76dp para que el aro se note sin
+// invadir los botones de Anterior/Siguiente de al lado.
+private val PULSE_CIRCLE_RING_SIZE = 118.dp
+
+// Empujón extra hacia arriba para la fila de ARRIBA del "Doble espejado"
+// (EqualizerStyle.MIRRORED_BARS): sube la caja (26% de alto) por encima del
+// padding de status bar que ya le da .safeScreenPadding(), para que quede
+// bien pegada al borde real de la pantalla en vez de dejar aire de más.
+// Subí este número si la querés todavía más arriba (o bajalo/ponelo en 0.dp
+// para volver a respetar el padding de la barra de estado tal cual).
+private val MIRRORED_TOP_ROW_EXTRA_LIFT = 20.dp
+
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun FullScreenPlayer(
@@ -297,38 +311,169 @@ fun FullScreenPlayer(
         // Ocupa todo el ancho y se estira desde el fondo de la pantalla hacia
         // arriba, respetando ya el inset real de la barra de navegación (gestos
         // o 3 botones) porque este Box padre ya tiene .safeScreenPadding().
-        com.music.musicflame.ui.components.GraphicEqualizer(
-            style = equalizerStyle,
-            audioSessionId = playerManager.audioSessionId.value,
-            isPlaying = isPlaying,
-            hasRecordAudioPermission = hasRecordAudioPermission,
-            // Antes: opacidad completa en la vista normal, compitiendo visualmente con
-            // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
-            // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
-            // que protagonista — y sumado al degradado de abajo, que lo termina de
-            // difuminar del todo justo donde arrancan los botones.
-            color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
-            // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
-            // este parámetro, así que el slider no tenía ningún efecto acá).
-            barCount = equalizerBarCount,
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                // 26% del alto disponible (ya sin status bar/nav bar, por el
-                // .safeScreenPadding() del Box padre): mucho más grande que el
-                // strip fijo de 48dp de antes, pero sin tragarse el slider de
-                // arriba. Es solo un número -> fácil de subir/bajar a gusto.
-                .fillMaxHeight(0.26f)
-                .padding(horizontal = 8.dp)
-        )
+        // NOTA (círculo pulsante): este estilo NO se dibuja acá. A diferencia del
+        // resto de los estilos (que sí funcionan bien como franja ambiental de
+        // fondo), el círculo pulsante ahora se dibuja pegado al botón de
+        // Play/Pause (vista normal) o flotando solo, sin botón detrás (vista de
+        // Letra) — ver PULSE_CIRCLE_RING_SIZE más abajo, donde se usa.
+        // NOTA (doble espejado): tampoco se dibuja acá. Se maneja aparte, más
+        // abajo, porque ahora sus dos filas viven en dos cajas independientes
+        // (una pegada abajo, otra pegada al borde real de ARRIBA de la
+        // pantalla) en vez de compartir una sola caja como el resto de los
+        // estilos — ver el bloque "DOBLE ESPEJADO" más abajo.
+        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
+            equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS
+        ) {
+            com.music.musicflame.ui.components.GraphicEqualizer(
+                style = equalizerStyle,
+                audioSessionId = playerManager.audioSessionId.value,
+                isPlaying = isPlaying,
+                hasRecordAudioPermission = hasRecordAudioPermission,
+                // Antes: opacidad completa en la vista normal, compitiendo visualmente con
+                // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
+                // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
+                // que protagonista — y sumado al degradado de abajo, que lo termina de
+                // difuminar del todo justo donde arrancan los botones.
+                color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
+                // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
+                // este parámetro, así que el slider no tenía ningún efecto acá).
+                barCount = equalizerBarCount,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    // 26% del alto disponible (ya sin status bar/nav bar, por el
+                    // .safeScreenPadding() del Box padre): mucho más grande que el
+                    // strip fijo de 48dp de antes, pero sin tragarse el slider de
+                    // arriba. Es solo un número -> fácil de subir/bajar a gusto.
+                    .fillMaxHeight(0.26f)
+                    .padding(horizontal = 8.dp)
+            )
+        }
 
-        // --- DEGRADADO DE DIFUMINADO ---
+        // --- DOBLE ESPEJADO: fila de abajo + fila de arriba en el borde real de
+        // arriba de la pantalla ---
+        // Antes las dos filas vivían dentro de la MISMA caja de 26% pegada abajo
+        // (o sea, la fila "de arriba" en realidad solo llegaba hasta el 26% de
+        // alto, no hasta el borde real de la pantalla). Ahora son dos Canvas
+        // independientes, cada uno en su propia caja anclada a su borde real
+        // (BottomCenter / TopCenter), pero leyendo del MISMO [mirroredSpectrum]
+        // para que se muevan exactamente sincronizadas entre sí (mismos valores
+        // de barra en el mismo instante, no dos capturas de audio separadas).
+        if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS) {
+            val mirroredSpectrum = com.music.musicflame.ui.components.rememberAudioSpectrum(
+                audioSessionId = playerManager.audioSessionId.value,
+                isPlaying = isPlaying,
+                hasRecordAudioPermission = hasRecordAudioPermission,
+                barCount = equalizerBarCount
+            )
+            val mirroredColor = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f)
+
+            // Fila de ABAJO: sin cambios de fondo — literalmente el mismo dibujo
+            // que el estilo clásico (BarsEqualizerCanvas), pegada abajo con el
+            // mismo margen/tamaño de caja de siempre (26% de alto, 8dp horizontal).
+            com.music.musicflame.ui.components.BarsEqualizerCanvas(
+                spectrum = mirroredSpectrum,
+                color = mirroredColor,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.26f)
+                    .padding(horizontal = 8.dp)
+            )
+
+            // Degradado de abajo: mismo tratamiento que el resto de los estilos
+            // (bgColor arriba de la franja -> transparente abajo), para que la
+            // fila de abajo se difumine contra los botones de control en vez de
+            // cortar en seco contra ellos.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.26f)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(bgColor, Color.Transparent),
+                            startY = 0f,
+                            endY = Float.POSITIVE_INFINITY
+                        )
+                    )
+            )
+
+            // Fila de ARRIBA: el espejo, pegada al borde REAL de arriba de la
+            // pantalla (respetando el inset de status bar/notch, porque este Box
+            // padre ya tiene .safeScreenPadding()) — no al 26% de una caja que
+            // arranca desde abajo, como pasaba antes.
+            // MIRRORED_TOP_ROW_EXTRA_LIFT: un empujón extra hacia arriba, por
+            // encima de lo que ya sube el offset negativo de abajo, para que
+            // quede pegadísima al borde de la pantalla (incluso metiéndose un
+            // poco debajo de la barra de estado, que es semitransparente).
+            // Ajustable acá mismo si hace falta más o menos.
+            com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
+                spectrum = mirroredSpectrum,
+                color = mirroredColor,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.26f)
+                    .offset(y = -MIRRORED_TOP_ROW_EXTRA_LIFT)
+                    .padding(horizontal = 8.dp)
+            )
+
+            // Degradado de arriba: el espejo del de abajo (ver más abajo), para
+            // que la fila de arriba se difumine contra el fondo real de la
+            // pantalla justo donde empiezan el botón de "Ocultar reproductor" y
+            // el título, en vez de cortar en seco contra ellos.
+            Box(
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .fillMaxWidth()
+                    .fillMaxHeight(0.26f)
+                    .offset(y = -MIRRORED_TOP_ROW_EXTRA_LIFT)
+                    .background(
+                        Brush.verticalGradient(
+                            colors = listOf(Color.Transparent, bgColor),
+                            startY = 0f,
+                            endY = Float.POSITIVE_INFINITY
+                        )
+                    )
+            )
+        }
+
+        // --- CÍRCULO PULSANTE flotando en la vista de Letra ---
+        // En la vista normal el aro se dibuja pegado al botón de Play/Pause (ver
+        // más abajo, en la Row de controles). Acá, en cambio, no hay ningún botón
+        // de Play/Pause (la Letra ocupa toda la pantalla), así que el aro flota
+        // solo, anclado abajo al centro, para que la sensación de "el círculo
+        // rodea el play/pause" se mantenga aunque el botón no esté visible.
+        if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE && showLyrics) {
+            com.music.musicflame.ui.components.GraphicEqualizer(
+                style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                audioSessionId = playerManager.audioSessionId.value,
+                isPlaying = isPlaying,
+                hasRecordAudioPermission = hasRecordAudioPermission,
+                color = equalizerBarsColor.copy(alpha = 0.55f),
+                barCount = equalizerBarCount,
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 24.dp)
+                    .size(PULSE_CIRCLE_RING_SIZE)
+            )
+        }
+
+        // --- DEGRADADO DE DIFUMINADO (fila de abajo) ---
         // Se dibuja ENCIMA del ecualizador, ocupando la misma franja de abajo. Va de
         // "color de fondo real de la pantalla" (bgColor) arriba del todo — tapando/
         // difuminando las barras justo donde arrancan los botones de control — a
         // totalmente transparente abajo, dejando las barras bien vivas cerca del
         // borde inferior de la pantalla. Así el ecualizador se ve grande y vivo, pero
         // sin pelearle protagonismo visual a los botones que quedan por encima.
+        // Con PULSE_CIRCLE no aplica (ya no hay ninguna franja de fondo ahí abajo
+        // que difuminar). Con MIRRORED_BARS tampoco, porque ese estilo ya tiene su
+        // propio degradado de abajo (ver el bloque de arriba) — dejar este además
+        // duplicaría el difuminado sobre la misma franja.
+        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
+            equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS
+        ) {
         Box(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
@@ -342,6 +487,8 @@ fun FullScreenPlayer(
                     )
                 )
         )
+        }
+
 
         androidx.compose.animation.AnimatedContent(
             targetState = showLyrics,
@@ -663,19 +810,48 @@ fun FullScreenPlayer(
                             Icon(Icons.Filled.SkipPrevious, "Anterior", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
                         }
 
-                        Surface(
-                            onClick = onPlayPause,
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(76.dp)
+                        // El Box de afuera solo crece a PULSE_CIRCLE_RING_SIZE (118dp) cuando el
+                        // estilo elegido es el círculo pulsante, para dejarle aire al aro
+                        // alrededor; con cualquier otro estilo queda en 76dp como siempre (no
+                        // le cambia el tamaño ni el espaciado de la fila a nadie más).
+                        val playPauseBoxSize = if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+                            PULSE_CIRCLE_RING_SIZE
+                        } else {
+                            76.dp
+                        }
+                        Box(
+                            modifier = Modifier.size(playPauseBoxSize),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                                    tint = MaterialTheme.colorScheme.onPrimary,
-                                    modifier = Modifier.size(40.dp)
+                            // Aro del círculo pulsante: SOLO cuando ese es el estilo elegido en
+                            // Ajustes > Apariencia. Se dibuja DETRÁS del botón (primer hijo del
+                            // Box), late con el audio real igual que en el resto de las pantallas.
+                            if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+                                com.music.musicflame.ui.components.GraphicEqualizer(
+                                    style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                                    audioSessionId = playerManager.audioSessionId.value,
+                                    isPlaying = isPlaying,
+                                    hasRecordAudioPermission = hasRecordAudioPermission,
+                                    color = equalizerBarsColor.copy(alpha = 0.55f),
+                                    barCount = equalizerBarCount,
+                                    modifier = Modifier.fillMaxSize()
                                 )
+                            }
+
+                            Surface(
+                                onClick = onPlayPause,
+                                shape = CircleShape,
+                                color = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(76.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                        tint = MaterialTheme.colorScheme.onPrimary,
+                                        modifier = Modifier.size(40.dp)
+                                    )
+                                }
                             }
                         }
 

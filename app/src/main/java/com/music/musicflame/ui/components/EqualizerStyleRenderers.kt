@@ -42,8 +42,16 @@ fun EqualizerCanvas(
 }
 
 // --- 4a) DOBLE ECUALIZADOR ESPEJADO ---
-// Mismas barras que el clásico, pero la mitad de la altura disponible arriba
-// y la otra mitad abajo, reflejadas en espejo desde el centro vertical.
+// A diferencia de la primera versión (que partía el canvas en dos mitades
+// pegadas al centro), esto imita al estilo BARS "de siempre": una fila de
+// barras pegada al borde inferior, creciendo hacia arriba EXACTAMENTE igual
+// que BarsEqualizerCanvas (mismo alto máximo relativo por fila). La fila de
+// arriba es el espejo: nace del borde superior y crece hacia abajo. Entre
+// ambas queda un hueco/margen fijo (GAP_FRACTION) en vez de tocarse en el
+// medio, que es justo lo que se pidió: "una barra abajo como el original y
+// la barra arriba mirando hacia abajo", con aire entre las dos.
+private const val MIRROR_GAP_FRACTION = 0.16f
+
 @Composable
 fun MirroredBarsEqualizerCanvas(
     spectrum: EqualizerLevelsState,
@@ -57,25 +65,74 @@ fun MirroredBarsEqualizerCanvas(
 
         val barWidth = size.width / (barCount * 1.5f)
         val spacing = barWidth * 0.5f
-        val centerY = size.height / 2f
-        val halfHeight = size.height / 2f
         val minHeightFraction = 0.02f
+
+        // Cada fila (abajo y arriba) tiene su propio alto máximo, dejando un
+        // margen fijo entre ambas en el medio del canvas.
+        val gap = size.height * MIRROR_GAP_FRACTION
+        val rowMaxHeight = (size.height - gap) / 2f
+        val bottomEdge = size.height
+        val topEdge = 0f
 
         for (index in 0 until barCount) {
             val level = spectrum.displayLevels[index].coerceIn(0f, 1f)
-            val barHeight = halfHeight * max(level, minHeightFraction)
+            val barHeight = rowMaxHeight * max(level, minHeightFraction)
             val x = index * (barWidth + spacing)
-            // Mitad de arriba: crece hacia arriba desde el centro.
+
+            // Fila de ABAJO: igual que el estilo clásico, nace del borde
+            // inferior real del canvas y crece hacia arriba.
             drawRoundRect(
                 color = color,
-                topLeft = Offset(x, centerY - barHeight),
+                topLeft = Offset(x, bottomEdge - barHeight),
                 size = Size(barWidth, barHeight),
                 cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
             )
-            // Mitad de abajo: el reflejo exacto, creciendo hacia abajo.
+            // Fila de ARRIBA: el espejo, nace del borde superior real y
+            // "mira hacia abajo" (crece hacia abajo en vez de hacia arriba).
             drawRoundRect(
                 color = color.copy(alpha = color.alpha * 0.7f),
-                topLeft = Offset(x, centerY),
+                topLeft = Offset(x, topEdge),
+                size = Size(barWidth, barHeight),
+                cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
+            )
+        }
+    }
+}
+
+// --- 4a-bis) FILA DE ARRIBA DEL ESPEJADO, para pantalla completa ---
+// En el selector de Ajustes (previsualización chica) el espejado sigue
+// dibujándose con [MirroredBarsEqualizerCanvas] de arriba, un solo Canvas
+// autocontenido con las dos filas adentro — eso no cambió.
+// PERO en FullScreenPlayer las dos filas ahora viven en dos cajas
+// independientes ancladas cada una a su borde real de pantalla (abajo /
+// arriba de verdad, no solo "arriba de una caja que empieza abajo"). La fila
+// de abajo es sencillamente [BarsEqualizerCanvas] tal cual (mismo dibujo que
+// el estilo clásico). Esta es la de ARRIBA: el mismo dibujo, pero el origen
+// de crecimiento es el borde SUPERIOR del canvas en vez del inferior, así
+// que las barras "miran hacia abajo".
+@Composable
+fun MirroredBarsTopRowCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val barCount = spectrum.barCount
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        spectrum.tick
+
+        val barWidth = size.width / (barCount * 1.5f)
+        val spacing = barWidth * 0.5f
+        val maxBarHeight = size.height
+        val minHeightFraction = 0.015f
+
+        for (index in 0 until barCount) {
+            val level = spectrum.displayLevels[index].coerceIn(0f, 1f)
+            val barHeight = maxBarHeight * max(level, minHeightFraction)
+            val x = index * (barWidth + spacing)
+            drawRoundRect(
+                color = color,
+                topLeft = Offset(x, 0f),
                 size = Size(barWidth, barHeight),
                 cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
             )

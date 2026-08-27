@@ -31,6 +31,10 @@ fun MusicFlameTheme(
     val isAmoledState = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val appTextColorState = remember { mutableStateOf(settingsRepo.getAppTextColor()) }
     val customTextColorHexState = remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
+    // Color único del "Now Playing" indicator (catálogo, punto 3). Mismo
+    // patrón "Adaptativo"/"Personalizado" que el color del ecualizador.
+    val nowPlayingColorModeState = remember { mutableStateOf(settingsRepo.getNowPlayingColorMode()) }
+    val nowPlayingCustomColorHexState = remember { mutableStateOf(settingsRepo.getNowPlayingCustomColorHex()) }
 
     // Registrar un listener para detectar cambios en SharedPreferences en tiempo real
     DisposableEffect(context) {
@@ -43,6 +47,8 @@ fun MusicFlameTheme(
                 "amoled_mode" -> isAmoledState.value = settingsRepo.isAmoledModeEnabled()
                 "app_text_color" -> appTextColorState.value = settingsRepo.getAppTextColor()
                 "custom_text_color_hex" -> customTextColorHexState.value = settingsRepo.getCustomTextColorHex()
+                "now_playing_color_mode" -> nowPlayingColorModeState.value = settingsRepo.getNowPlayingColorMode()
+                "now_playing_custom_color_hex" -> nowPlayingCustomColorHexState.value = settingsRepo.getNowPlayingCustomColorHex()
             }
         }
 
@@ -85,11 +91,18 @@ fun MusicFlameTheme(
         "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Negro", "Blanco" o cualquier default
     }
+    val nowPlayingIndicatorColor = when (nowPlayingColorModeState.value) {
+        "Personalizado" -> parseCustomTextColor(nowPlayingCustomColorHexState.value)
+        else -> if (isDarkBackground) Color.White else Color.Black // "Adaptativo": mismo default histórico del componente
+    }
 
     MaterialTheme(
         colorScheme = finalColorScheme
     ) {
-        CompositionLocalProvider(LocalAppTextColor provides appTextColor) {
+        CompositionLocalProvider(
+            LocalAppTextColor provides appTextColor,
+            LocalNowPlayingIndicatorColor provides nowPlayingIndicatorColor
+        ) {
             content()
         }
     }

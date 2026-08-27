@@ -185,6 +185,8 @@ fun SettingsScreen(
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
+    val showLyricsColorDialog = remember { mutableStateOf(false) }
+    val showNowPlayingColorDialog = remember { mutableStateOf(false) }
 
     val durationMin = remember { mutableStateOf(settingsRepo.getDurationFilterMin().toString()) }
     val durationMax = remember { mutableStateOf(settingsRepo.getDurationFilterMax().let { if (it == Int.MAX_VALUE) "" else it.toString() }) }
@@ -205,6 +207,19 @@ fun SettingsScreen(
     // appTextColorPref/customTextColorHex de más abajo.
     val equalizerColorModePref = remember { mutableStateOf(settingsRepo.getEqualizerColorMode()) }
     val equalizerCustomColorHexPref = remember { mutableStateOf(settingsRepo.getEqualizerCustomColorHex()) }
+    // Color propio del texto de la letra sincronizada (catálogo, punto 2):
+    // "Blanco", "Negro" o "Personalizado" (lyricsCustomColorHexPref). Mismo
+    // patrón que equalizerColorModePref/equalizerCustomColorHexPref de arriba;
+    // se resuelve con resolveLyricsTextColor() en LyricsView/FullScreenPlayer.
+    val lyricsColorModePref = remember { mutableStateOf(settingsRepo.getLyricsTextColorMode()) }
+    val lyricsCustomColorHexPref = remember { mutableStateOf(settingsRepo.getLyricsCustomColorHex()) }
+    // Color único del "Now Playing" indicator (catálogo, punto 3): "Adaptativo"
+    // (default, blanco/negro según el fondo, sin cambios de comportamiento) o
+    // "Personalizado" (nowPlayingCustomColorHexPref). Mismo patrón que
+    // equalizerColorModePref/equalizerCustomColorHexPref de arriba; se resuelve
+    // globalmente en MusicFlameTheme vía LocalNowPlayingIndicatorColor.
+    val nowPlayingColorModePref = remember { mutableStateOf(settingsRepo.getNowPlayingColorMode()) }
+    val nowPlayingCustomColorHexPref = remember { mutableStateOf(settingsRepo.getNowPlayingCustomColorHex()) }
 
     // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
     val activeSection = remember { mutableStateOf<String?>(null) }
@@ -810,6 +825,30 @@ fun SettingsScreen(
                         }
 
                         item {
+                            // NUEVO: color único del "Now Playing" indicator (catálogo,
+                            // punto 3). Mismo patrón de diálogo que "Color del
+                            // ecualizador": Adaptativo (blanco/negro según el fondo,
+                            // como hasta ahora) o Personalizado (presets + hex/RGBA).
+                            ListItem(
+                                headlineContent = { Text("Color del \"Now Playing\"") },
+                                supportingContent = {
+                                    Text(
+                                        if (nowPlayingColorModePref.value == "Personalizado") "Personalizado: ${nowPlayingCustomColorHexPref.value}"
+                                        else "Adaptativo (según el fondo)"
+                                    )
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showNowPlayingColorDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showNowPlayingColorDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
                             ListItem(
                                 headlineContent = { Text("Modo AMOLED (Negro Puro)") },
                                 supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
@@ -1266,7 +1305,6 @@ fun SettingsScreen(
                             val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
                             var speed by remember { mutableStateOf(settingsRepo.getLyricsSpeed()) }
                             var animType by remember { mutableStateOf(settingsRepo.getLyricsAnimationType()) }
-                            var colorMode by remember { mutableStateOf(settingsRepo.getLyricsTextColorMode()) }
                             var lyricsInWidget by remember { mutableStateOf(settingsRepo.isLyricsInWidgetEnabled()) }
                             var fullLyricsSquareWidget by remember { mutableStateOf(settingsRepo.isFullLyricsSquareWidgetEnabled()) }
 
@@ -1346,13 +1384,21 @@ fun SettingsScreen(
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        listOf("Blanco", "Negro").forEach { opt ->
-                                            val selected = colorMode == opt
+                                        listOf("Blanco", "Negro", "Personalizado").forEach { opt ->
+                                            val selected = lyricsColorModePref.value == opt
                                             androidx.compose.material3.FilterChip(
                                                 selected = selected,
                                                 onClick = {
-                                                    colorMode = opt
-                                                    settingsRepo.saveLyricsTextColorMode(opt)
+                                                    if (opt == "Personalizado") {
+                                                        // Selección visual inmediata; el modo recién se
+                                                        // persiste al confirmar un color en el diálogo
+                                                        // (igual que "Color del ecualizador").
+                                                        lyricsColorModePref.value = "Personalizado"
+                                                        showLyricsColorDialog.value = true
+                                                    } else {
+                                                        lyricsColorModePref.value = opt
+                                                        settingsRepo.saveLyricsTextColorMode(opt)
+                                                    }
                                                 },
                                                 label = { Text(opt, fontSize = 12.sp) },
                                                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
@@ -1362,6 +1408,33 @@ fun SettingsScreen(
                                             )
                                         }
                                     }
+                                    if (lyricsColorModePref.value == "Personalizado") {
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.clickable { showLyricsColorDialog.value = true }
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(24.dp)
+                                                    .clip(RoundedCornerShape(6.dp))
+                                                    .background(com.music.musicflame.ui.theme.parseCustomTextColor(lyricsCustomColorHexPref.value))
+                                                    .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "${lyricsCustomColorHexPref.value} · Cambiar",
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
+                                            )
+                                        }
+                                    }
+                                    Spacer(Modifier.height(6.dp))
+                                    Text(
+                                        "Este color también se aplica a la letra que se muestra en el widget de home screen.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.65f)
+                                    )
 
                                     Spacer(Modifier.height(20.dp))
                                     HorizontalDivider(color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.2f))
@@ -2098,6 +2171,203 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showEqualizerColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showLyricsColorDialog.value) {
+            val tempLyricsCustomHex = remember { mutableStateOf(lyricsCustomColorHexPref.value) }
+            // Si se cierra el diálogo sin confirmar un color, y el modo activo
+            // guardado todavía no era "Personalizado", revertimos el chip a lo
+            // que sí está persistido (evita dejar la selección visual en un
+            // estado "Personalizado" fantasma sin color confirmado).
+            val revertIfNotConfirmed = {
+                if (settingsRepo.getLyricsTextColorMode() != "Personalizado") {
+                    lyricsColorModePref.value = settingsRepo.getLyricsTextColorMode()
+                }
+                showLyricsColorDialog.value = false
+            }
+            AlertDialog(
+                onDismissRequest = revertIfNotConfirmed,
+                title = { Text("Color del texto de la letra", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text(
+                            "Se aplica al texto de la letra sincronizada. La línea activa se ve a máxima intensidad y el resto atenuada, igual que con Blanco/Negro.",
+                            fontSize = 12.sp,
+                            color = mediumEmphasis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+
+                        // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color del ecualizador" ---
+                        val presetColors = listOf(
+                            "#FFFFFF", "#000000", "#F44336", "#E91E63", "#9C27B0",
+                            "#673AB7", "#3F51B5", "#2196F3", "#03A9F4", "#00BCD4",
+                            "#009688", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B",
+                            "#FFC107", "#FF9800", "#FF5722", "#795548", "#9E9E9E"
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            presetColors.forEach { hex ->
+                                val isSelected = tempLyricsCustomHex.value.equals(hex, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(com.music.musicflame.ui.theme.parseCustomTextColor(hex))
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { tempLyricsCustomHex.value = hex }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+
+                        OutlinedTextField(
+                            value = tempLyricsCustomHex.value,
+                            onValueChange = { tempLyricsCustomHex.value = it },
+                            label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(com.music.musicflame.ui.theme.parseCustomTextColor(tempLyricsCustomHex.value))
+                                    .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text("Vista previa", fontSize = 12.sp)
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveLyricsTextColorMode("Personalizado")
+                        settingsRepo.saveLyricsCustomColorHex(tempLyricsCustomHex.value)
+                        lyricsColorModePref.value = "Personalizado"
+                        lyricsCustomColorHexPref.value = tempLyricsCustomHex.value
+                        showLyricsColorDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = revertIfNotConfirmed) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showNowPlayingColorDialog.value) {
+            val tempNowPlayingColorMode = remember { mutableStateOf(nowPlayingColorModePref.value) }
+            val tempNowPlayingCustomHex = remember { mutableStateOf(nowPlayingCustomColorHexPref.value) }
+            AlertDialog(
+                onDismissRequest = { showNowPlayingColorDialog.value = false },
+                title = { Text("Color del \"Now Playing\"", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text(
+                            "Aplica al indicador animado de \"reproduciendo ahora\" en las listas de canciones, la cola y las playlists.",
+                            fontSize = 12.sp,
+                            color = mediumEmphasis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        listOf("Adaptativo", "Personalizado").forEach { colorOption ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempNowPlayingColorMode.value = colorOption }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(selected = tempNowPlayingColorMode.value == colorOption, onClick = { tempNowPlayingColorMode.value = colorOption })
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(colorOption, fontSize = 14.sp)
+                                    if (colorOption == "Adaptativo") {
+                                        Text(
+                                            "Blanco o negro según el fondo, como hasta ahora",
+                                            fontSize = 11.sp,
+                                            color = mediumEmphasis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (tempNowPlayingColorMode.value == "Personalizado") {
+                            Spacer(Modifier.height(4.dp))
+
+                            // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color del ecualizador" ---
+                            val presetColors = listOf(
+                                "#FFFFFF", "#000000", "#F44336", "#E91E63", "#9C27B0",
+                                "#673AB7", "#3F51B5", "#2196F3", "#03A9F4", "#00BCD4",
+                                "#009688", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B",
+                                "#FFC107", "#FF9800", "#FF5722", "#795548", "#9E9E9E"
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                presetColors.forEach { hex ->
+                                    val isSelected = tempNowPlayingCustomHex.value.equals(hex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(com.music.musicflame.ui.theme.parseCustomTextColor(hex))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { tempNowPlayingCustomHex.value = hex }
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = tempNowPlayingCustomHex.value,
+                                onValueChange = { tempNowPlayingCustomHex.value = it },
+                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(com.music.musicflame.ui.theme.parseCustomTextColor(tempNowPlayingCustomHex.value))
+                                        .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Vista previa", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveNowPlayingColorMode(tempNowPlayingColorMode.value)
+                        nowPlayingColorModePref.value = tempNowPlayingColorMode.value
+                        if (tempNowPlayingColorMode.value == "Personalizado") {
+                            settingsRepo.saveNowPlayingCustomColorHex(tempNowPlayingCustomHex.value)
+                            nowPlayingCustomColorHexPref.value = tempNowPlayingCustomHex.value
+                        }
+                        showNowPlayingColorDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showNowPlayingColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

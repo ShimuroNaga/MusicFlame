@@ -235,6 +235,26 @@ fun FullScreenPlayer(
     val equalizerBarsColor = com.music.musicflame.ui.components.resolveEqualizerColor(
         equalizerColorMode, equalizerCustomColorHex, equalizerAdaptiveColor
     )
+
+    // --- ESPECTRO COMPARTIDO PARA EL DOBLE ESPEJADO ---
+    // Solo se calcula cuando el estilo elegido es MIRRORED_BARS. Se hoistea acá
+    // (en vez de dejar que cada canvas llame a GraphicEqualizer por su cuenta)
+    // porque el doble espejado necesita DOS canvases en DOS posiciones reales
+    // de la pantalla (fila de abajo a nivel de los botones, fila de arriba
+    // pegada al borde real de arriba, fuera del Box con safeScreenPadding —
+    // ver más abajo). Si cada fila creara su propio android.media.audiofx.Visualizer
+    // para el mismo audioSessionId, se duplicaría la captura FFT en cada frame
+    // sin necesidad; con un solo EqualizerLevelsState compartido, ambas filas
+    // dibujan a partir de los mismos niveles ya calculados una sola vez.
+    val mirroredEqualizerSpectrum = if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS) {
+        com.music.musicflame.ui.components.rememberAudioSpectrum(
+            audioSessionId = playerManager.audioSessionId.value,
+            isPlaying = isPlaying,
+            hasRecordAudioPermission = hasRecordAudioPermission,
+            barCount = equalizerBarCount
+        )
+    } else null
+
     val lyricsState = com.music.musicflame.ui.components.rememberLyricsState(song, lyricsRepoRef)
     var showYoutubeVerify by remember { mutableStateOf(false) }
 
@@ -250,579 +270,642 @@ fun FullScreenPlayer(
         wasLoadingLyrics = lyricsState.isLoading
     }
 
+    // --- CONTENEDOR EXTERIOR SIN INSETS ---
+    // Envuelve a TODO lo de abajo (contenido normal + overlays de Cola/YouTube),
+    // que sí respeta status bar/nav bar vía .safeScreenPadding(). Este Box de
+    // afuera existe solo para poder dibujar la fila de ARRIBA del doble
+    // espejado (justo abajo) tocando el borde REAL de la pantalla — ella sí
+    // necesita vivir fuera de cualquier padding de status bar.
+    //
+    // FIX: el fondo (bgColor) se pinta ACÁ, en el Box exterior, y NO en el
+    // interior. Antes vivía en el Box interior (siguiente hijo) y al ser un
+    // fondo OPACO tapaba por completo la fila de arriba, que quedaba
+    // "detrás del fondo" en vez de "detrás de la carátula/letras" — se veía
+    // como si el ecualizador hubiera desaparecido. Pintando el fondo acá
+    // (antes que la fila de arriba) y dejando el Box interior transparente,
+    // el orden de capas queda: 1) fondo sólido, 2) fila de arriba del
+    // espejado, 3) todo el contenido (carátula, letras, botones) — visible,
+    // detrás del contenido, como se pidió. Cubre exactamente la misma área
+    // que antes (pantalla completa): no cambia nada visualmente para el
+    // resto de los estilos ni para ningún celular.
     Box(
         modifier = Modifier
             .fillMaxSize()
             .background(bgColor)
-            // --- ESCUDO INVISIBLE: Esto intercepta TODOS los toques y evita que pasen a la UI de atrás ---
-            .pointerInput(Unit) { detectTapGestures { } }
-            // Respeta el notch/status bar arriba y la barra de navegación (gestos o
-            // 3 botones) abajo, en cualquier celular. Va primero para que sea lo único
-            // que separa el contenido de los bordes reales del sistema.
-            .safeScreenPadding()
-            // --- LETRA Y COLA: cada una se controla con SU PROPIO lado, y ese mismo lado
-            // sirve tanto para entrar como para salir (toggle), sin mezclarlos:
-            //   - Swipe IZQUIERDA: entra y sale de la Letra.
-            //   - Swipe DERECHA: entra y sale de la Cola.
-            // Se desactiva por completo mientras la verificación de YouTube está abierta
-            // (esa pantalla necesita todos los gestos para su propio WebView).
-            // Al vivir en el contenedor exterior (padre del HorizontalPager de carátulas y
-            // del Slider, y también padre del overlay de la Cola), cualquier drag que
-            // empiece sobre esos controles lo consumen ellos primero y este gesto no se
-            // activa ahí; solo reacciona en el resto de la pantalla.
-            .pointerInput(showYoutubeVerify) {
-                if (showYoutubeVerify) return@pointerInput
-                var totalDrag = 0f
-                detectHorizontalDragGestures(
-                    onDragStart = { totalDrag = 0f },
-                    onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
-                    onDragEnd = {
-                        when {
-                            showQueueScreen -> {
-                                // Ya estamos en la Cola: swipe derecha vuelve a la vista normal
-                                // (mismo lado que la abre, como toggle).
-                                if (totalDrag > 120f) showQueueScreen = false
-                            }
-                            showLyrics -> {
-                                // Ya estamos en la Letra: swipe izquierda vuelve a la vista normal
-                                // (mismo lado que la abre, como toggle).
-                                if (totalDrag < -120f) showLyrics = false
-                            }
-                            else -> {
-                                // Vista normal: izquierda abre Letra, derecha abre Cola.
-                                if (totalDrag < -120f) showLyrics = true
-                                else if (totalDrag > 120f) showQueueScreen = true
-                            }
-                        }
-                        totalDrag = 0f
-                    },
-                    onDragCancel = { totalDrag = 0f }
-                )
-            }
     ) {
-        // --- ECUALIZADOR DE FONDO ---
-        // Vive DETRÁS de todo (carátula/controles Y letra): un solo Composable
-        // persistente, en vez de uno adentro de cada rama del AnimatedContent
-        // de abajo. Así:
-        //  - Nunca se re-crea (ni pierde su estado del Visualizer) al cambiar
-        //    entre la vista normal y la Letra.
-        //  - Se ve incluso mientras la Letra está abierta (más tenue, para no
-        //    pelear con el texto), en vez de desaparecer.
-        // Ocupa todo el ancho y se estira desde el fondo de la pantalla hacia
-        // arriba, respetando ya el inset real de la barra de navegación (gestos
-        // o 3 botones) porque este Box padre ya tiene .safeScreenPadding().
-        // NOTA (círculo pulsante): este estilo NO se dibuja acá. A diferencia del
-        // resto de los estilos (que sí funcionan bien como franja ambiental de
-        // fondo), el círculo pulsante ahora se dibuja pegado al botón de
-        // Play/Pause (vista normal) o flotando solo, sin botón detrás (vista de
-        // Letra) — ver PULSE_CIRCLE_RING_SIZE más abajo, donde se usa.
-        // NOTA (doble espejado): antes tenía su propio bloque aparte, con las
-        // dos filas en cajas independientes pegadas a los bordes reales de
-        // arriba y abajo de la pantalla. Se sacó ese tratamiento especial: el
-        // usuario pidió que el doble espejado viva en la MISMA caja/posición
-        // que el resto de los estilos (la franja de abajo, 26% de alto), así
-        // que ahora pasa por acá igual que BARS/WATER_WAVE/etc. — usa
-        // MirroredBarsEqualizerCanvas por dentro (ver EqualizerCanvas), que ya
-        // dibuja las dos filas con su hueco en el medio dentro de una sola caja.
-        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
-            com.music.musicflame.ui.components.GraphicEqualizer(
-                style = equalizerStyle,
-                audioSessionId = playerManager.audioSessionId.value,
-                isPlaying = isPlaying,
-                hasRecordAudioPermission = hasRecordAudioPermission,
-                // Antes: opacidad completa en la vista normal, compitiendo visualmente con
-                // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
-                // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
-                // que protagonista — y sumado al degradado de abajo, que lo termina de
-                // difuminar del todo justo donde arrancan los botones.
+
+        // --- DOBLE ESPEJADO: fila de ARRIBA, pegada al borde REAL de la pantalla ---
+        // Se declara ACÁ (primer hijo del Box exterior, justo después del
+        // fondo) a propósito: en Compose, el primer hijo de un Box se dibuja
+        // PRIMERO, o sea queda DETRÁS de los hijos siguientes. Queda encima
+        // del fondo sólido (se ve) pero debajo de la carátula/letras/botones
+        // (no los tapa).
+        if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS && mirroredEqualizerSpectrum != null) {
+            com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
+                spectrum = mirroredEqualizerSpectrum,
                 color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
-                // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
-                // este parámetro, así que el slider no tenía ningún efecto acá).
-                barCount = equalizerBarCount,
                 modifier = Modifier
-                    .align(Alignment.BottomCenter)
+                    .align(Alignment.TopCenter)
                     .fillMaxWidth()
-                    // 26% del alto disponible (ya sin status bar/nav bar, por el
-                    // .safeScreenPadding() del Box padre): mucho más grande que el
-                    // strip fijo de 48dp de antes, pero sin tragarse el slider de
-                    // arriba. Es solo un número -> fácil de subir/bajar a gusto.
-                    .fillMaxHeight(0.26f)
+                    // Alto chico a propósito (16% de la pantalla COMPLETA, no solo
+                    // del área segura): es una franja angosta pegada arriba, no un
+                    // segundo protagonista — el protagonista sigue siendo la fila de
+                    // abajo, igual que en el resto de los estilos.
+                    .fillMaxHeight(0.16f)
                     .padding(horizontal = 8.dp)
             )
         }
 
-        // --- CÍRCULO PULSANTE flotando en la vista de Letra ---
-        // En la vista normal el aro se dibuja pegado al botón de Play/Pause (ver
-        // más abajo, en la Row de controles). Acá, en cambio, no hay ningún botón
-        // de Play/Pause (la Letra ocupa toda la pantalla), así que el aro flota
-        // solo, anclado abajo al centro, para que la sensación de "el círculo
-        // rodea el play/pause" se mantenga aunque el botón no esté visible.
-        if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE && showLyrics) {
-            com.music.musicflame.ui.components.GraphicEqualizer(
-                style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
-                audioSessionId = playerManager.audioSessionId.value,
-                isPlaying = isPlaying,
-                hasRecordAudioPermission = hasRecordAudioPermission,
-                color = equalizerBarsColor.copy(alpha = 0.55f),
-                barCount = equalizerBarCount,
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = 24.dp)
-                    .size(PULSE_CIRCLE_RING_SIZE)
-            )
-        }
-
-        // --- DEGRADADO DE DIFUMINADO (fila de abajo) ---
-        // Se dibuja ENCIMA del ecualizador, ocupando la misma franja de abajo. Va de
-        // "color de fondo real de la pantalla" (bgColor) arriba del todo — tapando/
-        // difuminando las barras justo donde arrancan los botones de control — a
-        // totalmente transparente abajo, dejando las barras bien vivas cerca del
-        // borde inferior de la pantalla. Así el ecualizador se ve grande y vivo, pero
-        // sin pelearle protagonismo visual a los botones que quedan por encima.
-        // Con PULSE_CIRCLE no aplica (ya no hay ninguna franja de fondo ahí abajo
-        // que difuminar). Con MIRRORED_BARS sí aplica ahora — ya no tiene su
-        // propio bloque aparte, así que usa este mismo degradado como el resto.
-        if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
         Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .fillMaxWidth()
-                .fillMaxHeight(0.26f)
-                .background(
-                    Brush.verticalGradient(
-                        colors = listOf(bgColor, Color.Transparent),
-                        startY = 0f,
-                        endY = Float.POSITIVE_INFINITY
-                    )
-                )
-        )
-        }
-
-
-        androidx.compose.animation.AnimatedContent(
-            targetState = showLyrics,
-            modifier = Modifier
                 .fillMaxSize()
-                .padding(horizontal = 24.dp, vertical = 8.dp),
-            transitionSpec = {
-                if (targetState) {
-                    (androidx.compose.animation.slideInHorizontally(tween(280)) { it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
-                            (androidx.compose.animation.slideOutHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeOut(tween(280)))
-                } else {
-                    (androidx.compose.animation.slideInHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
-                            (androidx.compose.animation.slideOutHorizontally(tween(280)) { it } + androidx.compose.animation.fadeOut(tween(280)))
-                }
-            },
-            label = "fullscreen_lyrics_toggle"
-        ) { lyricsVisible ->
-            if (lyricsVisible) {
-                Column(modifier = Modifier.fillMaxSize()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = { showLyrics = false }) {
-                            Icon(
-                                imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Volver",
-                                tint = adaptiveContentColor
-                            )
-                        }
-                        Spacer(modifier = Modifier.width(4.dp))
-                        // .weight(1f) para que la Column quede acotada al ancho
-                        // disponible de la fila; sin esto, el marquee del título no
-                        // tiene un límite de ancho contra el cual deslizarse.
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = song.title,
-                                fontWeight = FontWeight.Black,
-                                fontSize = 16.sp,
-                                color = adaptiveContentColor,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.basicMarquee(velocity = (-30).dp)
-                            )
-                            Text(
-                                text = song.artist,
-                                fontSize = 12.sp,
-                                color = adaptiveContentColor.copy(alpha = 0.7f),
-                                maxLines = 1
-                            )
-                        }
-                    }
-                    com.music.musicflame.ui.components.LyricsView(
-                        song = song,
-                        positionMs = currentPositionMs,
-                        lyrics = lyricsState.lyrics,
-                        speed = lyricsSpeed,
-                        animationType = lyricsAnimType,
-                        textColor = lyricsTextColor,
-                        isLoading = lyricsState.isLoading,
-                        searchFailed = lyricsState.searchFailed,
-                        onSearchOnline = lyricsState.onSearchOnline,
-                        onInsertManual = { raw ->
-                            lyricsState.onInsertManual(raw)
-                            onLyricsChanged()
+                // --- ESCUDO INVISIBLE: Esto intercepta TODOS los toques y evita que pasen a la UI de atrás ---
+                .pointerInput(Unit) { detectTapGestures { } }
+                // Respeta el notch/status bar arriba y la barra de navegación (gestos o
+                // 3 botones) abajo, en cualquier celular. Va primero para que sea lo único
+                // que separa el contenido de los bordes reales del sistema.
+                .safeScreenPadding()
+                // --- LETRA Y COLA: cada una se controla con SU PROPIO lado, y ese mismo lado
+                // sirve tanto para entrar como para salir (toggle), sin mezclarlos:
+                //   - Swipe IZQUIERDA: entra y sale de la Letra.
+                //   - Swipe DERECHA: entra y sale de la Cola.
+                // Se desactiva por completo mientras la verificación de YouTube está abierta
+                // (esa pantalla necesita todos los gestos para su propio WebView).
+                // Al vivir en el contenedor exterior (padre del HorizontalPager de carátulas y
+                // del Slider, y también padre del overlay de la Cola), cualquier drag que
+                // empiece sobre esos controles lo consumen ellos primero y este gesto no se
+                // activa ahí; solo reacciona en el resto de la pantalla.
+                .pointerInput(showYoutubeVerify) {
+                    if (showYoutubeVerify) return@pointerInput
+                    var totalDrag = 0f
+                    detectHorizontalDragGestures(
+                        onDragStart = { totalDrag = 0f },
+                        onHorizontalDrag = { _, dragAmount -> totalDrag += dragAmount },
+                        onDragEnd = {
+                            when {
+                                showQueueScreen -> {
+                                    // Ya estamos en la Cola: swipe derecha vuelve a la vista normal
+                                    // (mismo lado que la abre, como toggle).
+                                    if (totalDrag > 120f) showQueueScreen = false
+                                }
+                                showLyrics -> {
+                                    // Ya estamos en la Letra: swipe izquierda vuelve a la vista normal
+                                    // (mismo lado que la abre, como toggle).
+                                    if (totalDrag < -120f) showLyrics = false
+                                }
+                                else -> {
+                                    // Vista normal: izquierda abre Letra, derecha abre Cola.
+                                    if (totalDrag < -120f) showLyrics = true
+                                    else if (totalDrag > 120f) showQueueScreen = true
+                                }
+                            }
+                            totalDrag = 0f
                         },
-                        onSearchYoutube = { showYoutubeVerify = true },
-                        onDeleteLyrics = {
-                            lyricsState.onDeleteLyrics()
-                            onLyricsChanged()
-                        },
-                        modifier = Modifier.weight(1f)
+                        onDragCancel = { totalDrag = 0f }
                     )
                 }
-            } else {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Box(modifier = Modifier.fillMaxWidth()) {
-                        IconButton(
-                            onClick = onCollapse,
-                            modifier = Modifier.align(Alignment.CenterStart).offset(x = (-12).dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.KeyboardArrowDown,
-                                contentDescription = "Ocultar reproductor",
-                                modifier = Modifier.size(36.dp),
-                                tint = adaptiveContentColor
-                            )
-                        }
+        ) {
+            // --- ECUALIZADOR DE FONDO ---
+            // Vive DETRÁS de todo (carátula/controles Y letra): un solo Composable
+            // persistente, en vez de uno adentro de cada rama del AnimatedContent
+            // de abajo. Así:
+            //  - Nunca se re-crea (ni pierde su estado del Visualizer) al cambiar
+            //    entre la vista normal y la Letra.
+            //  - Se ve incluso mientras la Letra está abierta (más tenue, para no
+            //    pelear con el texto), en vez de desaparecer.
+            // Ocupa todo el ancho y se estira desde el fondo de la pantalla hacia
+            // arriba, respetando ya el inset real de la barra de navegación (gestos
+            // o 3 botones) porque este Box padre ya tiene .safeScreenPadding().
+            // NOTA (círculo pulsante): este estilo NO se dibuja acá. A diferencia del
+            // resto de los estilos (que sí funcionan bien como franja ambiental de
+            // fondo), el círculo pulsante ahora se dibuja pegado al botón de
+            // Play/Pause (vista normal) o flotando solo, sin botón detrás (vista de
+            // Letra) — ver PULSE_CIRCLE_RING_SIZE más abajo, donde se usa.
+            // NOTA (doble espejado): antes tenía su propio bloque aparte, con las
+            // dos filas en cajas independientes pegadas a los bordes reales de
+            // arriba y abajo de la pantalla. Se sacó ese tratamiento especial: el
+            // usuario pidió que el doble espejado viva en la MISMA caja/posición
+            // que el resto de los estilos (la franja de abajo, 26% de alto), así
+            // que ahora pasa por acá igual que BARS/WATER_WAVE/etc. — usa
+            // MirroredBarsEqualizerCanvas por dentro (ver EqualizerCanvas), que ya
+            // dibuja las dos filas con su hueco en el medio dentro de una sola caja.
+            if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS) {
+                // DOBLE ESPEJADO — fila de ABAJO: vuelve a vivir en su propia caja
+                // independiente (como al principio), pero en la MISMA posición que
+                // el resto de los estilos usa (26% de alto, pegada al borde de
+                // abajo del área segura) — o sea, a nivel de los 3 botones de
+                // control, que es "donde debe" ir. Dibuja con BarsEqualizerCanvas
+                // (el mismo trazo que el estilo clásico), a partir del espectro
+                // compartido calculado arriba.
+                com.music.musicflame.ui.components.BarsEqualizerCanvas(
+                    spectrum = mirroredEqualizerSpectrum!!,
+                    color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.26f)
+                        .padding(horizontal = 8.dp)
+                )
+            } else if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+                com.music.musicflame.ui.components.GraphicEqualizer(
+                    style = equalizerStyle,
+                    audioSessionId = playerManager.audioSessionId.value,
+                    isPlaying = isPlaying,
+                    hasRecordAudioPermission = hasRecordAudioPermission,
+                    // Antes: opacidad completa en la vista normal, compitiendo visualmente con
+                    // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
+                    // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
+                    // que protagonista — y sumado al degradado de abajo, que lo termina de
+                    // difuminar del todo justo donde arrancan los botones.
+                    color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
+                    // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
+                    // este parámetro, así que el slider no tenía ningún efecto acá).
+                    barCount = equalizerBarCount,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        // 26% del alto disponible (ya sin status bar/nav bar, por el
+                        // .safeScreenPadding() del Box padre): mucho más grande que el
+                        // strip fijo de 48dp de antes, pero sin tragarse el slider de
+                        // arriba. Es solo un número -> fácil de subir/bajar a gusto.
+                        .fillMaxHeight(0.26f)
+                        .padding(horizontal = 8.dp)
+                )
+            }
 
-                        Column(
-                            horizontalAlignment = Alignment.CenterHorizontally,
-                            modifier = Modifier.align(Alignment.Center)
-                        ) {
-                            Text(
-                                text = "REPRODUCIENDO DESDE",
-                                fontSize = 10.sp,
-                                letterSpacing = 1.5.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = adaptiveContentColor.copy(alpha = 0.5f)
-                            )
-                            Text(
-                                text = "MusicFlame",
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 14.sp,
-                                color = adaptiveContentColor
-                            )
-                        }
+            // --- CÍRCULO PULSANTE flotando en la vista de Letra ---
+            // En la vista normal el aro se dibuja pegado al botón de Play/Pause (ver
+            // más abajo, en la Row de controles). Acá, en cambio, no hay ningún botón
+            // de Play/Pause (la Letra ocupa toda la pantalla), así que el aro flota
+            // solo, anclado abajo al centro, para que la sensación de "el círculo
+            // rodea el play/pause" se mantenga aunque el botón no esté visible.
+            if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE && showLyrics) {
+                com.music.musicflame.ui.components.GraphicEqualizer(
+                    style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                    audioSessionId = playerManager.audioSessionId.value,
+                    isPlaying = isPlaying,
+                    hasRecordAudioPermission = hasRecordAudioPermission,
+                    color = equalizerBarsColor.copy(alpha = 0.55f),
+                    barCount = equalizerBarCount,
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 24.dp)
+                        .size(PULSE_CIRCLE_RING_SIZE)
+                )
+            }
 
-                        // NUEVO: botón de Cola — único punto de entrada a QueueScreen.
-                        // "Queue" solo existe dentro del reproductor a pantalla completa.
-                        IconButton(
-                            onClick = { showQueueScreen = true },
-                            modifier = Modifier.align(Alignment.CenterEnd).offset(x = 12.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Filled.QueueMusic,
-                                contentDescription = "Cola de reproducción",
-                                tint = adaptiveContentColor
+            // --- DEGRADADO DE DIFUMINADO (fila de abajo) ---
+            // Se dibuja ENCIMA del ecualizador, ocupando la misma franja de abajo. Va de
+            // "color de fondo real de la pantalla" (bgColor) arriba del todo — tapando/
+            // difuminando las barras justo donde arrancan los botones de control — a
+            // totalmente transparente abajo, dejando las barras bien vivas cerca del
+            // borde inferior de la pantalla. Así el ecualizador se ve grande y vivo, pero
+            // sin pelearle protagonismo visual a los botones que quedan por encima.
+            // Con PULSE_CIRCLE no aplica (ya no hay ninguna franja de fondo ahí abajo
+            // que difuminar). Con MIRRORED_BARS sí aplica ahora — ya no tiene su
+            // propio bloque aparte, así que usa este mismo degradado como el resto.
+            if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.26f)
+                        .background(
+                            Brush.verticalGradient(
+                                colors = listOf(bgColor, Color.Transparent),
+                                startY = 0f,
+                                endY = Float.POSITIVE_INFINITY
                             )
-                        }
+                        )
+                )
+            }
+
+
+            androidx.compose.animation.AnimatedContent(
+                targetState = showLyrics,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                transitionSpec = {
+                    if (targetState) {
+                        (androidx.compose.animation.slideInHorizontally(tween(280)) { it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
+                                (androidx.compose.animation.slideOutHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeOut(tween(280)))
+                    } else {
+                        (androidx.compose.animation.slideInHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
+                                (androidx.compose.animation.slideOutHorizontally(tween(280)) { it } + androidx.compose.animation.fadeOut(tween(280)))
                     }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    HorizontalPager(
-                        state = pagerState,
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .weight(1f),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) { page ->
-                        val pageSong = effectiveSongList.getOrNull(page)
-                        if (pageSong != null) {
-
-                            val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
-                            val alphaAnimation by animateFloatAsState(
-                                targetValue = (1f - kotlin.math.abs(pageOffset)).coerceIn(0f, 1f),
-                                animationSpec = tween(200), label = "AlphaAnim"
-                            )
-                            val scaleAnimation by animateFloatAsState(
-                                targetValue = (1f - (kotlin.math.abs(pageOffset) * 0.15f)).coerceIn(0.85f, 1f),
-                                animationSpec = tween(200), label = "ScaleAnim"
-                            )
-
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .graphicsLayer {
-                                        alpha = alphaAnimation
-                                        scaleX = scaleAnimation
-                                        scaleY = scaleAnimation
-                                    },
-                                horizontalAlignment = Alignment.CenterHorizontally
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth(0.85f)
-                                        .aspectRatio(1f)
-                                        .shadow(
-                                            elevation = if (hasBackgroundImage) 0.dp else 16.dp,
-                                            shape = RoundedCornerShape(artRadius),
-                                            ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
-                                        )
-                                        .clip(RoundedCornerShape(artRadius))
-                                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    if (pageSong.albumArtUri != null) {
-                                        SubcomposeAsyncImage(
-                                            model = ImageRequest.Builder(context).data(pageSong.albumArtUri).crossfade(true).build(),
-                                            contentDescription = "Carátula",
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier.fillMaxSize()
-                                        ) {
-                                            val painterState = painter.state
-                                            if (painterState is coil.compose.AsyncImagePainter.State.Success) {
-                                                // Carátula encontrada: mostramos la imagen real
-                                                SubcomposeAsyncImageContent()
-                                            } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
-                                                // No hay carátula real (o la URI falló): mostramos el ícono
-                                                Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
-                                            }
-                                            // Mientras carga no mostramos nada: se ve el fondo gris de la Box
-                                        }
-                                    } else {
-                                        Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
-                                    }
-                                }
-
-                                Spacer(modifier = Modifier.height(32.dp))
-
+                },
+                label = "fullscreen_lyrics_toggle"
+            ) { lyricsVisible ->
+                if (lyricsVisible) {
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { showLyrics = false }) {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                                    contentDescription = "Volver",
+                                    tint = adaptiveContentColor
+                                )
+                            }
+                            Spacer(modifier = Modifier.width(4.dp))
+                            // .weight(1f) para que la Column quede acotada al ancho
+                            // disponible de la fila; sin esto, el marquee del título no
+                            // tiene un límite de ancho contra el cual deslizarse.
+                            Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = pageSong.title,
-                                    fontSize = 26.sp,
-                                    fontWeight = FontWeight.Bold,
+                                    text = song.title,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 16.sp,
                                     color = adaptiveContentColor,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    // Marquee hacia la derecha (velocity negativa invierte
-                                    // el sentido por defecto, que es hacia la izquierda).
-                                    modifier = Modifier
-                                        .padding(horizontal = 16.dp)
-                                        .basicMarquee(velocity = (-30).dp)
+                                    modifier = Modifier.basicMarquee(velocity = (-30).dp)
                                 )
-                                Spacer(modifier = Modifier.height(6.dp))
                                 Text(
-                                    text = pageSong.artist,
-                                    fontSize = 18.sp,
+                                    text = song.artist,
+                                    fontSize = 12.sp,
                                     color = adaptiveContentColor.copy(alpha = 0.7f),
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
+                                    maxLines = 1
                                 )
                             }
                         }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    val totalDuration = if (playerManager.duration > 0) playerManager.duration else song.duration
-                    // FIX: si ni el MediaController ni el Song tienen una duración válida todavía
-                    // (típicamente justo tras reconectar/saltar de canción, antes de que ExoPlayer
-                    // termine de preparar el nuevo MediaItem), totalDuration puede ser 0. Dividir
-                    // entre 0 en floats da NaN, y coerceIn NO limpia el NaN (cualquier comparación
-                    // con NaN da false, así que pasa de largo). Ese NaN llegaba al Slider, que
-                    // truena al intentar redondearlo para accesibilidad ("Cannot round NaN value").
-                    val progress = if (totalDuration > 0) {
-                        (currentPositionMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
-                    } else {
-                        0f
-                    }
-
-                    Column(modifier = Modifier.fillMaxWidth()) {
-                        Slider(
-                            value = progress,
-                            onValueChange = { newValue ->
-                                isDragging = true
-                                currentPositionMs = (newValue * totalDuration).toLong()
+                        com.music.musicflame.ui.components.LyricsView(
+                            song = song,
+                            positionMs = currentPositionMs,
+                            lyrics = lyricsState.lyrics,
+                            speed = lyricsSpeed,
+                            animationType = lyricsAnimType,
+                            textColor = lyricsTextColor,
+                            isLoading = lyricsState.isLoading,
+                            searchFailed = lyricsState.searchFailed,
+                            onSearchOnline = lyricsState.onSearchOnline,
+                            onInsertManual = { raw ->
+                                lyricsState.onInsertManual(raw)
+                                onLyricsChanged()
                             },
-                            onValueChangeFinished = {
-                                isDragging = false
-                                playerManager.seekTo(currentPositionMs)
+                            onSearchYoutube = { showYoutubeVerify = true },
+                            onDeleteLyrics = {
+                                lyricsState.onDeleteLyrics()
+                                onLyricsChanged()
                             },
-                            // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
-                            // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
-                            // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
-                            // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
-                            // relación con la paleta dinámica.
-                            colors = SliderDefaults.colors(
-                                thumbColor = MaterialTheme.colorScheme.primary,
-                                activeTrackColor = MaterialTheme.colorScheme.primary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
-                            ),
-                            modifier = Modifier.fillMaxWidth().height(24.dp)
+                            modifier = Modifier.weight(1f)
                         )
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = formatDuration(currentPositionMs),
-                                fontSize = 12.sp,
-                                color = adaptiveContentColor.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Medium
-                            )
-                            Text(
-                                text = formatDuration(totalDuration),
-                                fontSize = 12.sp,
-                                color = adaptiveContentColor.copy(alpha = 0.6f),
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
                     }
-
-                    Spacer(modifier = Modifier.height(32.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
+                } else {
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        IconButton(onClick = { playerManager.toggleCycleMode() }) {
-                            Icon(
-                                painter = painterResource(id = playerManager.cycleIconRes), // ¡Aquí se actualiza solo!
-                                contentDescription = "Modo Reproducción",
-                                // Pinta de color primario solo si NO es el modo 0 (Normal)
-                                tint = if (playerManager.cycleMode.value != 0)
-                                    MaterialTheme.colorScheme.primary
-                                else
-                                    adaptiveContentColor
-                            )
-                        }
-
-                        IconButton(onClick = onAddToPlaylist) {
-                            Icon(Icons.Filled.PlaylistAdd, contentDescription = "Añadir a Playlist", tint = adaptiveContentColor)
-                        }
-
-                        IconButton(onClick = onToggleFavorite) {
-                            Icon(
-                                imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                contentDescription = "Favorito",
-                                tint = if (isFavorite) MaterialTheme.colorScheme.primary else adaptiveContentColor,
-                                modifier = Modifier.size(28.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(24.dp))
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceEvenly,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        IconButton(onClick = onSkipPrevious) {
-                            Icon(Icons.Filled.SkipPrevious, "Anterior", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
-                        }
-
-                        // El Box de afuera solo crece a PULSE_CIRCLE_RING_SIZE (118dp) cuando el
-                        // estilo elegido es el círculo pulsante, para dejarle aire al aro
-                        // alrededor; con cualquier otro estilo queda en 76dp como siempre (no
-                        // le cambia el tamaño ni el espaciado de la fila a nadie más).
-                        val playPauseBoxSize = if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
-                            PULSE_CIRCLE_RING_SIZE
-                        } else {
-                            76.dp
-                        }
-                        Box(
-                            modifier = Modifier.size(playPauseBoxSize),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            // Aro del círculo pulsante: SOLO cuando ese es el estilo elegido en
-                            // Ajustes > Apariencia. Se dibuja DETRÁS del botón (primer hijo del
-                            // Box), late con el audio real igual que en el resto de las pantallas.
-                            if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
-                                com.music.musicflame.ui.components.GraphicEqualizer(
-                                    style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
-                                    audioSessionId = playerManager.audioSessionId.value,
-                                    isPlaying = isPlaying,
-                                    hasRecordAudioPermission = hasRecordAudioPermission,
-                                    color = equalizerBarsColor.copy(alpha = 0.55f),
-                                    barCount = equalizerBarCount,
-                                    modifier = Modifier.fillMaxSize()
+                        Box(modifier = Modifier.fillMaxWidth()) {
+                            IconButton(
+                                onClick = onCollapse,
+                                modifier = Modifier.align(Alignment.CenterStart).offset(x = (-12).dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = "Ocultar reproductor",
+                                    modifier = Modifier.size(36.dp),
+                                    tint = adaptiveContentColor
                                 )
                             }
 
-                            Surface(
-                                onClick = onPlayPause,
-                                shape = CircleShape,
-                                color = MaterialTheme.colorScheme.primary,
-                                modifier = Modifier.size(76.dp)
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier.align(Alignment.Center)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                        contentDescription = if (isPlaying) "Pausar" else "Reproducir",
-                                        tint = MaterialTheme.colorScheme.onPrimary,
-                                        modifier = Modifier.size(40.dp)
+                                Text(
+                                    text = "REPRODUCIENDO DESDE",
+                                    fontSize = 10.sp,
+                                    letterSpacing = 1.5.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = adaptiveContentColor.copy(alpha = 0.5f)
+                                )
+                                Text(
+                                    text = "MusicFlame",
+                                    fontWeight = FontWeight.Medium,
+                                    fontSize = 14.sp,
+                                    color = adaptiveContentColor
+                                )
+                            }
+
+                            // NUEVO: botón de Cola — único punto de entrada a QueueScreen.
+                            // "Queue" solo existe dentro del reproductor a pantalla completa.
+                            IconButton(
+                                onClick = { showQueueScreen = true },
+                                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 12.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.QueueMusic,
+                                    contentDescription = "Cola de reproducción",
+                                    tint = adaptiveContentColor
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        HorizontalPager(
+                            state = pagerState,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .weight(1f),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) { page ->
+                            val pageSong = effectiveSongList.getOrNull(page)
+                            if (pageSong != null) {
+
+                                val pageOffset = ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction)
+                                val alphaAnimation by animateFloatAsState(
+                                    targetValue = (1f - kotlin.math.abs(pageOffset)).coerceIn(0f, 1f),
+                                    animationSpec = tween(200), label = "AlphaAnim"
+                                )
+                                val scaleAnimation by animateFloatAsState(
+                                    targetValue = (1f - (kotlin.math.abs(pageOffset) * 0.15f)).coerceIn(0.85f, 1f),
+                                    animationSpec = tween(200), label = "ScaleAnim"
+                                )
+
+                                Column(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .graphicsLayer {
+                                            alpha = alphaAnimation
+                                            scaleX = scaleAnimation
+                                            scaleY = scaleAnimation
+                                        },
+                                    horizontalAlignment = Alignment.CenterHorizontally
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth(0.85f)
+                                            .aspectRatio(1f)
+                                            .shadow(
+                                                elevation = if (hasBackgroundImage) 0.dp else 16.dp,
+                                                shape = RoundedCornerShape(artRadius),
+                                                ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
+                                            )
+                                            .clip(RoundedCornerShape(artRadius))
+                                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        if (pageSong.albumArtUri != null) {
+                                            SubcomposeAsyncImage(
+                                                model = ImageRequest.Builder(context).data(pageSong.albumArtUri).crossfade(true).build(),
+                                                contentDescription = "Carátula",
+                                                contentScale = ContentScale.Crop,
+                                                modifier = Modifier.fillMaxSize()
+                                            ) {
+                                                val painterState = painter.state
+                                                if (painterState is coil.compose.AsyncImagePainter.State.Success) {
+                                                    // Carátula encontrada: mostramos la imagen real
+                                                    SubcomposeAsyncImageContent()
+                                                } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
+                                                    // No hay carátula real (o la URI falló): mostramos el ícono
+                                                    Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
+                                                }
+                                                // Mientras carga no mostramos nada: se ve el fondo gris de la Box
+                                            }
+                                        } else {
+                                            Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.height(32.dp))
+
+                                    Text(
+                                        text = pageSong.title,
+                                        fontSize = 26.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = adaptiveContentColor,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis,
+                                        // Marquee hacia la derecha (velocity negativa invierte
+                                        // el sentido por defecto, que es hacia la izquierda).
+                                        modifier = Modifier
+                                            .padding(horizontal = 16.dp)
+                                            .basicMarquee(velocity = (-30).dp)
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = pageSong.artist,
+                                        fontSize = 18.sp,
+                                        color = adaptiveContentColor.copy(alpha = 0.7f),
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
                             }
                         }
 
-                        IconButton(onClick = onSkipNext) {
-                            Icon(Icons.Filled.SkipNext, "Siguiente", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
-                        }
-                    }
+                        Spacer(modifier = Modifier.height(16.dp))
 
-                    // Antes había un Spacer + el ecualizador fijo (48dp) aquí. Ahora el
-                    // ecualizador vive en la capa de fondo persistente (ver más arriba, antes
-                    // del AnimatedContent), así que solo dejamos aire de respiro al final;
-                    // el resto del espacio hacia abajo lo llena visualmente el ecualizador
-                    // de fondo, que se ve alrededor/detrás de estos controles.
-                    Spacer(modifier = Modifier.height(16.dp))
+                        val totalDuration = if (playerManager.duration > 0) playerManager.duration else song.duration
+                        // FIX: si ni el MediaController ni el Song tienen una duración válida todavía
+                        // (típicamente justo tras reconectar/saltar de canción, antes de que ExoPlayer
+                        // termine de preparar el nuevo MediaItem), totalDuration puede ser 0. Dividir
+                        // entre 0 en floats da NaN, y coerceIn NO limpia el NaN (cualquier comparación
+                        // con NaN da false, así que pasa de largo). Ese NaN llegaba al Slider, que
+                        // truena al intentar redondearlo para accesibilidad ("Cannot round NaN value").
+                        val progress = if (totalDuration > 0) {
+                            (currentPositionMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+                        } else {
+                            0f
+                        }
+
+                        Column(modifier = Modifier.fillMaxWidth()) {
+                            Slider(
+                                value = progress,
+                                onValueChange = { newValue ->
+                                    isDragging = true
+                                    currentPositionMs = (newValue * totalDuration).toLong()
+                                },
+                                onValueChangeFinished = {
+                                    isDragging = false
+                                    playerManager.seekTo(currentPositionMs)
+                                },
+                                // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
+                                // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
+                                // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
+                                // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
+                                // relación con la paleta dinámica.
+                                colors = SliderDefaults.colors(
+                                    thumbColor = MaterialTheme.colorScheme.primary,
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                                ),
+                                modifier = Modifier.fillMaxWidth().height(24.dp)
+                            )
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(
+                                    text = formatDuration(currentPositionMs),
+                                    fontSize = 12.sp,
+                                    color = adaptiveContentColor.copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                                Text(
+                                    text = formatDuration(totalDuration),
+                                    fontSize = 12.sp,
+                                    color = adaptiveContentColor.copy(alpha = 0.6f),
+                                    fontWeight = FontWeight.Medium
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(32.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = { playerManager.toggleCycleMode() }) {
+                                Icon(
+                                    painter = painterResource(id = playerManager.cycleIconRes), // ¡Aquí se actualiza solo!
+                                    contentDescription = "Modo Reproducción",
+                                    // Pinta de color primario solo si NO es el modo 0 (Normal)
+                                    tint = if (playerManager.cycleMode.value != 0)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        adaptiveContentColor
+                                )
+                            }
+
+                            IconButton(onClick = onAddToPlaylist) {
+                                Icon(Icons.Filled.PlaylistAdd, contentDescription = "Añadir a Playlist", tint = adaptiveContentColor)
+                            }
+
+                            IconButton(onClick = onToggleFavorite) {
+                                Icon(
+                                    imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
+                                    contentDescription = "Favorito",
+                                    tint = if (isFavorite) MaterialTheme.colorScheme.primary else adaptiveContentColor,
+                                    modifier = Modifier.size(28.dp)
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceEvenly,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            IconButton(onClick = onSkipPrevious) {
+                                Icon(Icons.Filled.SkipPrevious, "Anterior", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
+                            }
+
+                            // El Box de afuera solo crece a PULSE_CIRCLE_RING_SIZE (118dp) cuando el
+                            // estilo elegido es el círculo pulsante, para dejarle aire al aro
+                            // alrededor; con cualquier otro estilo queda en 76dp como siempre (no
+                            // le cambia el tamaño ni el espaciado de la fila a nadie más).
+                            val playPauseBoxSize = if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+                                PULSE_CIRCLE_RING_SIZE
+                            } else {
+                                76.dp
+                            }
+                            Box(
+                                modifier = Modifier.size(playPauseBoxSize),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                // Aro del círculo pulsante: SOLO cuando ese es el estilo elegido en
+                                // Ajustes > Apariencia. Se dibuja DETRÁS del botón (primer hijo del
+                                // Box), late con el audio real igual que en el resto de las pantallas.
+                                if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+                                    com.music.musicflame.ui.components.GraphicEqualizer(
+                                        style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                                        audioSessionId = playerManager.audioSessionId.value,
+                                        isPlaying = isPlaying,
+                                        hasRecordAudioPermission = hasRecordAudioPermission,
+                                        color = equalizerBarsColor.copy(alpha = 0.55f),
+                                        barCount = equalizerBarCount,
+                                        modifier = Modifier.fillMaxSize()
+                                    )
+                                }
+
+                                Surface(
+                                    onClick = onPlayPause,
+                                    shape = CircleShape,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(76.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Icon(
+                                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                                            contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                            tint = MaterialTheme.colorScheme.onPrimary,
+                                            modifier = Modifier.size(40.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            IconButton(onClick = onSkipNext) {
+                                Icon(Icons.Filled.SkipNext, "Siguiente", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
+                            }
+                        }
+
+                        // Antes había un Spacer + el ecualizador fijo (48dp) aquí. Ahora el
+                        // ecualizador vive en la capa de fondo persistente (ver más arriba, antes
+                        // del AnimatedContent), así que solo dejamos aire de respiro al final;
+                        // el resto del espacio hacia abajo lo llena visualmente el ecualizador
+                        // de fondo, que se ve alrededor/detrás de estos controles.
+                        Spacer(modifier = Modifier.height(16.dp))
+                    }
                 }
             }
-        }
 
-        // Misma animación que la Letra (slide + fade, 280ms): entra deslizando desde la
-        // derecha -tal como se abre, con swipe derecha- y sale deslizando hacia la derecha.
-        AnimatedVisibility(
-            visible = showQueueScreen,
-            enter = slideInHorizontally(tween(280)) { it } + fadeIn(tween(280)),
-            exit = slideOutHorizontally(tween(280)) { it } + fadeOut(tween(280))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(bgColor)
-                    .safeScreenPadding()
-                    // Escudo: igual que el resto de la pantalla, no deja pasar toques
-                    // hacia lo que esté detrás (mini-reproductor, lista, etc.)
-                    .pointerInput(Unit) { detectTapGestures { } }
+            // Misma animación que la Letra (slide + fade, 280ms): entra deslizando desde la
+            // derecha -tal como se abre, con swipe derecha- y sale deslizando hacia la derecha.
+            AnimatedVisibility(
+                visible = showQueueScreen,
+                enter = slideInHorizontally(tween(280)) { it } + fadeIn(tween(280)),
+                exit = slideOutHorizontally(tween(280)) { it } + fadeOut(tween(280))
             ) {
-                QueueScreen(
-                    playerManager = playerManager,
-                    currentSong = song,
-                    adaptiveContentColor = adaptiveContentColor,
-                    hasBackgroundImage = hasBackgroundImage,
-                    onClose = { showQueueScreen = false },
-                    onSongClick = { clickedSong ->
-                        playerManager.playSong(clickedSong, playerManager.queue)
-                    }
-                )
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(bgColor)
+                        .safeScreenPadding()
+                        // Escudo: igual que el resto de la pantalla, no deja pasar toques
+                        // hacia lo que esté detrás (mini-reproductor, lista, etc.)
+                        .pointerInput(Unit) { detectTapGestures { } }
+                ) {
+                    QueueScreen(
+                        playerManager = playerManager,
+                        currentSong = song,
+                        adaptiveContentColor = adaptiveContentColor,
+                        hasBackgroundImage = hasBackgroundImage,
+                        onClose = { showQueueScreen = false },
+                        onSongClick = { clickedSong ->
+                            playerManager.playSong(clickedSong, playerManager.queue)
+                        }
+                    )
+                }
             }
-        }
 
-        if (showYoutubeVerify) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .background(MaterialTheme.colorScheme.background)
-            ) {
-                YoutubeVerifyWebView(
-                    query = "${song.artist} ${song.title}",
-                    onTitleExtracted = { extractedTitle ->
-                        lyricsState.onYoutubeTitleFound(extractedTitle)
-                        showYoutubeVerify = false
-                    },
-                    onClose = { showYoutubeVerify = false },
-                    modifier = Modifier.fillMaxSize()
-                )
+            if (showYoutubeVerify) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(MaterialTheme.colorScheme.background)
+                ) {
+                    YoutubeVerifyWebView(
+                        query = "${song.artist} ${song.title}",
+                        onTitleExtracted = { extractedTitle ->
+                            lyricsState.onYoutubeTitleFound(extractedTitle)
+                            showYoutubeVerify = false
+                        },
+                        onClose = { showYoutubeVerify = false },
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
             }
         }
     }

@@ -1996,27 +1996,6 @@ fun SettingsScreen(
         if (showEqualizerColorDialog.value) {
             val tempEqColorMode = remember { mutableStateOf(equalizerColorModePref.value) }
             val tempEqCustomHex = remember { mutableStateOf(equalizerCustomColorHexPref.value) }
-            // Estado de la extracción de color desde una imagen de galería: se
-            // usa para mostrar un pequeño indicador de carga mientras se
-            // decodifica la imagen y corre Palette (ver ImageColorExtractor.kt),
-            // ya que ninguna de las dos cosas es instantánea.
-            var isExtractingColorFromImage by remember { mutableStateOf(false) }
-            val extractColorScope = rememberCoroutineScope()
-            val pickEqualizerColorImageLauncher = rememberLauncherForActivityResult(
-                ActivityResultContracts.GetContent()
-            ) { uri ->
-                if (uri == null) return@rememberLauncherForActivityResult
-                isExtractingColorFromImage = true
-                extractColorScope.launch {
-                    val extractedHex = com.music.musicflame.ui.components.extractColorHexFromImage(context, uri)
-                    isExtractingColorFromImage = false
-                    if (extractedHex != null) {
-                        tempEqCustomHex.value = extractedHex
-                    } else {
-                        Toast.makeText(context, "No se pudo extraer un color de esa imagen", Toast.LENGTH_SHORT).show()
-                    }
-                }
-            }
             AlertDialog(
                 onDismissRequest = { showEqualizerColorDialog.value = false },
                 title = { Text("Color del ecualizador", fontWeight = FontWeight.Bold) },
@@ -2081,27 +2060,6 @@ fun SettingsScreen(
                                             )
                                             .clickable { tempEqCustomHex.value = hex }
                                     )
-                                }
-                            }
-                            Spacer(Modifier.height(12.dp))
-
-                            // --- EXTRAER COLOR DE UNA IMAGEN DE GALERÍA ---
-                            // El usuario elige cualquier foto y se toma su color más
-                            // vibrante (ver extractColorHexFromImage) como si lo hubiera
-                            // tipeado a mano en el campo de abajo.
-                            OutlinedButton(
-                                onClick = { pickEqualizerColorImageLauncher.launch("image/*") },
-                                enabled = !isExtractingColorFromImage,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                if (isExtractingColorFromImage) {
-                                    CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Extrayendo color...")
-                                } else {
-                                    Icon(Icons.Filled.Image, contentDescription = null, modifier = Modifier.size(18.dp))
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Elegir color de una imagen")
                                 }
                             }
                             Spacer(Modifier.height(12.dp))

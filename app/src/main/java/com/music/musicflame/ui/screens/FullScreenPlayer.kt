@@ -30,6 +30,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
@@ -301,9 +302,23 @@ fun FullScreenPlayer(
         // del fondo sólido (se ve) pero debajo de la carátula/letras/botones
         // (no los tapa).
         if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS && mirroredEqualizerSpectrum != null) {
-            com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
-                spectrum = mirroredEqualizerSpectrum,
-                color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
+            // FIX (cuadro negro que tapaba la mitad derecha de la fila de arriba):
+            // antes el Canvas se dimensionaba con .fillMaxWidth().fillMaxHeight(0.16f)
+            // directamente sobre sí mismo, dentro del Box exterior. En ciertos casos
+            // (recomposición al cambiar de canción, AnimatedContent corriendo al
+            // mismo tiempo, etc.) esa resolución de medidas quedaba corta y el
+            // Canvas terminaba con un ancho real menor al de la pantalla — las
+            // barras se dibujan igual (matemáticamente ocupan TODO el ancho del
+            // Canvas), pero como el Canvas mismo no llegaba al borde derecho, se
+            // veía como un bloque negro sólido tapando esa zona.
+            // Ahora: un Box exterior fija el área exacta (ancho completo, 16% del
+            // alto) y el Canvas usa .matchParentSize(), que copia el tamaño YA
+            // RESUELTO de ese Box en vez de resolver su propio tamaño — así queda
+            // garantizado que siempre llega de punta a punta, sin importar qué esté
+            // pasando alrededor. zIndex explícito para dejar bien firme el orden:
+            // detrás de las letras/carátula (que se declaran después, más adelante
+            // en este mismo árbol) pero por delante del fondo sólido.
+            Box(
                 modifier = Modifier
                     .align(Alignment.TopCenter)
                     .fillMaxWidth()
@@ -312,8 +327,16 @@ fun FullScreenPlayer(
                     // segundo protagonista — el protagonista sigue siendo la fila de
                     // abajo, igual que en el resto de los estilos.
                     .fillMaxHeight(0.16f)
-                    .padding(horizontal = 8.dp)
-            )
+                    .zIndex(1f)
+            ) {
+                com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
+                    spectrum = mirroredEqualizerSpectrum,
+                    color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
+                    modifier = Modifier
+                        .matchParentSize()
+                        .padding(horizontal = 8.dp)
+                )
+            }
         }
 
         Box(

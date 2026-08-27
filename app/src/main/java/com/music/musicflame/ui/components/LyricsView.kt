@@ -68,6 +68,18 @@ fun resolveLyricsTextColor(mode: String, customHex: String): Color = when (mode)
 }
 
 /**
+ * Resuelve el color del ecualizador gráfico (punto 1 del catálogo).
+ * "Personalizado" -> el hex/RGBA elegido en Ajustes > Apariencia > "Color del
+ * ecualizador". Cualquier otro valor (por defecto "Adaptativo") -> se
+ * mantiene el comportamiento de siempre: [adaptiveColor] resuelto por quien
+ * llama (blanco/negro según fondo, como ya hacía FullScreenPlayer).
+ */
+fun resolveEqualizerColor(mode: String, customHex: String, adaptiveColor: Color): Color = when (mode) {
+    "Personalizado" -> parseCustomTextColor(customHex)
+    else -> adaptiveColor
+}
+
+/**
  * Vista de letras sincronizadas. Hace scroll automático a la línea activa
  * según `positionMs`, resaltándola y atenuando el resto. `speed` (0.5–2.0)
  * controla la duración de la animación entre líneas: valores bajos = lenta,

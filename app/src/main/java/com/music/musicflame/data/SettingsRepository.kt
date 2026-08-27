@@ -130,6 +130,19 @@ class SettingsRepository(context: Context) {
     fun saveEqualizerStyle(style: com.music.musicflame.ui.components.EqualizerStyle) =
         prefs.edit().putString("equalizer_style", style.name).apply()
 
+    // --- COLOR PROPIO DEL ECUALIZADOR GRÁFICO (punto 1 del catálogo) ---
+    // Modo "Adaptativo" (default, sin cambios de comportamiento): blanco o
+    // negro según luminancia del fondo/imagen, tal cual funcionaba antes.
+    // Modo "Personalizado": usa equalizer_custom_color_hex, mismo formato
+    // (#RRGGBB o r,g,b,a) que ya soporta parseCustomTextColor. Ortogonal al
+    // estilo (BARS, MIRRORED_BARS, etc.) — aplica sea cual sea el estilo
+    // elegido arriba.
+    fun getEqualizerColorMode(): String = prefs.getString("equalizer_color_mode", "Adaptativo") ?: "Adaptativo"
+    fun saveEqualizerColorMode(mode: String) = prefs.edit().putString("equalizer_color_mode", mode).apply()
+
+    fun getEqualizerCustomColorHex(): String = prefs.getString("equalizer_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
+    fun saveEqualizerCustomColorHex(value: String) = prefs.edit().putString("equalizer_custom_color_hex", value).apply()
+
     companion object {
         // NOTA PARA SESIÓN POSTERIOR: este catálogo (estilos de ecualizador, y
         // en el futuro colores custom del ecualizador/letra/now-playing y el

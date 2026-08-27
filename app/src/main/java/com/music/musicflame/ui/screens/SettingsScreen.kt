@@ -184,6 +184,7 @@ fun SettingsScreen(
     val showEqualizerDialog = remember { mutableStateOf(false) }
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
+    val showEqualizerColorDialog = remember { mutableStateOf(false) }
 
     val durationMin = remember { mutableStateOf(settingsRepo.getDurationFilterMin().toString()) }
     val durationMax = remember { mutableStateOf(settingsRepo.getDurationFilterMax().let { if (it == Int.MAX_VALUE) "" else it.toString() }) }
@@ -198,6 +199,12 @@ fun SettingsScreen(
     // estéticas, punto 4): barras clásicas, doble espejado, ondas de agua,
     // círculo pulsante, partículas, barras finas o VU meter retro.
     val equalizerStyle = remember { mutableStateOf(settingsRepo.getEqualizerStyle()) }
+    // Color propio del ecualizador gráfico (catálogo, punto 1): "Adaptativo"
+    // (default, blanco/negro según fondo, sin cambios de comportamiento) o
+    // "Personalizado" (equalizerCustomColorHexPref). Mismo patrón que
+    // appTextColorPref/customTextColorHex de más abajo.
+    val equalizerColorModePref = remember { mutableStateOf(settingsRepo.getEqualizerColorMode()) }
+    val equalizerCustomColorHexPref = remember { mutableStateOf(settingsRepo.getEqualizerCustomColorHex()) }
 
     // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
     val activeSection = remember { mutableStateOf<String?>(null) }
@@ -732,6 +739,30 @@ fun SettingsScreen(
                                 },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { showEqualizerStyleDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // NUEVO: color propio del ecualizador gráfico (catálogo,
+                            // punto 1). Ortogonal al estilo de arriba — aplica sea
+                            // cual sea el estilo elegido. Mismo patrón de diálogo
+                            // que "Color de texto" (presets + hex/RGBA manual).
+                            ListItem(
+                                headlineContent = { Text("Color del ecualizador") },
+                                supportingContent = {
+                                    Text(
+                                        if (equalizerColorModePref.value == "Personalizado") "Personalizado: ${equalizerCustomColorHexPref.value}"
+                                        else "Adaptativo (según el fondo)"
+                                    )
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showEqualizerColorDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showEqualizerColorDialog.value = true }
                             )
                             HorizontalDivider(color = dividerColor)
                         }
@@ -1959,6 +1990,114 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showTextColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showEqualizerColorDialog.value) {
+            val tempEqColorMode = remember { mutableStateOf(equalizerColorModePref.value) }
+            val tempEqCustomHex = remember { mutableStateOf(equalizerCustomColorHexPref.value) }
+            AlertDialog(
+                onDismissRequest = { showEqualizerColorDialog.value = false },
+                title = { Text("Color del ecualizador", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text(
+                            "Aplica al ecualizador gráfico animado del reproductor a pantalla completa, sea cual sea el estilo elegido arriba.",
+                            fontSize = 12.sp,
+                            color = mediumEmphasis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        listOf("Adaptativo", "Personalizado").forEach { colorOption ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempEqColorMode.value = colorOption }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(selected = tempEqColorMode.value == colorOption, onClick = { tempEqColorMode.value = colorOption })
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(colorOption, fontSize = 14.sp)
+                                    if (colorOption == "Adaptativo") {
+                                        Text(
+                                            "Blanco o negro según el fondo, como hasta ahora",
+                                            fontSize = 11.sp,
+                                            color = mediumEmphasis
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (tempEqColorMode.value == "Personalizado") {
+                            Spacer(Modifier.height(4.dp))
+
+                            // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color de texto" ---
+                            val presetColors = listOf(
+                                "#FFFFFF", "#000000", "#F44336", "#E91E63", "#9C27B0",
+                                "#673AB7", "#3F51B5", "#2196F3", "#03A9F4", "#00BCD4",
+                                "#009688", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B",
+                                "#FFC107", "#FF9800", "#FF5722", "#795548", "#9E9E9E"
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                presetColors.forEach { hex ->
+                                    val isSelected = tempEqCustomHex.value.equals(hex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(com.music.musicflame.ui.theme.parseCustomTextColor(hex))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { tempEqCustomHex.value = hex }
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+
+                            OutlinedTextField(
+                                value = tempEqCustomHex.value,
+                                onValueChange = { tempEqCustomHex.value = it },
+                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(com.music.musicflame.ui.theme.parseCustomTextColor(tempEqCustomHex.value))
+                                        .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Vista previa", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveEqualizerColorMode(tempEqColorMode.value)
+                        equalizerColorModePref.value = tempEqColorMode.value
+                        if (tempEqColorMode.value == "Personalizado") {
+                            settingsRepo.saveEqualizerCustomColorHex(tempEqCustomHex.value)
+                            equalizerCustomColorHexPref.value = tempEqCustomHex.value
+                        }
+                        showEqualizerColorDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showEqualizerColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

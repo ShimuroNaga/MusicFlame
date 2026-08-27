@@ -144,6 +144,12 @@ fun MirroredBarsTopRowCanvas(
 // En vez de barras discretas, una curva continua (spline por Bezier cuadrática
 // entre puntos medios) que sube y baja con el audio, con relleno degradado
 // hacia abajo para que se sienta "líquida".
+// FIX posición: antes la línea base (baseline) estaba en 0.92 * h, dejando un
+// hueco visible entre la ola y el borde inferior REAL de la caja (a
+// diferencia de BARS, que nace justo en el borde de abajo). Ahora la base
+// está pegada al borde real (igual que el resto de los estilos) y la
+// amplitud se reparte sobre esa misma altura total, así el estilo queda
+// anclado en la misma posición que "estándar" en vez de flotar más arriba.
 @Composable
 fun WaterWaveEqualizerCanvas(
     spectrum: EqualizerLevelsState,
@@ -157,8 +163,8 @@ fun WaterWaveEqualizerCanvas(
 
         val w = size.width
         val h = size.height
-        val baseline = h * 0.92f
-        val amplitude = h * 0.8f
+        val baseline = h
+        val amplitude = h * 0.9f
 
         val points = FloatArray(barCount + 1)
         for (i in 0 until barCount) {

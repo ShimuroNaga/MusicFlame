@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Widget "Vinilo" de home screen de MusicFlame (adicional al widget clásico,
+    ver MusicFlameWidgetProvider). Redimensionable entre 1x1 y 2x2 celdas
+    (ver musicflame_vinyl_widget_info.xml).
+
+    Diseño: un disco circular (la carátula, siempre recortada a forma "Vinilo"
+    con surcos + hoyo central, igual que AlbumArtShapeType.VINYL) que gira
+    mientras suena música y asoma DETRÁS del borde de una funda rectangular
+    (la funda tapa la parte del disco que se superpone con ella).
+
+    Estructura: el disco es HERMANO directo de widget_vinyl_root, agregado
+    ANTES del bloque funda+espaciador (no un hijo anidado dentro de una de
+    esas dos zonas). Android dibuja y prioriza el toque de los hijos en orden
+    de agregado: el último agregado queda arriba de todo. Por eso la funda
+    (agregada después) tapa visualmente al disco donde se superponen, Y
+    además gana el toque ahí. En la zona del espaciador (sin click propio) el
+    toque cae al disco de abajo, que es la única parte donde sigue
+    resolviendo a play/pause; ver comentarios junto a cada bloque más abajo.
+
+    El ancho del disco no usa ningún dp fijo de posición: layout_height =
+    match_parent (menos el padding vertical de abajo) + adjustViewBounds hace
+    que Android calcule el ancho a partir del alto disponible (el bitmap
+    siempre es cuadrado), así que el tamaño del disco escala solo al
+    redimensionar el widget entre 1x1 y 2x2. El único valor fijo es el padding
+    vertical del disco, que controla qué tan grande se ve el disco relativo al
+    widget completo (ver comentario junto a ese atributo).
+-->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/widget_vinyl_root"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:clipChildren="false"
+    android:clipToPadding="false">
+
+    <!-- DISCO: va PRIMERO en el árbol a propósito, para quedar dibujado
+         DETRÁS de la funda (Android dibuja/toca los hijos en orden: el
+         último agregado queda arriba de todo, tanto visual como al tocar).
+         Así la funda tapa la parte del disco que cae dentro de su
+         rectángulo, y solo se ve/asoma la porción que cae en la zona vacía
+         de al lado. Siempre cuadrado (el bitmap ya viene recortado a
+         círculo con surcos), alineado al borde derecho y a toda la altura
+         disponible. paddingTop/Bottom fijo: a mayor padding, más chico se ve
+         el disco relativo al widget completo (ajustar acá si se quiere
+         más/menos "asome"). 10dp da ~80% del alto en el tamaño 2x2 por
+         defecto. -->
+    <ImageView
+        android:id="@+id/widget_vinyl_disc"
+        android:layout_width="wrap_content"
+        android:layout_height="match_parent"
+        android:layout_gravity="center_vertical|end"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:adjustViewBounds="true"
+        android:scaleType="fitCenter"
+        android:src="@drawable/ic_widget_music_placeholder"
+        android:contentDescription="@string/widget_vinyl_disc_desc" />
+
+    <!-- FUNDA + ESPACIADOR: van DESPUÉS del disco, así quedan arriba y lo
+         tapan donde se superponen.
+
+         Toque en la zona del espaciador (donde asoma el disco): ese
+         FrameLayout no tiene setOnClickPendingIntent, así que un toque ahí
+         NO lo consume — Android sigue bajando por el árbol y termina
+         resolviendo al disco que queda debajo, en esa misma zona. Toque en
+         la zona de la funda: la funda SÍ tiene su propio click (abrir app),
+         así que ahí gana ella siempre, incluso en el pedacito donde el disco
+         quedaría "debajo" tapado. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal">
+
+        <!-- FUNDA: tarjeta rectangular de fondo, ocupa la mayor parte del ancho. -->
+        <FrameLayout
+            android:id="@+id/widget_vinyl_sleeve_zone"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.62"
+            android:background="@drawable/widget_vinyl_sleeve_background"
+            android:contentDescription="@string/widget_vinyl_sleeve_desc">
+
+            <TextView
+                android:id="@+id/widget_vinyl_title"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom"
+                android:paddingStart="8dp"
+                android:paddingEnd="4dp"
+                android:paddingBottom="6dp"
+                android:paddingTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:singleLine="true"
+                android:text="@string/widget_no_song"
+                android:textColor="#FFFFFFFF"
+                android:textSize="10sp"
+                android:textStyle="bold"
+                android:shadowColor="#CC000000"
+                android:shadowDx="0"
+                android:shadowDy="1"
+                android:shadowRadius="2" />
+        </FrameLayout>
+
+        <!-- ESPACIO VACÍO donde "asoma" el disco. Sin id ni click propio: ver
+             nota de touch más arriba, junto al disco. -->
+        <FrameLayout
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="0.38" />
+
+    </LinearLayout>
+
+</FrameLayout>

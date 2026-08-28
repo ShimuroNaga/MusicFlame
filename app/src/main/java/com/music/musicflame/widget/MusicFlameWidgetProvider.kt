@@ -493,7 +493,10 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
          * (Compose). Antes el widget siempre recortaba a esquinas redondas fijas
          * sin importar la preferencia del usuario.
          */
-        private fun clipToShape(bitmap: Bitmap, shape: AlbumArtShapeType, cornerRadiusPx: Float): Bitmap {
+        // internal (antes private): la reusa MusicFlameVinylWidgetProvider para
+        // recortar el disco del widget "Vinilo" a la misma forma VINYL exacta
+        // (círculo + surcos + hoyo central) sin duplicar esta geometría.
+        internal fun clipToShape(bitmap: Bitmap, shape: AlbumArtShapeType, cornerRadiusPx: Float): Bitmap {
             val w = bitmap.width.toFloat()
             val h = bitmap.height.toFloat()
             val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)

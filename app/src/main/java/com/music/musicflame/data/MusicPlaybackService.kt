@@ -30,6 +30,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
+import com.music.musicflame.widget.MusicFlameVinylWidgetProvider
 import com.music.musicflame.widget.MusicFlameWidgetProvider
 import com.music.musicflame.widget.WidgetPrefs
 import android.media.AudioManager
@@ -122,6 +123,19 @@ class MusicPlaybackService : MediaSessionService() {
         }
     }
 
+    // RECEPTOR DE PANTALLA APAGADA/ENCENDIDA (ahorro de batería del widget Vinilo).
+    // ACTION_SCREEN_OFF/ON son "implicit broadcasts": Android ya no los entrega a
+    // receivers declarados en el Manifest desde la API 26, así que SÍ o SÍ hay que
+    // registrarlos así, en runtime, igual que noisyReceiver de arriba.
+    private val screenStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            when (intent?.action) {
+                Intent.ACTION_SCREEN_OFF -> MusicFlameVinylWidgetProvider.onScreenStateChanged(this@MusicPlaybackService, isScreenOnNow = false)
+                Intent.ACTION_SCREEN_ON -> MusicFlameVinylWidgetProvider.onScreenStateChanged(this@MusicPlaybackService, isScreenOnNow = true)
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
 
@@ -147,6 +161,14 @@ class MusicPlaybackService : MediaSessionService() {
         // ACTION_AUDIO_BECOMING_NOISY lo dispara el propio sistema Android, no nuestra app.
         val noisyFilter = IntentFilter(AudioManager.ACTION_AUDIO_BECOMING_NOISY)
         registerReceiver(noisyReceiver, noisyFilter)
+
+        // Registro del receiver de pantalla apagada/encendida (mismo motivo que
+        // noisyReceiver: son broadcasts del propio sistema, sin NOT_EXPORTED).
+        val screenFilter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+        }
+        registerReceiver(screenStateReceiver, screenFilter)
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -240,6 +262,16 @@ class MusicPlaybackService : MediaSessionService() {
             mediaId = mediaItem?.mediaId
         )
         MusicFlameWidgetProvider.refreshAllWidgets(this)
+
+        // Widget "Vinilo" (catálogo cosmético punto 5): mismo punto de enganche,
+        // pinta el estado y arranca/detiene el giro del disco según corresponda.
+        MusicFlameVinylWidgetProvider.onPlaybackStateChanged(
+            context = this,
+            isPlaying = player.isPlaying,
+            hasSong = hasSong,
+            albumArtUri = metadata?.artworkUri?.toString(),
+            mediaId = mediaItem?.mediaId
+        )
     }
 
     /**
@@ -571,8 +603,10 @@ class MusicPlaybackService : MediaSessionService() {
 
     override fun onDestroy() {
         stopLyricsTicking()
+        MusicFlameVinylWidgetProvider.stopRotation()
         unregisterReceiver(eqUpdateReceiver)
         unregisterReceiver(noisyReceiver)
+        unregisterReceiver(screenStateReceiver)
         equalizer?.release()
         bassBoost?.release()
         virtualizer?.release()

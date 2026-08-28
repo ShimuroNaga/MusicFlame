@@ -17,4 +17,9 @@
     <string name="widget_play_pause_desc">Reproducir o pausar</string>
     <string name="widget_previous_desc">Canción anterior</string>
     <string name="widget_next_desc">Siguiente canción</string>
+
+    <!-- Widget "Vinilo" (catálogo cosmético punto 5): funda + disco giratorio -->
+    <string name="widget_music_flame_vinyl_description">Vinilo de MusicFlame: la carátula asoma como un disco que gira mientras suena la canción. Toca el disco para reproducir o pausar (redimensionable de 1x1 a 2x2).</string>
+    <string name="widget_vinyl_disc_desc">Disco de vinilo: toca para reproducir o pausar</string>
+    <string name="widget_vinyl_sleeve_desc">Abrir MusicFlame</string>
 </resources>

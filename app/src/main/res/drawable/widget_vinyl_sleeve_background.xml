@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Misma paleta que widget_music_flame_background.xml, para que el widget
+     Vinilo se sienta parte de la misma familia visual que el widget clásico. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#CC1C1B1F" />
+    <corners android:radius="@android:dimen/system_app_widget_background_radius" />
+</shape>

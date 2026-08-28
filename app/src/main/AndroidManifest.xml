@@ -184,5 +184,17 @@
             android:name=".widget.WidgetActionReceiver"
             android:exported="false" />
 
+        <!-- Widget "Vinilo" (catálogo cosmético punto 5): funda + disco giratorio -->
+        <receiver
+            android:name=".widget.MusicFlameVinylWidgetProvider"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/musicflame_vinyl_widget_info" />
+        </receiver>
+
     </application>
 </manifest>

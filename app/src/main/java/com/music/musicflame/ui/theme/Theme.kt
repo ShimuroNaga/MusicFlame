@@ -87,12 +87,20 @@ fun MusicFlameTheme(
     }
 
     val isDarkBackground = finalColorScheme.background.luminance() < 0.5f
+
+    // Fase animada del modo "Arcoíris" (catálogo, punto 6). Se calcula una
+    // sola vez acá arriba y se reusa en texto y Now Playing para que ambos
+    // (si los dos están en Arcoíris) queden sincronizados entre sí.
+    val rainbowPhase = rememberRainbowPhase()
+
     val appTextColor = when (appTextColorState.value) {
         "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
+        COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Negro", "Blanco" o cualquier default
     }
     val nowPlayingIndicatorColor = when (nowPlayingColorModeState.value) {
         "Personalizado" -> parseCustomTextColor(nowPlayingCustomColorHexState.value)
+        COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Adaptativo": mismo default histórico del componente
     }
 

@@ -274,7 +274,7 @@ fun SettingsScreen(
     val appTextColorPref = remember {
         mutableStateOf(
             settingsRepo.getAppTextColor().let { stored ->
-                if (stored == "Personalizado") stored
+                if (stored == "Personalizado" || stored == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) stored
                 else if (isDarkBackgroundNowForTextColor) "Blanco" else "Negro"
             }
         )
@@ -767,8 +767,11 @@ fun SettingsScreen(
                                 headlineContent = { Text("Color del ecualizador") },
                                 supportingContent = {
                                     Text(
-                                        if (equalizerColorModePref.value == "Personalizado") "Personalizado: ${equalizerCustomColorHexPref.value}"
-                                        else "Adaptativo (según el fondo)"
+                                        when (equalizerColorModePref.value) {
+                                            "Personalizado" -> "Personalizado: ${equalizerCustomColorHexPref.value}"
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
+                                            else -> "Adaptativo (según el fondo)"
+                                        }
                                     )
                                 },
                                 trailingContent = {
@@ -817,7 +820,11 @@ fun SettingsScreen(
                         item {
                             ListItem(
                                 headlineContent = { Text("Color de texto") },
-                                supportingContent = { Text("Color actual: ${appTextColorPref.value}") },
+                                supportingContent = {
+                                    Text(
+                                        "Color actual: " + if (appTextColorPref.value == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris (en movimiento)" else appTextColorPref.value
+                                    )
+                                },
                                 trailingContent = { TextButton(onClick = { showTextColorDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
@@ -833,8 +840,11 @@ fun SettingsScreen(
                                 headlineContent = { Text("Color del \"Now Playing\"") },
                                 supportingContent = {
                                     Text(
-                                        if (nowPlayingColorModePref.value == "Personalizado") "Personalizado: ${nowPlayingCustomColorHexPref.value}"
-                                        else "Adaptativo (según el fondo)"
+                                        when (nowPlayingColorModePref.value) {
+                                            "Personalizado" -> "Personalizado: ${nowPlayingCustomColorHexPref.value}"
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
+                                            else -> "Adaptativo (según el fondo)"
+                                        }
                                     )
                                 },
                                 trailingContent = {
@@ -1384,7 +1394,7 @@ fun SettingsScreen(
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        listOf("Blanco", "Negro", "Personalizado").forEach { opt ->
+                                        listOf("Blanco", "Negro", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { opt ->
                                             val selected = lyricsColorModePref.value == opt
                                             androidx.compose.material3.FilterChip(
                                                 selected = selected,
@@ -1400,7 +1410,7 @@ fun SettingsScreen(
                                                         settingsRepo.saveLyricsTextColorMode(opt)
                                                     }
                                                 },
-                                                label = { Text(opt, fontSize = 12.sp) },
+                                                label = { Text(if (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else opt, fontSize = 12.sp) },
                                                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
                                                     selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -1981,7 +1991,7 @@ fun SettingsScreen(
                 title = { Text("Color de texto", fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
-                        listOf("Negro", "Blanco", "Personalizado").forEach { colorOption ->
+                        listOf("Negro", "Blanco", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -1991,7 +2001,7 @@ fun SettingsScreen(
                             ) {
                                 RadioButton(selected = tempTextColor.value == colorOption, onClick = { tempTextColor.value = colorOption })
                                 Spacer(Modifier.width(8.dp))
-                                Text(colorOption, fontSize = 14.sp)
+                                Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
                             }
                         }
 
@@ -2080,7 +2090,7 @@ fun SettingsScreen(
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        listOf("Adaptativo", "Personalizado").forEach { colorOption ->
+                        listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -2091,10 +2101,16 @@ fun SettingsScreen(
                                 RadioButton(selected = tempEqColorMode.value == colorOption, onClick = { tempEqColorMode.value = colorOption })
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(colorOption, fontSize = 14.sp)
+                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
                                     if (colorOption == "Adaptativo") {
                                         Text(
                                             "Blanco o negro según el fondo, como hasta ahora",
+                                            fontSize = 11.sp,
+                                            color = mediumEmphasis
+                                        )
+                                    } else if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) {
+                                        Text(
+                                            "Colores del espectro en movimiento continuo",
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
@@ -2277,7 +2293,7 @@ fun SettingsScreen(
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        listOf("Adaptativo", "Personalizado").forEach { colorOption ->
+                        listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -2288,10 +2304,16 @@ fun SettingsScreen(
                                 RadioButton(selected = tempNowPlayingColorMode.value == colorOption, onClick = { tempNowPlayingColorMode.value = colorOption })
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(colorOption, fontSize = 14.sp)
+                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
                                     if (colorOption == "Adaptativo") {
                                         Text(
                                             "Blanco o negro según el fondo, como hasta ahora",
+                                            fontSize = 11.sp,
+                                            color = mediumEmphasis
+                                        )
+                                    } else if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) {
+                                        Text(
+                                            "Colores del espectro en movimiento continuo",
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )

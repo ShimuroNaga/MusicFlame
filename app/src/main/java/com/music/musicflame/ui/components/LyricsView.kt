@@ -64,18 +64,27 @@ fun resolveLyricsTextColor(mode: String, customHex: String): Color = when (mode)
     "Blanco" -> Color.White
     "Negro" -> Color.Black
     "Personalizado" -> parseCustomTextColor(customHex)
+    com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW ->
+        com.music.musicflame.ui.theme.rainbowColorAt(com.music.musicflame.ui.theme.rememberRainbowPhase().value)
     else -> MaterialTheme.colorScheme.onSurface // Adaptativo (Material You)
 }
 
 /**
  * Resuelve el color del ecualizador gráfico (punto 1 del catálogo).
  * "Personalizado" -> el hex/RGBA elegido en Ajustes > Apariencia > "Color del
- * ecualizador". Cualquier otro valor (por defecto "Adaptativo") -> se
+ * ecualizador". "Arcoiris" -> color animado que recorre el espectro (punto 6
+ * del catálogo). Cualquier otro valor (por defecto "Adaptativo") -> se
  * mantiene el comportamiento de siempre: [adaptiveColor] resuelto por quien
  * llama (blanco/negro según fondo, como ya hacía FullScreenPlayer).
+ *
+ * Ahora es @Composable (antes era una función común) porque el modo Arcoiris
+ * necesita animar el color cuadro a cuadro con rememberRainbowPhase().
  */
+@Composable
 fun resolveEqualizerColor(mode: String, customHex: String, adaptiveColor: Color): Color = when (mode) {
     "Personalizado" -> parseCustomTextColor(customHex)
+    com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW ->
+        com.music.musicflame.ui.theme.rainbowColorAt(com.music.musicflame.ui.theme.rememberRainbowPhase().value)
     else -> adaptiveColor
 }
 

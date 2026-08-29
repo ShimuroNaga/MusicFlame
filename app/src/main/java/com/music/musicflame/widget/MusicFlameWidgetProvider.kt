@@ -291,6 +291,12 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
          * "Personalizado" se aplican tal cual; "Adaptativo" no tiene un
          * equivalente real en RemoteViews (no hay Material You aquí), así que
          * cae a blanco, que es lo más legible sobre el fondo oscuro del widget.
+         *
+         * "Arcoíris" (catálogo de pago) TAMPOCO tiene equivalente animado en
+         * RemoteViews y cae a este mismo blanco por defecto (el `else` de
+         * abajo) — a propósito: solo Personalizado/Blanco/Negro deben
+         * reflejarse en el widget, Arcoíris nunca se aplica ahí aunque el
+         * usuario lo tenga activo en la pantalla completa.
          */
         private fun resolveLyricsColorInt(settingsRepo: SettingsRepository): Int {
             return when (settingsRepo.getLyricsTextColorMode()) {

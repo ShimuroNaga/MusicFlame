@@ -139,4 +139,8 @@ dependencies {
     implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    // Escritura real de tags (carátula/título/artista/álbum) en el archivo de
+    // audio en disco. Soporta mp3, flac, ogg, wav, m4a, wma, aiff, dsf y opus.
+    // No re-codifica el audio: solo reescribe el bloque de metadatos.
+    implementation("com.github.Adonai:jaudiotagger:2.3.15")
 }

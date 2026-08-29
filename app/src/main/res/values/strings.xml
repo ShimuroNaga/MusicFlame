@@ -12,6 +12,7 @@
     <!-- Widget de home screen -->
     <string name="widget_music_flame_description">Reproductor compacto de MusicFlame: carátula, nombre de la canción, play/pause y siguiente (agrándalo para tener también un botón de anterior).</string>
     <string name="widget_no_song">MusicFlame</string>
+    <string name="widget_vinyl_locked">Bloqueado · $5 MXN</string>
     <string name="widget_select_song">Sin reproducción</string>
     <string name="widget_album_art_desc">Carátula de la canción actual</string>
     <string name="widget_play_pause_desc">Reproducir o pausar</string>

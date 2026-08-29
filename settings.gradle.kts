@@ -19,6 +19,8 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        // Necesario para com.github.Adonai:jaudiotagger (RealTagWriter)
+        maven { url = uri("https://jitpack.io") }
     }
 }
 

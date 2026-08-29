@@ -1093,6 +1093,7 @@ class MainActivity : ComponentActivity() {
                                 EditSongDialog(
                                     selectedSongs = selectedSongs.toList(),
                                     customizationRepo = songCustomizationRepo,
+                                    settingsRepo = settingsRepo,
                                     onDismiss = { showEditSongDialog = false },
                                     onSaved = { patches ->
                                         showEditSongDialog = false

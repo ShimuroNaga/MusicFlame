@@ -289,11 +289,24 @@ fun SettingsScreen(
     val powerManager = remember { context.getSystemService(Context.POWER_SERVICE) as PowerManager }
     var isIgnoringBattery by remember { mutableStateOf(powerManager.isIgnoringBatteryOptimizations(context.packageName)) }
 
+    // --- Guardar etiquetas/carátula reales en el archivo (RealTagWriter) ---
+    var hasFileAccessPermission by remember { mutableStateOf(com.music.musicflame.data.RealTagWriter.hasFileAccessPermission()) }
+    var realTagWritingEnabled by remember { mutableStateOf(settingsRepo.isRealTagWritingEnabled()) }
+
     val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
                 isIgnoringBattery = powerManager.isIgnoringBatteryOptimizations(context.packageName)
+
+                val nowHasPermission = com.music.musicflame.data.RealTagWriter.hasFileAccessPermission()
+                if (!nowHasPermission && realTagWritingEnabled) {
+                    // Permiso revocado por fuera (Ajustes del sistema): apagamos el
+                    // switch para no dejarlo "activado" sin poder escribir de verdad.
+                    realTagWritingEnabled = false
+                    settingsRepo.saveRealTagWritingEnabled(false)
+                }
+                hasFileAccessPermission = nowHasPermission
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -990,6 +1003,47 @@ fun SettingsScreen(
                                 headlineContent = { Text("Filtrar por duración") },
                                 supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
                                 trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Guardar etiquetas reales en el archivo") },
+                                supportingContent = {
+                                    Text(
+                                        text = when {
+                                            !hasFileAccessPermission -> "Requiere el permiso \"Acceso a todos los archivos\" de Android"
+                                            realTagWritingEnabled -> "Activado: carátula, título, artista y álbum se escriben de verdad en el archivo"
+                                            else -> "Desactivado: los cambios solo se ven dentro de la app, como ahora"
+                                        },
+                                        color = if (!hasFileAccessPermission) MaterialTheme.colorScheme.error else trailingColor
+                                    )
+                                },
+                                trailingContent = {
+                                    Switch(
+                                        checked = realTagWritingEnabled,
+                                        onCheckedChange = { checked ->
+                                            if (checked) {
+                                                if (hasFileAccessPermission) {
+                                                    realTagWritingEnabled = true
+                                                    settingsRepo.saveRealTagWritingEnabled(true)
+                                                } else {
+                                                    com.music.musicflame.data.RealTagWriter.requestFileAccessPermission(context)
+                                                    Toast.makeText(
+                                                        context,
+                                                        "Concede \"Acceso a todos los archivos\" y vuelve a activar el interruptor",
+                                                        Toast.LENGTH_LONG
+                                                    ).show()
+                                                }
+                                            } else {
+                                                realTagWritingEnabled = false
+                                                settingsRepo.saveRealTagWritingEnabled(false)
+                                            }
+                                        }
+                                    )
+                                },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)

@@ -32,16 +32,15 @@ import java.io.IOException
  * MusicFlameWidgetProvider): una funda con el disco asomando y girando
  * mientras suena música. Redimensionable entre 1x1 y 2x2 celdas.
  *
- * FEATURE COSMÉTICA DE PAGO (catálogo punto 5). Ver VINYL_WIDGET_UNLOCKED:
- * todavía SIN conectar a LicenseRepository/isProUnlocked (queda pendiente
- * para una sesión posterior); por ahora el widget está disponible libremente
- * para poder probarlo. Cuando se conecte de verdad, lo natural es que
- * VINYL_WIDGET_UNLOCKED deje de ser una constante y pase a consultar
- * LicenseRepository; si el plan es impedir que alguien sin licencia lo AGREGUE
- * desde el selector de widgets del sistema (no solo bloquear su contenido),
- * hace falta además deshabilitar el <receiver> vía
- * PackageManager.setComponentEnabledSetting, algo que no se toca en esta
- * sesión para no complicar el alcance.
+ * FEATURE COSMÉTICA DE PAGO (catálogo punto 5). Conectado a
+ * LicenseRepository.isProUnlocked() vía isUnlocked() (abajo): mientras no
+ * esté desbloqueado (nadie compró, y la sesión de Google activa no es la del
+ * dueño), el widget se sigue pudiendo AGREGAR desde el selector de widgets
+ * del sistema, pero muestra un candado en vez del disco (paintLockedWidgets)
+ * y no gira. Si el plan a futuro es impedir directamente que alguien sin
+ * licencia lo AGREGUE (no solo bloquear su contenido), hace falta además
+ * deshabilitar el <receiver> vía PackageManager.setComponentEnabledSetting,
+ * algo que no se toca en esta sesión para no complicar el alcance.
  *
  * ROTACIÓN Y BATERÍA — por qué bitmaps pre-rotados en vez de AnimationDrawable:
  * RemoteViews no expone ningún método remotable equivalente a
@@ -87,7 +86,13 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
     }
 
     companion object {
-        private const val VINYL_WIDGET_UNLOCKED = true
+        /**
+         * true si hay licencia activa o si la cuenta de Google iniciada en la
+         * app es la del dueño (ver LicenseRepository.isOwnerAccount) — mismo
+         * criterio que el resto de features de pago de la app.
+         */
+        private fun isUnlocked(context: Context): Boolean =
+            com.music.musicflame.data.LicenseRepository(context).isProUnlocked()
 
         private const val VINYL_FRAME_COUNT = 18
         private const val VINYL_FRAME_INTERVAL_MS = 200L
@@ -139,12 +144,18 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
             albumArtUri: String?,
             mediaId: String?
         ) {
-            if (!VINYL_WIDGET_UNLOCKED) return
             val appContext = context.applicationContext
             lastAppContext = appContext
 
             if (!hasWidgets(appContext)) {
                 stopRotation()
+                return
+            }
+
+            if (!isUnlocked(appContext)) {
+                wantsRotation = false
+                stopRotation()
+                refreshScope.launch { paintLockedWidgets(appContext) }
                 return
             }
 
@@ -185,6 +196,11 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
             val appContext = context.applicationContext
             lastAppContext = appContext
             if (!hasWidgets(appContext)) return
+
+            if (!isUnlocked(appContext)) {
+                refreshScope.launch { paintLockedWidgets(appContext) }
+                return
+            }
 
             refreshScope.launch {
                 val state = WidgetPrefs.read(appContext)
@@ -247,6 +263,43 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
             val state = WidgetPrefs.read(context)
             val views = buildViews(context, state, hasSong, frames[frameIndex])
             ids.forEach { id -> manager.updateAppWidget(id, views) }
+        }
+
+        /**
+         * Estado bloqueado: candado en vez del disco, título fijo avisando el
+         * precio, y tocar en cualquier parte del widget abre la app (no hay
+         * play/pause ni giro) para que el usuario vaya a Ajustes > Pagos.
+         */
+        private suspend fun paintLockedWidgets(context: Context) {
+            val manager = AppWidgetManager.getInstance(context)
+            val componentName = ComponentName(context, MusicFlameVinylWidgetProvider::class.java)
+            val ids = manager.getAppWidgetIds(componentName)
+            if (ids.isEmpty()) return
+
+            val lockBitmap = withContext(Dispatchers.IO) { buildLockedDisc(context) }
+            val views = RemoteViews(context.packageName, R.layout.widget_music_flame_vinyl).apply {
+                setTextViewText(R.id.widget_vinyl_title, context.getString(R.string.widget_vinyl_locked))
+                setImageViewBitmap(R.id.widget_vinyl_disc, lockBitmap)
+                setOnClickPendingIntent(R.id.widget_vinyl_disc, openAppPendingIntent(context))
+                setOnClickPendingIntent(R.id.widget_vinyl_sleeve_zone, openAppPendingIntent(context))
+            }
+            ids.forEach { id -> manager.updateAppWidget(id, views) }
+        }
+
+        /** Disco de fondo oscuro con un ícono de candado centrado, mismo tamaño que un frame real. */
+        private fun buildLockedDisc(context: Context): Bitmap {
+            val base = Bitmap.createBitmap(DISC_RENDER_SIZE_PX, DISC_RENDER_SIZE_PX, Bitmap.Config.ARGB_8888)
+            val canvas = Canvas(base)
+            canvas.drawColor(Color.rgb(40, 40, 40))
+
+            ContextCompat.getDrawable(context, android.R.drawable.ic_lock_lock)?.let { icon ->
+                val iconSize = (DISC_RENDER_SIZE_PX * 0.42f).toInt()
+                val offset = (DISC_RENDER_SIZE_PX - iconSize) / 2
+                icon.setBounds(offset, offset, offset + iconSize, offset + iconSize)
+                icon.setTint(Color.argb((0.9f * 255).toInt(), 255, 255, 255))
+                icon.draw(canvas)
+            }
+            return base
         }
 
         private fun buildViews(

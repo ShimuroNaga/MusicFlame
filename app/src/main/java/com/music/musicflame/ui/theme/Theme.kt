@@ -35,6 +35,11 @@ fun MusicFlameTheme(
     // patrón "Adaptativo"/"Personalizado" que el color del ecualizador.
     val nowPlayingColorModeState = remember { mutableStateOf(settingsRepo.getNowPlayingColorMode()) }
     val nowPlayingCustomColorHexState = remember { mutableStateOf(settingsRepo.getNowPlayingCustomColorHex()) }
+    // Blinda el RENDERIZADO global (texto de la app y "Now Playing"): si el
+    // valor guardado es una opción de pago y el usuario no está desbloqueado,
+    // se ignora acá abajo y se cae al comportamiento gratis de siempre, en
+    // vez de seguir mostrando la personalización sin haber pagado.
+    val isProUnlocked = remember { com.music.musicflame.data.LicenseRepository(context).isProUnlocked() }
 
     // Registrar un listener para detectar cambios en SharedPreferences en tiempo real
     DisposableEffect(context) {
@@ -93,14 +98,18 @@ fun MusicFlameTheme(
     // (si los dos están en Arcoíris) queden sincronizados entre sí.
     val rainbowPhase = rememberRainbowPhase()
 
-    val appTextColor = when (appTextColorState.value) {
-        "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
-        COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
+    val appTextColor = when {
+        !isProUnlocked && appTextColorState.value == COLOR_MODE_RAINBOW ->
+            if (isDarkBackground) Color.White else Color.Black // Arcoíris es de pago: cae al default
+        appTextColorState.value == "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
+        appTextColorState.value == COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Negro", "Blanco" o cualquier default
     }
-    val nowPlayingIndicatorColor = when (nowPlayingColorModeState.value) {
-        "Personalizado" -> parseCustomTextColor(nowPlayingCustomColorHexState.value)
-        COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
+    val nowPlayingIndicatorColor = when {
+        !isProUnlocked && (nowPlayingColorModeState.value == "Personalizado" || nowPlayingColorModeState.value == COLOR_MODE_RAINBOW) ->
+            if (isDarkBackground) Color.White else Color.Black // Personalizado/Arcoíris son de pago: cae al default
+        nowPlayingColorModeState.value == "Personalizado" -> parseCustomTextColor(nowPlayingCustomColorHexState.value)
+        nowPlayingColorModeState.value == COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Adaptativo": mismo default histórico del componente
     }
 

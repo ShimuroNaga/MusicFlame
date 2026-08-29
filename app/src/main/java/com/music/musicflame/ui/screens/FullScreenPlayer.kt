@@ -203,9 +203,19 @@ fun FullScreenPlayer(
     var showQueueScreen by remember { mutableStateOf(false) }
     val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
     val lyricsRepoRef = remember { com.music.musicflame.data.LyricsRepository(context) }
+    // Blinda el RENDERIZADO (no solo los selectores de Ajustes): si el valor
+    // guardado es una opción de pago y el usuario no está desbloqueado (p.ej.
+    // quedó guardado de cuando el flag de pruebas dejaba elegir cualquier
+    // cosa), se ignora y se usa el default gratis, en vez de seguir
+    // mostrando la personalización sin haber pagado.
+    val isProUnlocked = remember { com.music.musicflame.data.LicenseRepository(context).isProUnlocked() }
     val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
     val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
-    val lyricsColorMode = remember { settingsRepo.getLyricsTextColorMode() }
+    val lyricsColorMode = remember {
+        val saved = settingsRepo.getLyricsTextColorMode()
+        val locked = saved == "Personalizado" || saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW
+        if (!isProUnlocked && locked) "Adaptativo" else saved
+    }
     // Hex del color personalizado (catálogo, punto 2). Antes se pasaba "" a
     // resolveLyricsTextColor y por eso "Personalizado" nunca pintaba nada
     // distinto de negro (fallback de parseCustomTextColor ante texto vacío).
@@ -219,7 +229,12 @@ fun FullScreenPlayer(
     // Estilo visual del ecualizador (barras clásicas, espejado, ondas, círculo
     // pulsante, partículas, barras finas o VU meter retro), configurable en
     // Ajustes > Apariencia > "Estilo de ecualizador gráfico".
-    val equalizerStyle = remember { settingsRepo.getEqualizerStyle() }
+    val equalizerStyle = remember {
+        val saved = settingsRepo.getEqualizerStyle()
+        if (!isProUnlocked && saved != com.music.musicflame.ui.components.EqualizerStyle.BARS) {
+            com.music.musicflame.ui.components.EqualizerStyle.BARS
+        } else saved
+    }
 
     // Color de las barras del visualizador. Por defecto ("Adaptativo") sigue
     // igual que antes: blanco o negro según lo que haya detrás de las barras:
@@ -230,7 +245,14 @@ fun FullScreenPlayer(
     //    luminancia en vez de asumir "modo claro = tema claro" (por AMOLED, Material You, etc).
     // Con "Personalizado" (Ajustes > Apariencia > "Color del ecualizador") se
     // usa el color elegido por el usuario en vez de esta lógica adaptativa.
-    val equalizerColorMode = remember { settingsRepo.getEqualizerColorMode() }
+    // Los 3 modos (Adaptativo/Personalizado/Arcoíris) son de pago para este
+    // selector en particular, así que sin desbloquear cae siempre a "" (que
+    // resolveEqualizerColor no reconoce y por lo tanto usa adaptiveColor,
+    // el comportamiento de siempre).
+    val equalizerColorMode = remember {
+        val saved = settingsRepo.getEqualizerColorMode()
+        if (!isProUnlocked) "" else saved
+    }
     val equalizerCustomColorHex = remember { settingsRepo.getEqualizerCustomColorHex() }
     val equalizerAdaptiveColor = if (hasBackgroundImage) {
         Color.White

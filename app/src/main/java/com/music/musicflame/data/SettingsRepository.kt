@@ -19,6 +19,15 @@ class SettingsRepository(context: Context) {
     fun getDurationFilterMode(): String = prefs.getString("duration_filter_mode", "only") ?: "only"
     fun saveDurationFilterMode(mode: String) = prefs.edit().putString("duration_filter_mode", mode).apply()
 
+    // --- GUARDAR ETIQUETAS Y CARÁTULA REALES EN EL ARCHIVO (RealTagWriter) ---
+    // Si está activado, al editar título/artista/álbum/carátula desde "Editar
+    // etiquetas y carátula" también se escribe de verdad en los tags ID3 del
+    // archivo .mp3 en disco (no solo en SongCustomizationRepository). Requiere
+    // el permiso "Acceso a todos los archivos" (MANAGE_EXTERNAL_STORAGE).
+    // Apagado por defecto: modifica archivos reales del usuario, es opt-in.
+    fun isRealTagWritingEnabled(): Boolean = prefs.getBoolean("real_tag_writing_enabled", false)
+    fun saveRealTagWritingEnabled(enabled: Boolean) = prefs.edit().putBoolean("real_tag_writing_enabled", enabled).apply()
+
     // --- APARIENCIA ---
     fun getAppTheme(): String = prefs.getString("app_theme", "Siguiendo al sistema") ?: "Siguiendo al sistema"
     fun saveAppTheme(theme: String) = prefs.edit().putString("app_theme", theme).apply()

@@ -1,6 +1,8 @@
 package com.music.musicflame.ui.screens
 
 import android.content.Intent
+import android.net.Uri
+import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -15,6 +17,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.music.musicflame.data.RealTagWriter
+import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongCustomizationRepository
 import com.music.musicflame.data.getDefaultAlbumArtUri
@@ -52,10 +56,15 @@ data class SongEditPatch(
 fun EditSongDialog(
     selectedSongs: List<Song>,
     customizationRepo: SongCustomizationRepository,
+    settingsRepo: SettingsRepository,
     onDismiss: () -> Unit,
     onSaved: (List<SongEditPatch>) -> Unit
 ) {
     val context = LocalContext.current
+    // Si el usuario activó el switch en Ajustes > Canciones y ya tiene el
+    // permiso concedido, además de guardar la personalización en la app,
+    // escribimos de verdad los tags ID3 en el archivo .mp3 en disco.
+    val writeRealTags = settingsRepo.isRealTagWritingEnabled() && RealTagWriter.hasFileAccessPermission()
     val isSingle = selectedSongs.size == 1
     val song = selectedSongs.firstOrNull()
 
@@ -229,6 +238,27 @@ fun EditSongDialog(
                             clearAlbum = resetAlbum
                         )
 
+                        // --- Guardado real en el archivo (si el switch de Ajustes está activo) ---
+                        // Nota: solo aplica a valores NUEVOS (no a "restablecer"), y solo a .mp3;
+                        // ver limitaciones documentadas en RealTagWriter.
+                        if (writeRealTags && (newTitle != null || newArtist != null || newAlbum != null || pickedCoverUri != null)) {
+                            val wroteOk = RealTagWriter.applyTags(
+                                context = context,
+                                path = song.path,
+                                title = newTitle,
+                                artist = newArtist,
+                                album = newAlbum,
+                                coverUri = pickedCoverUri?.let { Uri.parse(it) }
+                            )
+                            if (!wroteOk) {
+                                Toast.makeText(
+                                    context,
+                                    "No se pudo guardar en el archivo real (¿formato soportado y permiso concedido?)",
+                                    Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+
                         // Valores FINALES a mostrar ya mismo en la lista (sin releer MediaStore):
                         val finalTitle = newTitle ?: if (resetTitle) getOriginalSongTitle(context, song.id) else null
                         val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, song.id) else null
@@ -246,6 +276,19 @@ fun EditSongDialog(
                         selectedSongs.forEach { s ->
                             val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, s.id) else null
                             if (finalCover != null) patches.add(SongEditPatch(s.id, null, finalCover))
+                        }
+
+                        // --- Guardado real en el archivo, para cada canción del lote ---
+                        if (writeRealTags && pickedCoverUri != null) {
+                            val coverUriParsed = Uri.parse(pickedCoverUri)
+                            var anyFailed = false
+                            selectedSongs.forEach { s ->
+                                val ok = RealTagWriter.applyTags(context = context, path = s.path, coverUri = coverUriParsed)
+                                if (!ok && RealTagWriter.isSupportedFile(s.path)) anyFailed = true
+                            }
+                            if (anyFailed) {
+                                Toast.makeText(context, "Algunas canciones no se pudieron actualizar en el archivo real", Toast.LENGTH_LONG).show()
+                            }
                         }
                     }
                     onSaved(patches)

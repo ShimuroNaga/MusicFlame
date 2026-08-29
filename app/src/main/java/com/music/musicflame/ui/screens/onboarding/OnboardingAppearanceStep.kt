@@ -11,7 +11,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.WarningAmber
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -30,7 +30,6 @@ import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.ui.components.AlbumArtShapePreview
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.ui.theme.parseCustomTextColor
-import com.music.musicflame.ui.theme.resolveIsDarkBackground
 
 // Mismos iconos, mismas claves y mismos labels que appIconOptions en SettingsScreen.kt
 private val appIconOptions = listOf(
@@ -74,34 +73,21 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
     var selectedIcon by remember { mutableStateOf(settingsRepo.getSelectedAppIcon()) }
     var selectedTheme by remember { mutableStateOf(settingsRepo.getAppTheme()) }
     var selectedShape by remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
-    // Antes se inicializaba con el string CRUDO guardado (settingsRepo.getAppTextColor()),
-    // que por defecto de fábrica es "Negro" sin importar el fondo real. Como MusicFlameTheme
-    // auto-corrige el color de texto real contra el fondo (ver Theme.kt), eso hacía que el
-    // wizard mostrara "Negro" seleccionado aunque el texto que se ve en pantalla fuera
-    // blanco (fondo oscuro) — justo el bug reportado. Ahora, si lo guardado es un preset
-    // ("Negro"/"Blanco"), se corrige para reflejar cuál de los dos es el que REALMENTE se
-    // está aplicando ahora mismo; "Personalizado" se respeta tal cual, sin tocar.
-    val isDarkBackgroundNow = resolveIsDarkBackground(settingsRepo)
+    // "Negro" y "Blanco" se fusionaron en una sola opción "Adaptativo": MusicFlameTheme
+    // siempre auto-corrige el color de texto contra la luminancia real del fondo (ver
+    // Theme.kt), así que mantenerlos como dos presets separados era engañoso — daba a
+    // entender que el usuario fijaba un color fijo cuando en realidad ambos terminaban
+    // resolviéndose al mismo blanco/negro automático. Si lo guardado es un preset legado
+    // ("Negro"/"Blanco" de instalaciones previas), se muestra como "Adaptativo"; solo
+    // "Personalizado" se respeta tal cual.
     var selectedTextColor by remember {
         mutableStateOf(
             settingsRepo.getAppTextColor().let { stored ->
-                if (stored == "Personalizado") stored else if (isDarkBackgroundNow) "Blanco" else "Negro"
+                if (stored == "Personalizado") stored else "Adaptativo"
             }
         )
     }
     var customTextColorHex by remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
-
-    // Con el ajuste global en MusicFlameTheme, "Negro" y "Blanco" ya se auto-
-    // corrigen según el fondo que quede activo — este mensaje es solo
-    // informativo, no un error, porque MusicFlame no dejará el texto
-    // invisible. Solo aplica a los presets; "Personalizado" es intencional.
-    val autoContrastNote = when {
-        selectedTheme == "Fondo blanco" && selectedTextColor == "Blanco" ->
-            "MusicFlame usará texto negro automáticamente para que se pueda leer sobre fondo blanco."
-        selectedTheme == "Fondo oscuro" && selectedTextColor == "Negro" ->
-            "MusicFlame usará texto blanco automáticamente para que se pueda leer sobre fondo oscuro."
-        else -> null
-    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
@@ -197,7 +183,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
         item { onboardingSectionHeader("Color de texto") }
         item {
             Column {
-                listOf("Negro", "Blanco", "Personalizado").forEach { colorOption ->
+                listOf("Adaptativo", "Personalizado").forEach { colorOption ->
                     ListItem(
                         headlineContent = { Text(colorOption) },
                         leadingContent = {
@@ -258,7 +244,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                     Spacer(Modifier.height(8.dp))
                 }
 
-                if (autoContrastNote != null) {
+                if (selectedTextColor == "Adaptativo") {
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
@@ -266,14 +252,14 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Icon(
-                            Icons.Filled.WarningAmber,
+                            Icons.Filled.Info,
                             contentDescription = null,
                             tint = trailingColor,
                             modifier = Modifier.size(20.dp)
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            autoContrastNote,
+                            "MusicFlame adaptará el color del texto (blanco o negro) según el color de fondo que elijas, para que siempre se pueda leer bien.",
                             color = mediumEmphasis,
                             style = MaterialTheme.typography.bodySmall
                         )

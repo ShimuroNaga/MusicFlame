@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import com.google.android.gms.auth.api.signin.GoogleSignIn
 
 enum class LicenseStatus { INACTIVE, ACTIVE, ERROR }
 
@@ -26,6 +27,8 @@ sealed class LicenseValidationResult {
  * específica de la app; solo queda lista y expuesta para usarse después.
  */
 class LicenseRepository(context: Context) {
+    // applicationContext (no la Activity) para evitar retener memoria de más.
+    private val appContext = context.applicationContext
     private val prefs = context.getSharedPreferences("license", Context.MODE_PRIVATE)
 
     private val KEY_LICENSE = "license_key"
@@ -49,11 +52,28 @@ class LicenseRepository(context: Context) {
     fun getLastError(): String? = prefs.getString(KEY_LAST_ERROR, null)
 
     /**
-     * true si hay una licencia guardada y su último estado conocido es ACTIVE.
+     * true si la cuenta de Google con la que el usuario ya inició sesión en la
+     * app (la misma que usa para Drive/YouTube, ver MainActivity) es la del
+     * dueño/creador (OWNER_EMAIL). No requiere ninguna license key.
+     *
+     * Si nadie inició sesión con Google en la app (GoogleSignIn.getLastSignedInAccount
+     * devuelve null), esto simplemente da false y no desbloquea nada — el dueño
+     * necesitaría iniciar sesión con esa cuenta al menos una vez para que aplique.
+     */
+    fun isOwnerAccount(): Boolean {
+        val account = GoogleSignIn.getLastSignedInAccount(appContext) ?: return false
+        return account.email?.equals(OWNER_EMAIL, ignoreCase = true) == true
+    }
+
+    /**
+     * true si hay una licencia guardada y su último estado conocido es ACTIVE,
+     * O si quien tiene la sesión de Google iniciada en la app es el dueño
+     * (ver [isOwnerAccount]) — el dueño nunca necesita comprarse su propia key.
      * Todavía no desbloquea nada en la app: queda lista para usarse cuando
      * se decida qué función específica proteger.
      */
-    fun isProUnlocked(): Boolean = getSavedLicenseKey() != null && getStatus() == LicenseStatus.ACTIVE
+    fun isProUnlocked(): Boolean =
+        isOwnerAccount() || (getSavedLicenseKey() != null && getStatus() == LicenseStatus.ACTIVE)
 
     /** Muestra la key con solo los últimos 4 caracteres visibles, ej. "********-4835". */
     fun maskedKey(): String? {
@@ -172,6 +192,11 @@ class LicenseRepository(context: Context) {
     }
 
     companion object {
+        // Correo del dueño/creador de la app: si la sesión de Google Sign-In
+        // activa en el dispositivo coincide con este correo, isProUnlocked()
+        // da true automáticamente, sin necesidad de license key.
+        const val OWNER_EMAIL = "oomo87284@gmail.com"
+
         // TODO: reemplaza esto por el link real de tu checkout/producto en
         // Lemon Squeezy (Store > Products > "Get link" o tu propia página de
         // checkout personalizada). Formato típico:

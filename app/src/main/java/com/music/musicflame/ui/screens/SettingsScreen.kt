@@ -72,6 +72,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -261,6 +262,27 @@ fun SettingsScreen(
     // para interacción (checkout/backend todavía no confirmados).
     // Cambiar a false cuando se habilite el flujo real.
     val paymentsSectionLocked = true
+
+    // Gatilla real de las 15 personalizaciones de pago del catálogo (estilos
+    // de ecualizador, colores, widget vinilo): true solo si hay licencia
+    // activa o si quien inició sesión con Google en la app es el dueño (ver
+    // LicenseRepository.isOwnerAccount). Independiente de paymentsSectionLocked
+    // de arriba, que solo bloquea la UI de "pegar license key" mientras no
+    // exista la tienda real.
+    val isProUnlocked = licenseRepo.isProUnlocked()
+    fun showLockedFeatureToast() {
+        Toast.makeText(
+            context,
+            "Esto es de pago ($5 MXN). Actívalo en Ajustes > Pagos (opcional).",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
+
+    // Selección del usuario en la tabla informativa/preview de Ajustes > Pagos
+    // (ver PaymentCatalog): NO desbloquea nada por sí sola — el desbloqueo real
+    // es "todo o nada" con una sola licencia (isProUnlocked) — solo sirve para
+    // que el usuario vea cuánto costaría lo que le interesa antes de comprar.
+    val selectedCatalogItemIds = remember { mutableStateOf(setOf<String>()) }
 
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
     val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
@@ -1449,10 +1471,15 @@ fun SettingsScreen(
                                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                         listOf("Blanco", "Negro", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { opt ->
                                             val selected = lyricsColorModePref.value == opt
+                                            // Personalizado y Arcoíris son de pago acá; Blanco y Negro gratis.
+                                            val locked = !isProUnlocked && (opt == "Personalizado" || opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW)
                                             androidx.compose.material3.FilterChip(
                                                 selected = selected,
+                                                enabled = !locked,
                                                 onClick = {
-                                                    if (opt == "Personalizado") {
+                                                    if (locked) {
+                                                        showLockedFeatureToast()
+                                                    } else if (opt == "Personalizado") {
                                                         // Selección visual inmediata; el modo recién se
                                                         // persiste al confirmar un color en el diálogo
                                                         // (igual que "Color del ecualizador").
@@ -1463,6 +1490,9 @@ fun SettingsScreen(
                                                         settingsRepo.saveLyricsTextColorMode(opt)
                                                     }
                                                 },
+                                                leadingIcon = if (locked) {
+                                                    { Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(14.dp)) }
+                                                } else null,
                                                 label = { Text(if (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else opt, fontSize = 12.sp) },
                                                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -1602,6 +1632,123 @@ fun SettingsScreen(
                     if (activeSection.value == "Pagos (opcional)") {
                         item { sectionHeader("Licencia de apoyo (opcional)") }
 
+                        // --- TABLA SELECCIONABLE DEL CATÁLOGO (informativa/preview) ---
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Text(
+                                        "Personalizaciones disponibles",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                    Text(
+                                        "Marca lo que te interese para ver cuánto costaría. La compra real desbloquea TODO de una sola vez (no se puede comprar solo una parte).",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                                    )
+
+                                    com.music.musicflame.data.PaymentCatalog.ITEMS
+                                        .groupBy { it.section }
+                                        .forEach { (section, itemsInSection) ->
+                                            Text(
+                                                section,
+                                                fontWeight = FontWeight.Bold,
+                                                fontSize = 12.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
+                                            )
+                                            itemsInSection.forEach { catalogItem ->
+                                                val checked = selectedCatalogItemIds.value.contains(catalogItem.id)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clickable {
+                                                            selectedCatalogItemIds.value =
+                                                                if (checked) selectedCatalogItemIds.value - catalogItem.id
+                                                                else selectedCatalogItemIds.value + catalogItem.id
+                                                        }
+                                                        .padding(vertical = 4.dp)
+                                                ) {
+                                                    Checkbox(
+                                                        checked = checked,
+                                                        onCheckedChange = { isChecked ->
+                                                            selectedCatalogItemIds.value =
+                                                                if (isChecked) selectedCatalogItemIds.value + catalogItem.id
+                                                                else selectedCatalogItemIds.value - catalogItem.id
+                                                        }
+                                                    )
+                                                    Spacer(Modifier.width(4.dp))
+                                                    Text(catalogItem.label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                                    Text(
+                                                        "$${com.music.musicflame.data.PaymentCatalog.PRICE_PER_ITEM_MXN} MXN",
+                                                        fontSize = 12.sp,
+                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
+
+                                    val selectedCount = selectedCatalogItemIds.value.size
+                                    val selectedTotal = selectedCount * com.music.musicflame.data.PaymentCatalog.PRICE_PER_ITEM_MXN
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "Total seleccionado ($selectedCount de ${com.music.musicflame.data.PaymentCatalog.ITEMS.size})",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                        Text(
+                                            "$$selectedTotal MXN",
+                                            fontSize = 16.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.primary
+                                        )
+                                    }
+
+                                    Spacer(Modifier.height(12.dp))
+
+                                    Button(
+                                        onClick = {
+                                            if (selectedCount == 0) {
+                                                Toast.makeText(context, "Marca al menos un ítem primero.", Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LicenseRepository.CHECKOUT_URL))
+                                                context.startActivity(intent)
+                                            }
+                                        },
+                                        enabled = !paymentsSectionLocked,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Text(
+                                            if (selectedCount == 0) "Selecciona algo para desbloquear"
+                                            else "Desbloquear por $$selectedTotal MXN",
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                    Text(
+                                        "Recuerda: aunque marques menos de $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN, la compra abre TODAS las personalizaciones (Lemon Squeezy no vende partes sueltas de un mismo producto).",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 8.dp)
+                                    )
+                                }
+                            }
+                        }
+
                         item {
                             Card(
                                 modifier = Modifier
@@ -1621,7 +1768,7 @@ fun SettingsScreen(
                                         )
                                         Spacer(Modifier.width(12.dp))
                                         Text(
-                                            "MusicFlame es y seguirá siendo gratis. Esta licencia es solo una forma opcional de apoyar el desarrollo; no desbloquea nada todavía.",
+                                            "Una sola licencia desbloquea las ${com.music.musicflame.data.PaymentCatalog.ITEMS.size} personalizaciones de la tabla de arriba ($${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN en total). MusicFlame en sí es y seguirá siendo gratis.",
                                             fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onTertiaryContainer
                                         )
@@ -1976,12 +2123,14 @@ fun SettingsScreen(
         if (showEqualizerStyleDialog.value) {
             com.music.musicflame.ui.components.EqualizerStylePickerDialog(
                 currentStyle = equalizerStyle.value,
+                isUnlocked = isProUnlocked,
                 onDismiss = { showEqualizerStyleDialog.value = false },
                 onConfirm = { newStyle ->
                     equalizerStyle.value = newStyle
                     settingsRepo.saveEqualizerStyle(newStyle)
                     showEqualizerStyleDialog.value = false
-                }
+                },
+                onLockedStyleClick = { showLockedFeatureToast() }
             )
         }
 
@@ -2045,17 +2194,34 @@ fun SettingsScreen(
                 text = {
                     Column {
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
+                            // Solo Arcoíris es de pago acá; Adaptativo y Personalizado son gratis.
+                            val locked = !isProUnlocked && colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { tempTextColor.value = colorOption }
+                                    .alpha(if (locked) 0.5f else 1f)
+                                    .clickable {
+                                        if (locked) showLockedFeatureToast() else tempTextColor.value = colorOption
+                                    }
                                     .padding(vertical = 8.dp)
                             ) {
-                                RadioButton(selected = tempTextColor.value == colorOption, onClick = { tempTextColor.value = colorOption })
+                                RadioButton(
+                                    selected = tempTextColor.value == colorOption,
+                                    enabled = !locked,
+                                    onClick = { if (locked) showLockedFeatureToast() else tempTextColor.value = colorOption }
+                                )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                        if (locked) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Spacer(Modifier.width(2.dp))
+                                            Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                     if (colorOption == "Adaptativo") {
                                         Text(
                                             "Blanco o negro según el fondo, como hasta ahora",
@@ -2158,18 +2324,38 @@ fun SettingsScreen(
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
+                        // Los 3 modos (Adaptativo, Personalizado, Arcoíris) son de pago
+                        // para este selector en particular (a diferencia de "Color de
+                        // texto"/"Now Playing", donde Adaptativo es gratis): el gratis
+                        // acá es simplemente no tocar este selector.
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
+                            val locked = !isProUnlocked
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { tempEqColorMode.value = colorOption }
+                                    .alpha(if (locked) 0.5f else 1f)
+                                    .clickable {
+                                        if (locked) showLockedFeatureToast() else tempEqColorMode.value = colorOption
+                                    }
                                     .padding(vertical = 8.dp)
                             ) {
-                                RadioButton(selected = tempEqColorMode.value == colorOption, onClick = { tempEqColorMode.value = colorOption })
+                                RadioButton(
+                                    selected = tempEqColorMode.value == colorOption,
+                                    enabled = !locked,
+                                    onClick = { if (locked) showLockedFeatureToast() else tempEqColorMode.value = colorOption }
+                                )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                        if (locked) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Spacer(Modifier.width(2.dp))
+                                            Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                     if (colorOption == "Adaptativo") {
                                         Text(
                                             "Blanco o negro según el fondo, como hasta ahora",
@@ -2187,7 +2373,7 @@ fun SettingsScreen(
                             }
                         }
 
-                        if (tempEqColorMode.value == "Personalizado") {
+                        if (tempEqColorMode.value == "Personalizado" && isProUnlocked) {
                             Spacer(Modifier.height(4.dp))
 
                             // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color de texto" ---
@@ -2362,17 +2548,34 @@ fun SettingsScreen(
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
+                            // Personalizado y Arcoíris son de pago acá; Adaptativo es gratis.
+                            val locked = !isProUnlocked && colorOption != "Adaptativo"
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { tempNowPlayingColorMode.value = colorOption }
+                                    .alpha(if (locked) 0.5f else 1f)
+                                    .clickable {
+                                        if (locked) showLockedFeatureToast() else tempNowPlayingColorMode.value = colorOption
+                                    }
                                     .padding(vertical = 8.dp)
                             ) {
-                                RadioButton(selected = tempNowPlayingColorMode.value == colorOption, onClick = { tempNowPlayingColorMode.value = colorOption })
+                                RadioButton(
+                                    selected = tempNowPlayingColorMode.value == colorOption,
+                                    enabled = !locked,
+                                    onClick = { if (locked) showLockedFeatureToast() else tempNowPlayingColorMode.value = colorOption }
+                                )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                        if (locked) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Spacer(Modifier.width(2.dp))
+                                            Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
                                     if (colorOption == "Adaptativo") {
                                         Text(
                                             "Blanco o negro según el fondo, como hasta ahora",
@@ -2390,7 +2593,7 @@ fun SettingsScreen(
                             }
                         }
 
-                        if (tempNowPlayingColorMode.value == "Personalizado") {
+                        if (tempNowPlayingColorMode.value == "Personalizado" && isProUnlocked) {
                             Spacer(Modifier.height(4.dp))
 
                             // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color del ecualizador" ---

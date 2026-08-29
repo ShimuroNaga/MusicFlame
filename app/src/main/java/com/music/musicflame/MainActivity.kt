@@ -167,6 +167,9 @@ class MainActivity : ComponentActivity() {
                         isYouTubeLinked = GoogleSignIn.hasPermissions(account, youtubeScope)
                         isDriveLinked = GoogleSignIn.hasPermissions(account, driveScope)
                     }
+                    // Si la cuenta con sesión ya iniciada es la del dueño (correo),
+                    // esto activa Arcoíris y el resto de cosméticos de pago al instante.
+                    com.music.musicflame.data.ProStatusHolder.refresh(context)
                 }
 
                 val signInLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -178,6 +181,9 @@ class MainActivity : ComponentActivity() {
                         userPhotoUrl = account.photoUrl?.toString()
                         isYouTubeLinked = GoogleSignIn.hasPermissions(account, youtubeScope)
                         isDriveLinked = GoogleSignIn.hasPermissions(account, driveScope)
+                        // Si esta es la cuenta dueña, activa Arcoíris y el resto de
+                        // cosméticos de pago al instante, sin reiniciar la app.
+                        com.music.musicflame.data.ProStatusHolder.refresh(context)
                     } catch (e: Exception) {
                         Toast.makeText(context, "Error al iniciar sesión", Toast.LENGTH_SHORT).show()
                     }
@@ -203,6 +209,9 @@ class MainActivity : ComponentActivity() {
                 // o reembolsó. Si no hay internet, revalidateSilently() no toca el estado local.
                 LaunchedEffect(Unit) {
                     licenseRepo.revalidateSilently()
+                    // Por si Lemon Squeezy revocó/reembolsó la licencia (o la
+                    // reactivó) desde la última vez que se abrió la app.
+                    com.music.musicflame.data.ProStatusHolder.refresh(context)
                 }
 
                 // --- Onboarding de primer uso: se muestra una sola vez ---
@@ -866,6 +875,13 @@ class MainActivity : ComponentActivity() {
                                             isYouTubeLinked = false
                                             isDriveLinked = false
                                             syncedFileNames = emptySet() // Limpiar al salir
+                                            // Si el desbloqueo Pro dependía de ser la cuenta dueña
+                                            // (correo) y no de una license key de pago, esto lo
+                                            // bloquea al instante en toda la app (Arcoíris, estilos
+                                            // de ecualizador, etc.). Si además hay una license key
+                                            // activa guardada, isProUnlocked() sigue dando true —
+                                            // el pago es independiente de la sesión de Google.
+                                            com.music.musicflame.data.ProStatusHolder.refresh(context)
                                         }
                                     },
                                     onRefreshUserProfile = {

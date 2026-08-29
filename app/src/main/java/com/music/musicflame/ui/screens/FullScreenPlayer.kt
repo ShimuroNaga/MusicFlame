@@ -208,10 +208,16 @@ fun FullScreenPlayer(
     // quedó guardado de cuando el flag de pruebas dejaba elegir cualquier
     // cosa), se ignora y se usa el default gratis, en vez de seguir
     // mostrando la personalización sin haber pagado.
-    val isProUnlocked = remember { com.music.musicflame.data.LicenseRepository(context).isProUnlocked() }
+    // Reactivo (ver ProStatusHolder): antes quedaba "congelado" con el valor
+    // que tenía cuando se abría el reproductor a pantalla completa, así que
+    // comprar o iniciar sesión con la cuenta dueña no se reflejaba acá hasta
+    // reiniciar la app. Ahora se lee del estado global compartido.
+    val isProUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
     val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
     val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
-    val lyricsColorMode = remember {
+    // remember(isProUnlocked): se recalcula solo cuando cambia el desbloqueo
+    // (no en cada tick de posición), pero ya no queda pegado al valor viejo.
+    val lyricsColorMode = remember(isProUnlocked) {
         val saved = settingsRepo.getLyricsTextColorMode()
         val locked = saved == "Personalizado" || saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW
         if (!isProUnlocked && locked) "Adaptativo" else saved
@@ -229,7 +235,7 @@ fun FullScreenPlayer(
     // Estilo visual del ecualizador (barras clásicas, espejado, ondas, círculo
     // pulsante, partículas, barras finas o VU meter retro), configurable en
     // Ajustes > Apariencia > "Estilo de ecualizador gráfico".
-    val equalizerStyle = remember {
+    val equalizerStyle = remember(isProUnlocked) {
         val saved = settingsRepo.getEqualizerStyle()
         if (!isProUnlocked && saved != com.music.musicflame.ui.components.EqualizerStyle.BARS) {
             com.music.musicflame.ui.components.EqualizerStyle.BARS
@@ -249,7 +255,7 @@ fun FullScreenPlayer(
     // selector en particular, así que sin desbloquear cae siempre a "" (que
     // resolveEqualizerColor no reconoce y por lo tanto usa adaptiveColor,
     // el comportamiento de siempre).
-    val equalizerColorMode = remember {
+    val equalizerColorMode = remember(isProUnlocked) {
         val saved = settingsRepo.getEqualizerColorMode()
         if (!isProUnlocked) "" else saved
     }

@@ -269,7 +269,13 @@ fun SettingsScreen(
     // LicenseRepository.isOwnerAccount). Independiente de paymentsSectionLocked
     // de arriba, que solo bloquea la UI de "pegar license key" mientras no
     // exista la tienda real.
-    val isProUnlocked = licenseRepo.isProUnlocked()
+    // Reactivo (ver ProStatusHolder): se actualiza solo apenas se valida una
+    // key o se inicia sesión con la cuenta dueña, sin esperar a reabrir esta
+    // pantalla ni la app.
+    val isProUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.music.musicflame.data.ProStatusHolder.refresh(context)
+    }
     fun showLockedFeatureToast() {
         Toast.makeText(
             context,
@@ -1890,6 +1896,9 @@ fun SettingsScreen(
                                                             productName = result.productName
                                                             licenseInput = ""
                                                             errorMessage = null
+                                                            // Activa Arcoíris y el resto de cosméticos de pago
+                                                            // al instante en toda la app (tema, reproductor, etc.).
+                                                            com.music.musicflame.data.ProStatusHolder.refresh(context)
                                                             Toast.makeText(
                                                                 context,
                                                                 "¡Licencia activada! Gracias por tu apoyo.",
@@ -1932,6 +1941,9 @@ fun SettingsScreen(
                                                 productName = null
                                                 errorMessage = null
                                                 licenseInput = ""
+                                                // Bloquea Arcoíris y el resto de cosméticos de pago
+                                                // al instante en toda la app.
+                                                com.music.musicflame.data.ProStatusHolder.refresh(context)
                                             },
                                             enabled = !paymentsSectionLocked,
                                             modifier = Modifier.fillMaxWidth()

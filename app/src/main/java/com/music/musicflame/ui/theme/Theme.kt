@@ -39,9 +39,21 @@ fun MusicFlameTheme(
     // valor guardado es una opción de pago y el usuario no está desbloqueado,
     // se ignora acá abajo y se cae al comportamiento gratis de siempre, en
     // vez de seguir mostrando la personalización sin haber pagado.
-    val isProUnlocked = remember { com.music.musicflame.data.LicenseRepository(context).isProUnlocked() }
+    //
+    // Reactivo (ver ProStatusHolder): antes esto quedaba fijo con
+    // remember{} desde que arrancaba la app, así que iniciar sesión con la
+    // cuenta dueña o activar una license key no se reflejaba en el Arcoíris
+    // hasta cerrar y reabrir la app por completo.
+    val isProUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
 
-    // Registrar un listener para detectar cambios en SharedPreferences en tiempo real
+    // Primer chequeo al entrar en composición (por si esta instancia de
+    // MusicFlameTheme se crea antes de que MainActivity haya corrido su
+    // propio refresh de arranque).
+    androidx.compose.runtime.LaunchedEffect(Unit) {
+        com.music.musicflame.data.ProStatusHolder.refresh(context)
+    }
+
+    // Registrar listeners para detectar cambios en SharedPreferences en tiempo real
     DisposableEffect(context) {
         val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
@@ -56,11 +68,22 @@ fun MusicFlameTheme(
                 "now_playing_custom_color_hex" -> nowPlayingCustomColorHexState.value = settingsRepo.getNowPlayingCustomColorHex()
             }
         }
-
         prefs.registerOnSharedPreferenceChangeListener(listener)
+
+        // NUEVO: mismo patrón pero para el archivo de preferencias de la
+        // licencia (pago). Así, si se activa/revoca/quita la license key
+        // desde Ajustes, el tema global se entera al instante.
+        val licensePrefs = context.getSharedPreferences("license", Context.MODE_PRIVATE)
+        val licenseListener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+            if (key == "license_status" || key == "license_key") {
+                com.music.musicflame.data.ProStatusHolder.refresh(context)
+            }
+        }
+        licensePrefs.registerOnSharedPreferenceChangeListener(licenseListener)
 
         onDispose {
             prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            licensePrefs.unregisterOnSharedPreferenceChangeListener(licenseListener)
         }
     }
 

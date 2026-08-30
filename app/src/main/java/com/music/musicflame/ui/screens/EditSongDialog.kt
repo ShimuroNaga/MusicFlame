@@ -49,11 +49,13 @@ data class SongEditPatch(
  * Diálogo de "Editar carátula y nombre", accesible desde la selección múltiple
  * de canciones (menú de Opciones > Editar carátula y nombre).
  *
- * - Si se seleccionó UNA sola canción: permite cambiar su nombre y su carátula
- *   (imagen o GIF), con opción de restablecer cada campo a su valor original.
- * - Si se seleccionaron VARIAS: aplica la misma carátula personalizada a todas
- *   a la vez (el nombre no se edita en modo por lote, porque cada canción
- *   necesita el suyo propio).
+ * - Si se seleccionó UNA sola canción: permite cambiar su nombre, artista,
+ *   álbum y carátula (imagen o GIF), con opción de restablecer cada campo a
+ *   su valor original.
+ * - Si se seleccionaron VARIAS: aplica la misma carátula y/o el mismo nombre
+ *   de álbum a todas a la vez (para juntarlas en un solo álbum de una sola
+ *   pasada). El nombre y el artista no se editan en modo por lote, porque
+ *   cada canción necesita el suyo propio.
  */
 @Composable
 fun EditSongDialog(
@@ -80,7 +82,10 @@ fun EditSongDialog(
     var resetTitle by remember { mutableStateOf(false) }
     // --- NUEVO: editor de etiquetas/metadata (artista y álbum) ---
     var artistText by remember(song?.id) { mutableStateOf(song?.artist ?: "") }
-    var albumText by remember(song?.id) { mutableStateOf(song?.album ?: "") }
+    // En modo lote (varias canciones) el álbum arranca vacío: no asumimos que
+    // todas comparten el mismo álbum de origen, y solo se aplica si el usuario
+    // escribe algo explícitamente.
+    var albumText by remember(song?.id) { mutableStateOf(if (isSingle) song?.album ?: "" else "") }
     var resetArtist by remember { mutableStateOf(false) }
     var resetAlbum by remember { mutableStateOf(false) }
 
@@ -107,7 +112,8 @@ fun EditSongDialog(
                     resetTitle || (titleText.isNotBlank() && titleText != song?.title) ||
                             resetArtist || (artistText.isNotBlank() && artistText != song?.artist) ||
                             resetAlbum || (albumText.isNotBlank() && albumText != song?.album)
-                    ))
+                    )) ||
+            (!isSingle && albumText.isNotBlank())
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -122,7 +128,7 @@ fun EditSongDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                AlbumArt(previewCoverUri, 96.dp, 14.dp)
+                AlbumArt(previewCoverUri, 96.dp, 14.dp, filePath = song?.path)
 
                 Spacer(Modifier.height(12.dp))
 
@@ -210,7 +216,26 @@ fun EditSongDialog(
                     }
                 } else {
                     Text(
-                        text = "El nombre, artista y álbum solo se pueden editar seleccionando una sola canción.",
+                        text = "El nombre y el artista solo se pueden editar seleccionando una sola canción.",
+                        style = MaterialTheme.typography.bodySmall,
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(top = 4.dp)
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
+                    // Álbum en lote: para juntar varias canciones (p. ej. varios
+                    // singles de un mismo artista) en un solo álbum de una vez,
+                    // en lugar de tener que editar canción por canción.
+                    OutlinedTextField(
+                        value = albumText,
+                        onValueChange = { albumText = it; resetAlbum = false },
+                        label = { Text("Álbum (para las ${selectedSongs.size} canciones)") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Text(
+                        text = "Si además eliges una carátula arriba, se usará esa misma para las ${selectedSongs.size} canciones y para representar el álbum.",
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp)
@@ -275,24 +300,39 @@ fun EditSongDialog(
                         if (finalTitle != null || finalCover != null || finalArtist != null || finalAlbum != null) {
                             patches.add(SongEditPatch(song.id, finalTitle, finalCover, finalArtist, finalAlbum))
                         }
-                    } else if (selectedSongs.isNotEmpty() && (pickedCoverUri != null || resetCover)) {
+                    } else if (selectedSongs.isNotEmpty() && (pickedCoverUri != null || resetCover || albumText.isNotBlank())) {
+                        val batchAlbum = albumText.takeIf { it.isNotBlank() }
+
                         customizationRepo.setCoverForSongs(
                             songIds = selectedSongs.map { it.id },
                             coverUri = pickedCoverUri,
                             clearCover = resetCover
                         )
+                        if (batchAlbum != null) {
+                            customizationRepo.setAlbumForSongs(
+                                songIds = selectedSongs.map { it.id },
+                                album = batchAlbum
+                            )
+                        }
                         scope.launch { SongLibraryHolder.refresh(context) }
                         selectedSongs.forEach { s ->
                             val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, s.id) else null
-                            if (finalCover != null) patches.add(SongEditPatch(s.id, null, finalCover))
+                            if (finalCover != null || batchAlbum != null) {
+                                patches.add(SongEditPatch(s.id, newCoverUri = finalCover, newAlbum = batchAlbum))
+                            }
                         }
 
                         // --- Guardado real en el archivo, para cada canción del lote ---
-                        if (writeRealTags && pickedCoverUri != null) {
-                            val coverUriParsed = Uri.parse(pickedCoverUri)
+                        if (writeRealTags && (pickedCoverUri != null || batchAlbum != null)) {
+                            val coverUriParsed = pickedCoverUri?.let { Uri.parse(it) }
                             var anyFailed = false
                             selectedSongs.forEach { s ->
-                                val ok = RealTagWriter.applyTags(context = context, path = s.path, coverUri = coverUriParsed)
+                                val ok = RealTagWriter.applyTags(
+                                    context = context,
+                                    path = s.path,
+                                    album = batchAlbum,
+                                    coverUri = coverUriParsed
+                                )
                                 if (!ok && RealTagWriter.isSupportedFile(s.path)) anyFailed = true
                             }
                             if (anyFailed) {

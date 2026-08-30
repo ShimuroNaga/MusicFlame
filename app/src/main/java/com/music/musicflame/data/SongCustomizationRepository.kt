@@ -129,6 +129,28 @@ class SongCustomizationRepository(context: Context) {
         writeAll(map)
     }
 
+    /**
+     * Aplica el mismo nombre de álbum a varias canciones a la vez (para juntarlas
+     * en un solo álbum desde selección múltiple, sin tener que editarlas una por una).
+     * No toca la carátula de cada canción; combínalo con [setCoverForSongs] si además
+     * quieres que todas compartan una misma carátula para representar el álbum.
+     */
+    fun setAlbumForSongs(songIds: List<Long>, album: String?, clearAlbum: Boolean = false) {
+        val map = readAll()
+        val newAlbum = if (clearAlbum) null else album?.trim()?.takeIf { it.isNotBlank() }
+        songIds.forEach { id ->
+            val key = id.toString()
+            val current = map[key] ?: SongCustomization()
+            val updated = current.copy(album = newAlbum)
+            if (updated.title == null && updated.coverUri == null && updated.artist == null && updated.album == null) {
+                map.remove(key)
+            } else {
+                map[key] = updated
+            }
+        }
+        writeAll(map)
+    }
+
     /** Elimina toda personalización (nombre y carátula) de una canción. */
     fun clearCustomization(songId: Long) {
         val map = readAll()

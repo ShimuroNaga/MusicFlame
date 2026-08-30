@@ -234,6 +234,11 @@ class MusicPlaybackService : MediaSessionService() {
 
         mediaSession = MediaSession.Builder(this, player)
             .setCallback(CustomMediaSessionCallback())
+            // ARREGLO carátula en la notificación: sin este BitmapLoader, Media3
+            // intenta cargar directamente la Uri "de fábrica" de MediaStore por
+            // álbum (deprecada en Android 10+) y falla en silencio. Ver
+            // SongArtBitmapLoader/SongArtLoader para el detalle del fallback.
+            .setBitmapLoader(SongArtBitmapLoader(this))
             .build()
 
         // Registramos el proveedor de notificación personalizado (ver la clase

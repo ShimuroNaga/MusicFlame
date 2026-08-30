@@ -53,6 +53,8 @@ import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.components.YoutubeVerifyWebView
+import com.music.musicflame.ui.components.embeddedArtUriFor
+import com.music.musicflame.ui.components.SharedAlbumArtImageLoader
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.safeScreenPadding
 import com.music.musicflame.ui.utils.rememberSafeBottomPadding
@@ -705,9 +707,41 @@ fun FullScreenPlayer(
                                             .background(MaterialTheme.colorScheme.surfaceVariant),
                                         contentAlignment = Alignment.Center
                                     ) {
-                                        if (pageSong.albumArtUri != null) {
+                                        // ANTES: acá se cargaba pageSong.albumArtUri directo con Coil.
+                                        // Eso es la Uri "de fábrica" por ÁLBUM (no por canción); cuando
+                                        // varias canciones se agrupan en el mismo álbum, Android les
+                                        // asigna el mismo ALBUM_ID y esa Uri devuelve UN SOLO bitmap
+                                        // "representante" para todas ellas (la carga no falla, solo trae
+                                        // la imagen equivocada) -> se veía la misma carátula repetida
+                                        // para las N canciones del álbum en vez de la real de cada una.
+                                        // AHORA: replicamos la misma resolución con fallback que ya usa
+                                        // el componente compartido AlbumArt() (carátula personalizada
+                                        // primero si existe, si no la embebida real de ESE archivo
+                                        // puntual, y solo como último recurso la Uri genérica del álbum).
+                                        var useEmbeddedFallback by remember(pageSong.id) { mutableStateOf(false) }
+                                        var useAlbumUriFallback by remember(pageSong.id) { mutableStateOf(false) }
+
+                                        val effectiveArtModel: Any? = when {
+                                            pageSong.hasCustomCover && pageSong.albumArtUri != null && !useEmbeddedFallback -> pageSong.albumArtUri
+                                            pageSong.path.isNotEmpty() && !useAlbumUriFallback -> embeddedArtUriFor(pageSong.path)
+                                            !pageSong.hasCustomCover && pageSong.albumArtUri != null -> pageSong.albumArtUri
+                                            else -> null
+                                        }
+
+                                        if (effectiveArtModel != null) {
                                             SubcomposeAsyncImage(
-                                                model = ImageRequest.Builder(context).data(pageSong.albumArtUri).crossfade(true).build(),
+                                                model = ImageRequest.Builder(context)
+                                                    .data(effectiveArtModel)
+                                                    .crossfade(true)
+                                                    .allowHardware(false)
+                                                    .listener(onError = { _, _ ->
+                                                        when {
+                                                            pageSong.hasCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
+                                                            !useAlbumUriFallback -> useAlbumUriFallback = true
+                                                        }
+                                                    })
+                                                    .build(),
+                                                imageLoader = SharedAlbumArtImageLoader.get(context),
                                                 contentDescription = "Carátula",
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
@@ -717,7 +751,7 @@ fun FullScreenPlayer(
                                                     // Carátula encontrada: mostramos la imagen real
                                                     SubcomposeAsyncImageContent()
                                                 } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
-                                                    // No hay carátula real (o la URI falló): mostramos el ícono
+                                                    // No hay carátula real (ni personalizada, ni embebida, ni de álbum): ícono
                                                     Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
                                                 }
                                                 // Mientras carga no mostramos nada: se ve el fondo gris de la Box

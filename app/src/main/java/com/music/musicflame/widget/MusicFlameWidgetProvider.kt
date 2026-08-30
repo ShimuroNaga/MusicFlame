@@ -8,7 +8,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.ColorStateList
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -16,7 +15,6 @@ import android.graphics.Path
 import android.graphics.PorterDuff
 import android.graphics.PorterDuffXfermode
 import android.graphics.RectF
-import android.net.Uri
 import android.util.SizeF
 import android.widget.RemoteViews
 import androidx.core.content.ContextCompat
@@ -24,6 +22,7 @@ import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.MainActivity
 import com.music.musicflame.R
 import com.music.musicflame.data.SettingsRepository
+import com.music.musicflame.data.SongArtLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -452,16 +451,11 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
 
             return withContext(Dispatchers.IO) {
                 try {
-                    val uri = Uri.parse(artUriString)
-                    val source = when (uri.scheme) {
-                        "content", "file" -> {
-                            context.contentResolver.openInputStream(uri)?.use {
-                                BitmapFactory.decodeStream(it)
-                            }
-                        }
-                        else -> null
-                    } ?: return@withContext null
-
+                    // NOTA: usamos SongArtLoader en vez de leer la Uri a mano acá,
+                    // porque ahora puede llegar el esquema "empaquetado" de
+                    // carátula embebida real con fallback (ver SongArtLoader.kt);
+                    // el content resolver directo ya no alcanza para ese caso.
+                    val source = SongArtLoader.loadBitmap(context, artUriString) ?: return@withContext null
                     clipToShape(source, shape, cornerRadiusPx = 20f)
                 } catch (e: IOException) {
                     null

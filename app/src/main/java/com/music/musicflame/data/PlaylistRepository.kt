@@ -40,7 +40,7 @@ private const val MOST_PLAYED_LIMIT = 30
  */
 fun buildMostPlayedPlaylist(context: Context): Playlist {
     val statsRepo = StatsRepository(context)
-    val libraryIds = loadSongsFromDevice(context).map { it.id }.toSet()
+    val libraryIds = SongLibraryHolder.songs.map { it.id }.toSet()
     val topIds = statsRepo.getTopPlayed(MOST_PLAYED_LIMIT)
         .filter { (id, stat) -> stat.playCount > 0 && id in libraryIds }
         .map { it.first }
@@ -56,7 +56,7 @@ fun buildMostPlayedPlaylist(context: Context): Playlist {
 fun buildNeverPlayedPlaylist(context: Context): Playlist {
     val statsRepo = StatsRepository(context)
     val playedIds = statsRepo.getAllStats().filterValues { it.playCount > 0 }.keys
-    val neverPlayedIds = loadSongsFromDevice(context)
+    val neverPlayedIds = SongLibraryHolder.songs
         .filter { it.id !in playedIds }
         .sortedByDescending { it.dateAdded }
         .map { it.id }
@@ -166,7 +166,7 @@ class PlaylistRepository(context: Context) {
 
             val paths = lines.filter { !it.startsWith("#") && it.isNotBlank() }
 
-            val allSongs = loadSongsFromDevice(context)
+            val allSongs = SongLibraryHolder.songs
             val matchedIds = allSongs
                 .filter { song -> paths.any { path -> song.path.endsWith(path.trimStart('/')) || song.path == path } }
                 .map { it.id }
@@ -188,7 +188,7 @@ class PlaylistRepository(context: Context) {
     fun exportToM3U(context: Context, playlist: Playlist): Boolean {
         return try {
             // 1. Obtener todas las canciones del dispositivo para mapear ID -> Path
-            val allSongs = loadSongsFromDevice(context)
+            val allSongs = SongLibraryHolder.songs
             val songMap = allSongs.associateBy { it.id }
 
             // 2. Construir el contenido del archivo M3U

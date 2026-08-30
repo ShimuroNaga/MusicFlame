@@ -87,7 +87,8 @@ fun MixScreen(
         val favoritesRepo = FavoritesRepository(context)
         // La lista de canciones del dispositivo no cambia a cada tick, así que la
         // cargamos una sola vez y solo refrescamos estadísticas/favoritos en el loop.
-        val songsById = loadSongsFromDevice(context).associateBy { it.id }
+        com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context)
+        val songsById = com.music.musicflame.data.SongLibraryHolder.songs.associateBy { it.id }
         while (true) {
             hasAnyStatsRecorded.value = statsRepo.getAllStats().isNotEmpty()
             val top = statsRepo.getTopPlayed(20)
@@ -157,7 +158,8 @@ fun MixScreen(
     }
 
     LaunchedEffect(Unit) {
-        val allSongs = loadSongsFromDevice(context)
+        com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context)
+        val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
         val savedIds = settingsRepo.getMixSongs()
         val lastGeneratedDate = try { settingsRepo.getLastMixDate() } catch (e: Exception) { "" }
 
@@ -409,7 +411,7 @@ fun MixScreen(
                                 scope.launch {
                                     isGenerating.value = true
                                     delay(1000)
-                                    val allSongs = loadSongsFromDevice(context)
+                                    val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
                                     val newMix = allSongs.shuffled().take(30)
                                     mixSongs.clear()
                                     mixSongs.addAll(newMix)

@@ -75,7 +75,7 @@ import kotlinx.coroutines.launch
 
 fun exportToM3U(context: Context, playlist: Playlist): Boolean {
     return try {
-        val allSongs = loadSongsFromDevice(context)
+        val allSongs = SongLibraryHolder.songs
         val playlistSongs = allSongs.filter { it.id in playlist.songIds }
 
         val m3uContent = buildString {
@@ -161,7 +161,8 @@ fun PlaylistDetailScreen(
     val originalOrder = remember { mutableListOf<Long>() }
 
     LaunchedEffect(Unit) {
-        val allSongs = loadSongsFromDevice(context)
+        SongLibraryHolder.ensureLoaded(context)
+        val allSongs = SongLibraryHolder.songs
         val songIds = when (kind) {
             PlaylistKind.FAVORITES -> favoritesRepo.getAllFavoriteIds()
             // Se recalculan aquí también (no solo en PlaylistsScreen) para que si el

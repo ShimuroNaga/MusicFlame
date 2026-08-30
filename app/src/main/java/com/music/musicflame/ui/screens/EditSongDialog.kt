@@ -17,10 +17,13 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.runtime.rememberCoroutineScope
 import com.music.musicflame.data.RealTagWriter
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongCustomizationRepository
+import com.music.musicflame.data.SongLibraryHolder
+import kotlinx.coroutines.launch
 import com.music.musicflame.data.getDefaultAlbumArtUri
 import com.music.musicflame.data.getOriginalSongTitle
 import com.music.musicflame.data.getOriginalSongArtist
@@ -61,6 +64,7 @@ fun EditSongDialog(
     onSaved: (List<SongEditPatch>) -> Unit
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     // Si el usuario activó el switch en Ajustes > Canciones y ya tiene el
     // permiso concedido, además de guardar la personalización en la app,
     // escribimos de verdad los tags ID3 en el archivo .mp3 en disco.
@@ -237,6 +241,10 @@ fun EditSongDialog(
                             clearArtist = resetArtist,
                             clearAlbum = resetAlbum
                         )
+                        // Invalida el cache compartido para que el resto de pantallas
+                        // (no solo esta lista, que ya se actualiza al instante vía patches)
+                        // vean la personalización nueva la próxima vez que la lean.
+                        scope.launch { SongLibraryHolder.refresh(context) }
 
                         // --- Guardado real en el archivo (si el switch de Ajustes está activo) ---
                         // Nota: solo aplica a valores NUEVOS (no a "restablecer"), y solo a .mp3;
@@ -273,6 +281,7 @@ fun EditSongDialog(
                             coverUri = pickedCoverUri,
                             clearCover = resetCover
                         )
+                        scope.launch { SongLibraryHolder.refresh(context) }
                         selectedSongs.forEach { s ->
                             val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, s.id) else null
                             if (finalCover != null) patches.add(SongEditPatch(s.id, null, finalCover))

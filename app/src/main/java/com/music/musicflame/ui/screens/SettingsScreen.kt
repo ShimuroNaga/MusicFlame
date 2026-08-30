@@ -2045,6 +2045,9 @@ fun SettingsScreen(
                         settingsRepo.saveDurationFilterMin(minVal)
                         settingsRepo.saveDurationFilterMax(maxVal)
                         settingsRepo.saveDurationFilterMode(tempMode.value)
+                        // El filtro cambia qué canciones cuentan como parte de la
+                        // librería, así que el cache compartido necesita re-escanear.
+                        refreshScope.launch { com.music.musicflame.data.SongLibraryHolder.refresh(context) }
                         durationMin.value = tempMin.value
                         durationMax.value = tempMax.value
                         filterMode.value = tempMode.value

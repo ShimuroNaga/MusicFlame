@@ -504,7 +504,8 @@ private fun AddSongsToQueueDialog(
     onConfirm: (List<Song>) -> Unit
 ) {
     val context = LocalContext.current
-    val allSongs = remember { loadSongsFromDevice(context) }
+    LaunchedEffect(Unit) { com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context) }
+    val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
     var query by remember { mutableStateOf("") }
     val selectedIds = remember { mutableStateListOf<Long>() }
 

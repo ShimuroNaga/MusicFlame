@@ -128,6 +128,7 @@ fun PlaylistsScreen(
     val context = LocalContext.current
     val playlistRepo = remember { PlaylistRepository(context) }
     val favoritesRepo = remember { FavoritesRepository(context) }
+    LaunchedEffect(Unit) { com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context) }
 
     val isSelectionMode = selectedPlaylists.isNotEmpty() || selectionModeActive
 
@@ -158,7 +159,7 @@ fun PlaylistsScreen(
         if (uri != null && playlist != null) {
             scope.launch {
                 try {
-                    val allSongs = loadSongsFromDevice(context)
+                    val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
                     context.contentResolver.openOutputStream(uri).use { outputStream ->
                         if (outputStream != null) {
                             BufferedWriter(OutputStreamWriter(outputStream)).use { writer ->
@@ -555,8 +556,9 @@ fun PlaylistCard(
     // (fuego / brújula) es fijo, igual que el corazón de Favoritos.
     val coverIsEditable = kind == PlaylistKind.REGULAR || kind == PlaylistKind.FAVORITES
 
-    val totalDurationFormatted = remember(playlist.songIds) {
-        val allSongs = loadSongsFromDevice(context)
+    val allSongsForDuration = com.music.musicflame.data.SongLibraryHolder.songs
+    val totalDurationFormatted = remember(playlist.songIds, allSongsForDuration) {
+        val allSongs = allSongsForDuration
         val totalMs = playlist.songIds.sumOf { id ->
             allSongs.find { it.id == id }?.duration ?: 0L
         }
@@ -645,7 +647,7 @@ fun PlaylistCard(
                 } else {
                     val firstSongId = playlist.songIds.firstOrNull()
                     if (firstSongId != null) {
-                        val allSongs = remember { loadSongsFromDevice(context) }
+                        val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
                         val firstSong = allSongs.find { it.id == firstSongId }
                         AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
                     } else {

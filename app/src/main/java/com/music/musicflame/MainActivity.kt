@@ -301,11 +301,9 @@ class MainActivity : ComponentActivity() {
                 // reconstruimos songList con la librería completa en cuanto detectamos el desfase.
                 LaunchedEffect(currentSong?.id) {
                     if (currentSong != null && songList.isEmpty()) {
-                        val restoredSongs = withContext(Dispatchers.IO) {
-                            val trashedIds = trashRepo.getTrash().map { it.song.id }
-                            loadSongsFromDevice(context).filter { it.id !in trashedIds }
-                        }
-                        songList = restoredSongs
+                        SongLibraryHolder.ensureLoaded(context)
+                        val trashedIds = withContext(Dispatchers.IO) { trashRepo.getTrash().map { it.song.id } }
+                        songList = SongLibraryHolder.songs.filter { it.id !in trashedIds }
                     }
                 }
 
@@ -398,7 +396,8 @@ class MainActivity : ComponentActivity() {
                 }
 
                 LaunchedEffect(Unit) {
-                    totalSongsOnDevice = loadSongsFromDevice(context).size
+                    SongLibraryHolder.ensureLoaded(context)
+                    totalSongsOnDevice = SongLibraryHolder.songs.size
                 }
 
                 // --- NUEVO: Efecto para cargar los archivos de Drive ---
@@ -492,7 +491,7 @@ class MainActivity : ComponentActivity() {
                                                     onClick = {
                                                         showSelectionMenu = false
                                                         val trashedIds = trashRepo.getTrash().map { it.song.id }
-                                                        val allSongs = loadSongsFromDevice(context).filter { it.id !in trashedIds }
+                                                        val allSongs = SongLibraryHolder.songs.filter { it.id !in trashedIds }
                                                         selectedSongs.clear()
                                                         selectedSongs.addAll(allSongs)
                                                     }

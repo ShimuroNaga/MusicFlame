@@ -147,7 +147,8 @@ fun AlbumDetailScreen(
                     size = 96.dp,
                     cornerRadius = 12.dp,
                     shape = albumArtShape,
-                    filePath = album.albumArtSourcePath
+                    filePath = album.albumArtSourcePath,
+                    isCustomCover = album.albumArtIsCustom
                 )
                 Spacer(Modifier.width(16.dp))
                 Column {

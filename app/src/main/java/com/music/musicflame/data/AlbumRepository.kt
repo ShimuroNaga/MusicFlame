@@ -9,7 +9,10 @@ data class Album(
     // (misma canción que aportó albumArtUri). Sirve para que la UI pueda
     // extraer la carátula embebida directamente del archivo si albumArtUri
     // falla en cargar (ver AlbumArt.kt / EmbeddedAlbumArtFetcher).
-    val albumArtSourcePath: String? = null
+    val albumArtSourcePath: String? = null,
+    // NUEVO: si la carátula del álbum viene de una personalización manual
+    // (ver Song.hasCustomCover) en vez de la URI de fábrica por álbum.
+    val albumArtIsCustom: Boolean = false
 ) {
     val songCount: Int get() = songs.size
     val totalDurationMs: Long get() = songs.sumOf { it.duration }
@@ -44,7 +47,8 @@ fun groupSongsIntoAlbums(songs: List<Song>): List<Album> {
                 artist = artistName,
                 albumArtUri = artSourceSong?.albumArtUri,
                 songs = sortedSongs,
-                albumArtSourcePath = artSourceSong?.path
+                albumArtSourcePath = artSourceSong?.path,
+                albumArtIsCustom = artSourceSong?.hasCustomCover ?: false
             )
         }
         .sortedBy { it.name.lowercase() }

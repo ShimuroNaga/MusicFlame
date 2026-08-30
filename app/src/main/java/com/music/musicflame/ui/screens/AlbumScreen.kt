@@ -127,7 +127,8 @@ private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, hasBac
                 albumArtUri = album.albumArtUri,
                 size = artSize,
                 cornerRadius = 12.dp,
-                filePath = album.albumArtSourcePath
+                filePath = album.albumArtSourcePath,
+                isCustomCover = album.albumArtIsCustom
             )
         }
         Spacer(Modifier.height(8.dp))

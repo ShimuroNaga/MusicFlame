@@ -141,7 +141,8 @@ fun CompactSongWidget(
                     size = 44.dp,
                     cornerRadius = 8.dp,
                     shape = AlbumArtShapeType.SQUARE,
-                    filePath = currentSong?.path
+                    filePath = currentSong?.path,
+                    isCustomCover = currentSong?.hasCustomCover ?: false
                 )
 
                 // Nombre de la canción, con transición al cambiar (feedback del swipe)

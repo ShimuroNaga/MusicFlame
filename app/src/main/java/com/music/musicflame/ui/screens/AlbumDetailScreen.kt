@@ -146,7 +146,8 @@ fun AlbumDetailScreen(
                     albumArtUri = album.albumArtUri,
                     size = 96.dp,
                     cornerRadius = 12.dp,
-                    shape = albumArtShape
+                    shape = albumArtShape,
+                    filePath = album.albumArtSourcePath
                 )
                 Spacer(Modifier.width(16.dp))
                 Column {

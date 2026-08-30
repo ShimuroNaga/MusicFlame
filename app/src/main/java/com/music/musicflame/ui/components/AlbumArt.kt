@@ -1,5 +1,9 @@
 package com.music.musicflame.ui.components
 
+import android.graphics.BitmapFactory
+import android.graphics.drawable.BitmapDrawable
+import android.media.MediaMetadataRetriever
+import android.net.Uri
 import android.os.Build.VERSION.SDK_INT
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
@@ -12,7 +16,10 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -32,9 +39,14 @@ import androidx.compose.ui.unit.dp
 import coil.ImageLoader
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
+import coil.decode.DataSource
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
+import coil.fetch.DrawableResult
+import coil.fetch.FetchResult
+import coil.fetch.Fetcher
 import coil.request.ImageRequest
+import coil.request.Options
 import com.music.musicflame.AlbumArtShapeType
 import kotlin.math.cos
 import kotlin.math.pow
@@ -139,29 +151,119 @@ fun AlbumArtShapePreview(
     }
 }
 
+// Esquema de URI interno (solo lo entiende el Fetcher de abajo) que le dice a
+// Coil "extrae la carátula directamente del archivo de audio en esta ruta",
+// en vez de depender de la URI vieja de MediaStore.
+private const val EMBEDDED_ART_SCHEME = "musicflame-embedded"
+
+private fun embeddedArtUriFor(filePath: String): Uri =
+    Uri.Builder().scheme(EMBEDDED_ART_SCHEME).authority("art")
+        .appendQueryParameter("path", filePath)
+        .build()
+
+// ANTES: la carátula "por defecto" de cada canción se pedía SIEMPRE a
+// content://media/external/audio/albumart/{albumId}, la URI vieja de
+// MediaStore para artwork. Desde Android 10 (API 29) esa URI está
+// deprecada: en muchos dispositivos ya no devuelve nada (o devuelve la
+// carátula de OTRA canción con la que comparte albumId internamente),
+// aunque el .mp3 físico sí tenga su carátula original embebida en el tag.
+// Resultado: la app mostraba el ícono genérico (o una carátula ajena) en
+// vez de la real, incluso sin haber tocado nada del archivo.
+//
+// AHORA: si la carátula pedida por la URI normal falla, y se nos pasó la
+// ruta física del archivo (filePath), este Fetcher lee el tag del propio
+// archivo con MediaMetadataRetriever y extrae su carátula embebida de
+// verdad — sin depender del caché/índice de MediaStore.
+private class EmbeddedAlbumArtFetcher(private val filePath: String) : Fetcher {
+    override suspend fun fetch(): FetchResult? {
+        val retriever = MediaMetadataRetriever()
+        return try {
+            retriever.setDataSource(filePath)
+            val art = retriever.embeddedPicture ?: return null
+            val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size) ?: return null
+            DrawableResult(
+                drawable = BitmapDrawable(android.content.res.Resources.getSystem(), bitmap),
+                isSampled = false,
+                dataSource = DataSource.DISK
+            )
+        } catch (e: Exception) {
+            null
+        } finally {
+            try {
+                retriever.release()
+            } catch (e: Exception) {}
+        }
+    }
+
+    class Factory : Fetcher.Factory<Uri> {
+        override fun create(data: Uri, options: Options, imageLoader: ImageLoader): Fetcher? {
+            if (data.scheme != EMBEDDED_ART_SCHEME) return null
+            val path = data.getQueryParameter("path") ?: return null
+            return EmbeddedAlbumArtFetcher(path)
+        }
+    }
+}
+
+// ANTES: cada llamada a AlbumArt() construía su propio ImageLoader con
+// remember{} (con caché de memoria/disco y cliente HTTP propios). AlbumArt()
+// se usa dentro de SongItemCard, es decir, UNA VEZ POR CADA FILA de canción
+// en las listas — con librerías grandes, cada fila que entraba en pantalla al
+// hacer scroll o al cambiar de pantalla creaba un ImageLoader nuevo desde
+// cero, lo cual se sentía como lag/micro-freezes tanto al hacer scroll como
+// al navegar entre pantallas (SongScreen, AlbumScreen, PlaylistDetailScreen...
+// todas recomponen sus filas visibles).
+//
+// AHORA: un único ImageLoader vive en este objeto y se construye UNA sola vez
+// por proceso (lazy), compartiendo su caché entre todas las pantallas y
+// reutilizando la misma configuración de GIFs.
+private object SharedAlbumArtImageLoader {
+    @Volatile private var instance: ImageLoader? = null
+
+    fun get(context: android.content.Context): ImageLoader {
+        return instance ?: synchronized(this) {
+            instance ?: ImageLoader.Builder(context.applicationContext)
+                .components {
+                    if (SDK_INT >= 28) {
+                        add(ImageDecoderDecoder.Factory())
+                    } else {
+                        add(GifDecoder.Factory())
+                    }
+                    add(EmbeddedAlbumArtFetcher.Factory())
+                }
+                .build()
+                .also { instance = it }
+        }
+    }
+}
+
 @Composable
 fun AlbumArt(
     albumArtUri: String?,
     size: Dp = 48.dp,
     cornerRadius: Dp = 8.dp,
-    shape: AlbumArtShapeType = AlbumArtShapeType.SQUARE
+    shape: AlbumArtShapeType = AlbumArtShapeType.SQUARE,
+    // NUEVO: ruta física del archivo de audio (Song.path). Si se pasa, y la
+    // carátula pedida por albumArtUri falla en cargar, se intenta extraer la
+    // carátula embebida directamente de este archivo como respaldo (ver
+    // EmbeddedAlbumArtFetcher arriba).
+    filePath: String? = null
 ) {
     val context = LocalContext.current
 
     val clipShape = remember(shape, cornerRadius) { clipShapeFor(shape, cornerRadius) }
 
-    // Configuramos el lector de GIFs y lo guardamos en caché con 'remember'
-    // para no ralentizar la aplicación.
-    val imageLoader = remember {
-        ImageLoader.Builder(context)
-            .components {
-                if (SDK_INT >= 28) {
-                    add(ImageDecoderDecoder.Factory())
-                } else {
-                    add(GifDecoder.Factory())
-                }
-            }
-            .build()
+    // Reutilizamos el mismo ImageLoader compartido en vez de crear uno por fila.
+    val imageLoader = remember { SharedAlbumArtImageLoader.get(context) }
+
+    // Si la carátula pedida por albumArtUri falla en cargar (típico de la URI
+    // vieja de MediaStore en Android 10+), pasamos a pedir la carátula
+    // embebida directamente del archivo, si tenemos su ruta.
+    var useEmbeddedFallback by remember(albumArtUri, filePath) { mutableStateOf(false) }
+
+    val effectiveModel: Any? = when {
+        albumArtUri != null && !useEmbeddedFallback -> albumArtUri
+        filePath != null -> embeddedArtUriFor(filePath)
+        else -> null
     }
 
     // El fondo gris (surfaceVariant) solo se pinta cuando hace falta como placeholder
@@ -175,11 +277,11 @@ fun AlbumArt(
             .clip(clipShape),
         contentAlignment = Alignment.Center
     ) {
-        if (albumArtUri != null) {
+        if (effectiveModel != null) {
             SubcomposeAsyncImage(
                 // Aquí le decimos qué archivo cargar y le ponemos un suavizado (crossfade)
                 model = ImageRequest.Builder(context)
-                    .data(albumArtUri)
+                    .data(effectiveModel)
                     .crossfade(true)
                     // Las formas Hexágono y Squircle usan un Outline.Generic (path),
                     // lo que obliga a Compose a recortar en un layer de software.
@@ -188,6 +290,14 @@ fun AlbumArt(
                     // "Software rendering doesn't support hardware bitmaps".
                     // Por eso desactivamos hardware bitmaps aquí.
                     .allowHardware(false)
+                    .listener(onError = { _, _ ->
+                        // Si el intento era con la URI normal (no la embebida) y
+                        // tenemos ruta física, probamos una vez con la carátula
+                        // embebida del archivo antes de rendirnos al ícono genérico.
+                        if (!useEmbeddedFallback && filePath != null) {
+                            useEmbeddedFallback = true
+                        }
+                    })
                     .build(),
                 // ¡AQUÍ ES DONDE CONECTAMOS EL DECODIFICADOR DE GIFS!
                 imageLoader = imageLoader,
@@ -200,8 +310,8 @@ fun AlbumArt(
                     // Se encontró la carátula: mostramos la imagen real, sin fondo gris detrás
                     SubcomposeAsyncImageContent()
                 } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
-                    // No hay carátula (o falló la URI heredada de MediaStore en Android 10+):
-                    // mostramos el ícono de nota musical sobre el cuadro gris
+                    // No hay carátula en ningún lado (ni la URI normal ni el archivo
+                    // físico tenían una): mostramos el ícono de nota musical sobre el cuadro gris
                     Box(
                         modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant),
                         contentAlignment = Alignment.Center

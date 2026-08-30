@@ -70,7 +70,7 @@ fun SongItemCard(
         ) {
             // Carátula siempre visible; al seleccionar se superpone un overlay + check (estilo unificado)
             Box(contentAlignment = Alignment.Center) {
-                AlbumArt(albumArtUri = song.albumArtUri, size = 48.dp, cornerRadius = if (radius > 0.dp) 8.dp else 0.dp, shape = albumArtShape)
+                AlbumArt(albumArtUri = song.albumArtUri, size = 48.dp, cornerRadius = if (radius > 0.dp) 8.dp else 0.dp, shape = albumArtShape, filePath = song.path)
                 if (isSelected) {
                     Box(
                         modifier = Modifier

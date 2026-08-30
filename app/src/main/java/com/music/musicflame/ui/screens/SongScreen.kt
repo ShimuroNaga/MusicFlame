@@ -384,7 +384,7 @@ fun SongsScreen(
                                     shape = RoundedCornerShape(cardRadius)
                                 ) {
                                     Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                        AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape)
+                                        AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape, filePath = song.path)
                                         Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 if (currentPlayingSongId != null && currentPlayingSongId == song.id) {
@@ -502,7 +502,7 @@ fun SongsScreen(
                                     // Carátula siempre visible; al seleccionar se superpone un overlay + check
                                     // (mismo estilo unificado que usan Tu Mix, Playlists, Papelera, etc.)
                                     Box(contentAlignment = Alignment.Center) {
-                                        AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape)
+                                        AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape, filePath = song.path)
                                         if (isSelected) {
                                             Box(
                                                 modifier = Modifier

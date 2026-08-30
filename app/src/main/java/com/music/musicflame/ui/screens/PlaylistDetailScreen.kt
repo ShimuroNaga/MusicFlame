@@ -533,7 +533,8 @@ fun SongItemCard(
                     albumArtUri = song.albumArtUri,
                     size = 48.dp,
                     cornerRadius = if (radius > 0.dp) 8.dp else 0.dp,
-                    shape = albumArtShape
+                    shape = albumArtShape,
+                    filePath = song.path
                 )
                 if (isSelected) {
                     Box(

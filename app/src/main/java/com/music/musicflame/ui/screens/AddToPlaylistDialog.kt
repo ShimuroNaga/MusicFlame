@@ -63,7 +63,8 @@ fun AddToPlaylistDialog(
                         AlbumArt(
                             albumArtUri = song.albumArtUri,
                             size = 40.dp,
-                            cornerRadius = 8.dp
+                            cornerRadius = 8.dp,
+                            filePath = song.path
                         )
 
                         Column(

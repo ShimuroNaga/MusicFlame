@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.net.Uri
 import android.os.Bundle
+import android.util.Log
 import androidx.annotation.OptIn
 import androidx.compose.runtime.State
 import androidx.compose.runtime.mutableIntStateOf
@@ -34,6 +35,12 @@ class MusicPlayerManager(private val context: Context) {
 
     private var mediaController: MediaController? = null
     private val statsRepo = StatsRepository(context)
+
+    // SEGURO: evita que onDisconnected() dispare una reconexión después de que
+    // release() ya cerró todo a propósito (p.ej. MainActivity.onDestroy()).
+    // Sin esto, cerrar la app podría abrir una conexión nueva "fantasma" justo
+    // cuando el manager ya se está por descartar.
+    private var isReleased = false
 
     // NUEVO: acciones en espera de que el MediaController termine de conectar
     // (la conexión es async, ver init{}). Usado para reproducir un archivo
@@ -213,12 +220,41 @@ class MusicPlayerManager(private val context: Context) {
         }
 
     init {
+        connectController()
+        startStatsTicker()
+    }
+
+    // ARREGLO: antes el MediaController se construía UNA sola vez acá adentro y
+    // nunca más. Si el sistema (Doze, gestor de batería del fabricante, poca RAM
+    // mientras la app estaba en 2do plano) mataba el proceso de
+    // MusicPlaybackService, el binder se cortaba pero `mediaController` seguía
+    // apuntando a un controller "zombie": skipNext()/seekTo() (y cualquier otro
+    // comando) dejaban de hacer efecto EN SILENCIO, sin excepción, porque nunca
+    // nos enterábamos de la desconexión. Salir de la app y volver "arreglaba" el
+    // síntoma solo cuando esa vuelta alcanzaba a recrear la Activity (y con
+    // ella, un MusicPlayerManager nuevo). Ahora, con setListener(...) +
+    // onDisconnected, en cuanto se corta la conexión reconstruimos el
+    // MediaController solos, sin depender de que el usuario reabra la app.
+    private fun connectController() {
+        if (isReleased) return
         val sessionToken = SessionToken(
             context,
             ComponentName(context, MusicPlaybackService::class.java)
         )
 
-        val controllerFuture = MediaController.Builder(context, sessionToken).buildAsync()
+        val controllerFuture = MediaController.Builder(context, sessionToken)
+            .setListener(object : MediaController.Listener {
+                override fun onDisconnected(controller: MediaController) {
+                    if (mediaController === controller) {
+                        mediaController = null
+                    }
+                    if (!isReleased) {
+                        Log.w("MusicPlayerManager", "MediaController desconectado, reconectando...")
+                        connectController()
+                    }
+                }
+            })
+            .buildAsync()
         controllerFuture.addListener({
             val controller = controllerFuture.get()
             mediaController = controller
@@ -360,8 +396,6 @@ class MusicPlayerManager(private val context: Context) {
             })
 
         }, MoreExecutors.directExecutor())
-
-        startStatsTicker()
     }
 
     // NUEVO: Método que averigua el estado actual real de Media3 y actualiza el icono
@@ -595,13 +629,19 @@ class MusicPlayerManager(private val context: Context) {
     fun pause() { mediaController?.pause() }
 
     fun skipNext() {
-        mediaController?.let { controller ->
-            val currentIndex = controller.currentMediaItemIndex
-            if (currentIndex != C.INDEX_UNSET) {
-                playbackHistory.add(currentIndex)
-            }
-            controller.seekToNextMediaItem()
+        val controller = mediaController
+        if (controller == null) {
+            // DIAGNÓSTICO: si esto aparece en logcat justo cuando el botón
+            // "Siguiente" no responde, confirma que el MediaController estaba
+            // desconectado en ese momento (ver connectController() más arriba).
+            Log.w("MusicPlayerManager", "skipNext() ignorado: mediaController es null")
+            return
         }
+        val currentIndex = controller.currentMediaItemIndex
+        if (currentIndex != C.INDEX_UNSET) {
+            playbackHistory.add(currentIndex)
+        }
+        controller.seekToNextMediaItem()
     }
 
     fun skipPrevious() {
@@ -642,8 +682,18 @@ class MusicPlayerManager(private val context: Context) {
         }
     }
 
-    fun seekTo(positionMs: Long) { mediaController?.seekTo(positionMs) }
+    fun seekTo(positionMs: Long) {
+        val controller = mediaController
+        if (controller == null) {
+            // DIAGNÓSTICO: mismo caso que en skipNext(). Si ves este log cuando
+            // arrastrar la barra no responde, confirma la desconexión.
+            Log.w("MusicPlayerManager", "seekTo() ignorado: mediaController es null")
+            return
+        }
+        controller.seekTo(positionMs)
+    }
     fun release() {
+        isReleased = true
         cancelSleepTimer()
         flushListenedTime()
         mediaController?.release()

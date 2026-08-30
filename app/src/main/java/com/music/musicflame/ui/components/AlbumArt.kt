@@ -278,8 +278,21 @@ fun AlbumArt(
     // (isCustomCover = true) se siguen respetando primero, como antes.
     var useEmbeddedFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
     var useAlbumUriFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
+    // NUEVO: cuando el ÚLTIMO escalón de fallback (la URI genérica de MediaStore
+    // por álbum) también falla, antes no pasaba nada: el `when` de onError no
+    // matcheaba ninguna condición (los dos flags ya estaban en true) y la
+    // carátula se quedaba en el estado de error/carga de Coil sin forzar nunca
+    // el ícono de nota musical. En pantallas como SongScreen, donde muchas
+    // canciones no tienen carátula real (ni embebida ni en MediaStore), eso se
+    // veía como un cuadro vacío en vez del ícono que sí aparecía en otras
+    // pantallas. Ahora, al agotarse los dos intentos, forzamos effectiveModel
+    // a null explícitamente para caer siempre en la rama `else` de abajo (un
+    // Box simple con el ícono, sin depender de que Coil reporte bien su
+    // estado de error).
+    var exhaustedAllFallbacks by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
 
     val effectiveModel: Any? = when {
+        exhaustedAllFallbacks -> null
         isCustomCover && albumArtUri != null && !useEmbeddedFallback -> albumArtUri
         filePath != null && !useAlbumUriFallback -> embeddedArtUriFor(filePath)
         !isCustomCover && albumArtUri != null -> albumArtUri
@@ -316,6 +329,7 @@ fun AlbumArt(
                         when {
                             isCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
                             !useAlbumUriFallback -> useAlbumUriFallback = true
+                            else -> exhaustedAllFallbacks = true
                         }
                     })
                     .build(),

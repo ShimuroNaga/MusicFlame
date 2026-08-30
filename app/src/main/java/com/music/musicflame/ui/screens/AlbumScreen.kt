@@ -10,9 +10,14 @@ import androidx.compose.material.icons.filled.Album
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
+import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
+import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
@@ -27,6 +32,8 @@ import com.music.musicflame.data.groupSongsIntoAlbums
 import com.music.musicflame.data.loadSongsFromDevice
 import com.music.musicflame.ui.components.AlbumArt
 import com.music.musicflame.ui.theme.LocalAppTextColor
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 @Composable
 fun AlbumScreen(
@@ -43,13 +50,46 @@ fun AlbumScreen(
     currentPlayingSongId: Long? = null
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context) }
     val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
     val albums = remember(allSongs) { groupSongsIntoAlbums(allSongs) }
 
+    // NUEVO: pull-to-refresh, igual que en SongScreen. Acá el refresh SÍ
+    // re-escanea MediaStore de verdad (SongLibraryHolder.refresh(context)),
+    // no solo re-filtra el caché ya cargado: como `albums` se recalcula solo
+    // vía remember(allSongs) apenas cambia la librería, esto es lo que
+    // efectivamente corrige álbumes "bugueados" (carátulas mezcladas,
+    // agrupaciones viejas, etc.) sin tener que cerrar y reabrir la app.
+    val isRefreshing = remember { mutableStateOf(false) }
+    val pullState = rememberPullToRefreshState()
+
     Box(modifier = modifier.fillMaxSize()) {
         if (selectedAlbum == null) {
-            AlbumGrid(albums = albums, hasBackgroundImage = hasBackgroundImage, onAlbumClick = onAlbumClick)
+            PullToRefreshBox(
+                isRefreshing = isRefreshing.value,
+                onRefresh = {
+                    scope.launch {
+                        isRefreshing.value = true
+                        delay(800)
+                        com.music.musicflame.data.SongLibraryHolder.refresh(context)
+                        isRefreshing.value = false
+                    }
+                },
+                state = pullState,
+                modifier = Modifier.fillMaxSize(),
+                indicator = {
+                    PullToRefreshDefaults.Indicator(
+                        state = pullState,
+                        isRefreshing = isRefreshing.value,
+                        color = MaterialTheme.colorScheme.primary,
+                        containerColor = MaterialTheme.colorScheme.primaryContainer,
+                        modifier = Modifier.align(Alignment.TopCenter)
+                    )
+                }
+            ) {
+                AlbumGrid(albums = albums, hasBackgroundImage = hasBackgroundImage, onAlbumClick = onAlbumClick)
+            }
         } else {
             AlbumDetailScreen(
                 album = selectedAlbum,

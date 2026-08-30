@@ -107,6 +107,13 @@ fun EditSongDialog(
         else -> null
     }
 
+    // La vista previa es una carátula "personalizada" (y no debe competir con
+    // la carátula embebida del archivo) cuando el usuario acaba de elegir una
+    // imagen nueva, o cuando la canción ya tenía una carátula personalizada
+    // guardada y no se pidió resetearla.
+    val previewIsCustomCover = pickedCoverUri != null ||
+            (isSingle && !resetCover && song?.hasCustomCover == true)
+
     val hasChanges = pickedCoverUri != null || resetCover ||
             (isSingle && (
                     resetTitle || (titleText.isNotBlank() && titleText != song?.title) ||
@@ -128,7 +135,7 @@ fun EditSongDialog(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                AlbumArt(previewCoverUri, 96.dp, 14.dp, filePath = song?.path)
+                AlbumArt(previewCoverUri, 96.dp, 14.dp, filePath = song?.path, isCustomCover = previewIsCustomCover)
 
                 Spacer(Modifier.height(12.dp))
 

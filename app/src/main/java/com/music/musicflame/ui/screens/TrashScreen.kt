@@ -331,7 +331,7 @@ fun TrashItemCard(
         ) {
             // CARÁTULA SIEMPRE VISIBLE, CON OVERLAY + CHECK AL SELECCIONAR (estilo unificado)
             Box(contentAlignment = Alignment.Center) {
-                AlbumArt(trashedSong.song.albumArtUri, 50.dp, 8.dp, albumArtShape, filePath = trashedSong.song.path)
+                AlbumArt(trashedSong.song.albumArtUri, 50.dp, 8.dp, albumArtShape, filePath = trashedSong.song.path, isCustomCover = trashedSong.song.hasCustomCover)
                 if (isSelected) {
                     Box(
                         modifier = Modifier

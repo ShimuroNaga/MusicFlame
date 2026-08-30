@@ -161,19 +161,11 @@ private fun embeddedArtUriFor(filePath: String): Uri =
         .appendQueryParameter("path", filePath)
         .build()
 
-// ANTES: la carátula "por defecto" de cada canción se pedía SIEMPRE a
-// content://media/external/audio/albumart/{albumId}, la URI vieja de
-// MediaStore para artwork. Desde Android 10 (API 29) esa URI está
-// deprecada: en muchos dispositivos ya no devuelve nada (o devuelve la
-// carátula de OTRA canción con la que comparte albumId internamente),
-// aunque el .mp3 físico sí tenga su carátula original embebida en el tag.
-// Resultado: la app mostraba el ícono genérico (o una carátula ajena) en
-// vez de la real, incluso sin haber tocado nada del archivo.
-//
-// AHORA: si la carátula pedida por la URI normal falla, y se nos pasó la
-// ruta física del archivo (filePath), este Fetcher lee el tag del propio
-// archivo con MediaMetadataRetriever y extrae su carátula embebida de
-// verdad — sin depender del caché/índice de MediaStore.
+// Lee la carátula embebida (tag ID3/APIC) directamente del archivo de audio
+// en filePath, usando MediaMetadataRetriever. Se usa tanto como PRIMERA
+// opción para carátulas "de fábrica" como de último recurso para carátulas
+// personalizadas que fallan al cargar (ver comentario grande en AlbumArt()
+// más abajo, y el fix del bug de carátulas repetidas por álbum).
 private class EmbeddedAlbumArtFetcher(private val filePath: String) : Fetcher {
     override suspend fun fetch(): FetchResult? {
         val retriever = MediaMetadataRetriever()
@@ -242,11 +234,14 @@ fun AlbumArt(
     size: Dp = 48.dp,
     cornerRadius: Dp = 8.dp,
     shape: AlbumArtShapeType = AlbumArtShapeType.SQUARE,
-    // NUEVO: ruta física del archivo de audio (Song.path). Si se pasa, y la
-    // carátula pedida por albumArtUri falla en cargar, se intenta extraer la
-    // carátula embebida directamente de este archivo como respaldo (ver
-    // EmbeddedAlbumArtFetcher arriba).
-    filePath: String? = null
+    // NUEVO: ruta física del archivo de audio (Song.path). Se usa para leer
+    // la carátula embebida directamente del archivo (ver más abajo).
+    filePath: String? = null,
+    // NUEVO: true cuando `albumArtUri` es una carátula elegida a mano por el
+    // usuario (Song.hasCustomCover / Album.albumArtIsCustom), y no la URI
+    // "de fábrica" de MediaStore por álbum. Los llamadores deben pasar este
+    // flag; por defecto es false (URI de fábrica).
+    isCustomCover: Boolean = false
 ) {
     val context = LocalContext.current
 
@@ -255,14 +250,31 @@ fun AlbumArt(
     // Reutilizamos el mismo ImageLoader compartido en vez de crear uno por fila.
     val imageLoader = remember { SharedAlbumArtImageLoader.get(context) }
 
-    // Si la carátula pedida por albumArtUri falla en cargar (típico de la URI
-    // vieja de MediaStore en Android 10+), pasamos a pedir la carátula
-    // embebida directamente del archivo, si tenemos su ruta.
-    var useEmbeddedFallback by remember(albumArtUri, filePath) { mutableStateOf(false) }
+    // BUG ARREGLADO: cuando varias canciones se agrupan en un mismo álbum
+    // (mismo nombre+artista), Android les asigna internamente el mismo
+    // ALBUM_ID en MediaStore. La URI "de fábrica"
+    // content://media/external/audio/albumart/{albumId} devuelve, para TODAS
+    // esas canciones, UN SOLO bitmap "representante" del álbum (el que el
+    // escáner haya tomado de una sola de ellas) — y esa carga NO falla, solo
+    // trae la imagen equivocada. Como antes solo caíamos a la carátula
+    // embebida del archivo cuando la carga fallaba con error, ese fallback
+    // nunca se activaba en este caso: las canciones agrupadas terminaban
+    // mostrando todas la misma carátula ajena, aunque cada .mp3 físico
+    // tuviera su propia carátula original correcta en el tag ID3.
+    //
+    // AHORA: si NO es una carátula personalizada por el usuario y tenemos la
+    // ruta física del archivo, se intenta PRIMERO la carátula embebida real
+    // de ESA canción (MediaMetadataRetriever sobre su propio archivo). Solo
+    // si ese archivo no trae ninguna carátula propia caemos a la URI
+    // genérica por álbum como último recurso. Las carátulas personalizadas
+    // (isCustomCover = true) se siguen respetando primero, como antes.
+    var useEmbeddedFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
+    var useAlbumUriFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
 
     val effectiveModel: Any? = when {
-        albumArtUri != null && !useEmbeddedFallback -> albumArtUri
-        filePath != null -> embeddedArtUriFor(filePath)
+        isCustomCover && albumArtUri != null && !useEmbeddedFallback -> albumArtUri
+        filePath != null && !useAlbumUriFallback -> embeddedArtUriFor(filePath)
+        !isCustomCover && albumArtUri != null -> albumArtUri
         else -> null
     }
 
@@ -291,11 +303,11 @@ fun AlbumArt(
                     // Por eso desactivamos hardware bitmaps aquí.
                     .allowHardware(false)
                     .listener(onError = { _, _ ->
-                        // Si el intento era con la URI normal (no la embebida) y
-                        // tenemos ruta física, probamos una vez con la carátula
-                        // embebida del archivo antes de rendirnos al ícono genérico.
-                        if (!useEmbeddedFallback && filePath != null) {
-                            useEmbeddedFallback = true
+                        // Avanza al siguiente escalón del fallback según cuál
+                        // intento fue el que falló (ver comentario arriba).
+                        when {
+                            isCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
+                            !useAlbumUriFallback -> useAlbumUriFallback = true
                         }
                     })
                     .build(),

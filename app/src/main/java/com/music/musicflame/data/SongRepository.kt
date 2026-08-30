@@ -14,6 +14,12 @@ data class Song(
     val duration: Long,
     val path: String,
     val albumArtUri: String? = null,
+    // NUEVO: true cuando `albumArtUri` viene de una carátula elegida a mano
+    // por el usuario (SongCustomization.coverUri), false cuando es la URI
+    // "de fábrica" de MediaStore por álbum (content://.../albumart/{albumId}).
+    // AlbumArt() usa este dato para decidir si respeta esa URI o si prueba
+    // primero la carátula embebida en el propio archivo (ver AlbumArt.kt).
+    val hasCustomCover: Boolean = false,
     val dateAdded: Long = 0L,
     val youtubeVideoId: String? = null, // <-- NUEVO: ID real del video en YouTube (distinto de `id`)
     // --- NUEVO: usados por el buscador con filtros (Artista/Álbum/Año/Género) ---
@@ -94,6 +100,7 @@ fun loadSongsFromDevice(context: Context): List<Song> {
                         duration = duration,
                         path = it.getString(pathCol) ?: "",
                         albumArtUri = customization?.coverUri ?: defaultAlbumArtUri,
+                        hasCustomCover = customization?.coverUri != null,
                         dateAdded = it.getLong(dateAddedCol),
                         // youtubeVideoId queda null para canciones locales, es lo esperado
                         year = year,

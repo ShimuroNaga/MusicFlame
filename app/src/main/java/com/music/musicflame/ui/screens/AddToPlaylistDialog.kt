@@ -64,7 +64,8 @@ fun AddToPlaylistDialog(
                             albumArtUri = song.albumArtUri,
                             size = 40.dp,
                             cornerRadius = 8.dp,
-                            filePath = song.path
+                            filePath = song.path,
+                            isCustomCover = song.hasCustomCover
                         )
 
                         Column(

@@ -534,7 +534,8 @@ fun SongItemCard(
                     size = 48.dp,
                     cornerRadius = if (radius > 0.dp) 8.dp else 0.dp,
                     shape = albumArtShape,
-                    filePath = song.path
+                    filePath = song.path,
+                    isCustomCover = song.hasCustomCover
                 )
                 if (isSelected) {
                     Box(

@@ -649,7 +649,7 @@ fun PlaylistCard(
                     if (firstSongId != null) {
                         val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
                         val firstSong = allSongs.find { it.id == firstSongId }
-                        AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape, filePath = firstSong?.path)
+                        AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape, filePath = firstSong?.path, isCustomCover = firstSong?.hasCustomCover ?: false)
                     } else {
                         Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
                     }

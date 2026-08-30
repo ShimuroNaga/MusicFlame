@@ -412,7 +412,7 @@ fun QueueScreen(
                                     }
                                 }
 
-                                AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape, filePath = song.path)
+                                AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape, filePath = song.path, isCustomCover = song.hasCustomCover)
 
                                 Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {

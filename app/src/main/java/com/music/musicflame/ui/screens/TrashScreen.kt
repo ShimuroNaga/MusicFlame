@@ -101,6 +101,9 @@ fun TrashScreen(
         trashedPlaylists.clear()
         trashedPlaylists.addAll(trashRepo.getTrashedPlaylists())
         trashRepo.purgeExpired()
+        // purgeExpired() puede borrar archivos físicos (30+ días en la papelera);
+        // refrescamos el cache para que esas canciones dejen de aparecer.
+        com.music.musicflame.data.SongLibraryHolder.refresh(context)
     }
 
     val isEmpty = trashedItems.isEmpty() && trashedPlaylists.isEmpty()

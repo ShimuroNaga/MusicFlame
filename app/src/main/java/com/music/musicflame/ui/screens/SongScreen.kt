@@ -185,7 +185,7 @@ fun SongsScreen(
 
     val refreshSongs = {
         val trashedIds = trashRepo.getTrash().map { it.song.id }
-        val loaded = loadSongsFromDevice(context)
+        val loaded = com.music.musicflame.data.SongLibraryHolder.songs
         songs.clear()
         songs.addAll(loaded.filter { it.id !in trashedIds })
     }
@@ -197,6 +197,7 @@ fun SongsScreen(
     val lyricsAvailableIds = remember { mutableStateOf(setOf<Long>()) }
 
     LaunchedEffect(Unit) {
+        com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context)
         refreshSongs()
         lyricsAvailableIds.value = songs.filter { lyricsRepo.hasLyrics(it.id) }.map { it.id }.toSet()
         // Busca en segundo plano (sin bloquear la UI ni pedir nada al usuario)

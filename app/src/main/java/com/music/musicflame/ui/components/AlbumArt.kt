@@ -156,7 +156,12 @@ fun AlbumArtShapePreview(
 // en vez de depender de la URI vieja de MediaStore.
 private const val EMBEDDED_ART_SCHEME = "musicflame-embedded"
 
-private fun embeddedArtUriFor(filePath: String): Uri =
+// `internal` (no `private`) a propósito: FullScreenPlayer.kt reutiliza esta
+// misma Uri "empaquetada" para pintar la carátula real por canción en el
+// pager, en vez de duplicar esta lógica con su propio esquema (ver el bug de
+// "una sola carátula para las N canciones agrupadas en el mismo álbum",
+// comentado más abajo en AlbumArt()).
+internal fun embeddedArtUriFor(filePath: String): Uri =
     Uri.Builder().scheme(EMBEDDED_ART_SCHEME).authority("art")
         .appendQueryParameter("path", filePath)
         .build()
@@ -208,7 +213,10 @@ private class EmbeddedAlbumArtFetcher(private val filePath: String) : Fetcher {
 // AHORA: un único ImageLoader vive en este objeto y se construye UNA sola vez
 // por proceso (lazy), compartiendo su caché entre todas las pantallas y
 // reutilizando la misma configuración de GIFs.
-private object SharedAlbumArtImageLoader {
+// `internal` (no `private`) a propósito: FullScreenPlayer.kt reutiliza este
+// mismo ImageLoader (y su Fetcher de carátula embebida) para el pager de
+// carátulas, en vez de crear un ImageLoader propio sin ese fallback.
+internal object SharedAlbumArtImageLoader {
     @Volatile private var instance: ImageLoader? = null
 
     fun get(context: android.content.Context): ImageLoader {

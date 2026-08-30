@@ -421,14 +421,31 @@ class MusicPlayerManager(private val context: Context) {
     }
 
     private fun buildSongFromMediaItem(mediaItem: MediaItem): Song {
+        val id = mediaItem.mediaId.toLongOrNull() ?: 0L
+
+        // Primero probamos encontrar la canción REAL en la librería ya cacheada
+        // (con su albumArtUri legítimo, tal cual lo arma SongRepository), en
+        // vez de reconstruir siempre una versión "liviana" a partir de los
+        // metadatos crudos del propio MediaItem.
+        SongLibraryHolder.songs.find { it.id == id }?.let { return it }
+
         val metadata = mediaItem.mediaMetadata
         return Song(
-            id = mediaItem.mediaId.toLongOrNull() ?: 0L,
+            id = id,
             title = metadata.title?.toString() ?: "Desconocido",
             artist = metadata.artist?.toString() ?: "",
             duration = 0L, // La UI usa playerManager.duration en vivo, no este campo
             path = mediaItem.localConfiguration?.uri?.toString() ?: "",
-            albumArtUri = metadata.artworkUri?.toString()
+            // OJO: nunca propagamos metadata.artworkUri acá. Para canciones sin
+            // carátula personalizada, buildMediaItem() le pone a esa Uri el
+            // esquema "empaquetado" de SongArtLoader (pensado solo para que el
+            // BitmapLoader de la notificación lo resuelva); ningún otro
+            // consumidor de la app lo entiende (por ejemplo, FullScreenPlayer
+            // carga song.albumArtUri directo con Coil, sin ese fallback), así
+            // que filtrarla acá causaba carátulas rotas o "de otra canción".
+            // La dejamos en null a propósito: la UI ya sabe mostrar su
+            // placeholder cuando no hay Uri.
+            albumArtUri = null
         )
     }
 
@@ -436,10 +453,18 @@ class MusicPlayerManager(private val context: Context) {
     // a la cola (addToQueue) sin duplicar la construcción de metadata/artwork.
     private fun buildMediaItem(s: Song): MediaItem {
         val artUriString = s.albumArtUri?.toString()
-        val finalArtworkUri: Uri = if (!artUriString.isNullOrEmpty()) {
-            Uri.parse(artUriString)
-        } else {
-            Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
+        val finalArtworkUri: Uri = when {
+            // Carátula elegida a mano por el usuario: es una Uri ya cargable
+            // tal cual (content://, file://...), se respeta sin tocar.
+            s.hasCustomCover && !artUriString.isNullOrEmpty() -> Uri.parse(artUriString)
+            // Carátula "de fábrica": en vez de pasar directo la Uri genérica de
+            // MediaStore por álbum (la que casi nunca resuelve en Android 10+),
+            // le pedimos a SongArtBitmapLoader que primero saque la carátula
+            // embebida REAL de este archivo puntual, y solo si el archivo no
+            // trae ninguna, caiga a esa Uri genérica como respaldo.
+            s.path.isNotEmpty() -> SongArtLoader.embeddedArtUri(s.path, artUriString)
+            !artUriString.isNullOrEmpty() -> Uri.parse(artUriString)
+            else -> Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
         }
 
         val metadata = MediaMetadata.Builder()

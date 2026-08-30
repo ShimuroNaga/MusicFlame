@@ -7,12 +7,10 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
-import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Matrix
 import android.graphics.Paint
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
 import android.widget.RemoteViews
@@ -20,6 +18,7 @@ import androidx.core.content.ContextCompat
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.MainActivity
 import com.music.musicflame.R
+import com.music.musicflame.data.SongArtLoader
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -350,11 +349,9 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
         private fun loadAlbumArtSquare(context: Context, artUriString: String?): Bitmap? {
             if (artUriString.isNullOrEmpty()) return null
             return try {
-                val uri = Uri.parse(artUriString)
-                val source = when (uri.scheme) {
-                    "content", "file" -> context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
-                    else -> null
-                } ?: return null
+                // Ver SongArtLoader.kt: puede llegar el esquema "empaquetado" de
+                // carátula embebida real con fallback, no solo content://file://.
+                val source = SongArtLoader.loadBitmap(context, artUriString) ?: return null
                 centerCropSquare(source, DISC_RENDER_SIZE_PX)
             } catch (e: IOException) {
                 null

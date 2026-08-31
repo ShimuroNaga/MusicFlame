@@ -720,8 +720,13 @@ fun FullScreenPlayer(
                                         // puntual, y solo como último recurso la Uri genérica del álbum).
                                         var useEmbeddedFallback by remember(pageSong.id) { mutableStateOf(false) }
                                         var useAlbumUriFallback by remember(pageSong.id) { mutableStateOf(false) }
+                                        // Igual que en AlbumArt.kt: si el ÚLTIMO escalón de fallback también
+                                        // falla, forzamos el modelo a null para caer siempre al ícono, en vez
+                                        // de depender de que el `when` no repita la misma rama fallida.
+                                        var exhaustedAllFallbacks by remember(pageSong.id) { mutableStateOf(false) }
 
                                         val effectiveArtModel: Any? = when {
+                                            exhaustedAllFallbacks -> null
                                             pageSong.hasCustomCover && pageSong.albumArtUri != null && !useEmbeddedFallback -> pageSong.albumArtUri
                                             pageSong.path.isNotEmpty() && !useAlbumUriFallback -> embeddedArtUriFor(pageSong.path)
                                             !pageSong.hasCustomCover && pageSong.albumArtUri != null -> pageSong.albumArtUri
@@ -738,6 +743,7 @@ fun FullScreenPlayer(
                                                         when {
                                                             pageSong.hasCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
                                                             !useAlbumUriFallback -> useAlbumUriFallback = true
+                                                            else -> exhaustedAllFallbacks = true
                                                         }
                                                     })
                                                     .build(),
@@ -753,8 +759,12 @@ fun FullScreenPlayer(
                                                 } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
                                                     // No hay carátula real (ni personalizada, ni embebida, ni de álbum): ícono
                                                     Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
+                                                } else {
+                                                    // Mientras carga (Loading): mismo ícono y mismo tono que el
+                                                    // estado Error de arriba (antes 0.15f vs 0.3f, se veía
+                                                    // "apagado" mientras cargaba y luego saltaba a más marcado).
+                                                    Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
                                                 }
-                                                // Mientras carga no mostramos nada: se ve el fondo gris de la Box
                                             }
                                         } else {
                                             Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))

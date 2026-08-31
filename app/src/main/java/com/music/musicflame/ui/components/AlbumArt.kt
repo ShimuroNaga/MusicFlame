@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,6 +49,11 @@ import coil.fetch.Fetcher
 import coil.request.ImageRequest
 import coil.request.Options
 import com.music.musicflame.AlbumArtShapeType
+import com.music.musicflame.data.ArtworkCacheRepository
+import com.music.musicflame.data.ArtworkSource
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sign
@@ -172,23 +178,31 @@ internal fun embeddedArtUriFor(filePath: String): Uri =
 // personalizadas que fallan al cargar (ver comentario grande en AlbumArt()
 // más abajo, y el fix del bug de carátulas repetidas por álbum).
 private class EmbeddedAlbumArtFetcher(private val filePath: String) : Fetcher {
-    override suspend fun fetch(): FetchResult? {
-        val retriever = MediaMetadataRetriever()
-        return try {
-            retriever.setDataSource(filePath)
-            val art = retriever.embeddedPicture ?: return null
-            val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size) ?: return null
-            DrawableResult(
-                drawable = BitmapDrawable(android.content.res.Resources.getSystem(), bitmap),
-                isSampled = false,
-                dataSource = DataSource.DISK
-            )
-        } catch (e: Exception) {
-            null
-        } finally {
+    // Algunos archivos (descargados, corruptos, con codecs raros) pueden hacer que
+    // MediaMetadataRetriever se quede pegado un buen rato en vez de fallar rápido.
+    // Antes eso significaba que la carátula se quedaba "cargando" indefinidamente
+    // y nunca caía al ícono genérico. Con este tope de 2.5s, si no responde a
+    // tiempo se trata igual que si no tuviera carátula: cae al siguiente fallback
+    // (o al ícono) en vez de quedarse trabada.
+    override suspend fun fetch(): FetchResult? = withTimeoutOrNull(2500) {
+        withContext(Dispatchers.IO) {
+            val retriever = MediaMetadataRetriever()
             try {
-                retriever.release()
-            } catch (e: Exception) {}
+                retriever.setDataSource(filePath)
+                val art = retriever.embeddedPicture ?: return@withContext null
+                val bitmap = BitmapFactory.decodeByteArray(art, 0, art.size) ?: return@withContext null
+                DrawableResult(
+                    drawable = BitmapDrawable(android.content.res.Resources.getSystem(), bitmap),
+                    isSampled = false,
+                    dataSource = DataSource.DISK
+                )
+            } catch (e: Exception) {
+                null
+            } finally {
+                try {
+                    retriever.release()
+                } catch (e: Exception) {}
+            }
         }
     }
 
@@ -258,6 +272,14 @@ fun AlbumArt(
     // Reutilizamos el mismo ImageLoader compartido en vez de crear uno por fila.
     val imageLoader = remember { SharedAlbumArtImageLoader.get(context) }
 
+    // NUEVO: cache persistente de qué fuente de carátula funcionó (o si ninguna)
+    // la última vez para este archivo. Evita repetir intentos que ya sabemos
+    // que van a fallar cada vez que se abre la lista (ver ArtworkCacheRepository).
+    val artworkCache = remember { ArtworkCacheRepository(context) }
+    val cachedSource = remember(filePath, isCustomCover) {
+        if (!isCustomCover && filePath != null) artworkCache.get(filePath) else null
+    }
+
     // BUG ARREGLADO: cuando varias canciones se agrupan en un mismo álbum
     // (mismo nombre+artista), Android les asigna internamente el mismo
     // ALBUM_ID en MediaStore. La URI "de fábrica"
@@ -276,8 +298,17 @@ fun AlbumArt(
     // si ese archivo no trae ninguna carátula propia caemos a la URI
     // genérica por álbum como último recurso. Las carátulas personalizadas
     // (isCustomCover = true) se siguen respetando primero, como antes.
+    //
+    // Los valores iniciales ahora arrancan directo desde el cache cuando ya
+    // sabemos el resultado (ver arriba): si la última vez no había carátula
+    // en ningún lado, arranca directo en "agotado" (ícono al instante, sin
+    // tocar disco); si la última vez funcionó la Uri de álbum, se salta el
+    // intento de carátula embebida (que ya sabemos que falla) y va directo
+    // a esa Uri.
     var useEmbeddedFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
-    var useAlbumUriFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
+    var useAlbumUriFallback by remember(albumArtUri, filePath, isCustomCover) {
+        mutableStateOf(cachedSource == ArtworkSource.ALBUM_URI)
+    }
     // NUEVO: cuando el ÚLTIMO escalón de fallback (la URI genérica de MediaStore
     // por álbum) también falla, antes no pasaba nada: el `when` de onError no
     // matcheaba ninguna condición (los dos flags ya estaban en true) y la
@@ -289,7 +320,9 @@ fun AlbumArt(
     // a null explícitamente para caer siempre en la rama `else` de abajo (un
     // Box simple con el ícono, sin depender de que Coil reporte bien su
     // estado de error).
-    var exhaustedAllFallbacks by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
+    var exhaustedAllFallbacks by remember(albumArtUri, filePath, isCustomCover) {
+        mutableStateOf(cachedSource == ArtworkSource.NONE)
+    }
 
     val effectiveModel: Any? = when {
         exhaustedAllFallbacks -> null
@@ -297,6 +330,15 @@ fun AlbumArt(
         filePath != null && !useAlbumUriFallback -> embeddedArtUriFor(filePath)
         !isCustomCover && albumArtUri != null -> albumArtUri
         else -> null
+    }
+
+    // Guarda en el cache, apenas se sabe con certeza, si ninguna fuente tuvo
+    // carátula — así la próxima vez ni se intenta. No se guarda nada para
+    // carátulas personalizadas (isCustomCover), esas no pasan por este cache.
+    LaunchedEffect(exhaustedAllFallbacks, filePath, isCustomCover) {
+        if (exhaustedAllFallbacks && !isCustomCover && filePath != null) {
+            artworkCache.set(filePath, ArtworkSource.NONE)
+        }
     }
 
     // El fondo gris (surfaceVariant) solo se pinta cuando hace falta como placeholder
@@ -323,7 +365,20 @@ fun AlbumArt(
                     // "Software rendering doesn't support hardware bitmaps".
                     // Por eso desactivamos hardware bitmaps aquí.
                     .allowHardware(false)
-                    .listener(onError = { _, _ ->
+                    .listener(
+                        onSuccess = { _, _ ->
+                            // Guarda en cache cuál fuente funcionó, para que la próxima
+                            // vez se vaya directo a ella sin repetir intentos.
+                            if (!isCustomCover && filePath != null) {
+                                val source = if (effectiveModel is Uri && effectiveModel.scheme == EMBEDDED_ART_SCHEME) {
+                                    ArtworkSource.EMBEDDED
+                                } else {
+                                    ArtworkSource.ALBUM_URI
+                                }
+                                artworkCache.set(filePath, source)
+                            }
+                        },
+                        onError = { _, _ ->
                         // Avanza al siguiente escalón del fallback según cuál
                         // intento fue el que falló (ver comentario arriba).
                         when {
@@ -358,8 +413,21 @@ fun AlbumArt(
                         )
                     }
                 } else {
-                    // Mientras carga (Loading): fondo gris de placeholder
-                    Box(modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant))
+                    // Mientras carga (Loading): mismo ícono y mismo tono que el estado
+                    // Error/sin-carátula de abajo (antes tenía 50% de opacidad y el otro
+                    // 100%, así que se veía "apagado" mientras cargaba y de golpe se
+                    // ponía más marcado al resolver — inconsistente sin razón real).
+                    Box(
+                        modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Filled.MusicNote,
+                            contentDescription = null,
+                            modifier = Modifier.size(size / 2),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         } else {

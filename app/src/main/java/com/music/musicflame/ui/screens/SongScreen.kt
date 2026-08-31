@@ -42,9 +42,11 @@ import com.music.musicflame.SearchMode
 import com.music.musicflame.data.*
 import com.music.musicflame.ui.components.AlbumArt
 import com.music.musicflame.ui.theme.LocalAppTextColor
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
 
 // Botón cuadrado, con elevación, para la barra flotante de selección/orden.
@@ -199,7 +201,17 @@ fun SongsScreen(
     LaunchedEffect(Unit) {
         com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context)
         refreshSongs()
-        lyricsAvailableIds.value = songs.filter { lyricsRepo.hasLyrics(it.id) }.map { it.id }.toSet()
+        // ANTES: songs.filter { lyricsRepo.hasLyrics(it.id) } releía y parseaba el JSON
+        // completo de letras guardadas una vez POR CADA canción de la librería, todo
+        // en el hilo principal dentro de este LaunchedEffect(Unit) -> con librerías
+        // grandes eso se sentía como un freeze de ~1-2s la primera vez que se entraba
+        // a esta pantalla (después ya no, porque LaunchedEffect(Unit) no se repite).
+        // AHORA: un solo parseo del JSON (availableLyricsIds) y además corre en
+        // Dispatchers.IO para no bloquear el hilo principal.
+        val songIds = songs.map { it.id }
+        lyricsAvailableIds.value = withContext(Dispatchers.IO) {
+            lyricsRepo.availableLyricsIds(songIds)
+        }
         // Busca en segundo plano (sin bloquear la UI ni pedir nada al usuario)
         // qué canciones de la biblioteca tienen letra disponible. Se guía por
         // el nombre de la canción aunque el mp3 no tenga el artista en sus
@@ -235,7 +247,10 @@ fun SongsScreen(
     // a pantalla completa). No repite el escaneo online, solo relee lo ya guardado.
     LaunchedEffect(lyricsRefreshTrigger) {
         if (lyricsRefreshTrigger > 0) {
-            lyricsAvailableIds.value = songs.filter { lyricsRepo.hasLyrics(it.id) }.map { it.id }.toSet()
+            val songIds = songs.map { it.id }
+            lyricsAvailableIds.value = withContext(Dispatchers.IO) {
+                lyricsRepo.availableLyricsIds(songIds)
+            }
         }
     }
 

@@ -67,6 +67,18 @@ class LyricsRepository(context: Context) {
 
     fun hasLyrics(songId: Long): Boolean = getLyrics(songId) != null
 
+    /**
+     * Igual que llamar [hasLyrics] por cada id de [songIds], pero parseando el JSON
+     * guardado en SharedPreferences UNA sola vez en vez de una vez por canción.
+     * Usar esto (y no un .filter { hasLyrics(it.id) }) para listas completas de la
+     * librería: con librerías grandes, hasLyrics() por canción vuelve a leer y
+     * parsear el mismo JSON cientos de veces y bloquea el hilo principal.
+     */
+    fun availableLyricsIds(songIds: Collection<Long>): Set<Long> {
+        val all = readAll()
+        return songIds.filter { all.containsKey(it.toString()) }.toSet()
+    }
+
     fun saveLyrics(songId: Long, raw: String, source: LyricsSource) {
         val map = readAll()
         map[songId.toString()] = StoredLyrics(raw.trim(), source)

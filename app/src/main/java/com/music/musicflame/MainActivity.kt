@@ -902,7 +902,22 @@ class MainActivity : ComponentActivity() {
                                     }
                                 )
                             } else {
-                                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize().padding(innerPadding)) { page ->
+                                // ANTES: HorizontalPager sin beyondViewportPageCount usa el
+                                // default (0), que hace que Compose DESTRUYA por completo la
+                                // composición de cualquier tab que no sea la visible. Al volver
+                                // a esa tab, todo su LaunchedEffect(Unit) se vuelve a ejecutar
+                                // desde cero (SongsScreen re-filtra/ordena toda la librería,
+                                // AlbumScreen reagrupa TODOS los álbumes, PlaylistDetailScreen
+                                // reconstruye "Más escuchadas"/"Nunca reproducidas" buscando
+                                // canción por canción) — todo síncrono en el hilo principal, lo
+                                // que se sentía como un freeze de ~1s en CADA pantalla, cada vez.
+                                // AHORA: con solo 5 tabs simples, mantenerlas todas compuestas
+                                // a la vez es barato en memoria y evita ese recálculo repetido.
+                                HorizontalPager(
+                                    state = pagerState,
+                                    modifier = Modifier.fillMaxSize().padding(innerPadding),
+                                    beyondViewportPageCount = bottomNavItems.size
+                                ) { page ->
 
                                     val onToggleSong: (Song) -> Unit = { song -> if (selectedSongs.contains(song)) selectedSongs.remove(song) else selectedSongs.add(song) }
                                     val onTogglePlaylist: (Playlist) -> Unit = { playlist -> if (selectedPlaylists.contains(playlist)) selectedPlaylists.remove(playlist) else selectedPlaylists.add(playlist) }

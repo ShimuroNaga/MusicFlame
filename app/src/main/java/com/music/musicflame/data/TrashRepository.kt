@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import android.provider.MediaStore
 import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
@@ -78,6 +79,48 @@ class TrashRepository(private val context: Context) { // Hacemos el context acce
 
     fun restoreSong(songId: Long) {
         deleteFromTrash(songId)
+    }
+
+    // --- BORRADO PERMANENTE DE UNA SOLA CANCIÓN ---
+    // OJO: a diferencia de deleteFromTrash()/restoreSong(), que solo tocan el registro
+    // JSON de la papelera, este método SÍ borra el archivo físico (con fallback a
+    // MediaStore en Android 10+). Antes, borrar una canción individual desde la papelera
+    // llamaba a algo equivalente a deleteFromTrash() sin tocar el disco, así que el
+    // archivo seguía existiendo y la canción "reaparecía sola" al refrescar la librería.
+    fun deleteSongPermanently(songId: Long): Boolean {
+        val trash = getTrash()
+        val item = trash.find { it.song.id == songId } ?: run {
+            // Ya no está en la papelera; no hay nada que borrar del disco.
+            return false
+        }
+
+        var fileDeleted = false
+
+        // 1. Intento de borrado normal del archivo
+        val file = File(item.song.path)
+        if (file.exists()) {
+            fileDeleted = file.delete()
+        }
+
+        // 2. Borrado permanente vía MediaStore (soluciona el problema en Android 10+
+        //    cuando el borrado directo de File no basta por Scoped Storage)
+        try {
+            val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
+            val rows = context.contentResolver.delete(
+                uri,
+                "${MediaStore.Audio.Media.DATA} = ?",
+                arrayOf(item.song.path)
+            )
+            if (rows > 0) fileDeleted = true
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        // 3. Quitar el registro de la papelera SIEMPRE, incluso si el archivo ya no
+        //    existía en disco (evita que quede una entrada fantasma para siempre)
+        deleteFromTrash(songId)
+
+        return fileDeleted || !file.exists()
     }
 
     fun clearAll() {

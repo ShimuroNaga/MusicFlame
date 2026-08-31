@@ -50,6 +50,8 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -88,6 +90,8 @@ fun TrashScreen(
     val trashedItems = remember { mutableStateListOf<TrashedSong>() }
     val trashedPlaylists = remember { mutableStateListOf<TrashedPlaylist>() }
     val showClearAllDialog = remember { mutableStateOf(false) }
+    val songPendingPermanentDelete = remember { mutableStateOf<TrashedSong?>(null) }
+    val coroutineScope = rememberCoroutineScope()
 
     val isRounded = LocalUseRoundCorners.current
     val albumArtShape = LocalAlbumArtShape.current
@@ -195,6 +199,9 @@ fun TrashScreen(
                                 trashRepo.restoreSong(item.song.id)
                                 trashedItems.remove(item)
                             },
+                            onDeletePermanent = {
+                                songPendingPermanentDelete.value = item
+                            },
                             onPlay = {
                                 onSongClick(item.song, trashedItems.map { it.song })
                             },
@@ -282,6 +289,50 @@ fun TrashScreen(
             }
         )
     }
+
+    // DIÁLOGO PARA BORRAR UNA SOLA CANCIÓN PERMANENTEMENTE
+    val songToDelete = songPendingPermanentDelete.value
+    if (songToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { songPendingPermanentDelete.value = null },
+            icon = {
+                Icon(
+                    Icons.Filled.DeleteForever,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.error,
+                    modifier = Modifier.size(48.dp)
+                )
+            },
+            title = { Text("¿Eliminar permanentemente?", fontWeight = FontWeight.Bold) },
+            text = {
+                Text("\"${songToDelete.song.title}\" se borrará del dispositivo. Esta acción no se puede deshacer.")
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        trashRepo.deleteSongPermanently(songToDelete.song.id)
+                        trashedItems.remove(songToDelete)
+                        songPendingPermanentDelete.value = null
+                        // El archivo ya no existe en disco: refrescamos la librería para
+                        // que no quede ningún rastro fantasma en ninguna otra pantalla.
+                        coroutineScope.launch {
+                            com.music.musicflame.data.SongLibraryHolder.refresh(context)
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Text("Eliminar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { songPendingPermanentDelete.value = null }) {
+                    Text("Cancelar")
+                }
+            }
+        )
+    }
 }
 
 @OptIn(ExperimentalFoundationApi::class)
@@ -290,6 +341,7 @@ fun TrashItemCard(
     trashedSong: TrashedSong,
     trashRepo: TrashRepository,
     onRestore: () -> Unit,
+    onDeletePermanent: () -> Unit = {},
     onPlay: () -> Unit,
     hasBackgroundImage: Boolean = false,
     cardRadius: androidx.compose.ui.unit.Dp = 12.dp,
@@ -380,10 +432,13 @@ fun TrashItemCard(
                 )
             }
 
-            // Ocultamos el botón de restaurar si estamos en modo selección para evitar líos
+            // Ocultamos los botones de acción si estamos en modo selección para evitar líos
             if (!isSelectionMode) {
                 IconButton(onClick = onRestore, modifier = Modifier.size(48.dp)) {
                     Icon(Icons.Filled.Restore, contentDescription = "Restaurar", tint = MaterialTheme.colorScheme.primary)
+                }
+                IconButton(onClick = onDeletePermanent, modifier = Modifier.size(48.dp)) {
+                    Icon(Icons.Filled.DeleteForever, contentDescription = "Eliminar permanentemente", tint = MaterialTheme.colorScheme.error)
                 }
             }
         }

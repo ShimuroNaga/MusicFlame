@@ -52,6 +52,9 @@ import coil.request.ImageRequest
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
+import com.music.musicflame.data.ArtworkCacheRepository
+import com.music.musicflame.data.ArtworkSource
+import android.net.Uri
 import com.music.musicflame.ui.components.YoutubeVerifyWebView
 import com.music.musicflame.ui.components.embeddedArtUriFor
 import com.music.musicflame.ui.components.SharedAlbumArtImageLoader
@@ -184,16 +187,26 @@ fun FullScreenPlayer(
         }
     }
 
-    var currentPositionMs by remember { mutableLongStateOf(0L) }
+    // OPTIMIZACIÓN DE RENDIMIENTO: antes esto era "var currentPositionMs by remember {...}",
+    // que se LEÍA directamente acá abajo (en la barra de progreso y en LyricsView). Cada
+    // lectura de un state directamente en el cuerpo de FullScreenPlayer suscribe a TODO ese
+    // scope de recomposición a los cambios de esa variable — y como se actualiza cada 500ms
+    // mientras suena música, toda la pantalla (carátula, pager, gestos, botones) se estaba
+    // recomponiendo 2 veces por segundo solo para mover la barra de progreso.
+    // Ahora guardamos el OBJETO State (currentPositionMsState) sin leer su .longValue acá.
+    // Ese objeto se pasa tal cual (por referencia) a PlaybackSeekBar y a LyricsWithLivePosition
+    // más abajo, que son composables chicos y separados: son ELLOS los que leen .longValue,
+    // así que son los ÚNICOS que se recomponen cada tick, no FullScreenPlayer entero.
+    val currentPositionMsState = remember { mutableLongStateOf(0L) }
     var isDragging by remember { mutableStateOf(false) }
 
     LaunchedEffect(isPlaying, isDragging, song) {
         if (!isDragging) {
-            currentPositionMs = playerManager.currentPosition
+            currentPositionMsState.longValue = playerManager.currentPosition
         }
         while (isPlaying && !isDragging) {
             delay(500)
-            currentPositionMs = playerManager.currentPosition
+            currentPositionMsState.longValue = playerManager.currentPosition
         }
     }
 
@@ -589,9 +602,13 @@ fun FullScreenPlayer(
                                 )
                             }
                         }
-                        com.music.musicflame.ui.components.LyricsView(
+                        // Ver comentario en currentPositionMsState más arriba: usamos el wrapper
+                        // LyricsWithLivePosition (definido al final del archivo) en vez de leer
+                        // currentPositionMsState.longValue acá directamente, para que el tick de
+                        // posición solo recomponga ese wrapper chico y no toda esta rama.
+                        LyricsWithLivePosition(
+                            positionState = currentPositionMsState,
                             song = song,
-                            positionMs = currentPositionMs,
                             lyrics = lyricsState.lyrics,
                             speed = lyricsSpeed,
                             animationType = lyricsAnimType,
@@ -739,13 +756,42 @@ fun FullScreenPlayer(
                                                     .data(effectiveArtModel)
                                                     .crossfade(true)
                                                     .allowHardware(false)
-                                                    .listener(onError = { _, _ ->
-                                                        when {
-                                                            pageSong.hasCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
-                                                            !useAlbumUriFallback -> useAlbumUriFallback = true
-                                                            else -> exhaustedAllFallbacks = true
+                                                    .listener(
+                                                        // FIX: este pager encuentra la carátula embebida real de
+                                                        // cada canción por su cuenta, pero antes nunca avisaba al
+                                                        // caché persistente que usa AlbumArt() en las listas
+                                                        // (ArtworkCacheRepository). Si ese caché había quedado con
+                                                        // NONE guardado por un intento fallido anterior (ej. la
+                                                        // primera vez que MediaStore escaneó el archivo, antes de
+                                                        // que estuviera del todo accesible), la lista se quedaba
+                                                        // mostrando el ícono genérico para siempre aunque acá sí
+                                                        // se viera la carátula real — porque nada corregía ese
+                                                        // NONE viejo. Ahora, cada vez que este pager resuelve una
+                                                        // carátula (con éxito o agotando los intentos), lo guarda
+                                                        // en el mismo caché que usan las listas, así se autocorrige.
+                                                        onSuccess = { _, _ ->
+                                                            if (pageSong.path.isNotEmpty()) {
+                                                                val source = if (effectiveArtModel is Uri && effectiveArtModel.scheme == "musicflame-embedded") {
+                                                                    ArtworkSource.EMBEDDED
+                                                                } else {
+                                                                    ArtworkSource.ALBUM_URI
+                                                                }
+                                                                ArtworkCacheRepository(context).set(pageSong.path, source)
+                                                            }
+                                                        },
+                                                        onError = { _, _ ->
+                                                            when {
+                                                                pageSong.hasCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
+                                                                !useAlbumUriFallback -> useAlbumUriFallback = true
+                                                                else -> {
+                                                                    exhaustedAllFallbacks = true
+                                                                    if (!pageSong.hasCustomCover && pageSong.path.isNotEmpty()) {
+                                                                        ArtworkCacheRepository(context).set(pageSong.path, ArtworkSource.NONE)
+                                                                    }
+                                                                }
+                                                            }
                                                         }
-                                                    })
+                                                    )
                                                     .build(),
                                                 imageLoader = SharedAlbumArtImageLoader.get(context),
                                                 contentDescription = "Carátula",
@@ -801,60 +847,21 @@ fun FullScreenPlayer(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         val totalDuration = if (playerManager.duration > 0) playerManager.duration else song.duration
-                        // FIX: si ni el MediaController ni el Song tienen una duración válida todavía
-                        // (típicamente justo tras reconectar/saltar de canción, antes de que ExoPlayer
-                        // termine de preparar el nuevo MediaItem), totalDuration puede ser 0. Dividir
-                        // entre 0 en floats da NaN, y coerceIn NO limpia el NaN (cualquier comparación
-                        // con NaN da false, así que pasa de largo). Ese NaN llegaba al Slider, que
-                        // truena al intentar redondearlo para accesibilidad ("Cannot round NaN value").
-                        val progress = if (totalDuration > 0) {
-                            (currentPositionMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
-                        } else {
-                            0f
-                        }
 
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            Slider(
-                                value = progress,
-                                onValueChange = { newValue ->
-                                    isDragging = true
-                                    currentPositionMs = (newValue * totalDuration).toLong()
-                                },
-                                onValueChangeFinished = {
-                                    isDragging = false
-                                    playerManager.seekTo(currentPositionMs)
-                                },
-                                // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
-                                // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
-                                // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
-                                // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
-                                // relación con la paleta dinámica.
-                                colors = SliderDefaults.colors(
-                                    thumbColor = MaterialTheme.colorScheme.primary,
-                                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
-                                ),
-                                modifier = Modifier.fillMaxWidth().height(24.dp)
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween
-                            ) {
-                                Text(
-                                    text = formatDuration(currentPositionMs),
-                                    fontSize = 12.sp,
-                                    color = adaptiveContentColor.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Medium
-                                )
-                                Text(
-                                    text = formatDuration(totalDuration),
-                                    fontSize = 12.sp,
-                                    color = adaptiveContentColor.copy(alpha = 0.6f),
-                                    fontWeight = FontWeight.Medium
-                                )
+                        // Ver comentario en currentPositionMsState más arriba: PlaybackSeekBar
+                        // (definido al final del archivo) es quien lee currentPositionMsState.longValue,
+                        // así que es el único que se recompone cada 500ms, no toda esta rama de la pantalla.
+                        PlaybackSeekBar(
+                            positionState = currentPositionMsState,
+                            totalDuration = totalDuration,
+                            adaptiveContentColor = adaptiveContentColor,
+                            onDragStart = { isDragging = true },
+                            onDragChange = { newPositionMs -> currentPositionMsState.longValue = newPositionMs },
+                            onDragEnd = { finalPositionMs ->
+                                isDragging = false
+                                playerManager.seekTo(finalPositionMs)
                             }
-                        }
+                        )
 
                         Spacer(modifier = Modifier.height(32.dp))
 
@@ -1008,4 +1015,117 @@ fun FullScreenPlayer(
             }
         }
     }
+}
+
+// ---------------------------------------------------------------------------------
+// OPTIMIZACIÓN DE RENDIMIENTO (barra de progreso a pantalla completa)
+// ---------------------------------------------------------------------------------
+// Los dos composables de acá abajo existen SOLO para aislar la lectura del tick de
+// posición (currentPositionMsState, que cambia cada 500ms mientras suena música) en
+// el scope de recomposición más chico posible. Reciben el OBJETO State<Long> (no un
+// Long ya leído) y son ELLOS los que hacen ".longValue" — así, cuando la posición
+// cambia, Compose solo vuelve a ejecutar a estos dos composables chicos, no toda la
+// rama de FullScreenPlayer (carátula, pager, gestos, botones) que los rodea. Antes
+// currentPositionMs se leía directo ahí arriba, y esa lectura hacía que toda esa
+// rama se recompusiera 2 veces por segundo.
+
+/** Barra de progreso + textos de tiempo transcurrido/total, para la vista normal (no letras). */
+@Composable
+private fun PlaybackSeekBar(
+    positionState: State<Long>,
+    totalDuration: Long,
+    adaptiveContentColor: Color,
+    onDragStart: () -> Unit,
+    onDragChange: (Long) -> Unit,
+    onDragEnd: (Long) -> Unit
+) {
+    val currentPositionMs = positionState.value
+
+    // FIX: si ni el MediaController ni el Song tienen una duración válida todavía
+    // (típicamente justo tras reconectar/saltar de canción, antes de que ExoPlayer
+    // termine de preparar el nuevo MediaItem), totalDuration puede ser 0. Dividir
+    // entre 0 en floats da NaN, y coerceIn NO limpia el NaN (cualquier comparación
+    // con NaN da false, así que pasa de largo). Ese NaN llegaba al Slider, que
+    // truena al intentar redondearlo para accesibilidad ("Cannot round NaN value").
+    val progress = if (totalDuration > 0) {
+        (currentPositionMs.toFloat() / totalDuration.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Slider(
+            value = progress,
+            onValueChange = { newValue ->
+                onDragStart()
+                onDragChange((newValue * totalDuration).toLong())
+            },
+            onValueChangeFinished = {
+                onDragEnd(positionState.value)
+            },
+            // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
+            // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
+            // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
+            // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
+            // relación con la paleta dinámica.
+            colors = SliderDefaults.colors(
+                thumbColor = MaterialTheme.colorScheme.primary,
+                activeTrackColor = MaterialTheme.colorScheme.primary,
+                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+            ),
+            modifier = Modifier.fillMaxWidth().height(24.dp)
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = formatDuration(currentPositionMs),
+                fontSize = 12.sp,
+                color = adaptiveContentColor.copy(alpha = 0.6f),
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = formatDuration(totalDuration),
+                fontSize = 12.sp,
+                color = adaptiveContentColor.copy(alpha = 0.6f),
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}
+
+/** Wrapper que solo existe para leer positionState.value acá adentro (ver comentario arriba) antes de pasárselo a LyricsView. */
+@Composable
+private fun LyricsWithLivePosition(
+    positionState: State<Long>,
+    song: Song,
+    lyrics: com.music.musicflame.data.ParsedLyrics,
+    speed: Float,
+    animationType: String,
+    textColor: Color,
+    isLoading: Boolean,
+    searchFailed: Boolean,
+    onSearchOnline: () -> Unit,
+    onInsertManual: (String) -> Unit,
+    onSearchYoutube: () -> Unit,
+    onDeleteLyrics: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    com.music.musicflame.ui.components.LyricsView(
+        song = song,
+        positionMs = positionState.value,
+        lyrics = lyrics,
+        speed = speed,
+        animationType = animationType,
+        textColor = textColor,
+        isLoading = isLoading,
+        searchFailed = searchFailed,
+        onSearchOnline = onSearchOnline,
+        onInsertManual = onInsertManual,
+        onSearchYoutube = onSearchYoutube,
+        onDeleteLyrics = onDeleteLyrics,
+        modifier = modifier
+    )
 }

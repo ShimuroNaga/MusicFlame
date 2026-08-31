@@ -52,6 +52,11 @@ fun YoutubeVerifyWebView(
 ) {
     var isLoading by remember { mutableStateOf(true) }
     var lastExtractedRaw by remember { mutableStateOf<String?>(null) }
+    // NUEVO: antes, si la carga fallaba (sin internet en ese momento, DNS, lo
+    // que sea), no pasaba nada visible — la pantalla se quedaba con la barra
+    // de carga trabada indefinidamente, sin ningún mensaje ni forma de saber
+    // qué pasó. Ahora se muestra un error real y se loguea la causa.
+    var loadErrorMessage by remember { mutableStateOf<String?>(null) }
 
     Column(modifier = modifier.fillMaxSize()) {
         Row(
@@ -84,6 +89,21 @@ fun YoutubeVerifyWebView(
         if (isLoading) {
             LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
         }
+        if (loadErrorMessage != null) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.errorContainer)
+                    .padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    "No se pudo cargar YouTube: $loadErrorMessage. Revisá tu conexión y volvé a intentar.",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onErrorContainer
+                )
+            }
+        }
 
         Box(modifier = Modifier.fillMaxSize()) {
             AndroidView(
@@ -93,12 +113,32 @@ fun YoutubeVerifyWebView(
                         settings.javaScriptEnabled = true
                         settings.domStorageEnabled = true
                         settings.userAgentString = settings.userAgentString +
-                            " MusicFlame/LyricsVerify"
+                                " MusicFlame/LyricsVerify"
 
                         webViewClient = object : WebViewClient() {
                             override fun onPageStarted(view: WebView?, url: String?, favicon: android.graphics.Bitmap?) {
                                 super.onPageStarted(view, url, favicon)
                                 isLoading = true
+                                loadErrorMessage = null
+                            }
+
+                            // NUEVO: ver comentario de loadErrorMessage más arriba. Solo nos
+                            // interesa el error del frame principal (request.isForMainFrame);
+                            // ignorar los de recursos sueltos (analytics, ads, fonts, etc. que
+                            // YouTube carga aparte) evita mostrar un error falso cuando la
+                            // página principal en realidad sí cargó bien.
+                            override fun onReceivedError(
+                                view: WebView?,
+                                request: android.webkit.WebResourceRequest?,
+                                error: android.webkit.WebResourceError?
+                            ) {
+                                super.onReceivedError(view, request, error)
+                                if (request?.isForMainFrame == true) {
+                                    isLoading = false
+                                    val description = error?.description?.toString() ?: "error desconocido"
+                                    loadErrorMessage = description
+                                    android.util.Log.e("YOUTUBE_VERIFY_DEBUG", "Falló la carga de YouTube: $description (url=${request.url})")
+                                }
                             }
 
                             override fun onPageFinished(view: WebView?, url: String?) {

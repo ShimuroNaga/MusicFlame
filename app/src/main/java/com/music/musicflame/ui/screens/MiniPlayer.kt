@@ -172,54 +172,28 @@ fun MiniPlayer(
                 .fillMaxWidth()
                 .padding(top = 8.dp)
         ) {
-            // --- SLIDER COMPACTO ---
-            Slider(
-                value = if (currentSong != null) progress.floatValue else 0f,
-                onValueChange = { newValue ->
-                    if (currentSong != null) {
-                        isDragging = true
-                        progress.floatValue = newValue
-                        currentMs.longValue = (newValue * totalDuration).toLong()
-                    }
+            // --- SLIDER COMPACTO + TIEMPOS ---
+            // OPTIMIZACIÓN DE RENDIMIENTO: antes progress.floatValue/currentMs.longValue se leían
+            // directo acá (en el cuerpo de MiniPlayer), lo que suscribía TODO MiniPlayer a sus
+            // cambios — y como se actualizan cada 500ms mientras suena música, todo el mini-reproductor
+            // se recomponía 2 veces por segundo solo por la barra de progreso. MiniPlayerSeekBar
+            // (definido al final del archivo) recibe los objetos State y lee .value ADENTRO suyo,
+            // así que ahora es el único que se recompone en cada tick.
+            MiniPlayerSeekBar(
+                hasSong = currentSong != null,
+                progressState = progress,
+                currentMsState = currentMs,
+                totalDuration = totalDuration,
+                onDragStart = { isDragging = true },
+                onDragChange = { newValue ->
+                    progress.floatValue = newValue
+                    currentMs.longValue = (newValue * totalDuration).toLong()
                 },
-                onValueChangeFinished = {
-                    if (currentSong != null) {
-                        isDragging = false
-                        playerManager.seekTo(currentMs.longValue)
-                    }
-                },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(12.dp),
-                colors = SliderDefaults.colors(
-                    thumbColor = MaterialTheme.colorScheme.primary,
-                    activeTrackColor = MaterialTheme.colorScheme.primary,
-                    inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
-                )
+                onDragEnd = {
+                    isDragging = false
+                    playerManager.seekTo(currentMs.longValue)
+                }
             )
-
-            // --- TIEMPOS ---
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = if (currentSong != null) formatDuration(currentMs.longValue) else "0:00",
-                    fontSize = 10.sp,
-                    // <-- APLICANDO COLOR GLOBAL SECUNDARIO
-                    color = LocalAppTextColor.current.copy(alpha = 0.7f)
-                )
-                Text(
-                    text = if (currentSong != null) formatDuration(totalDuration) else "0:00",
-                    fontSize = 10.sp,
-                    modifier = Modifier.weight(1f),
-                    textAlign = TextAlign.End,
-                    // <-- APLICANDO COLOR GLOBAL SECUNDARIO
-                    color = LocalAppTextColor.current.copy(alpha = 0.7f)
-                )
-            }
 
             // --- INFO Y CONTROLES CON ANIMACIÓN ---
             AnimatedContent(
@@ -322,5 +296,66 @@ fun MiniPlayer(
                 }
             }
         }
+    }
+}
+
+/** Ver comentario de OPTIMIZACIÓN DE RENDIMIENTO más arriba, en la llamada a este composable. */
+@Composable
+private fun MiniPlayerSeekBar(
+    hasSong: Boolean,
+    progressState: State<Float>,
+    currentMsState: State<Long>,
+    totalDuration: Long,
+    onDragStart: () -> Unit,
+    onDragChange: (Float) -> Unit,
+    onDragEnd: () -> Unit
+) {
+    val progressValue = progressState.value
+    val currentMsValue = currentMsState.value
+
+    Slider(
+        value = if (hasSong) progressValue else 0f,
+        onValueChange = { newValue ->
+            if (hasSong) {
+                onDragStart()
+                onDragChange(newValue)
+            }
+        },
+        onValueChangeFinished = {
+            if (hasSong) {
+                onDragEnd()
+            }
+        },
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(12.dp),
+        colors = SliderDefaults.colors(
+            thumbColor = MaterialTheme.colorScheme.primary,
+            activeTrackColor = MaterialTheme.colorScheme.primary,
+            inactiveTrackColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.2f)
+        )
+    )
+
+    // --- TIEMPOS ---
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 2.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = if (hasSong) formatDuration(currentMsValue) else "0:00",
+            fontSize = 10.sp,
+            // <-- APLICANDO COLOR GLOBAL SECUNDARIO
+            color = LocalAppTextColor.current.copy(alpha = 0.7f)
+        )
+        Text(
+            text = if (hasSong) formatDuration(totalDuration) else "0:00",
+            fontSize = 10.sp,
+            modifier = Modifier.weight(1f),
+            textAlign = TextAlign.End,
+            // <-- APLICANDO COLOR GLOBAL SECUNDARIO
+            color = LocalAppTextColor.current.copy(alpha = 0.7f)
+        )
     }
 }

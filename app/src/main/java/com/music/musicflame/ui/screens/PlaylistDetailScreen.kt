@@ -172,8 +172,13 @@ fun PlaylistDetailScreen(
             PlaylistKind.REGULAR -> playlist.songIds
         }
 
-        // Mantener el orden exacto en el que fueron guardados
-        val orderedSongs = songIds.mapNotNull { id -> allSongs.find { it.id == id } }
+        // Mantener el orden exacto en el que fueron guardados.
+        // ANTES: songIds.mapNotNull { id -> allSongs.find { it.id == id } } recorre
+        // TODA la lista de canciones por cada id buscado (O(n²) con la librería
+        // completa) — notorio en "Más escuchadas"/"Nunca reproducidas" con
+        // librerías grandes. Con un mapa por id, cada búsqueda es O(1).
+        val songsById = allSongs.associateBy { it.id }
+        val orderedSongs = songIds.mapNotNull { id -> songsById[id] }
 
         originalOrder.clear()
         originalOrder.addAll(songIds)

@@ -1,6 +1,5 @@
 package com.music.musicflame.ui.screens
 
-import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,88 +21,40 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.LocalUseRoundCorners
-import com.music.musicflame.ui.theme.LocalAppTextColor
-import com.music.musicflame.data.Album
+import com.music.musicflame.data.Artist
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.theme.LocalAppTextColor
 
-// GENERALIZADO: antes esta función era específica de álbum (nombre de
-// parámetro y de archivo "albumName"). Ahora es el export genérico de
-// "nombre + lista de canciones" a un .m3u en Descargas, reutilizado por
-// Album, Artist y Genre (ver ArtistDetailScreen.kt / GenreDetailScreen.kt).
-// exportAlbumToM3U se deja como wrapper fino para no romper nada que ya la
-// llamaba (MainActivity.kt).
-fun exportSongsToM3U(context: Context, fileName: String, songs: List<Song>): Boolean {
-    return try {
-        val m3uContent = buildString {
-            appendLine("#EXTM3U")
-            appendLine("#PLAYLIST:$fileName")
-            songs.forEach { song ->
-                appendLine("#EXTINF:${song.duration / 1000},${song.artist} - ${song.title}")
-                appendLine(song.path)
-            }
-        }
-
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            val resolver = context.contentResolver
-            val contentValues = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$fileName.m3u")
-                put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "audio/x-mpegurl")
-                put(
-                    android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
-                    android.os.Environment.DIRECTORY_DOWNLOADS
-                )
-            }
-            val uri = resolver.insert(
-                android.provider.MediaStore.Downloads.EXTERNAL_CONTENT_URI,
-                contentValues
-            )
-            uri?.let {
-                resolver.openOutputStream(it)?.use { outputStream ->
-                    outputStream.write(m3uContent.toByteArray())
-                }
-            }
-        } else {
-            @Suppress("DEPRECATION")
-            val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
-                android.os.Environment.DIRECTORY_DOWNLOADS
-            )
-            val file = java.io.File(downloadsDir, "$fileName.m3u")
-            file.writeText(m3uContent)
-        }
-        true
-    } catch (e: Exception) {
-        e.printStackTrace()
-        false
-    }
-}
-
-fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Boolean =
-    exportSongsToM3U(context, albumName, songs)
-
+// Clon de AlbumDetailScreen.kt adaptado a Artist. Diferencias a propósito:
+// - El "avatar" del artista siempre se pinta CIRCLE, sin importar la forma de
+//   carátula que el usuario haya elegido en Ajustes (LocalAlbumArtShape), para
+//   distinguir visualmente artista de álbum de un vistazo.
+// - La lista de canciones es del artista completo (todas sus canciones, de
+//   todos sus álbumes), ordenadas A-Z por defecto en vez de "orden original
+//   de álbum" (un artista no tiene un único orden natural).
+// - El subtítulo muestra cantidad de álbumes + canciones en vez de solo canciones.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AlbumDetailScreen(
-    album: Album,
+fun ArtistDetailScreen(
+    artist: Artist,
     onSongClick: (Song, List<Song>) -> Unit,
     hasBackgroundImage: Boolean = false,
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
     selectionModeActive: Boolean = false,
     onToggleSelectionModeButton: () -> Unit = {},
-    // NUEVO: id de la canción sonando ahora, para el icono al lado del título.
     currentPlayingSongId: Long? = null
 ) {
     val isRounded = LocalUseRoundCorners.current
@@ -114,21 +65,21 @@ fun AlbumDetailScreen(
     val isSelectionMode = selectedSongs.isNotEmpty() || selectionModeActive
 
     val displaySongs = remember { mutableStateListOf<Song>() }
-    val sortType = remember { mutableStateOf(SortType.DATE_CREATED) }
+    val sortType = remember { mutableStateOf(SortType.A_Z) }
     val showSortMenu = remember { mutableStateOf(false) }
 
-    LaunchedEffect(album) {
+    LaunchedEffect(artist) {
         displaySongs.clear()
-        displaySongs.addAll(album.songs)
+        displaySongs.addAll(artist.songs.sortedBy { it.title })
     }
 
-    LaunchedEffect(sortType.value, album.songs) {
+    LaunchedEffect(sortType.value, artist.songs) {
         displaySongs.clear()
         displaySongs.addAll(
             when (sortType.value) {
-                SortType.DATE_CREATED -> album.songs // orden original del álbum (por título, ver AlbumRepository)
-                SortType.A_Z -> album.songs.sortedBy { it.title }
-                SortType.Z_A -> album.songs.sortedByDescending { it.title }
+                SortType.DATE_CREATED -> artist.songs.sortedByDescending { it.dateAdded }
+                SortType.A_Z -> artist.songs.sortedBy { it.title }
+                SortType.Z_A -> artist.songs.sortedByDescending { it.title }
             }
         )
     }
@@ -136,7 +87,6 @@ fun AlbumDetailScreen(
     Scaffold(
         modifier = Modifier.fillMaxSize(),
         containerColor = Color.Transparent,
-        // Ya vive dentro del Scaffold principal (que reserva status/nav bar).
         contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { padding ->
         Column(
@@ -144,7 +94,7 @@ fun AlbumDetailScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            // --- Portada + info del álbum ---
+            // --- Avatar + info del artista ---
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -152,24 +102,23 @@ fun AlbumDetailScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 AlbumArt(
-                    albumArtUri = album.albumArtUri,
+                    albumArtUri = artist.albumArtUri,
                     size = 96.dp,
-                    cornerRadius = 12.dp,
-                    shape = albumArtShape,
-                    filePath = album.albumArtSourcePath,
-                    isCustomCover = album.albumArtIsCustom
+                    cornerRadius = 48.dp,
+                    shape = AlbumArtShapeType.CIRCLE,
+                    filePath = artist.albumArtSourcePath,
+                    isCustomCover = artist.albumArtIsCustom
                 )
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        album.name,
+                        artist.name,
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge,
                         color = LocalAppTextColor.current
                     )
-                    Text(album.artist, color = LocalAppTextColor.current.copy(alpha = 0.7f))
                     Text(
-                        "${album.songCount} canciones",
+                        "${artist.albumCount} álbumes · ${artist.songCount} canciones",
                         color = LocalAppTextColor.current.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -205,7 +154,7 @@ fun AlbumDetailScreen(
                     icon = Icons.Filled.Shuffle,
                     enabled = displaySongs.isNotEmpty(),
                     onClick = {
-                        val shuffled = album.songs.shuffled()
+                        val shuffled = artist.songs.shuffled()
                         displaySongs.clear()
                         displaySongs.addAll(shuffled)
                         if (shuffled.isNotEmpty()) onSongClick(shuffled.first(), shuffled)
@@ -226,19 +175,6 @@ fun AlbumDetailScreen(
                         expanded = showSortMenu.value,
                         onDismissRequest = { showSortMenu.value = false }
                     ) {
-                        DropdownMenuItem(
-                            text = {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    RadioButton(
-                                        selected = sortType.value == SortType.DATE_CREATED,
-                                        onClick = { sortType.value = SortType.DATE_CREATED; showSortMenu.value = false }
-                                    )
-                                    Spacer(Modifier.width(8.dp))
-                                    Text("Orden original")
-                                }
-                            },
-                            onClick = { sortType.value = SortType.DATE_CREATED; showSortMenu.value = false }
-                        )
                         DropdownMenuItem(
                             text = {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -265,6 +201,19 @@ fun AlbumDetailScreen(
                             },
                             onClick = { sortType.value = SortType.Z_A; showSortMenu.value = false }
                         )
+                        DropdownMenuItem(
+                            text = {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    RadioButton(
+                                        selected = sortType.value == SortType.DATE_CREATED,
+                                        onClick = { sortType.value = SortType.DATE_CREATED; showSortMenu.value = false }
+                                    )
+                                    Spacer(Modifier.width(8.dp))
+                                    Text("Agregadas recientemente")
+                                }
+                            },
+                            onClick = { sortType.value = SortType.DATE_CREATED; showSortMenu.value = false }
+                        )
                     }
                 }
 
@@ -277,7 +226,7 @@ fun AlbumDetailScreen(
                 )
             }
 
-            // --- Lista de canciones ---
+            // --- Lista de canciones (todos los álbumes del artista) ---
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()

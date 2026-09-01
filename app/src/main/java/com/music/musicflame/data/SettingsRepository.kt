@@ -28,6 +28,36 @@ class SettingsRepository(context: Context) {
     fun isRealTagWritingEnabled(): Boolean = prefs.getBoolean("real_tag_writing_enabled", false)
     fun saveRealTagWritingEnabled(enabled: Boolean) = prefs.edit().putBoolean("real_tag_writing_enabled", enabled).apply()
 
+    // --- FORMATOS DE AUDIO A ESCUCHAR (Ajustes > Canciones) ---
+    // Conjunto de extensiones (canónicas, ver AudioFormatCatalog) que el
+    // usuario decidió OCULTAR de su biblioteca. Un formato ausente de este
+    // set se considera visible/activado. loadSongsFromDevice() lo aplica en
+    // el punto de carga, así que las pantallas que leen de SongLibraryHolder
+    // (SongScreen, AlbumScreen, búsquedas, etc.) nunca ven canciones de un
+    // formato oculto. La primera vez que se lee (sin nada guardado todavía)
+    // se usa AudioFormatCatalog.DEFAULT_HIDDEN_EXTENSIONS, que hoy solo
+    // oculta por defecto los formatos marcados como "no usables" (.aac
+    // crudo) — el resto de formatos detectados empieza visible.
+    fun getHiddenAudioFormats(): Set<String> {
+        val json = prefs.getString("hidden_audio_formats", null) ?: return com.music.musicflame.data.AudioFormatCatalog.DEFAULT_HIDDEN_EXTENSIONS
+        return try {
+            val array = org.json.JSONArray(json)
+            val result = mutableSetOf<String>()
+            for (i in 0 until array.length()) {
+                result.add(array.getString(i))
+            }
+            result
+        } catch (e: Exception) {
+            com.music.musicflame.data.AudioFormatCatalog.DEFAULT_HIDDEN_EXTENSIONS
+        }
+    }
+
+    fun saveHiddenAudioFormats(hidden: Set<String>) {
+        val array = org.json.JSONArray()
+        hidden.forEach { array.put(it) }
+        prefs.edit().putString("hidden_audio_formats", array.toString()).apply()
+    }
+
     // --- APARIENCIA ---
     fun getAppTheme(): String = prefs.getString("app_theme", "Siguiendo al sistema") ?: "Siguiendo al sistema"
     fun saveAppTheme(theme: String) = prefs.edit().putString("app_theme", theme).apply()

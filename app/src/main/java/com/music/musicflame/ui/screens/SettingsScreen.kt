@@ -13,7 +13,9 @@ import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.ui.draw.alpha
@@ -180,6 +182,7 @@ fun SettingsScreen(
     val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
 
     val showDurationFilterDialog = remember { mutableStateOf(false) }
+    val showAudioFormatsDialog = remember { mutableStateOf(false) }
     val showSleepTimerDialog = remember { mutableStateOf(false) }
     val showThemeDialog = remember { mutableStateOf(false) }
     val showEqualizerDialog = remember { mutableStateOf(false) }
@@ -1031,6 +1034,16 @@ fun SettingsScreen(
                                 headlineContent = { Text("Filtrar por duración") },
                                 supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
                                 trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Formatos de audio a escuchar") },
+                                supportingContent = { Text("Elige qué formatos de tu biblioteca mostrar y reproducir") },
+                                trailingContent = { TextButton(onClick = { showAudioFormatsDialog.value = true }) { Text("Ver formatos", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -2055,6 +2068,95 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showAudioFormatsDialog.value) {
+            // Formatos realmente presentes en la biblioteca del dispositivo
+            // (sin aplicar ningún filtro), calculado una sola vez al abrir el
+            // diálogo. .m3u siempre se muestra, aunque no sea un formato de
+            // canción individual (aclarado con su propio `note`).
+            val detectedExtensions = remember { com.music.musicflame.data.detectPresentAudioExtensions(context) }
+            val displayFormats = remember(detectedExtensions) {
+                com.music.musicflame.data.AudioFormatCatalog.ALL_FORMATS.filter {
+                    it.isPlaylistFormat || detectedExtensions.contains(it.extension)
+                }
+            }
+            // Copia editable de los formatos ocultos: se guarda solo al presionar "Guardar".
+            val tempHiddenFormats = remember { mutableStateOf(settingsRepo.getHiddenAudioFormats()) }
+
+            AlertDialog(
+                onDismissRequest = { showAudioFormatsDialog.value = false },
+                title = { Text("Formatos de audio a escuchar", fontWeight = FontWeight.Bold) },
+                text = {
+                    if (displayFormats.none { !it.isPlaylistFormat }) {
+                        Text("Todavía no se detectaron canciones en tu biblioteca.")
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .heightIn(max = 420.dp)
+                                .verticalScroll(rememberScrollState())
+                        ) {
+                            displayFormats.forEach { format ->
+                                Row(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    if (format.isPlaylistFormat) {
+                                        // .m3u es informativo: no participa del filtro de la
+                                        // librería de canciones, así que no lleva checkbox.
+                                        Spacer(Modifier.width(48.dp))
+                                    } else {
+                                        Checkbox(
+                                            checked = !tempHiddenFormats.value.contains(format.extension),
+                                            onCheckedChange = { checked ->
+                                                tempHiddenFormats.value = if (checked) {
+                                                    tempHiddenFormats.value - format.extension
+                                                } else {
+                                                    tempHiddenFormats.value + format.extension
+                                                }
+                                            }
+                                        )
+                                    }
+                                    Column(modifier = Modifier.padding(start = 8.dp)) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text(format.displayName, fontWeight = FontWeight.Bold)
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                text = when {
+                                                    format.isPlaylistFormat -> "Solo Playlists"
+                                                    format.usable -> "Usable"
+                                                    else -> "No usable"
+                                                },
+                                                fontWeight = FontWeight.Bold,
+                                                color = when {
+                                                    format.isPlaylistFormat -> MaterialTheme.colorScheme.secondary
+                                                    format.usable -> MaterialTheme.colorScheme.primary
+                                                    else -> MaterialTheme.colorScheme.error
+                                                }
+                                            )
+                                        }
+                                        format.note?.let { note ->
+                                            Text(text = note, color = trailingColor)
+                                        }
+                                    }
+                                }
+                                HorizontalDivider(color = dividerColor)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveHiddenAudioFormats(tempHiddenFormats.value)
+                        // Los formatos ocultos cambian qué canciones cuentan como parte
+                        // de la librería, así que el cache compartido necesita re-escanear
+                        // (mismo patrón que el filtro de duración de arriba).
+                        refreshScope.launch { com.music.musicflame.data.SongLibraryHolder.refresh(context) }
+                        showAudioFormatsDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showAudioFormatsDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

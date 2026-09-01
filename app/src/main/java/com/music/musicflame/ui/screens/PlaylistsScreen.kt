@@ -41,6 +41,8 @@ import androidx.compose.material.icons.filled.Checklist
 import androidx.compose.material.icons.filled.Explore
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.FileDownload
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.LocalFireDepartment
 import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Sort
@@ -87,6 +89,7 @@ import com.music.musicflame.data.FavoritesRepository
 import com.music.musicflame.data.Playlist
 import com.music.musicflame.data.PlaylistKind
 import com.music.musicflame.data.PlaylistRepository
+import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.SmartPlaylistIds
 import com.music.musicflame.data.buildMostPlayedPlaylist
 import com.music.musicflame.data.buildNeverPlayedPlaylist
@@ -128,6 +131,7 @@ fun PlaylistsScreen(
     val context = LocalContext.current
     val playlistRepo = remember { PlaylistRepository(context) }
     val favoritesRepo = remember { FavoritesRepository(context) }
+    val settingsRepo = remember { SettingsRepository(context) }
     LaunchedEffect(Unit) { com.music.musicflame.data.SongLibraryHolder.ensureLoaded(context) }
 
     val isSelectionMode = selectedPlaylists.isNotEmpty() || selectionModeActive
@@ -141,6 +145,11 @@ fun PlaylistsScreen(
     val sortType = remember { mutableStateOf(PlaylistSortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
     val favoriteCount = remember { mutableStateOf(0) }
+    // --- Desplegable de "Playlists predeterminadas": agrupa Favoritos/Lo Más Sonado/Por
+    // Descubrir bajo un único encabezado en vez de mostrarlas siempre como 3 tarjetas fijas.
+    // Se persiste en SettingsRepository para que recuerde si estaba abierto o cerrado,
+    // ya que PlaylistsScreen se recompone desde cero al volver de ver una playlist.
+    var defaultPlaylistsExpanded by remember { mutableStateOf(settingsRepo.isDefaultPlaylistsExpanded()) }
     // --- Playlists inteligentes: se recalculan al entrar y en cada "pull to refresh" ---
     val mostPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.MOST_PLAYED, "Lo Más Sonado", emptyList(), isDefault = true)) }
     val neverPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.NEVER_PLAYED, "Por Descubrir", emptyList(), isDefault = true)) }
@@ -149,6 +158,7 @@ fun PlaylistsScreen(
     val fabRadius = if (isRounded) 16.dp else 0.dp
     val dialogRadius = if (isRounded) 28.dp else 0.dp
     val textFieldRadius = if (isRounded) 4.dp else 0.dp
+    val defaultPlaylistsHeaderRadius = if (isRounded) 16.dp else 0.dp
 
     val playlistToExport = remember { mutableStateOf<Playlist?>(null) }
 
@@ -291,47 +301,86 @@ fun PlaylistsScreen(
                     item { Spacer(modifier = Modifier.height(8.dp)) }
 
                     item {
-                        val favoritesPlaylist = Playlist("favorites", "Favoritos", favoritesRepo.getAllFavoriteIds().toList(), customCoverUri = favoritesRepo.getCoverUri())
-                        PlaylistCard(
-                            playlist = favoritesPlaylist,
-                            songCount = favoriteCount.value,
-                            kind = PlaylistKind.FAVORITES,
-                            onPlaylistClick = { onPlaylistClick(it, PlaylistKind.FAVORITES) },
-                            onChangeCoverClick = { onChangeCoverClick("favorites") },
-                            onResetCoverClick = { favoritesRepo.saveCoverUri("") },
-                            hasBackgroundImage = hasBackgroundImage,
-                            isSelected = selectedPlaylists.contains(favoritesPlaylist),
-                            isSelectionMode = isSelectionMode,
-                            onToggleSelection = { onToggleSelection(favoritesPlaylist) }
-                        )
-                    }
+                        Column {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(defaultPlaylistsHeaderRadius))
+                                    .combinedClickable(
+                                        onClick = {
+                                            defaultPlaylistsExpanded = !defaultPlaylistsExpanded
+                                            settingsRepo.saveDefaultPlaylistsExpanded(defaultPlaylistsExpanded)
+                                        },
+                                        onLongClick = {}
+                                    )
+                                    .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                    .padding(vertical = 14.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "Playlists predeterminadas",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = LocalAppTextColor.current
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Icon(
+                                    imageVector = if (defaultPlaylistsExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                                    contentDescription = if (defaultPlaylistsExpanded) "Contraer" else "Expandir",
+                                    tint = LocalAppTextColor.current
+                                )
+                            }
 
-                    item {
-                        PlaylistCard(
-                            playlist = mostPlayedPlaylist.value,
-                            songCount = mostPlayedPlaylist.value.songIds.size,
-                            kind = PlaylistKind.MOST_PLAYED,
-                            onPlaylistClick = { onPlaylistClick(it, PlaylistKind.MOST_PLAYED) },
-                            onChangeCoverClick = {},
-                            hasBackgroundImage = hasBackgroundImage,
-                            isSelected = selectedPlaylists.contains(mostPlayedPlaylist.value),
-                            isSelectionMode = isSelectionMode,
-                            onToggleSelection = { onToggleSelection(mostPlayedPlaylist.value) }
-                        )
-                    }
+                            AnimatedVisibility(
+                                visible = defaultPlaylistsExpanded,
+                                enter = fadeIn() + expandVertically(),
+                                exit = fadeOut() + shrinkVertically()
+                            ) {
+                                Column(
+                                    modifier = Modifier.padding(top = 12.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    val favoritesPlaylist = Playlist("favorites", "Favoritos", favoritesRepo.getAllFavoriteIds().toList(), customCoverUri = favoritesRepo.getCoverUri())
+                                    PlaylistCard(
+                                        playlist = favoritesPlaylist,
+                                        songCount = favoriteCount.value,
+                                        kind = PlaylistKind.FAVORITES,
+                                        onPlaylistClick = { onPlaylistClick(it, PlaylistKind.FAVORITES) },
+                                        onChangeCoverClick = { onChangeCoverClick("favorites") },
+                                        onResetCoverClick = { favoritesRepo.saveCoverUri("") },
+                                        hasBackgroundImage = hasBackgroundImage,
+                                        isSelected = selectedPlaylists.contains(favoritesPlaylist),
+                                        isSelectionMode = isSelectionMode,
+                                        onToggleSelection = { onToggleSelection(favoritesPlaylist) }
+                                    )
 
-                    item {
-                        PlaylistCard(
-                            playlist = neverPlayedPlaylist.value,
-                            songCount = neverPlayedPlaylist.value.songIds.size,
-                            kind = PlaylistKind.NEVER_PLAYED,
-                            onPlaylistClick = { onPlaylistClick(it, PlaylistKind.NEVER_PLAYED) },
-                            onChangeCoverClick = {},
-                            hasBackgroundImage = hasBackgroundImage,
-                            isSelected = selectedPlaylists.contains(neverPlayedPlaylist.value),
-                            isSelectionMode = isSelectionMode,
-                            onToggleSelection = { onToggleSelection(neverPlayedPlaylist.value) }
-                        )
+                                    PlaylistCard(
+                                        playlist = mostPlayedPlaylist.value,
+                                        songCount = mostPlayedPlaylist.value.songIds.size,
+                                        kind = PlaylistKind.MOST_PLAYED,
+                                        onPlaylistClick = { onPlaylistClick(it, PlaylistKind.MOST_PLAYED) },
+                                        onChangeCoverClick = {},
+                                        hasBackgroundImage = hasBackgroundImage,
+                                        isSelected = selectedPlaylists.contains(mostPlayedPlaylist.value),
+                                        isSelectionMode = isSelectionMode,
+                                        onToggleSelection = { onToggleSelection(mostPlayedPlaylist.value) }
+                                    )
+
+                                    PlaylistCard(
+                                        playlist = neverPlayedPlaylist.value,
+                                        songCount = neverPlayedPlaylist.value.songIds.size,
+                                        kind = PlaylistKind.NEVER_PLAYED,
+                                        onPlaylistClick = { onPlaylistClick(it, PlaylistKind.NEVER_PLAYED) },
+                                        onChangeCoverClick = {},
+                                        hasBackgroundImage = hasBackgroundImage,
+                                        isSelected = selectedPlaylists.contains(neverPlayedPlaylist.value),
+                                        isSelectionMode = isSelectionMode,
+                                        onToggleSelection = { onToggleSelection(neverPlayedPlaylist.value) }
+                                    )
+                                }
+                            }
+                        }
                     }
 
                     if (displayPlaylists.isEmpty()) {

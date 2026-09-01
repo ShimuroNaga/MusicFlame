@@ -42,6 +42,12 @@ fun loadSongsFromDevice(context: Context): List<Song> {
     val minMs = minSeconds * 1000L
     val maxMs = if (maxSeconds == Int.MAX_VALUE) Long.MAX_VALUE else maxSeconds * 1000L
 
+    // Formatos que el usuario decidió ocultar desde "Formatos de audio a
+    // escuchar" (Ajustes > Canciones). Se filtra aquí, en el único punto de
+    // carga de la biblioteca, para que SongScreen, AlbumScreen, búsquedas,
+    // etc. nunca vean canciones de un formato oculto (ver SongLibraryHolder).
+    val hiddenAudioFormats = settingsRepo.getHiddenAudioFormats()
+
     // Mapa songId -> nombre de género, usado por el buscador con filtros.
     // Se arma aparte porque el género no vive en la tabla Media sino en
     // MediaStore.Audio.Genres (funciona en todas las versiones de Android,
@@ -79,7 +85,14 @@ fun loadSongsFromDevice(context: Context): List<Song> {
         while (it.moveToNext()) {
             val duration = it.getLong(durationCol)
             val fallsInsideRange = duration in minMs..maxMs
-            val shouldInclude = if (filterMode == "only") fallsInsideRange else !fallsInsideRange
+            val matchesDurationFilter = if (filterMode == "only") fallsInsideRange else !fallsInsideRange
+
+            val path = it.getString(pathCol) ?: ""
+            val rawExtension = path.substringAfterLast('.', "").lowercase()
+            val isHiddenFormat = rawExtension.isNotEmpty() &&
+                AudioFormatCatalog.canonicalExtension(rawExtension) in hiddenAudioFormats
+
+            val shouldInclude = matchesDurationFilter && !isHiddenFormat
 
             if (shouldInclude) {
                 val id = it.getLong(idCol)
@@ -98,7 +111,7 @@ fun loadSongsFromDevice(context: Context): List<Song> {
                         artist = customization?.artist ?: (it.getString(artistCol) ?: "Artista Desconocido"),
                         album = customization?.album ?: (it.getString(albumCol) ?: "Desconocido"),
                         duration = duration,
-                        path = it.getString(pathCol) ?: "",
+                        path = path,
                         albumArtUri = customization?.coverUri ?: defaultAlbumArtUri,
                         hasCustomCover = customization?.coverUri != null,
                         dateAdded = it.getLong(dateAddedCol),
@@ -200,6 +213,35 @@ fun getOriginalSongAlbum(context: Context, songId: Long): String {
         }
     }
     return "Desconocido"
+}
+
+/**
+ * Escanea MediaStore y devuelve el set de extensiones de audio (canónicas,
+ * ver AudioFormatCatalog) presentes en el dispositivo, SIN aplicar el
+ * filtro de duración ni el de formatos ocultos — es justo lo contrario:
+ * sirve para que el selector "Formatos de audio a escuchar" (Ajustes >
+ * Canciones) sepa qué formatos existen de verdad en la biblioteca del
+ * usuario, incluyendo los que él mismo ya ocultó, para poder listarlos y
+ * dejarlo reactivarlos si quiere.
+ */
+fun detectPresentAudioExtensions(context: Context): Set<String> {
+    val result = mutableSetOf<String>()
+    val projection = arrayOf(MediaStore.Audio.Media.DATA)
+    val cursor = context.contentResolver.query(
+        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+        projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, null
+    )
+    cursor?.use {
+        val pathCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATA)
+        while (it.moveToNext()) {
+            val path = it.getString(pathCol) ?: continue
+            val rawExtension = path.substringAfterLast('.', "").lowercase()
+            if (rawExtension.isNotEmpty()) {
+                result.add(AudioFormatCatalog.canonicalExtension(rawExtension))
+            }
+        }
+    }
+    return result
 }
 
 /** Consulta a MediaStore la carátula ORIGINAL (por álbum) de una canción, sin personalización. */

@@ -1,23 +1,5 @@
 package com.music.musicflame.data
 
-/**
- * Catálogo de formatos de audio para el botón "Formatos de audio a escuchar"
- * de Ajustes > Canciones.
- *
- * "usable" indica si el formato es un audio reproducible de forma confiable
- * dentro de la app. El único caso marcado como NO usable es .aac "crudo"
- * (stream elemental, sin contenedor MP4): es el mismo caso ya documentado
- * como limitación en RealTagWriter (ver su comentario de cabecera) — no hay
- * un contenedor estándar donde ubicar los datos, así que por la misma razón
- * de fondo tampoco se puede tratar como un formato de audio normal dentro de
- * la librería.
- *
- * .m3u es un caso aparte: no es un formato de AUDIO individual, es un
- * formato de LISTA DE REPRODUCCIÓN (ver PlaylistRepository.importFromM3U /
- * exportToM3U). Se muestra en el selector solo a modo informativo — no tiene
- * checkbox propio porque no participa del filtro de la librería de
- * canciones (SongRepository.loadSongsFromDevice), solo de Playlists.
- */
 data class AudioFormatInfo(
     val extension: String,       // "mp3", "flac", ... siempre en minúsculas, es la "clave" del formato
     val displayName: String,     // ".mp3", ".flac", ... para mostrar en la UI
@@ -34,7 +16,12 @@ object AudioFormatCatalog {
     private val EXTENSION_ALIASES: Map<String, String> = mapOf(
         "oga" to "ogg",
         "m4b" to "m4a",
-        "aif" to "aiff"
+        "aif" to "aiff",
+        "mid" to "midi",
+        "weba" to "webm",
+        "3ga" to "3gp",
+        "ec3" to "eac3",
+        "m3u8" to "m3u"
     )
 
     /** Normaliza una extensión de archivo (se recomienda ya en minúsculas) a su formato "canónico" del catálogo. */
@@ -43,10 +30,8 @@ object AudioFormatCatalog {
         return EXTENSION_ALIASES[ext] ?: ext
     }
 
-    // Mismos 9 formatos "usables" ya documentados en RealTagWriter (los que
-    // la librería de re-etiquetado sabe manejar), más .aac crudo (no usable)
-    // y .m3u (formato de Playlist, no de canción).
     val ALL_FORMATS: List<AudioFormatInfo> = listOf(
+        // --- Usables: los 9 ya documentados en RealTagWriter ---
         AudioFormatInfo("mp3", ".mp3", usable = true),
         AudioFormatInfo("flac", ".flac", usable = true),
         AudioFormatInfo("ogg", ".ogg", usable = true),
@@ -56,12 +41,77 @@ object AudioFormatCatalog {
         AudioFormatInfo("aiff", ".aiff", usable = true),
         AudioFormatInfo("dsf", ".dsf", usable = true),
         AudioFormatInfo("opus", ".opus", usable = true),
+
+        // --- Usables adicionales: otros contenedores que ExoPlayer sí decodifica ---
         AudioFormatInfo(
-            extension = "aac",
-            displayName = ".aac",
-            usable = false,
+            extension = "mp4", displayName = ".mp4", usable = true,
+            note = "Cuando el archivo solo contiene audio (sin video)"
+        ),
+        AudioFormatInfo(
+            extension = "3gp", displayName = ".3gp", usable = true,
+            note = "Contenedor 3GPP con audio AMR o AAC"
+        ),
+        AudioFormatInfo("amr", ".amr", usable = true),
+        AudioFormatInfo(
+            extension = "webm", displayName = ".webm", usable = true,
+            note = "Cuando lleva audio Vorbis u Opus"
+        ),
+        AudioFormatInfo(
+            extension = "mka", displayName = ".mka", usable = true,
+            note = "Matroska de solo audio"
+        ),
+        AudioFormatInfo("ac3", ".ac3", usable = true),
+        AudioFormatInfo("eac3", ".eac3", usable = true),
+
+        // --- No usables: formatos de audio real, pero sin decodificador nativo en la app ---
+        AudioFormatInfo(
+            extension = "aac", displayName = ".aac", usable = false,
             note = "Crudo (sin contenedor): no soportado dentro de la app, misma limitación ya documentada para el guardado de etiquetas reales"
         ),
+        AudioFormatInfo(
+            extension = "ape", displayName = ".ape", usable = false,
+            note = "Monkey's Audio: compresión sin pérdida propietaria, sin decodificador nativo en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "wv", displayName = ".wv", usable = false,
+            note = "WavPack: sin decodificador nativo en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "tta", displayName = ".tta", usable = false,
+            note = "True Audio: sin decodificador nativo en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "mpc", displayName = ".mpc", usable = false,
+            note = "Musepack: formato poco común, sin decodificador nativo en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "ra", displayName = ".ra", usable = false,
+            note = "RealAudio: formato obsoleto/propietario, sin soporte en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "caf", displayName = ".caf", usable = false,
+            note = "Apple Core Audio Format: sin soporte nativo en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "au", displayName = ".au", usable = false,
+            note = "Formato antiguo (Sun/NeXT): sin soporte nativo en el reproductor de la app"
+        ),
+        AudioFormatInfo(
+            extension = "voc", displayName = ".voc", usable = false,
+            note = "Formato antiguo de Creative Labs: sin soporte en el reproductor de la app"
+        ),
+
+        // --- No usables: no son audio grabado, son instrucciones para generar sonido ---
+        AudioFormatInfo(
+            extension = "midi", displayName = ".midi", usable = false,
+            note = "No es audio grabado, es una secuencia de notas que necesita un sintetizador: el reproductor de la app no lo soporta"
+        ),
+        AudioFormatInfo(
+            extension = "mod", displayName = ".mod", usable = false,
+            note = "Formato de tracker (patrones/instrumentos, no audio grabado): mismo problema de fondo que .midi, necesita un motor de tracker que la app no trae"
+        ),
+
+        // --- Formato de Playlist, no de canción ---
         AudioFormatInfo(
             extension = "m3u",
             displayName = ".m3u",
@@ -75,6 +125,6 @@ object AudioFormatCatalog {
 
     fun infoFor(extension: String): AudioFormatInfo? = FORMATS_BY_EXTENSION[canonicalExtension(extension)]
 
-    /** Formatos no usables (ej. .aac crudo) que se ocultan de la librería por defecto la primera vez, hasta que el usuario decida lo contrario. */
+    /** Formatos no usables (ej. .aac crudo, .midi) que se ocultan de la librería por defecto la primera vez, hasta que el usuario decida lo contrario. */
     val DEFAULT_HIDDEN_EXTENSIONS: Set<String> = ALL_FORMATS.filter { !it.usable }.map { it.extension }.toSet()
 }

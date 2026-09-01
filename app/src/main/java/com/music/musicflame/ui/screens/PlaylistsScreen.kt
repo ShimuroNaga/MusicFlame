@@ -145,10 +145,6 @@ fun PlaylistsScreen(
     val sortType = remember { mutableStateOf(PlaylistSortType.DATE_CREATED) }
     val showSortMenu = remember { mutableStateOf(false) }
     val favoriteCount = remember { mutableStateOf(0) }
-    // --- Desplegable de "Playlists predeterminadas": agrupa Favoritos/Lo Más Sonado/Por
-    // Descubrir bajo un único encabezado en vez de mostrarlas siempre como 3 tarjetas fijas.
-    // Se persiste en SettingsRepository para que recuerde si estaba abierto o cerrado,
-    // ya que PlaylistsScreen se recompone desde cero al volver de ver una playlist.
     var defaultPlaylistsExpanded by remember { mutableStateOf(settingsRepo.isDefaultPlaylistsExpanded()) }
     // --- Playlists inteligentes: se recalculan al entrar y en cada "pull to refresh" ---
     val mostPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.MOST_PLAYED, "Lo Más Sonado", emptyList(), isDefault = true)) }

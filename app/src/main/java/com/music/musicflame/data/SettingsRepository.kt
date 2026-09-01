@@ -58,6 +58,13 @@ class SettingsRepository(context: Context) {
         prefs.edit().putString("hidden_audio_formats", array.toString()).apply()
     }
 
+    // --- DESPLEGABLE "PLAYLISTS PREDETERMINADAS" (PlaylistsScreen) ---
+    // Recuerda si el usuario dejó expandido o colapsado el grupo de
+    // Favoritos/Lo Más Sonado/Por Descubrir, ya que PlaylistsScreen se
+    // recompone desde cero cada vez que se vuelve de ver una playlist.
+    fun isDefaultPlaylistsExpanded(): Boolean = prefs.getBoolean("default_playlists_expanded", true)
+    fun saveDefaultPlaylistsExpanded(expanded: Boolean) = prefs.edit().putBoolean("default_playlists_expanded", expanded).apply()
+
     // --- APARIENCIA ---
     fun getAppTheme(): String = prefs.getString("app_theme", "Siguiendo al sistema") ?: "Siguiendo al sistema"
     fun saveAppTheme(theme: String) = prefs.edit().putString("app_theme", theme).apply()

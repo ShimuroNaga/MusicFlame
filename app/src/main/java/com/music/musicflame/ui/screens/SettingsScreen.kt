@@ -2072,16 +2072,15 @@ fun SettingsScreen(
         }
 
         if (showAudioFormatsDialog.value) {
-            // Formatos realmente presentes en la biblioteca del dispositivo
-            // (sin aplicar ningún filtro), calculado una sola vez al abrir el
-            // diálogo. .m3u siempre se muestra, aunque no sea un formato de
-            // canción individual (aclarado con su propio `note`).
+            // Se muestra SIEMPRE el catálogo completo del repo (los 9 formatos
+            // usables ya documentados en RealTagWriter, más .aac no usable y
+            // .m3u informativo), no solo lo detectado en este dispositivo en
+            // particular — así el usuario puede pre-activar/ocultar formatos
+            // aunque su biblioteca actual solo tenga, por ejemplo, mp3.
+            // detectPresentAudioExtensions() se usa aparte solo para marcar
+            // cuáles SÍ están presentes ahora mismo en su biblioteca.
             val detectedExtensions = remember { com.music.musicflame.data.detectPresentAudioExtensions(context) }
-            val displayFormats = remember(detectedExtensions) {
-                com.music.musicflame.data.AudioFormatCatalog.ALL_FORMATS.filter {
-                    it.isPlaylistFormat || detectedExtensions.contains(it.extension)
-                }
-            }
+            val displayFormats = remember { com.music.musicflame.data.AudioFormatCatalog.ALL_FORMATS }
             // Copia editable de los formatos ocultos: se guarda solo al presionar "Guardar".
             val tempHiddenFormats = remember { mutableStateOf(settingsRepo.getHiddenAudioFormats()) }
 
@@ -2089,9 +2088,12 @@ fun SettingsScreen(
                 onDismissRequest = { showAudioFormatsDialog.value = false },
                 title = { Text("Formatos de audio a escuchar", fontWeight = FontWeight.Bold) },
                 text = {
-                    if (displayFormats.none { !it.isPlaylistFormat }) {
-                        Text("Todavía no se detectaron canciones en tu biblioteca.")
-                    } else {
+                    Column {
+                        Text(
+                            "Los que ya tienes en tu biblioteca dicen \"detectado\".",
+                            color = trailingColor,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
                         Column(
                             modifier = Modifier
                                 .heightIn(max = 420.dp)
@@ -2135,6 +2137,13 @@ fun SettingsScreen(
                                                     else -> MaterialTheme.colorScheme.error
                                                 }
                                             )
+                                            if (!format.isPlaylistFormat && detectedExtensions.contains(format.extension)) {
+                                                Spacer(Modifier.width(8.dp))
+                                                Text(
+                                                    text = "· detectado",
+                                                    color = trailingColor
+                                                )
+                                            }
                                         }
                                         format.note?.let { note ->
                                             Text(text = note, color = trailingColor)

@@ -39,11 +39,17 @@ import com.music.musicflame.data.Album
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.components.AlbumArt
 
-fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Boolean {
+// GENERALIZADO: antes esta función era específica de álbum (nombre de
+// parámetro y de archivo "albumName"). Ahora es el export genérico de
+// "nombre + lista de canciones" a un .m3u en Descargas, reutilizado por
+// Album, Artist y Genre (ver ArtistDetailScreen.kt / GenreDetailScreen.kt).
+// exportAlbumToM3U se deja como wrapper fino para no romper nada que ya la
+// llamaba (MainActivity.kt).
+fun exportSongsToM3U(context: Context, fileName: String, songs: List<Song>): Boolean {
     return try {
         val m3uContent = buildString {
             appendLine("#EXTM3U")
-            appendLine("#PLAYLIST:$albumName")
+            appendLine("#PLAYLIST:$fileName")
             songs.forEach { song ->
                 appendLine("#EXTINF:${song.duration / 1000},${song.artist} - ${song.title}")
                 appendLine(song.path)
@@ -53,7 +59,7 @@ fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Bo
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
             val resolver = context.contentResolver
             val contentValues = android.content.ContentValues().apply {
-                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$albumName.m3u")
+                put(android.provider.MediaStore.MediaColumns.DISPLAY_NAME, "$fileName.m3u")
                 put(android.provider.MediaStore.MediaColumns.MIME_TYPE, "audio/x-mpegurl")
                 put(
                     android.provider.MediaStore.MediaColumns.RELATIVE_PATH,
@@ -74,7 +80,7 @@ fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Bo
             val downloadsDir = android.os.Environment.getExternalStoragePublicDirectory(
                 android.os.Environment.DIRECTORY_DOWNLOADS
             )
-            val file = java.io.File(downloadsDir, "$albumName.m3u")
+            val file = java.io.File(downloadsDir, "$fileName.m3u")
             file.writeText(m3uContent)
         }
         true
@@ -83,6 +89,9 @@ fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Bo
         false
     }
 }
+
+fun exportAlbumToM3U(context: Context, albumName: String, songs: List<Song>): Boolean =
+    exportSongsToM3U(context, albumName, songs)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable

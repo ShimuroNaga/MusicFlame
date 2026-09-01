@@ -313,6 +313,10 @@ class MainActivity : ComponentActivity() {
                 var selectedPlaylist by remember { mutableStateOf<Playlist?>(null) }
                 var selectedPlaylistKind by remember { mutableStateOf(PlaylistKind.REGULAR) }
                 var selectedAlbum by remember { mutableStateOf<com.music.musicflame.data.Album?>(null) }
+                // NUEVO: mismo patrón que selectedAlbum, para las pestañas de Artistas y
+                // Géneros dentro del tab de Album (ver AlbumScreen.kt).
+                var selectedArtist by remember { mutableStateOf<com.music.musicflame.data.Artist?>(null) }
+                var selectedGenre by remember { mutableStateOf<com.music.musicflame.data.Genre?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
 
                 // --- Selección múltiple de canciones (playlists, drive, etc.) ---
@@ -428,7 +432,11 @@ class MainActivity : ComponentActivity() {
                     selectedSongs.clear(); manualSongSelectionMode = false
                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                     if (currentScreen != Screen.Playlists) selectedPlaylist = null
-                    if (currentScreen != Screen.Album) selectedAlbum = null
+                    if (currentScreen != Screen.Album) {
+                        selectedAlbum = null
+                        selectedArtist = null
+                        selectedGenre = null
+                    }
                 }
 
                 CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
@@ -717,6 +725,8 @@ class MainActivity : ComponentActivity() {
                                                             showSettings -> "CONFIGURACION"
                                                             selectedPlaylist != null -> selectedPlaylist!!.name
                                                             selectedAlbum != null -> selectedAlbum!!.name
+                                                            selectedArtist != null -> selectedArtist!!.name
+                                                            selectedGenre != null -> selectedGenre!!.name
                                                             else -> "MusicFlame"
                                                         },
                                                         fontWeight = FontWeight.Bold,
@@ -726,10 +736,10 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         navigationIcon = {
-                                            if (selectedPlaylist != null || selectedAlbum != null || showSettings) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; showSettings = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
+                                            if (selectedPlaylist != null || selectedAlbum != null || selectedArtist != null || selectedGenre != null || showSettings) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; selectedArtist = null; selectedGenre = null; showSettings = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
                                         },
                                         actions = {
-                                            if (selectedPlaylist == null && selectedAlbum == null && !showSettings && !isSearchActive) {
+                                            if (selectedPlaylist == null && selectedAlbum == null && selectedArtist == null && selectedGenre == null && !showSettings && !isSearchActive) {
                                                 IconButton(onClick = {
                                                     isSearchActive = true
                                                     youtubeVideoId = null
@@ -754,6 +764,18 @@ class MainActivity : ComponentActivity() {
                                                 IconButton(onClick = {
                                                     val ok = exportAlbumToM3U(context, selectedAlbum!!.name, selectedAlbum!!.songs)
                                                     Toast.makeText(context, if (ok) "Álbum exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                            }
+                                            if (selectedArtist != null) {
+                                                IconButton(onClick = {
+                                                    val ok = exportSongsToM3U(context, selectedArtist!!.name, selectedArtist!!.songs)
+                                                    Toast.makeText(context, if (ok) "Artista exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                            }
+                                            if (selectedGenre != null) {
+                                                IconButton(onClick = {
+                                                    val ok = exportSongsToM3U(context, selectedGenre!!.name, selectedGenre!!.songs)
+                                                    Toast.makeText(context, if (ok) "Género exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
                                                 }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
                                             }
                                         },
@@ -833,6 +855,8 @@ class MainActivity : ComponentActivity() {
                                                 onClick = {
                                                     selectedPlaylist = null
                                                     selectedAlbum = null
+                                                    selectedArtist = null
+                                                    selectedGenre = null
                                                     showSettings = false
                                                     isSearchActive = false
                                                     searchQuery = ""
@@ -1008,6 +1032,10 @@ class MainActivity : ComponentActivity() {
                                             hasBackgroundImage = hasBackgroundImage,
                                             selectedAlbum = selectedAlbum,
                                             onAlbumClick = { selectedAlbum = it },
+                                            selectedArtist = selectedArtist,
+                                            onArtistClick = { selectedArtist = it },
+                                            selectedGenre = selectedGenre,
+                                            onGenreClick = { selectedGenre = it },
                                             onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) },
                                             selectedSongs = selectedSongs,
                                             onToggleSelection = onToggleSong,

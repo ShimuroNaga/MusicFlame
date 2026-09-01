@@ -32,6 +32,7 @@ import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Favorite
+import androidx.compose.material.icons.filled.BugReport
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -186,6 +187,8 @@ fun SettingsScreen(
     val showSleepTimerDialog = remember { mutableStateOf(false) }
     val showThemeDialog = remember { mutableStateOf(false) }
     val showEqualizerDialog = remember { mutableStateOf(false) }
+    // --- NUEVO: "Búsqueda de anomalías" (Ajustes > Canciones) ---
+    val showAnomalyScanDialog = remember { mutableStateOf(false) }
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
@@ -1044,6 +1047,20 @@ fun SettingsScreen(
                                 headlineContent = { Text("Formatos de audio a escuchar") },
                                 supportingContent = { Text("Elige qué formatos de tu biblioteca mostrar y reproducir") },
                                 trailingContent = { TextButton(onClick = { showAudioFormatsDialog.value = true }) { Text("Ver formatos", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Búsqueda de anomalías") },
+                                supportingContent = { Text("Detecta carátulas corruptas, metadata sospechosa, formatos sin soporte, canciones truncadas y posibles duplicados") },
+                                trailingContent = {
+                                    TextButton(onClick = { showAnomalyScanDialog.value = true }) {
+                                        Text("Analizar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -2787,6 +2804,14 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showNowPlayingColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showAnomalyScanDialog.value) {
+            AnomalyScanDialog(
+                settingsRepo = settingsRepo,
+                playerManager = playerManager,
+                onDismiss = { showAnomalyScanDialog.value = false }
             )
         }
 

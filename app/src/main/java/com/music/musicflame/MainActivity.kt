@@ -402,6 +402,11 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(Unit) {
                     SongLibraryHolder.ensureLoaded(context)
                     totalSongsOnDevice = SongLibraryHolder.songs.size
+                    // NUEVO: dispara el análisis de audio real (tempo/energía) en
+                    // segundo plano para las mezclas automáticas ("para correr",
+                    // "para dormir", etc.). No bloquea nada: cada canción que ya
+                    // esté cacheada de una corrida anterior se salta al toque.
+                    AudioAnalysisScheduler.start(context)
                 }
 
                 // --- NUEVO: Efecto para cargar los archivos de Drive ---

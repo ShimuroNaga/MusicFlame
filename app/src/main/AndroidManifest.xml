@@ -144,6 +144,22 @@
             </intent-filter>
         </activity-alias>
 
+        <!-- Alias: icono DemonMusic (cambia también el nombre a DemonMusic) -->
+        <activity-alias
+            android:name=".IconDemonMusic"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_demonmusic"
+            android:roundIcon="@mipmap/ic_launcher_demonmusic"
+            android:label="@string/app_name_demonmusic"
+            android:theme="@style/Theme.MusicFlame">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Alias: icono Gris -->
         <activity-alias
             android:name=".IconGray"

@@ -254,7 +254,8 @@ fun SettingsScreen(
             Triple("pixel", "Pixelart", R.mipmap.ic_launcher_pixel),
             Triple("cookies", "Cookies N Cream", R.mipmap.ic_launcher_cookies),
             Triple("gray", "Escala de grises", R.mipmap.ic_launcher_gray),
-            Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame)
+            Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
+            Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic)
         )
     }
 

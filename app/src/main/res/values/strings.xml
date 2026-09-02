@@ -8,6 +8,7 @@
     <string name="app_name_pixel">PixelFlame</string>
     <string name="app_name_cookies">CookieFlame</string>
     <string name="app_name_remixflame">RemixFlame</string>
+    <string name="app_name_demonmusic">DemonMusic</string>
 
     <!-- Widget de home screen -->
     <string name="widget_music_flame_description">Reproductor compacto de MusicFlame: carátula, nombre de la canción, play/pause y siguiente (agrándalo para tener también un botón de anterior).</string>

@@ -191,6 +191,7 @@ fun SettingsScreen(
     val showAnomalyScanDialog = remember { mutableStateOf(false) }
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
     val showFontDialog = remember { mutableStateOf(false) }
+    val showFontSizeDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
     val showLyricsColorDialog = remember { mutableStateOf(false) }
@@ -212,6 +213,7 @@ fun SettingsScreen(
     // Tipo de letra global (catálogo, ideas de fuentes): aplica a TODA la
     // app (ver MusicFlameTheme). Roboto y otras 5 son gratis, 5 son de pago.
     val appFontPref = remember { mutableStateOf(com.music.musicflame.ui.theme.AppFont.fromId(settingsRepo.getAppFont())) }
+    val appFontSizePref = remember { mutableStateOf(settingsRepo.getAppFontSizeSp()) }
     // Color propio del ecualizador gráfico (catálogo, punto 1): "Adaptativo"
     // (default, blanco/negro según fondo, sin cambios de comportamiento) o
     // "Personalizado" (equalizerCustomColorHexPref). Mismo patrón que
@@ -823,6 +825,23 @@ fun SettingsScreen(
                                 },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { showFontDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // NUEVO: tamaño de letra global. Gratis (usabilidad, no
+                            // cosmético puro) — afecta a toda la app vía appTypographyFor().
+                            ListItem(
+                                headlineContent = { Text("Tamaño de letra") },
+                                supportingContent = { Text("${appFontSizePref.value.toInt()} sp") },
+                                trailingContent = {
+                                    TextButton(onClick = { showFontSizeDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showFontSizeDialog.value = true }
                             )
                             HorizontalDivider(color = dividerColor)
                         }
@@ -2311,6 +2330,19 @@ fun SettingsScreen(
                     showFontDialog.value = false
                 },
                 onLockedFontClick = { showLockedFeatureToast() }
+            )
+        }
+
+        if (showFontSizeDialog.value) {
+            com.music.musicflame.ui.components.AppFontSizeDialog(
+                currentSizeSp = appFontSizePref.value,
+                previewFontFamily = appFontPref.value.fontFamily,
+                onDismiss = { showFontSizeDialog.value = false },
+                onConfirm = { newSizeSp ->
+                    appFontSizePref.value = newSizeSp
+                    settingsRepo.saveAppFontSizeSp(newSizeSp)
+                    showFontSizeDialog.value = false
+                }
             )
         }
 

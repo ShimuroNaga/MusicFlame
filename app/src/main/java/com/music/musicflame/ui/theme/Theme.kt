@@ -38,6 +38,8 @@ fun MusicFlameTheme(
     // Tipo de letra global (ver AppFonts.kt, SettingsRepository.getAppFont).
     // Se guarda como AppFont.id (String); se resuelve a AppFont más abajo.
     val appFontIdState = remember { mutableStateOf(settingsRepo.getAppFont()) }
+    // Tamaño de letra global en sp (referencia bodyLarge, ver appTypographyFor).
+    val appFontSizeState = remember { mutableStateOf(settingsRepo.getAppFontSizeSp()) }
     // Blinda el RENDERIZADO global (texto de la app y "Now Playing"): si el
     // valor guardado es una opción de pago y el usuario no está desbloqueado,
     // se ignora acá abajo y se cae al comportamiento gratis de siempre, en
@@ -70,6 +72,7 @@ fun MusicFlameTheme(
                 "now_playing_color_mode" -> nowPlayingColorModeState.value = settingsRepo.getNowPlayingColorMode()
                 "now_playing_custom_color_hex" -> nowPlayingCustomColorHexState.value = settingsRepo.getNowPlayingCustomColorHex()
                 "app_font" -> appFontIdState.value = settingsRepo.getAppFont()
+                "app_font_size_sp" -> appFontSizeState.value = settingsRepo.getAppFontSizeSp()
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -145,7 +148,9 @@ fun MusicFlameTheme(
     // a Roboto en vez de seguir mostrando la fuente premium sin haber pagado.
     val storedFont = AppFont.fromId(appFontIdState.value)
     val effectiveFont = if (!isProUnlocked && !storedFont.isFree) AppFont.DEFAULT else storedFont
-    val appTypography = appTypographyFor(effectiveFont.fontFamily)
+    // 16sp es el tamaño original de bodyLarge en M3 (sin cambios = escala 1f).
+    val fontScale = appFontSizeState.value / 16f
+    val appTypography = appTypographyFor(effectiveFont.fontFamily, fontScale)
 
     MaterialTheme(
         colorScheme = finalColorScheme,

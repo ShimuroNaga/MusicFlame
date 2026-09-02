@@ -120,6 +120,14 @@ class SettingsRepository(context: Context) {
     fun getAppFont(): String = prefs.getString("app_font", "roboto") ?: "roboto"
     fun saveAppFont(id: String) = prefs.edit().putString("app_font", id).apply()
 
+    // --- TAMAÑO DE LETRA GLOBAL ---
+    // Valor de referencia en sp para bodyLarge (16f = tamaño original de M3,
+    // sin cambios). appTypographyFor() en Type.kt escala los 15 estilos de
+    // Material 3 proporcionalmente a partir de este número. Rango sugerido
+    // en el diálogo: 12f a 22f.
+    fun getAppFontSizeSp(): Float = prefs.getFloat("app_font_size_sp", 16f)
+    fun saveAppFontSizeSp(value: Float) = prefs.edit().putFloat("app_font_size_sp", value).apply()
+
     // --- REPRODUCCIÓN Y CUENTA ---
     fun getPlayInBackground(): Boolean = prefs.getBoolean("play_in_background", true)
     fun savePlayInBackground(enabled: Boolean) = prefs.edit().putBoolean("play_in_background", enabled).apply()

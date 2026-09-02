@@ -112,6 +112,14 @@ class SettingsRepository(context: Context) {
     fun getCustomTextColorHex(): String = prefs.getString("custom_text_color_hex", "#FFFFFF") ?: "#FFFFFF"
     fun saveCustomTextColorHex(value: String) = prefs.edit().putString("custom_text_color_hex", value).apply()
 
+    // --- TIPO DE LETRA GLOBAL (catálogo, ideas de fuentes) ---
+    // Guarda el AppFont.id (ver ui/theme/AppFonts.kt), aplicado a TODA la app
+    // (no solo al título de la canción) vía MusicFlameTheme. Se guarda como
+    // String plano (no el enum) para no acoplar este repo a la capa de UI,
+    // mismo criterio que el resto de las claves de este archivo.
+    fun getAppFont(): String = prefs.getString("app_font", "roboto") ?: "roboto"
+    fun saveAppFont(id: String) = prefs.edit().putString("app_font", id).apply()
+
     // --- REPRODUCCIÓN Y CUENTA ---
     fun getPlayInBackground(): Boolean = prefs.getBoolean("play_in_background", true)
     fun savePlayInBackground(enabled: Boolean) = prefs.edit().putBoolean("play_in_background", enabled).apply()

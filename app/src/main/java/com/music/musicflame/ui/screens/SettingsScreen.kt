@@ -190,6 +190,7 @@ fun SettingsScreen(
     // --- NUEVO: "Búsqueda de anomalías" (Ajustes > Canciones) ---
     val showAnomalyScanDialog = remember { mutableStateOf(false) }
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
+    val showFontDialog = remember { mutableStateOf(false) }
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
     val showLyricsColorDialog = remember { mutableStateOf(false) }
@@ -208,6 +209,9 @@ fun SettingsScreen(
     // estéticas, punto 4): barras clásicas, doble espejado, ondas de agua,
     // círculo pulsante, partículas, barras finas o VU meter retro.
     val equalizerStyle = remember { mutableStateOf(settingsRepo.getEqualizerStyle()) }
+    // Tipo de letra global (catálogo, ideas de fuentes): aplica a TODA la
+    // app (ver MusicFlameTheme). Roboto y otras 5 son gratis, 5 son de pago.
+    val appFontPref = remember { mutableStateOf(com.music.musicflame.ui.theme.AppFont.fromId(settingsRepo.getAppFont())) }
     // Color propio del ecualizador gráfico (catálogo, punto 1): "Adaptativo"
     // (default, blanco/negro según fondo, sin cambios de comportamiento) o
     // "Personalizado" (equalizerCustomColorHexPref). Mismo patrón que
@@ -800,6 +804,25 @@ fun SettingsScreen(
                                 },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { showEqualizerStyleDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // NUEVO: tipo de letra global (catálogo, ideas de fuentes).
+                            // Se aplica a TODA la app, no solo al título de la canción.
+                            ListItem(
+                                headlineContent = { Text("Tipo de letra") },
+                                supportingContent = {
+                                    Text(appFontPref.value.displayName, fontFamily = appFontPref.value.fontFamily)
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showFontDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showFontDialog.value = true }
                             )
                             HorizontalDivider(color = dividerColor)
                         }
@@ -2274,6 +2297,20 @@ fun SettingsScreen(
                     showEqualizerStyleDialog.value = false
                 },
                 onLockedStyleClick = { showLockedFeatureToast() }
+            )
+        }
+
+        if (showFontDialog.value) {
+            com.music.musicflame.ui.components.AppFontPickerDialog(
+                currentFont = appFontPref.value,
+                isUnlocked = isProUnlocked,
+                onDismiss = { showFontDialog.value = false },
+                onConfirm = { newFont ->
+                    appFontPref.value = newFont
+                    settingsRepo.saveAppFont(newFont.id)
+                    showFontDialog.value = false
+                },
+                onLockedFontClick = { showLockedFeatureToast() }
             )
         }
 

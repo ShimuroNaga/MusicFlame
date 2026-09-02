@@ -47,7 +47,17 @@ object PaymentCatalog {
         Item("vinyl_widget", "Widget vinilo", "Widget completo"),
 
         Item("lyrics_custom", "Color de letras", "Personalizado"),
-        Item("lyrics_rainbow", "Color de letras", "Arcoíris")
+        Item("lyrics_rainbow", "Color de letras", "Arcoíris"),
+
+        // NUEVO: tipos de letra para toda la app (ver ui/theme/AppFonts.kt).
+        // Roboto (default), Lato, Open Sans, Inter, Asap Sharp y Nunito son
+        // gratis y no aparecen acá. El candado real vive en AppFont.isFree /
+        // MusicFlameTheme, no en esta lista (esta solo pinta la tabla).
+        Item("font_comfortaa", "Tipo de letra", "Comfortaa"),
+        Item("font_playfair_display", "Tipo de letra", "Playfair Display"),
+        Item("font_orbitron", "Tipo de letra", "Orbitron"),
+        Item("font_press_start_2p", "Tipo de letra", "Press Start 2P"),
+        Item("font_space_mono", "Tipo de letra", "Space Mono")
     )
 
     val TOTAL_PRICE_MXN: Int = ITEMS.size * PRICE_PER_ITEM_MXN

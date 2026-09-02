@@ -35,6 +35,9 @@ fun MusicFlameTheme(
     // patrón "Adaptativo"/"Personalizado" que el color del ecualizador.
     val nowPlayingColorModeState = remember { mutableStateOf(settingsRepo.getNowPlayingColorMode()) }
     val nowPlayingCustomColorHexState = remember { mutableStateOf(settingsRepo.getNowPlayingCustomColorHex()) }
+    // Tipo de letra global (ver AppFonts.kt, SettingsRepository.getAppFont).
+    // Se guarda como AppFont.id (String); se resuelve a AppFont más abajo.
+    val appFontIdState = remember { mutableStateOf(settingsRepo.getAppFont()) }
     // Blinda el RENDERIZADO global (texto de la app y "Now Playing"): si el
     // valor guardado es una opción de pago y el usuario no está desbloqueado,
     // se ignora acá abajo y se cae al comportamiento gratis de siempre, en
@@ -66,6 +69,7 @@ fun MusicFlameTheme(
                 "custom_text_color_hex" -> customTextColorHexState.value = settingsRepo.getCustomTextColorHex()
                 "now_playing_color_mode" -> nowPlayingColorModeState.value = settingsRepo.getNowPlayingColorMode()
                 "now_playing_custom_color_hex" -> nowPlayingCustomColorHexState.value = settingsRepo.getNowPlayingCustomColorHex()
+                "app_font" -> appFontIdState.value = settingsRepo.getAppFont()
             }
         }
         prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -136,8 +140,16 @@ fun MusicFlameTheme(
         else -> if (isDarkBackground) Color.White else Color.Black // "Adaptativo": mismo default histórico del componente
     }
 
+    // Blinda el tipo de letra igual que el color de texto/Now Playing: si lo
+    // guardado es una fuente de pago y el usuario no está desbloqueado, cae
+    // a Roboto en vez de seguir mostrando la fuente premium sin haber pagado.
+    val storedFont = AppFont.fromId(appFontIdState.value)
+    val effectiveFont = if (!isProUnlocked && !storedFont.isFree) AppFont.DEFAULT else storedFont
+    val appTypography = appTypographyFor(effectiveFont.fontFamily)
+
     MaterialTheme(
-        colorScheme = finalColorScheme
+        colorScheme = finalColorScheme,
+        typography = appTypography
     ) {
         CompositionLocalProvider(
             LocalAppTextColor provides appTextColor,

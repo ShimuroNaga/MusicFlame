@@ -2,11 +2,17 @@ package com.music.musicflame.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.withFrameNanos
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -38,6 +44,9 @@ fun EqualizerCanvas(
         EqualizerStyle.PARTICLES -> ParticlesEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.THIN_BARS -> ThinBarsEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.VU_METER_RETRO -> VuMeterRetroEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.OSCILLOSCOPE -> OscilloscopeEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.SKYLINE -> SkylineEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.RAIN_CASCADE -> RainCascadeEqualizerCanvas(spectrum, color, modifier)
     }
 }
 
@@ -410,5 +419,193 @@ fun VuMeterRetroEqualizerCanvas(
         val gaugeCy = size.height * 0.78f
         drawGauge(gaugeWidth * 0.5f, gaugeCy, levelLeft)
         drawGauge(gaugeWidth * 1.5f, gaugeCy, levelRight)
+    }
+}
+
+// --- 4g) OSCILOSCOPIO (waveform en vivo) ---
+// A diferencia de "Ondas de agua" (WATER_WAVE, que tiene relleno y nace del
+// borde inferior como una ola), acá es solo un TRAZO (sin relleno) centrado
+// verticalmente que sube y baja por encima y por debajo de una línea media,
+// como un osciloscopio/monitor de audio real. El signo (arriba/abajo) de
+// cada punto es fijo por índice (elegido una sola vez), para que el trazo se
+// vea como una forma de onda real en vez de "todo para arriba".
+@Composable
+fun OscilloscopeEqualizerCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val barCount = spectrum.barCount
+    val sign = remember(barCount) { FloatArray(barCount) { if (Random(it * 92821).nextBoolean()) 1f else -1f } }
+
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        spectrum.tick
+
+        val w = size.width
+        val h = size.height
+        val midY = h / 2f
+        val amplitude = h * 0.48f
+
+        fun xAt(i: Int) = (i.toFloat() / (barCount - 1)) * w
+        fun yAt(i: Int): Float {
+            val level = spectrum.displayLevels[i].coerceIn(0f, 1f)
+            return midY - sign[i] * level * amplitude
+        }
+
+        // Línea media de referencia, tenue (marca el "cero" del osciloscopio).
+        drawLine(
+            color = color.copy(alpha = color.alpha * 0.15f),
+            start = Offset(0f, midY),
+            end = Offset(w, midY),
+            strokeWidth = 1.5f
+        )
+
+        val path = Path().apply {
+            moveTo(xAt(0), yAt(0))
+            for (i in 0 until barCount - 1) {
+                val midX = (xAt(i) + xAt(i + 1)) / 2f
+                val midYPoint = (yAt(i) + yAt(i + 1)) / 2f
+                quadraticTo(xAt(i), yAt(i), midX, midYPoint)
+            }
+            lineTo(xAt(barCount - 1), yAt(barCount - 1))
+        }
+
+        drawPath(
+            path,
+            color = color,
+            style = Stroke(width = 4f, cap = StrokeCap.Round)
+        )
+    }
+}
+
+// --- 4h) TERRENO / SKYLINE ---
+// Silueta tipo montañas u horizonte de ciudad: a diferencia de "Ondas de
+// agua" (curvas suaves tipo Bezier), acá el trazo va con líneas RECTAS entre
+// puntos, para que se sienta como picos/edificios en vez de agua. Relleno
+// degradado (más opaco abajo, más transparente arriba) para dar sensación de
+// profundidad, y un contorno encima para marcar bien la silueta de los picos.
+@Composable
+fun SkylineEqualizerCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val barCount = spectrum.barCount
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        spectrum.tick
+
+        val w = size.width
+        val h = size.height
+        val baseline = h
+
+        fun xAt(i: Int) = (i.toFloat() / (barCount - 1)) * w
+        fun yAt(i: Int) = baseline - spectrum.displayLevels[i].coerceIn(0f, 1f) * h * 0.92f
+
+        val fillPath = Path().apply {
+            moveTo(0f, baseline)
+            for (i in 0 until barCount) lineTo(xAt(i), yAt(i))
+            lineTo(w, baseline)
+            close()
+        }
+
+        drawPath(
+            fillPath,
+            brush = Brush.verticalGradient(
+                colors = listOf(
+                    color.copy(alpha = color.alpha * 0.9f),
+                    color.copy(alpha = color.alpha * 0.25f)
+                ),
+                startY = baseline,
+                endY = 0f
+            )
+        )
+
+        val outline = Path().apply {
+            moveTo(xAt(0), yAt(0))
+            for (i in 1 until barCount) lineTo(xAt(i), yAt(i))
+        }
+        drawPath(outline, color = color, style = Stroke(width = 3f))
+    }
+}
+
+// --- 4i) CASCADA DE LLUVIA ---
+// Gotas que caen desde arriba y "rebotan" (compresión + relajación breve) al
+// tocar el fondo, con velocidad de caída proporcional a la intensidad de su
+// frecuencia. A diferencia de "Partículas" (PARTICLES, que salta en el
+// lugar según altura instantánea), acá hay movimiento vertical real y
+// continuo en el tiempo: la posición de cada gota vive en su propio estado
+// (dropY/dropVelocity/bounceScale, remember por índice), animado con su
+// propio LaunchedEffect + withFrameNanos — el spectrum solo empuja qué tan
+// rápido cae cada gota, no dónde está.
+@Composable
+fun RainCascadeEqualizerCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val barCount = spectrum.barCount
+    val dropY = remember(barCount) { FloatArray(barCount) { Random(it * 15485863).nextFloat() } }
+    val dropVelocity = remember(barCount) { FloatArray(barCount) { 0f } }
+    val bounceScale = remember(barCount) { FloatArray(barCount) { 1f } }
+    var localTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(barCount) {
+        var lastNanos = 0L
+        while (true) {
+            withFrameNanos { frameNanos ->
+                val dt = if (lastNanos == 0L) 0f else (frameNanos - lastNanos) / 1_000_000_000f
+                lastNanos = frameNanos
+                for (i in 0 until barCount) {
+                    val level = spectrum.displayLevels[i].coerceIn(0f, 1f)
+                    // Más nivel de audio = la gota cae más rápido.
+                    dropVelocity[i] = 0.35f + level * 1.6f
+                    dropY[i] += dropVelocity[i] * dt
+                    if (dropY[i] >= 1f) {
+                        // "Rebote": la gota vuelve arriba y queda un impulso
+                        // de compresión que se dibuja como un aplastamiento
+                        // breve al tocar el fondo.
+                        dropY[i] = 0f
+                        bounceScale[i] = 1.6f
+                    }
+                    // La compresión se relaja hacia 1f con el tiempo.
+                    bounceScale[i] += (1f - bounceScale[i]) * (dt * 6f)
+                }
+            }
+            localTick++
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        localTick
+
+        val w = size.width
+        val h = size.height
+        val slot = w / barCount
+
+        for (i in 0 until barCount) {
+            val level = spectrum.displayLevels[i].coerceIn(0f, 1f)
+            val x = (i + 0.5f) * slot
+            val y = dropY[i] * h
+            val baseRadius = 3f + level * 5f
+            val isNearBottom = dropY[i] > 0.92f
+            val radius = if (isNearBottom) baseRadius * bounceScale[i] else baseRadius
+
+            // Estela corta hacia arriba, para dar sensación de caída.
+            drawLine(
+                color = color.copy(alpha = color.alpha * 0.25f),
+                start = Offset(x, (y - baseRadius * 3f).coerceAtLeast(0f)),
+                end = Offset(x, y),
+                strokeWidth = 2f
+            )
+
+            drawCircle(
+                color = color.copy(alpha = (color.alpha * (0.4f + level * 0.6f)).coerceIn(0f, 1f)),
+                radius = radius,
+                center = Offset(x, y.coerceIn(radius, h - radius))
+            )
+        }
     }
 }

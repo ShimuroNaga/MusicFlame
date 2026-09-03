@@ -2,6 +2,7 @@ package com.music.musicflame.data
 
 import android.content.Context
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import java.security.MessageDigest
 
 enum class LicenseStatus { INACTIVE, ACTIVE, ERROR }
 
@@ -54,7 +55,8 @@ class LicenseRepository(context: Context) {
     /**
      * true si la cuenta de Google con la que el usuario ya inició sesión en la
      * app (la misma que usa para Drive/YouTube, ver MainActivity) es la del
-     * dueño/creador (OWNER_EMAIL). No requiere ninguna license key.
+     * dueño/creador (comparada por hash SHA-256, ver OWNER_EMAIL_SHA256). No
+     * requiere ninguna license key.
      *
      * Si nadie inició sesión con Google en la app (GoogleSignIn.getLastSignedInAccount
      * devuelve null), esto simplemente da false y no desbloquea nada — el dueño
@@ -62,7 +64,13 @@ class LicenseRepository(context: Context) {
      */
     fun isOwnerAccount(): Boolean {
         val account = GoogleSignIn.getLastSignedInAccount(appContext) ?: return false
-        return account.email?.equals(OWNER_EMAIL, ignoreCase = true) == true
+        val email = account.email ?: return false
+        return sha256(email.trim().lowercase()) == OWNER_EMAIL_SHA256
+    }
+
+    private fun sha256(text: String): String {
+        val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
+        return digest.joinToString("") { "%02x".format(it) }
     }
 
     /**
@@ -192,10 +200,12 @@ class LicenseRepository(context: Context) {
     }
 
     companion object {
-        // Correo del dueño/creador de la app: si la sesión de Google Sign-In
-        // activa en el dispositivo coincide con este correo, isProUnlocked()
-        // da true automáticamente, sin necesidad de license key.
-        const val OWNER_EMAIL = "oomo87284@gmail.com"
+        // Hash SHA-256 (correo en minúsculas, sin espacios) del dueño/creador
+        // de la app: si la sesión de Google Sign-In activa en el dispositivo
+        // coincide con este hash, isProUnlocked() da true automáticamente,
+        // sin necesidad de license key. Se guarda como hash (no el correo en
+        // texto plano) para que no quede legible al decompilar el APK.
+        const val OWNER_EMAIL_SHA256 = "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8"
 
         // TODO: reemplaza esto por el link real de tu checkout/producto en
         // Lemon Squeezy (Store > Products > "Get link" o tu propia página de

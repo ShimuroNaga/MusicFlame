@@ -126,7 +126,20 @@ fun MusicFlameTheme(
     // Fase animada del modo "Arcoíris" (catálogo, punto 6). Se calcula una
     // sola vez acá arriba y se reusa en texto y Now Playing para que ambos
     // (si los dos están en Arcoíris) queden sincronizados entre sí.
-    val rainbowPhase = rememberRainbowPhase()
+    //
+    // OJO: antes esto se llamaba SIEMPRE, sin importar si algo estaba
+    // realmente en modo Arcoiris. rememberRainbowPhase() arranca una
+    // animación infinita (rememberInfiniteTransition) que pide frames sin
+    // parar — como MusicFlameTheme envuelve TODA la app, eso corría todo el
+    // tiempo en segundo plano (gastando batería/CPU) aunque nadie estuviera
+    // usando Arcoiris, y era la causa real de la lentitud reportada en
+    // SongScreen y las demás pantallas (nada que ver con la carátula).
+    // Ahora solo se arranca la animación si de verdad hace falta: cuando el
+    // usuario está desbloqueado Y tiene Arcoiris elegido en el color de
+    // texto o en el de "Now Playing". Si no, queda un valor fijo sin costo.
+    val rainbowNeeded = isProUnlocked &&
+            (appTextColorState.value == COLOR_MODE_RAINBOW || nowPlayingColorModeState.value == COLOR_MODE_RAINBOW)
+    val rainbowPhase = if (rainbowNeeded) rememberRainbowPhase() else remember { mutableStateOf(0f) }
 
     val appTextColor = when {
         !isProUnlocked && appTextColorState.value == COLOR_MODE_RAINBOW ->

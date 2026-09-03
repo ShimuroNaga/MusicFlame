@@ -1,14 +1,14 @@
 package com.music.musicflame.ui.theme
 
-import androidx.compose.animation.core.LinearEasing
-import androidx.compose.animation.core.RepeatMode
-import androidx.compose.animation.core.animateFloat
-import androidx.compose.animation.core.infiniteRepeatable
-import androidx.compose.animation.core.rememberInfiniteTransition
-import androidx.compose.animation.core.tween
+import android.os.SystemClock
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.graphics.Color
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 
 /**
  * Modo de color "Arcoíris" (catálogo, punto 6): en vez de un color fijo
@@ -21,7 +21,17 @@ import androidx.compose.ui.graphics.Color
  * = segundos que tarda una vuelta completa del espectro (acá, 6s).
  */
 private const val RAINBOW_DEGREES_PER_SECOND = 60f
-private val RAINBOW_CYCLE_MS = (360_000f / RAINBOW_DEGREES_PER_SECOND).toInt()
+private const val RAINBOW_CYCLE_MS = (360_000f / RAINBOW_DEGREES_PER_SECOND).toLong()
+
+// Cuántas veces por segundo se actualiza el color mientras Arcoiris está
+// activo. Antes esto se movía a 60 veces por segundo (un frame de
+// animación = una recomposición de CADA Text que use el color). El ojo no
+// distingue 60 pasos por segundo de, digamos, 18-20 en un degradado de
+// color que tarda 6s en dar la vuelta completa — así que bajarlo a esto
+// se ve prácticamente idéntico y recompone ~70% menos seguido mientras el
+// modo está prendido.
+private const val RAINBOW_UPDATES_PER_SECOND = 18
+private const val RAINBOW_TICK_MS = 1000L / RAINBOW_UPDATES_PER_SECOND
 
 /** Nombre del modo, tal cual se guarda en SettingsRepository (mismo patrón de
  * strings crudos que "Adaptativo"/"Personalizado"/"Negro"/"Blanco"). */
@@ -34,19 +44,23 @@ const val COLOR_MODE_RAINBOW = "Arcoiris"
  * (ecualizador, texto, lyrics, now playing) están en Arcoíris a la vez, cada
  * uno corre su propia animación pero todas van a la misma velocidad y
  * dirección, por lo que se sienten parte del mismo efecto.
+ *
+ * Se calcula por tiempo real transcurrido (SystemClock.elapsedRealtime), no
+ * por cantidad de frames dibujados, así que la velocidad de la vuelta
+ * completa (6s) no cambia aunque se actualice menos seguido que antes.
  */
 @Composable
 fun rememberRainbowPhase(): State<Float> {
-    val transition = rememberInfiniteTransition(label = "rainbow_phase")
-    return transition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = RAINBOW_CYCLE_MS, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "rainbow_hue"
-    )
+    val phase = remember { mutableStateOf(0f) }
+    LaunchedEffect(Unit) {
+        val start = SystemClock.elapsedRealtime()
+        while (isActive) {
+            val elapsed = SystemClock.elapsedRealtime() - start
+            phase.value = (elapsed % RAINBOW_CYCLE_MS).toFloat() / RAINBOW_CYCLE_MS * 360f
+            delay(RAINBOW_TICK_MS)
+        }
+    }
+    return phase
 }
 
 /**

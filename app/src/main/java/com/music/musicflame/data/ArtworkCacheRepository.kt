@@ -42,21 +42,47 @@ class ArtworkCacheRepository(context: Context) {
     private val prefs = context.getSharedPreferences("artwork_cache", Context.MODE_PRIVATE)
     private val KEY_MAP = "artwork_source_map"
 
+    // ARREGLADO: antes, readAll() volvía a parsear el JSON COMPLETO del
+    // caché (una entrada por cada canción de la biblioteca) cada vez que se
+    // llamaba a get() — y AlbumArt() llama a get() UNA VEZ POR CADA FILA
+    // visible, en el hilo principal, cada vez que esa fila entra en pantalla
+    // al hacer scroll. Con una biblioteca grande, eso significaba re-parsear
+    // ese JSON gigante decenas de veces por segundo durante un scroll rápido
+    // en SongScreen/PlaylistDetailScreen — el freeze/lag que se sentía no
+    // tenía que ver con nada del análisis de audio, era esto.
+    //
+    // Ahora el mapa se parsea UNA sola vez por proceso y se mantiene en
+    // memoria acá (companion object, compartido por todas las instancias de
+    // ArtworkCacheRepository, mismo patrón que ProStatusHolder/SongLibraryHolder).
+    // Las lecturas siguientes son un simple lookup en memoria, sin tocar
+    // SharedPreferences ni JSON para nada.
+    companion object {
+        @Volatile private var cache: MutableMap<String, String>? = null
+        private val lock = Any()
+    }
+
     private fun readAll(): MutableMap<String, String> {
-        val json = prefs.getString(KEY_MAP, null) ?: return mutableMapOf()
-        val result = mutableMapOf<String, String>()
-        return try {
-            val obj = JSONObject(json)
-            obj.keys().forEach { key ->
-                result[key] = obj.optString(key)
+        cache?.let { return it }
+        synchronized(lock) {
+            cache?.let { return it }
+            val json = prefs.getString(KEY_MAP, null)
+            val result = mutableMapOf<String, String>()
+            if (json != null) {
+                try {
+                    val obj = JSONObject(json)
+                    obj.keys().forEach { key -> result[key] = obj.optString(key) }
+                } catch (e: Exception) {
+                    // Si el JSON guardado está corrupto, se arranca en blanco:
+                    // peor caso, se vuelven a resolver las carátulas desde cero.
+                }
             }
-            result
-        } catch (e: Exception) {
-            mutableMapOf()
+            cache = result
+            return result
         }
     }
 
     private fun writeAll(map: Map<String, String>) {
+        cache = map.toMutableMap()
         val obj = JSONObject()
         map.forEach { (path, source) -> obj.put(path, source) }
         try {

@@ -1711,6 +1711,16 @@ fun SettingsScreen(
                     if (activeSection.value == "Pagos (opcional)") {
                         item { sectionHeader("Licencia de apoyo (opcional)") }
 
+                        item {
+                            Text(
+                                "Próximamente · Todo por $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                            )
+                        }
+
                         // --- TABLA SELECCIONABLE DEL CATÁLOGO (informativa/preview) ---
                         item {
                             Card(

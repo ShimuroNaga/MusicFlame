@@ -34,6 +34,9 @@ object PaymentCatalog {
         Item("eq_style_particles", "Estilos de ecualizador", "Partículas"),
         Item("eq_style_thin", "Estilos de ecualizador", "Barras finas"),
         Item("eq_style_vu", "Estilos de ecualizador", "VU meter retro"),
+        Item("eq_style_oscilloscope", "Estilos de ecualizador", "Osciloscopio"),
+        Item("eq_style_skyline", "Estilos de ecualizador", "Terreno"),
+        Item("eq_style_rain", "Estilos de ecualizador", "Cascada de lluvia"),
 
         Item("eq_color_adaptive", "Color del ecualizador", "Adaptativo"),
         Item("eq_color_custom", "Color del ecualizador", "Personalizado"),

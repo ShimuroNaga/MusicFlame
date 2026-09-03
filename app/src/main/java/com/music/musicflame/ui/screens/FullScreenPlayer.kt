@@ -241,7 +241,17 @@ fun FullScreenPlayer(
     // resolveLyricsTextColor y por eso "Personalizado" nunca pintaba nada
     // distinto de negro (fallback de parseCustomTextColor ante texto vacío).
     val lyricsCustomColorHex = remember { settingsRepo.getLyricsCustomColorHex() }
-    val lyricsTextColor = com.music.musicflame.ui.components.resolveLyricsTextColor(lyricsColorMode, lyricsCustomColorHex)
+    // NOTA DE RENDIMIENTO (lag del Arcoíris, ver LEEME): antes acá se llamaba
+    // resolveLyricsTextColor(...) directo, y el Color resultante (que cambia
+    // ~18 veces por segundo cuando el modo es Arcoiris) quedaba guardado en
+    // una variable de ESTE cuerpo de función. Como FullScreenPlayer es una
+    // sola función/scope de recomposición gigante, cada tick del Arcoíris
+    // recomponía TODA la pantalla (carátula, controles, cola, gestos, todo),
+    // no solo la letra. Se sacó de acá: ahora lyricsColorMode/lyricsCustomColorHex
+    // (que NO cambian tick a tick) se pasan tal cual a LyricsWithLivePosition,
+    // que resuelve el color Arcoíris DENTRO de su propio scope chico (mismo
+    // truco que ya se usaba ahí para positionState). Ver esa función al final
+    // del archivo.
     // Cantidad de barras del ecualizador gráfico, configurable en Ajustes > Apariencia
     // (6 mínimo, 32 estándar, 64 máximo). Antes se armaba la vista pero nunca se le
     // pasaba este valor a AudioVisualizerBars más abajo, así que siempre quedaba en
@@ -280,9 +290,16 @@ fun FullScreenPlayer(
     } else {
         if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.Black else Color.White
     }
-    val equalizerBarsColor = com.music.musicflame.ui.components.resolveEqualizerColor(
-        equalizerColorMode, equalizerCustomColorHex, equalizerAdaptiveColor
-    )
+    // NOTA DE RENDIMIENTO (mismo motivo que lyricsTextColor arriba): antes acá
+    // se resolvía el Color del ecualizador una sola vez, y como cambia ~18
+    // veces por segundo en modo Arcoíris, forzaba recomponer TODO
+    // FullScreenPlayer en cada tick (el bug real detrás del lag reportado).
+    // Ahora cada punto donde se dibuja el ecualizador (más abajo) resuelve su
+    // propio color adentro de EqualizerRainbowColor (definida al final del
+    // archivo), un scope de recomposición chico y aislado — igual que
+    // LyricsWithLivePosition. equalizerColorMode/equalizerCustomColorHex/
+    // equalizerAdaptiveColor no cambian tick a tick, así que pasarlos tal
+    // cual no le cuesta nada a esta función.
 
     // --- ESPECTRO COMPARTIDO PARA EL DOBLE ESPEJADO ---
     // Solo se calcula cuando el estilo elegido es MIRRORED_BARS. Se hoistea acá
@@ -376,13 +393,20 @@ fun FullScreenPlayer(
                     .fillMaxHeight(0.16f)
                     .zIndex(1f)
             ) {
-                com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
-                    spectrum = mirroredEqualizerSpectrum,
-                    color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
-                    modifier = Modifier
-                        .matchParentSize()
-                        .padding(horizontal = 8.dp)
-                )
+                EqualizerRainbowColor(
+                    mode = equalizerColorMode,
+                    customHex = equalizerCustomColorHex,
+                    adaptiveColor = equalizerAdaptiveColor,
+                    alpha = if (showLyrics) 0.28f else 0.55f
+                ) { color ->
+                    com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
+                        spectrum = mirroredEqualizerSpectrum,
+                        color = color,
+                        modifier = Modifier
+                            .matchParentSize()
+                            .padding(horizontal = 8.dp)
+                    )
+                }
             }
         }
 
@@ -467,40 +491,54 @@ fun FullScreenPlayer(
                 // control, que es "donde debe" ir. Dibuja con BarsEqualizerCanvas
                 // (el mismo trazo que el estilo clásico), a partir del espectro
                 // compartido calculado arriba.
-                com.music.musicflame.ui.components.BarsEqualizerCanvas(
-                    spectrum = mirroredEqualizerSpectrum!!,
-                    color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        .fillMaxHeight(0.26f)
-                        .padding(horizontal = 8.dp)
-                )
+                EqualizerRainbowColor(
+                    mode = equalizerColorMode,
+                    customHex = equalizerCustomColorHex,
+                    adaptiveColor = equalizerAdaptiveColor,
+                    alpha = if (showLyrics) 0.28f else 0.55f
+                ) { color ->
+                    com.music.musicflame.ui.components.BarsEqualizerCanvas(
+                        spectrum = mirroredEqualizerSpectrum!!,
+                        color = color,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            .fillMaxHeight(0.26f)
+                            .padding(horizontal = 8.dp)
+                    )
+                }
             } else if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
-                com.music.musicflame.ui.components.GraphicEqualizer(
-                    style = equalizerStyle,
-                    audioSessionId = playerManager.audioSessionId.value,
-                    isPlaying = isPlaying,
-                    hasRecordAudioPermission = hasRecordAudioPermission,
-                    // Antes: opacidad completa en la vista normal, compitiendo visualmente con
-                    // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
-                    // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
-                    // que protagonista — y sumado al degradado de abajo, que lo termina de
-                    // difuminar del todo justo donde arrancan los botones.
-                    color = if (showLyrics) equalizerBarsColor.copy(alpha = 0.28f) else equalizerBarsColor.copy(alpha = 0.55f),
-                    // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
-                    // este parámetro, así que el slider no tenía ningún efecto acá).
-                    barCount = equalizerBarCount,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .fillMaxWidth()
-                        // 26% del alto disponible (ya sin status bar/nav bar, por el
-                        // .safeScreenPadding() del Box padre): mucho más grande que el
-                        // strip fijo de 48dp de antes, pero sin tragarse el slider de
-                        // arriba. Es solo un número -> fácil de subir/bajar a gusto.
-                        .fillMaxHeight(0.26f)
-                        .padding(horizontal = 8.dp)
-                )
+                EqualizerRainbowColor(
+                    mode = equalizerColorMode,
+                    customHex = equalizerCustomColorHex,
+                    adaptiveColor = equalizerAdaptiveColor,
+                    alpha = if (showLyrics) 0.28f else 0.55f
+                ) { color ->
+                    com.music.musicflame.ui.components.GraphicEqualizer(
+                        style = equalizerStyle,
+                        audioSessionId = playerManager.audioSessionId.value,
+                        isPlaying = isPlaying,
+                        hasRecordAudioPermission = hasRecordAudioPermission,
+                        // Antes: opacidad completa en la vista normal, compitiendo visualmente con
+                        // los botones de control que quedan por encima. Bajado a 0.55 acá (y sigue
+                        // en 0.28 con la Letra abierta) para que se sienta "detrás", más ambiente
+                        // que protagonista — y sumado al degradado de abajo, que lo termina de
+                        // difuminar del todo justo donde arrancan los botones.
+                        color = color,
+                        // Cantidad de barras elegida en Ajustes > Apariencia (antes no se pasaba
+                        // este parámetro, así que el slider no tenía ningún efecto acá).
+                        barCount = equalizerBarCount,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .fillMaxWidth()
+                            // 26% del alto disponible (ya sin status bar/nav bar, por el
+                            // .safeScreenPadding() del Box padre): mucho más grande que el
+                            // strip fijo de 48dp de antes, pero sin tragarse el slider de
+                            // arriba. Es solo un número -> fácil de subir/bajar a gusto.
+                            .fillMaxHeight(0.26f)
+                            .padding(horizontal = 8.dp)
+                    )
+                }
             }
 
             // --- CÍRCULO PULSANTE flotando en la vista de Letra ---
@@ -510,18 +548,25 @@ fun FullScreenPlayer(
             // solo, anclado abajo al centro, para que la sensación de "el círculo
             // rodea el play/pause" se mantenga aunque el botón no esté visible.
             if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE && showLyrics) {
-                com.music.musicflame.ui.components.GraphicEqualizer(
-                    style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
-                    audioSessionId = playerManager.audioSessionId.value,
-                    isPlaying = isPlaying,
-                    hasRecordAudioPermission = hasRecordAudioPermission,
-                    color = equalizerBarsColor.copy(alpha = 0.55f),
-                    barCount = equalizerBarCount,
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = 24.dp)
-                        .size(PULSE_CIRCLE_RING_SIZE)
-                )
+                EqualizerRainbowColor(
+                    mode = equalizerColorMode,
+                    customHex = equalizerCustomColorHex,
+                    adaptiveColor = equalizerAdaptiveColor,
+                    alpha = 0.55f
+                ) { color ->
+                    com.music.musicflame.ui.components.GraphicEqualizer(
+                        style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                        audioSessionId = playerManager.audioSessionId.value,
+                        isPlaying = isPlaying,
+                        hasRecordAudioPermission = hasRecordAudioPermission,
+                        color = color,
+                        barCount = equalizerBarCount,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 24.dp)
+                            .size(PULSE_CIRCLE_RING_SIZE)
+                    )
+                }
             }
 
             // --- DEGRADADO DE DIFUMINADO (fila de abajo) ---
@@ -612,7 +657,8 @@ fun FullScreenPlayer(
                             lyrics = lyricsState.lyrics,
                             speed = lyricsSpeed,
                             animationType = lyricsAnimType,
-                            textColor = lyricsTextColor,
+                            textColorMode = lyricsColorMode,
+                            textColorCustomHex = lyricsCustomColorHex,
                             isLoading = lyricsState.isLoading,
                             searchFailed = lyricsState.searchFailed,
                             onSearchOnline = lyricsState.onSearchOnline,
@@ -924,15 +970,22 @@ fun FullScreenPlayer(
                                 // Ajustes > Apariencia. Se dibuja DETRÁS del botón (primer hijo del
                                 // Box), late con el audio real igual que en el resto de las pantallas.
                                 if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
-                                    com.music.musicflame.ui.components.GraphicEqualizer(
-                                        style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
-                                        audioSessionId = playerManager.audioSessionId.value,
-                                        isPlaying = isPlaying,
-                                        hasRecordAudioPermission = hasRecordAudioPermission,
-                                        color = equalizerBarsColor.copy(alpha = 0.55f),
-                                        barCount = equalizerBarCount,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
+                                    EqualizerRainbowColor(
+                                        mode = equalizerColorMode,
+                                        customHex = equalizerCustomColorHex,
+                                        adaptiveColor = equalizerAdaptiveColor,
+                                        alpha = 0.55f
+                                    ) { color ->
+                                        com.music.musicflame.ui.components.GraphicEqualizer(
+                                            style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                                            audioSessionId = playerManager.audioSessionId.value,
+                                            isPlaying = isPlaying,
+                                            hasRecordAudioPermission = hasRecordAudioPermission,
+                                            color = color,
+                                            barCount = equalizerBarCount,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
                                 }
 
                                 Surface(
@@ -1096,7 +1149,17 @@ private fun PlaybackSeekBar(
     }
 }
 
-/** Wrapper que solo existe para leer positionState.value acá adentro (ver comentario arriba) antes de pasárselo a LyricsView. */
+/**
+ * Wrapper que solo existe para leer positionState.value acá adentro (ver comentario
+ * arriba) antes de pasárselo a LyricsView.
+ *
+ * CAMBIO (fix de lag del Arcoíris): antes recibía `textColor: Color` ya resuelto
+ * desde FullScreenPlayer. Ahora recibe el modo/hex crudos (que no cambian tick a
+ * tick) y resuelve el color ACÁ ADENTRO con resolveLyricsTextColor — mismo motivo
+ * que positionState: así, cuando el modo es Arcoíris y el color cambia ~18 veces
+ * por segundo, SOLO este wrapper chico (y por lo tanto LyricsView) se recompone,
+ * en vez de FullScreenPlayer completo.
+ */
 @Composable
 private fun LyricsWithLivePosition(
     positionState: State<Long>,
@@ -1104,7 +1167,8 @@ private fun LyricsWithLivePosition(
     lyrics: com.music.musicflame.data.ParsedLyrics,
     speed: Float,
     animationType: String,
-    textColor: Color,
+    textColorMode: String,
+    textColorCustomHex: String,
     isLoading: Boolean,
     searchFailed: Boolean,
     onSearchOnline: () -> Unit,
@@ -1113,6 +1177,7 @@ private fun LyricsWithLivePosition(
     onDeleteLyrics: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val textColor = com.music.musicflame.ui.components.resolveLyricsTextColor(textColorMode, textColorCustomHex)
     com.music.musicflame.ui.components.LyricsView(
         song = song,
         positionMs = positionState.value,
@@ -1128,4 +1193,37 @@ private fun LyricsWithLivePosition(
         onDeleteLyrics = onDeleteLyrics,
         modifier = modifier
     )
+}
+
+/**
+ * Aísla el color animado de Arcoíris del ecualizador para que SOLO este bloque
+ * chico se recomponga en cada tick de la animación (~18 veces por segundo),
+ * en vez de FullScreenPlayer completo.
+ *
+ * Antes, resolveEqualizerColor() se llamaba UNA vez arriba en el cuerpo de
+ * FullScreenPlayer y el Color resultante se reusaba como variable local en 5
+ * puntos distintos de esa misma función. Un Color plano guardado así no tiene
+ * forma de "actualizarse" sin que Compose vuelva a correr TODA la función
+ * donde vive esa variable — por eso cada tick del Arcoíris recomponía la
+ * pantalla completa (carátula, letra, controles, cola, gestos, todo), y ESA
+ * era la causa real del lag reportado con el Arcoíris.
+ *
+ * La solución: en vez de una variable local, este composable resuelve el
+ * color DENTRO de su propio scope de recomposición (como ya se hacía con
+ * LyricsWithLivePosition para positionState) y se lo pasa al canvas/ecualizador
+ * real a través de `content`, que Compose compone como una rama aparte. Así,
+ * cuando el modo NO es Arcoíris, esto no cuesta nada extra (resolveEqualizerColor
+ * ni siquiera arranca una animación); y cuando SÍ lo es, el tick solo
+ * recompone este bloque puntual.
+ */
+@Composable
+private fun EqualizerRainbowColor(
+    mode: String,
+    customHex: String,
+    adaptiveColor: Color,
+    alpha: Float,
+    content: @Composable (Color) -> Unit
+) {
+    val color = com.music.musicflame.ui.components.resolveEqualizerColor(mode, customHex, adaptiveColor)
+    content(color.copy(alpha = alpha))
 }

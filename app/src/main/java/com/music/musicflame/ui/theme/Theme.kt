@@ -101,24 +101,34 @@ fun MusicFlameTheme(
         else -> isSystemInDarkTheme() // "Siguiendo al sistema"
     }
 
-    // Configuración del esquema de colores base (Soporta colores dinámicos Material You desde Android 12)
-    val baseColorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        if (isDarkTheme) dynamicDarkColorScheme(context)
-        else dynamicLightColorScheme(context)
-    } else {
-        if (isDarkTheme) darkColorScheme()
-        else lightColorScheme()
-    }
-
-    // Si es modo oscuro Y el modo AMOLED está activo, forzamos los fondos a negro puro
-    val finalColorScheme = if (isDarkTheme && isAmoledState.value) {
-        baseColorScheme.copy(
-            background = Color.Black,
-            surface = Color.Black,
-            surfaceContainer = Color.Black
-        )
-    } else {
-        baseColorScheme
+    // Configuración del esquema de colores base (Soporta colores dinámicos Material You desde Android 12).
+    //
+    // NOTA DE RENDIMIENTO (lag del Arcoíris): esto va envuelto en remember(isDarkTheme,
+    // isAmoledState.value) a propósito. Antes se recalculaba en CADA recomposición de
+    // MusicFlameTheme sin importar el motivo — y como el Arcoíris de texto/Now Playing
+    // (más abajo) lee rainbowPhase.value acá mismo, esta función entera se recomponía
+    // ~18 veces por segundo mientras ese modo estuviera activo, reconstruyendo
+    // dynamicDarkColorScheme/dynamicLightColorScheme (relee los colores del wallpaper)
+    // cada vez, aunque el tema real (claro/oscuro/AMOLED) no hubiera cambiado para nada.
+    // Con remember, solo se recalcula si isDarkTheme o el modo AMOLED cambian de verdad.
+    val finalColorScheme = remember(isDarkTheme, isAmoledState.value) {
+        val baseColorScheme = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (isDarkTheme) dynamicDarkColorScheme(context)
+            else dynamicLightColorScheme(context)
+        } else {
+            if (isDarkTheme) darkColorScheme()
+            else lightColorScheme()
+        }
+        // Si es modo oscuro Y el modo AMOLED está activo, forzamos los fondos a negro puro
+        if (isDarkTheme && isAmoledState.value) {
+            baseColorScheme.copy(
+                background = Color.Black,
+                surface = Color.Black,
+                surfaceContainer = Color.Black
+            )
+        } else {
+            baseColorScheme
+        }
     }
 
     val isDarkBackground = finalColorScheme.background.luminance() < 0.5f
@@ -163,7 +173,11 @@ fun MusicFlameTheme(
     val effectiveFont = if (!isProUnlocked && !storedFont.isFree) AppFont.DEFAULT else storedFont
     // 16sp es el tamaño original de bodyLarge en M3 (sin cambios = escala 1f).
     val fontScale = appFontSizeState.value / 16f
-    val appTypography = appTypographyFor(effectiveFont.fontFamily, fontScale)
+    // Mismo motivo que finalColorScheme arriba: remember para no reconstruir los 15
+    // estilos de Typography de M3 en cada tick del Arcoíris de texto/Now Playing.
+    val appTypography = remember(effectiveFont, fontScale) {
+        appTypographyFor(effectiveFont.fontFamily, fontScale)
+    }
 
     MaterialTheme(
         colorScheme = finalColorScheme,

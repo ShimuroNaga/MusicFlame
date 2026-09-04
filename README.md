@@ -2,7 +2,7 @@
 
 ![Estado del Proyecto](https://img.shields.io/badge/Estado-En_Desarrollo_Activo-brightgreen)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Android-blue)
-![Versión](https://img.shields.io/badge/Versión-3.1-orange)
+![Versión](https://img.shields.io/badge/Versión-3.12-orange)
 
 **MusicFlame** es un reproductor de música versátil y moderno que combina tu biblioteca local con el extenso catálogo de YouTube en una sola aplicación. Diseñado con un enfoque en la personalización, la estética y el rendimiento.
 
@@ -11,82 +11,94 @@
 ## ✨ Características Principales
 
 ### 🎵 Gestión de Música y Reproducción
-*   **Buscador Dual:** Encuentra canciones localmente en tu dispositivo o busca en línea a través de YouTube.
-*   **Tu Mix Diario:** Generación diaria y aleatoria de un mix de canciones (con cantidad y duración total visibles) listo para reproducir o guardar como playlist. Se bloquea tras generarse e indica cuántas horas faltan para el siguiente.
-*   **Filtros Inteligentes:** Ordena tu biblioteca por fecha, A-Z o Z-A. Filtra audios por duración para evitar reproducir notas de voz o sonidos cortos.
-*   **Selección Múltiple:** Selecciona canciones o playlists manteniendo pulsado o activando el modo selección con un botón (incluye "Seleccionar todos").
-*   **Control Único de Reproducción:** Un solo botón cíclico (en el mini reproductor, la notificación y el reproductor a pantalla completa) que alterna entre Normal → Aleatorio → Repetir Todo → Repetir Una.
-*   **Letras Sincronizadas:** Búsqueda automática de letras (LRC) en línea, con animación línea por línea, velocidad y tipo de animación (Deslizar/Desvanecer/Rebote) ajustables. Si no se encuentra automáticamente, se puede verificar manualmente vía YouTube o insertar la letra a mano.
-*   **Visualizador de Audio Real:** 32 barras de espectro conectadas al audio que realmente está sonando (no una animación genérica), con auto-ganancia y detección de golpe de graves para que se sienta viva y sincronizada con la canción.
-*   **Audio Avanzado:** Ecualizador de 5 bandas con presets, Bass Boost, Virtualizer, Loudness Enhancer y Reverb, además de optimización de batería para evitar interrupciones en segundo plano.
+* **Buscador Dual:** canciones locales o en línea vía YouTube.
+* **Tu Mix Diario:** mix aleatorio diario, listo para reproducir o guardar como playlist.
+* **Filtros Inteligentes:** ordena por fecha, A-Z o Z-A; filtra por duración y por **formato de audio** (nuevo panel que detecta los formatos presentes en tu librería y permite ocultar los que no quieras).
+* **Selección Múltiple:** modo selección con "Seleccionar todos".
+* **Control Único de Reproducción:** un botón cíclico Normal → Aleatorio → Repetir Todo → Repetir Una.
+* **Letras Sincronizadas:** búsqueda automática (LRC), animación configurable (Deslizar/Desvanecer/Rebote), verificación manual vía YouTube o edición a mano, y ahora con **color personalizable**.
+* **Visualizador de Audio Real:** 32 barras de espectro reales, ahora con **6 estilos adicionales**: espejado, ondas de agua, círculo pulsante, partículas, barras finas y VU meter retro — además del color del ecualizador personalizable.
+* **Audio Avanzado:** ecualizador de 5 bandas, Bass Boost, Virtualizer, Loudness Enhancer, Reverb y optimización de batería.
 
-### 💿 Álbumes
-*   Explora tu biblioteca agrupada por álbum en una cuadrícula con carátulas.
-*   Entra al detalle de un álbum para reproducirlo completo, reordenarlo (orden original / A-Z / Z-A) o **exportarlo como playlist M3U**.
+### 💿 Álbumes, Artistas y Géneros
+* Explora tu biblioteca por álbum, y ahora también **por artista** y **por género** (con detalle dedicado para cada uno).
+* Exporta un álbum completo como playlist M3U, o reordénalo (original / A-Z / Z-A).
 
-### 🗂️ Playlists y Papelera
-*   Crea playlists y agrega canciones desde cualquier pantalla.
-*   **Papelera de Reciclaje:** Las canciones **y las playlists** eliminadas se almacenan temporalmente y se borran automáticamente tras 30 días (con opción de borrado permanente manual o restauración). Al eliminar una playlist, las canciones dentro de ella nunca se borran del dispositivo.
+### 🗂️ Playlists, Papelera y Mantenimiento
+* Crea playlists desde cualquier pantalla.
+* **Papelera de Reciclaje** para canciones y playlists, con borrado automático a los 30 días.
+* **Búsqueda de anomalías** (bajo demanda): detecta canciones con carátula corrupta, metadata faltante o formato no soportado.
+* **Edición real de metadatos:** los cambios de carátula, álbum, artista y título ahora se pueden guardar directamente en el archivo de audio (mp3, flac, ogg, wav, m4a, wma, aiff, dsf, opus), con respaldo automático antes de escribir.
 
 ### ☁️ Respaldo en Google Drive
-*   Inicia sesión con tu cuenta de Google para subir canciones a una carpeta dedicada de la app dentro de tu Drive, como respaldo fuera del dispositivo.
+* Sube canciones a una carpeta dedicada dentro de tu Drive como respaldo fuera del dispositivo.
 
 ### 🎨 Personalización Profunda
-*   **Temas Visuales:** Adaptable al sistema (Material 3 / Material You), Modo Claro, Modo Oscuro y **Modo AMOLED** (para ahorro máximo de batería).
-*   **Fondos Personalizados:** Soporte para añadir imágenes o GIFs al fondo de la app, con control manual de brillo.
-*   **Color de Texto:** Blanco o negro, tanto a nivel global de la app como específicamente para la letra sincronizada.
-*   **Forma de Carátula:** Cuadrado, círculo, hexágono, vinilo o "squircle" en toda la app.
-*   **Iconos Alternativos:** Varios diseños de ícono de app para elegir (Original, Brillante, Pixelart, Cookies N' Cream, Escala de grises, RemixFlame).
-*   **Interfaz:** Bordes redondeados activables/desactivables, cantidad de columnas en la cuadrícula de álbumes (2 o 4), y opacidad del widget de pantalla de inicio ajustable.
-*   **Barras del Ecualizador Adaptativas:** Su color (blanco o negro) se ajusta automáticamente según lo que haya detrás — nunca hay que elegirlo a mano.
+* **Temas Visuales:** Sistema/Material You, Claro, Oscuro y Modo AMOLED.
+* **Tipografía:** selector de **tipo de letra** para toda la app y selector de **tamaño de letra**, ambos con vista previa en vivo.
+* **Fondos Personalizados:** imágenes o GIFs con brillo ajustable.
+* **Color de Texto y del Ecualizador:** blanco, negro o modos avanzados.
+* **Forma de Carátula:** cuadrado, círculo, hexágono, vinilo o squircle.
+* **Iconos Alternativos** de la app.
+* **Interfaz:** bordes redondeados, columnas de la cuadrícula, opacidad del widget.
 
-### 🎧 Widget de Pantalla de Inicio
-*   Control rápido con carátula, Play/Pausa, Siguiente y Anterior directo desde el home screen, sin abrir la app.
+### 🎧 Widgets de Pantalla de Inicio
+* Widget clásico con carátula, Play/Pausa, Siguiente y Anterior.
+* **Nuevo widget de vinilo**, con la carátula girando en un recorte de medio círculo.
+* Carátulas del widget corregidas para mostrarse siempre correctamente (antes fallaban en algunos casos).
 
 ### 🔄 Actualizaciones
-*   Aviso dentro de la app cuando hay una versión nueva disponible, con opción de ignorar una versión específica y no volver a verla.
+* Aviso dentro de la app cuando hay una versión nueva, con opción de ignorarla.
 
 ### 🚀 Primer Uso Guiado
-*   Onboarding paso a paso que cubre permisos, importación de canciones, apariencia, cuenta y letras, además de la invitación a la comunidad.
+* Onboarding paso a paso: permisos, importación, apariencia, cuenta y letras.
+
+---
+
+## 🆕 Novedades de la versión 3.12
+
+* Selector global de **tipo y tamaño de letra** para toda la app.
+* **6 estilos nuevos de ecualizador gráfico** + color personalizable.
+* Nuevo **widget de vinilo** con carátula giratoria.
+* Biblioteca navegable **por artista** y **por género**.
+* **Guardado real de metadatos** en el archivo de audio (mp3, flac, ogg, wav, m4a, wma, aiff, dsf, opus).
+* Nuevo panel de **formatos de audio** detectados en tu librería.
+* Nueva herramienta de **búsqueda de anomalías** (carátulas corruptas, metadata faltante, formatos no soportados).
+* **Correcciones de carátula:** ya no fallan en la notificación de reproducción ni se repiten entre canciones del mismo álbum; mejor ícono de carga.
+* **Mejoras de rendimiento:** solucionado el lag del modo Arcoíris y optimizada la pantalla de reproducción a pantalla completa.
+* Sistema de compras dentro de la app para desbloquear extras cosméticos.
 
 ---
 
 ## 🤖 ¿Y la IA (Gemini)?
 
-Versiones anteriores de MusicFlame incluían integración con Gemini para chatear y pedir recomendaciones musicales. **Esa función ya no está disponible.**
+Versiones anteriores incluían integración con Gemini para chatear y pedir recomendaciones musicales. **Esa función ya no está disponible**: sostenerla requería un backend de pago en Firebase, algo insostenible para un proyecto personal y gratuito.
 
-El motivo es simple: para sostenerla de forma segura se necesitaba un backend en Firebase, y los planes que lo permiten con el volumen de uso de la app requieren pago — algo que no me es sostenible mantener para un proyecto personal y gratuito.
-
-En su lugar, ese espacio se aprovechó para construir la nueva pestaña de **Álbumes** y otras funciones nativas (exportar a M3U, respaldo en Google Drive, letras sincronizadas, visualizador de audio real, etc.) que no dependen de ningún servidor de pago y funcionan 100% offline salvo cuando específicamente necesitan internet (buscar en YouTube, buscar letras, o subir a Drive).
-
-No está descartado revisar una alternativa a futuro, pero por ahora todo el desarrollo se enfoca en pulir lo que la app ya hace sin depender de servicios de pago.
+Ese espacio se aprovechó para construir Álbumes, Artistas, Géneros y el resto de funciones nativas que no dependen de ningún servidor de pago y funcionan 100% offline salvo cuando específicamente necesitan internet (YouTube, letras o Drive).
 
 ---
 
 ## 🚀 Instalación
 
-Descargar e instalar MusicFlame es muy sencillo. No necesitas compilar el código si solo quieres probar la app:
-
 1. Ve a la sección de [Releases](../../releases) de este repositorio.
 2. Busca la versión más reciente.
-3. Desplázate hacia abajo hasta el apartado **Assets** y descarga el archivo `.apk` (ej. `MusicFlame-v1.5.apk`).
-4. Abre el archivo en tu dispositivo Android. *(Es posible que debas conceder permisos para instalar aplicaciones de orígenes desconocidos).*
-5. ¡Listo! Abre la app, concede los permisos de lectura de audio y disfruta.
+3. En **Assets**, descarga el archivo `.apk` (ej. `MusicFlame-v3.12.apk`).
+4. Ábrelo en tu dispositivo Android *(puede pedir permiso para instalar de orígenes desconocidos)*.
+5. ¡Listo! Abre la app, concede los permisos de audio y disfruta.
 
 ---
 
 ## 🛠️ Aviso de Desarrollo
 
-> **✅ ¡Ya llegó la versión 3.1!**
-> MusicFlame es un proyecto en desarrollo activo. La sección de IA (Gemini) fue retirada y reemplazada por la nueva pestaña de **Álbumes** y otras funciones nativas, tal como se explica arriba.
+> MusicFlame es un proyecto en desarrollo activo. La 3.12 trae personalización tipográfica, más estilos de ecualizador, navegación por artista/género, edición real de metadatos y varias correcciones de estabilidad y rendimiento.
 >
-> **📌 Nota:** Esta ha sido una actualización grande (nueva sección de Álbumes, papelera de playlists, respaldo en Drive, letras sincronizadas, visualizador de audio real, personalización avanzada, etc.), por lo que nos tomaremos un tiempo para pulir todo bien. Si notas algo extraño o un *bug*, por favor repórtalo. ¡Gracias por la paciencia!
+> Si notas algo extraño o un *bug*, por favor repórtalo. ¡Gracias por la paciencia!
 
 ---
 
 ## 👥 Colaboradores y Testers
 
-Gracias a estas increíbles personas por sus contribuciones en el control de calidad, *testing* y reporte de errores. ¡Su ayuda es fundamental para que MusicFlame funcione al 100%!
+Gracias a estas personas por su ayuda en *testing* y reporte de errores:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -99,7 +111,7 @@ Gracias a estas increíbles personas por sus contribuciones en el control de cal
           <img src="https://github.com/naofresita18.png" width="100px;" alt="naofresita18"/><br />
           <sub><b>naofresita18</b></sub>
         </a><br />
-        <a href="#testing-naofresita18" title="Testing">🧪</a> 
+        <a href="#testing-naofresita18" title="Testing">🧪</a>
         <a href="#bug-naofresita18" title="Bug reports">🐛</a>
       </td>
       <td align="center" valign="top" width="14.28%">
@@ -107,7 +119,7 @@ Gracias a estas increíbles personas por sus contribuciones en el control de cal
           <img src="https://github.com/deivid-boop.png" width="100px;" alt="deivid-boop"/><br />
           <sub><b>deivid-boop</b></sub>
         </a><br />
-        <a href="#testing-deivid-boop" title="Testing">🧪</a> 
+        <a href="#testing-deivid-boop" title="Testing">🧪</a>
         <a href="#bug-deivid-boop" title="Bug reports">🐛</a>
       </td>
     </tr>
@@ -121,23 +133,20 @@ Gracias a estas increíbles personas por sus contribuciones en el control de cal
 
 ## 🤝 Comunidad y Contacto
 
-¡Las sugerencias y reportes son bienvenidos! 
-
-*   **Desarrollador Principal:** ShimuroNaga
-*   **Correo de contacto / Reporte de bugs:** oomo87284@gmail.com
+* **Desarrollador Principal:** ShimuroNaga
+* **Correo de contacto / Reporte de bugs:** oomo87284@gmail.com
 
 ### 👾 Servidor de Discord
-Tenemos un servidor de Discord para hablar sobre el desarrollo, reportar errores o enterarte de las novedades de la app. 
-* Puedes intentar unirte usando el **enlace de invitación que se encuentra dentro de la propia aplicación**.
-* Si el enlace de la app ha caducado, **mándame un correo** y te enviaré una invitación nueva directamente. ¡Te esperamos!
+* Únete con el enlace de invitación dentro de la propia aplicación.
+* Si el enlace ha caducado, escríbeme por correo y te envío uno nuevo.
 
 ---
 
 > ## ⛔ ADVERTENCIA DE PROPIEDAD E INFRACCIÓN
-> 
+>
 > **NO INTENTES SUBIR ESTA APLICACIÓN A OTRAS PLATAFORMAS O REPOSITORIOS EXTERNOS.**
-> 
-> MusicFlame es un proyecto de código abierto alojado **únicamente en este repositorio oficial**. Está **estrictamente prohibido** republicar, resubir o distribuir archivos APK de esta aplicación en tiendas de apps alternativas, foros o webs de terceros sin autorización previa. 
-> 
-> *   Si deseas compartirla o alojarla en otro lado, **debes contactarme obligatoriamente antes** a través de mi [correo](mailto:oomo87284@gmail.com) o por Discord para pedir permiso explícito.
-> *   **Cualquier intento de rehosting no autorizado** será detectado de inmediato y se procederá a emitir una **denuncia de copyright (DMCA)** o aviso legal para el baneo y retiro forzoso de la publicación.
+>
+> MusicFlame es un proyecto de código abierto alojado **únicamente en este repositorio oficial**. Está **estrictamente prohibido** republicar, resubir o distribuir archivos APK en tiendas de apps alternativas, foros o webs de terceros sin autorización previa.
+>
+> * Si deseas compartirla o alojarla en otro lado, **contáctame obligatoriamente antes** por [correo](mailto:oomo87284@gmail.com) o Discord para pedir permiso explícito.
+> * **Cualquier intento de rehosting no autorizado** será detectado y se procederá con una denuncia de copyright (DMCA) o aviso legal para el baneo y retiro forzoso de la publicación.

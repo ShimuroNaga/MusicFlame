@@ -48,13 +48,13 @@ enum class EqualizerStyle(val displayName: String, val description: String) {
         "Osciloscopio",
         "Trazo en vivo tipo monitor de audio, sube y baja del centro."
     ),
-    SKYLINE(
-        "Terreno",
-        "Silueta de picos tipo horizonte, con relleno degradado."
+    CONCENTRIC_RIPPLES(
+        "Ondas concéntricas",
+        "Anillos que se expanden hacia afuera con delay, como un eco."
     ),
-    RAIN_CASCADE(
-        "Cascada de lluvia",
-        "Gotas que caen y rebotan según la intensidad del audio."
+    CONSTELLATION(
+        "Constelación",
+        "Estrellas conectadas por líneas que brillan según la frecuencia."
     );
 
     companion object {

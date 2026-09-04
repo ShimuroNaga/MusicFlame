@@ -32,6 +32,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
@@ -68,6 +69,12 @@ import kotlinx.coroutines.delay
 // deja ~21dp de aire alrededor del botón real de 76dp para que el aro se note sin
 // invadir los botones de Anterior/Siguiente de al lado.
 private val PULSE_CIRCLE_RING_SIZE = 118.dp
+
+// Tamaño del área de "Ondas concéntricas" (EqualizerStyle.CONCENTRIC_RIPPLES) cuando
+// vive centrada detrás del botón de Play/Pause (vista normal) o flotando sola (vista
+// de Letra). Más grande que el aro de Círculo pulsante porque los anillos necesitan
+// espacio real para expandirse antes de desvanecerse, no solo un borde ajustado.
+private val CONCENTRIC_RIPPLES_SIZE = 160.dp
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -507,7 +514,9 @@ fun FullScreenPlayer(
                             .padding(horizontal = 8.dp)
                     )
                 }
-            } else if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+            } else if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
+                equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES
+            ) {
                 EqualizerRainbowColor(
                     mode = equalizerColorMode,
                     customHex = equalizerCustomColorHex,
@@ -536,6 +545,15 @@ fun FullScreenPlayer(
                             // strip fijo de 48dp de antes, pero sin tragarse el slider de
                             // arriba. Es solo un número -> fácil de subir/bajar a gusto.
                             .fillMaxHeight(0.26f)
+                            // FIX (Constelación quedaba por arriba de la barra de progreso):
+                            // Canvas no recorta su dibujo a los límites de su propio tamaño
+                            // por default, así que un estilo con formas grandes (como
+                            // Constelación, que puede extenderse bastante desde su centro)
+                            // podía pintar fuera de esta franja de 26% y colarse encima del
+                            // slider/controles de arriba, aunque en el orden de composición
+                            // ya esté "atrás". clipToBounds() lo manda de verdad para atrás:
+                            // lo que no entra en la franja simplemente no se dibuja.
+                            .clipToBounds()
                             .padding(horizontal = 8.dp)
                     )
                 }
@@ -569,6 +587,35 @@ fun FullScreenPlayer(
                 }
             }
 
+            // --- ONDAS CONCÉNTRICAS flotando en la vista de Letra ---
+            // En la vista normal, las ondas se dibujan centradas DETRÁS del botón de
+            // Play/Pause (ver más abajo, en la Row de controles). Acá, en la Letra, no
+            // hay ningún botón de Play/Pause visible (la Letra ocupa toda la pantalla),
+            // así que las ondas flotan solas, centradas horizontalmente y ancladas
+            // abajo, para que la sensación de "las ondas nacen del centro del
+            // reproductor" se mantenga aunque el botón no esté a la vista.
+            if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES && showLyrics) {
+                EqualizerRainbowColor(
+                    mode = equalizerColorMode,
+                    customHex = equalizerCustomColorHex,
+                    adaptiveColor = equalizerAdaptiveColor,
+                    alpha = 0.55f
+                ) { color ->
+                    com.music.musicflame.ui.components.GraphicEqualizer(
+                        style = com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES,
+                        audioSessionId = playerManager.audioSessionId.value,
+                        isPlaying = isPlaying,
+                        hasRecordAudioPermission = hasRecordAudioPermission,
+                        color = color,
+                        barCount = equalizerBarCount,
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 24.dp)
+                            .size(CONCENTRIC_RIPPLES_SIZE)
+                    )
+                }
+            }
+
             // --- DEGRADADO DE DIFUMINADO (fila de abajo) ---
             // Se dibuja ENCIMA del ecualizador, ocupando la misma franja de abajo. Va de
             // "color de fondo real de la pantalla" (bgColor) arriba del todo — tapando/
@@ -579,7 +626,9 @@ fun FullScreenPlayer(
             // Con PULSE_CIRCLE no aplica (ya no hay ninguna franja de fondo ahí abajo
             // que difuminar). Con MIRRORED_BARS sí aplica ahora — ya no tiene su
             // propio bloque aparte, así que usa este mismo degradado como el resto.
-            if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
+            if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
+                equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES
+            ) {
                 Box(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -953,14 +1002,16 @@ fun FullScreenPlayer(
                                 Icon(Icons.Filled.SkipPrevious, "Anterior", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
                             }
 
-                            // El Box de afuera solo crece a PULSE_CIRCLE_RING_SIZE (118dp) cuando el
-                            // estilo elegido es el círculo pulsante, para dejarle aire al aro
-                            // alrededor; con cualquier otro estilo queda en 76dp como siempre (no
-                            // le cambia el tamaño ni el espaciado de la fila a nadie más).
-                            val playPauseBoxSize = if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE) {
-                                PULSE_CIRCLE_RING_SIZE
-                            } else {
-                                76.dp
+                            // El Box de afuera solo crece cuando el estilo elegido necesita aire
+                            // extra alrededor del botón: PULSE_CIRCLE_RING_SIZE (118dp) para el
+                            // aro del círculo pulsante, CONCENTRIC_RIPPLES_SIZE (160dp) para que
+                            // las ondas concéntricas tengan espacio real donde expandirse; con
+                            // cualquier otro estilo queda en 76dp como siempre (no le cambia el
+                            // tamaño ni el espaciado de la fila a nadie más).
+                            val playPauseBoxSize = when (equalizerStyle) {
+                                com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE -> PULSE_CIRCLE_RING_SIZE
+                                com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES -> CONCENTRIC_RIPPLES_SIZE
+                                else -> 76.dp
                             }
                             Box(
                                 modifier = Modifier.size(playPauseBoxSize),
@@ -978,6 +1029,28 @@ fun FullScreenPlayer(
                                     ) { color ->
                                         com.music.musicflame.ui.components.GraphicEqualizer(
                                             style = com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE,
+                                            audioSessionId = playerManager.audioSessionId.value,
+                                            isPlaying = isPlaying,
+                                            hasRecordAudioPermission = hasRecordAudioPermission,
+                                            color = color,
+                                            barCount = equalizerBarCount,
+                                            modifier = Modifier.fillMaxSize()
+                                        )
+                                    }
+                                }
+
+                                // Ondas concéntricas: mismo tratamiento que el círculo pulsante —
+                                // se dibujan DETRÁS del botón, centradas, expandiéndose desde el
+                                // mismo centro del Play/Pause hacia afuera.
+                                if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES) {
+                                    EqualizerRainbowColor(
+                                        mode = equalizerColorMode,
+                                        customHex = equalizerCustomColorHex,
+                                        adaptiveColor = equalizerAdaptiveColor,
+                                        alpha = 0.55f
+                                    ) { color ->
+                                        com.music.musicflame.ui.components.GraphicEqualizer(
+                                            style = com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES,
                                             audioSessionId = playerManager.audioSessionId.value,
                                             isPlaying = isPlaying,
                                             hasRecordAudioPermission = hasRecordAudioPermission,

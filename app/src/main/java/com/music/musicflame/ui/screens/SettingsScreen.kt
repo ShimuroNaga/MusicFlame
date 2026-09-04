@@ -120,6 +120,7 @@ import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.LicenseRepository
 import com.music.musicflame.data.LicenseStatus
+import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.data.LicenseValidationResult
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.widget.MusicFlameWidgetProvider
@@ -303,6 +304,29 @@ fun SettingsScreen(
     // que el usuario vea cuánto costaría lo que le interesa antes de comprar.
     val selectedCatalogItemIds = remember { mutableStateOf(setOf<String>()) }
 
+    // --- "Meta de ahorro" (arriba de todo en Ajustes) ---
+    // Lectura pública (todos los usuarios) vía raw.githubusercontent.com;
+    // escritura real solo si licenseRepo.isOwnerAccount() == true, usando la
+    // API de contenidos de GitHub con un token que el dueño pega una sola vez
+    // (ver SavingsGoalRepository, guardado cifrado con EncryptedSharedPreferences).
+    val savingsGoalRepo = remember { SavingsGoalRepository(context) }
+    var savingsGoalActual by remember { mutableStateOf(savingsGoalRepo.getCachedActual()) }
+    var savingsGoalInput by remember { mutableStateOf(savingsGoalActual.toString()) }
+    var savingsGoalSaving by remember { mutableStateOf(false) }
+    var savingsGoalError by remember { mutableStateOf<String?>(null) }
+    var showSavingsGoalTokenDialog by remember { mutableStateOf(false) }
+    var savingsGoalTokenInput by remember { mutableStateOf("") }
+    val savingsGoalScope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        val fetched = savingsGoalRepo.fetchActual()
+        if (fetched != null) {
+            savingsGoalActual = fetched
+            savingsGoalInput = fetched.toString()
+        }
+        // si fetched es null (sin internet), se queda con getCachedActual() ya cargado arriba
+    }
+
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
     val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
@@ -445,6 +469,127 @@ fun SettingsScreen(
                     // --- LISTA DE CATEGORÍAS cuando no hay sub-página activa ---
                     // (Ecualizador, IA y Actualizaciones ya no navegan: se muestran fijas más abajo)
                     if (activeSection.value == null) {
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                            ) {
+                                Column(modifier = Modifier.padding(16.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text("Meta de ahorro", fontWeight = FontWeight.Black, fontSize = 16.sp, color = highEmphasis)
+                                        val pct = ((savingsGoalActual.toFloat() / SavingsGoalRepository.META_MAX) * 100).toInt().coerceIn(0, 100)
+                                        Text("$pct%", fontSize = 14.sp, color = mediumEmphasis)
+                                    }
+                                    Spacer(Modifier.height(10.dp))
+                                    androidx.compose.material3.LinearProgressIndicator(
+                                        progress = { (savingsGoalActual.toFloat() / SavingsGoalRepository.META_MAX).coerceIn(0f, 1f) },
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(6.dp)
+                                            .clip(RoundedCornerShape(3.dp)),
+                                        color = MaterialTheme.colorScheme.primary,
+                                        trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                    )
+                                    Spacer(Modifier.height(10.dp))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            "$${savingsGoalActual} de $${SavingsGoalRepository.META_MAX}",
+                                            fontSize = 18.sp,
+                                            fontWeight = FontWeight.Black,
+                                            color = highEmphasis
+                                        )
+
+                                        // Campo editable + botón Guardar: SOLO para la cuenta dueña real.
+                                        if (licenseRepo.isOwnerAccount()) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                OutlinedTextField(
+                                                    value = savingsGoalInput,
+                                                    onValueChange = { savingsGoalInput = it.filter(Char::isDigit) },
+                                                    singleLine = true,
+                                                    modifier = Modifier.width(90.dp),
+                                                    textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Button(
+                                                    enabled = !savingsGoalSaving,
+                                                    onClick = {
+                                                        val value = savingsGoalInput.toIntOrNull()
+                                                            ?.coerceIn(0, SavingsGoalRepository.META_MAX)
+                                                        if (value == null) return@Button
+                                                        if (!savingsGoalRepo.hasToken()) {
+                                                            showSavingsGoalTokenDialog = true
+                                                            return@Button
+                                                        }
+                                                        savingsGoalSaving = true
+                                                        savingsGoalError = null
+                                                        savingsGoalScope.launch {
+                                                            when (val result = savingsGoalRepo.pushActual(value)) {
+                                                                is SavingsGoalRepository.PushResult.Success -> {
+                                                                    savingsGoalActual = value
+                                                                }
+                                                                is SavingsGoalRepository.PushResult.NoToken -> {
+                                                                    showSavingsGoalTokenDialog = true
+                                                                }
+                                                                is SavingsGoalRepository.PushResult.Error -> {
+                                                                    savingsGoalError = result.message
+                                                                }
+                                                            }
+                                                            savingsGoalSaving = false
+                                                        }
+                                                    }
+                                                ) { Text(if (savingsGoalSaving) "..." else "Guardar") }
+                                            }
+                                        }
+                                    }
+                                    savingsGoalError?.let {
+                                        Spacer(Modifier.height(6.dp))
+                                        Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                    }
+                                }
+                            }
+
+                            if (showSavingsGoalTokenDialog) {
+                                AlertDialog(
+                                    onDismissRequest = { showSavingsGoalTokenDialog = false },
+                                    title = { Text("Conectar con GitHub") },
+                                    text = {
+                                        Column {
+                                            Text("Pegá tu Personal Access Token de GitHub (fine-grained, permiso \"Contents: Read and write\" solo sobre este repo). Se guarda cifrado, solo en este dispositivo.")
+                                            Spacer(Modifier.height(8.dp))
+                                            OutlinedTextField(
+                                                value = savingsGoalTokenInput,
+                                                onValueChange = { savingsGoalTokenInput = it },
+                                                singleLine = true,
+                                                label = { Text("Token") }
+                                            )
+                                        }
+                                    },
+                                    confirmButton = {
+                                        TextButton(onClick = {
+                                            if (savingsGoalTokenInput.isNotBlank()) {
+                                                savingsGoalRepo.saveToken(savingsGoalTokenInput)
+                                                savingsGoalTokenInput = ""
+                                                showSavingsGoalTokenDialog = false
+                                            }
+                                        }) { Text("Guardar") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showSavingsGoalTokenDialog = false }) { Text("Cancelar") }
+                                    }
+                                )
+                            }
+                        }
                         item {
                             listOf(
                                 Triple("Cuenta", "Cuenta de Google y sesión", Icons.Filled.AccountCircle),

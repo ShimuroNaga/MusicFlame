@@ -45,8 +45,8 @@ fun EqualizerCanvas(
         EqualizerStyle.THIN_BARS -> ThinBarsEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.VU_METER_RETRO -> VuMeterRetroEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.OSCILLOSCOPE -> OscilloscopeEqualizerCanvas(spectrum, color, modifier)
-        EqualizerStyle.SKYLINE -> SkylineEqualizerCanvas(spectrum, color, modifier)
-        EqualizerStyle.RAIN_CASCADE -> RainCascadeEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.CONCENTRIC_RIPPLES -> ConcentricRipplesEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.CONSTELLATION -> ConstellationEqualizerCanvas(spectrum, color, modifier)
     }
 }
 
@@ -479,98 +479,43 @@ fun OscilloscopeEqualizerCanvas(
     }
 }
 
-// --- 4h) TERRENO / SKYLINE ---
-// Silueta tipo montañas u horizonte de ciudad: a diferencia de "Ondas de
-// agua" (curvas suaves tipo Bezier), acá el trazo va con líneas RECTAS entre
-// puntos, para que se sienta como picos/edificios en vez de agua. Relleno
-// degradado (más opaco abajo, más transparente arriba) para dar sensación de
-// profundidad, y un contorno encima para marcar bien la silueta de los picos.
+// --- 4h) ONDAS CONCÉNTRICAS ---
+// A diferencia de "Círculo pulsante" (PULSE_CIRCLE, un solo aro que late al
+// ritmo INSTANTÁNEO del nivel promedio), acá hay varios anillos que nacen en
+// el centro y se EXPANDEN hacia afuera de forma continua en el tiempo, cada
+// uno con su propia fase/delay (progress[i] arranca repartido entre 0 y 1),
+// desvaneciéndose a medida que crecen. El resultado es una cascada de ondas
+// escalonadas, como el eco visual de una piedra cayendo repetidas veces en
+// el agua — nunca se detiene del todo, pero el nivel de audio acelera la
+// velocidad y agranda el alcance de cada anillo.
+private const val RIPPLE_RING_COUNT = 4
+
 @Composable
-fun SkylineEqualizerCanvas(
+fun ConcentricRipplesEqualizerCanvas(
     spectrum: EqualizerLevelsState,
     color: Color,
     modifier: Modifier = Modifier
 ) {
-    val barCount = spectrum.barCount
-    Canvas(modifier = modifier) {
-        @Suppress("UNUSED_EXPRESSION")
-        spectrum.tick
-
-        val w = size.width
-        val h = size.height
-        val baseline = h
-
-        fun xAt(i: Int) = (i.toFloat() / (barCount - 1)) * w
-        fun yAt(i: Int) = baseline - spectrum.displayLevels[i].coerceIn(0f, 1f) * h * 0.92f
-
-        val fillPath = Path().apply {
-            moveTo(0f, baseline)
-            for (i in 0 until barCount) lineTo(xAt(i), yAt(i))
-            lineTo(w, baseline)
-            close()
-        }
-
-        drawPath(
-            fillPath,
-            brush = Brush.verticalGradient(
-                colors = listOf(
-                    color.copy(alpha = color.alpha * 0.9f),
-                    color.copy(alpha = color.alpha * 0.25f)
-                ),
-                startY = baseline,
-                endY = 0f
-            )
-        )
-
-        val outline = Path().apply {
-            moveTo(xAt(0), yAt(0))
-            for (i in 1 until barCount) lineTo(xAt(i), yAt(i))
-        }
-        drawPath(outline, color = color, style = Stroke(width = 3f))
-    }
-}
-
-// --- 4i) CASCADA DE LLUVIA ---
-// Gotas que caen desde arriba y "rebotan" (compresión + relajación breve) al
-// tocar el fondo, con velocidad de caída proporcional a la intensidad de su
-// frecuencia. A diferencia de "Partículas" (PARTICLES, que salta en el
-// lugar según altura instantánea), acá hay movimiento vertical real y
-// continuo en el tiempo: la posición de cada gota vive en su propio estado
-// (dropY/dropVelocity/bounceScale, remember por índice), animado con su
-// propio LaunchedEffect + withFrameNanos — el spectrum solo empuja qué tan
-// rápido cae cada gota, no dónde está.
-@Composable
-fun RainCascadeEqualizerCanvas(
-    spectrum: EqualizerLevelsState,
-    color: Color,
-    modifier: Modifier = Modifier
-) {
-    val barCount = spectrum.barCount
-    val dropY = remember(barCount) { FloatArray(barCount) { Random(it * 15485863).nextFloat() } }
-    val dropVelocity = remember(barCount) { FloatArray(barCount) { 0f } }
-    val bounceScale = remember(barCount) { FloatArray(barCount) { 1f } }
+    val progress = remember { FloatArray(RIPPLE_RING_COUNT) { it / RIPPLE_RING_COUNT.toFloat() } }
     var localTick by remember { mutableStateOf(0) }
 
-    LaunchedEffect(barCount) {
+    LaunchedEffect(Unit) {
         var lastNanos = 0L
         while (true) {
             withFrameNanos { frameNanos ->
                 val dt = if (lastNanos == 0L) 0f else (frameNanos - lastNanos) / 1_000_000_000f
                 lastNanos = frameNanos
-                for (i in 0 until barCount) {
-                    val level = spectrum.displayLevels[i].coerceIn(0f, 1f)
-                    // Más nivel de audio = la gota cae más rápido.
-                    dropVelocity[i] = 0.35f + level * 1.6f
-                    dropY[i] += dropVelocity[i] * dt
-                    if (dropY[i] >= 1f) {
-                        // "Rebote": la gota vuelve arriba y queda un impulso
-                        // de compresión que se dibuja como un aplastamiento
-                        // breve al tocar el fondo.
-                        dropY[i] = 0f
-                        bounceScale[i] = 1.6f
-                    }
-                    // La compresión se relaja hacia 1f con el tiempo.
-                    bounceScale[i] += (1f - bounceScale[i]) * (dt * 6f)
+
+                var sum = 0f
+                for (i in 0 until spectrum.barCount) sum += spectrum.displayLevels[i]
+                val avgLevel = (sum / spectrum.barCount).coerceIn(0f, 1f)
+
+                // Más nivel de audio = ondas más rápidas ("eco" más
+                // urgente), pero jamás se detienen del todo: siempre hay
+                // algo de vida, incluso en silencio.
+                val speed = 0.22f + avgLevel * 0.55f
+                for (i in 0 until RIPPLE_RING_COUNT) {
+                    progress[i] = (progress[i] + dt * speed) % 1f
                 }
             }
             localTick++
@@ -581,31 +526,252 @@ fun RainCascadeEqualizerCanvas(
         @Suppress("UNUSED_EXPRESSION")
         localTick
 
+        var sum = 0f
+        for (i in 0 until spectrum.barCount) sum += spectrum.displayLevels[i]
+        val avgLevel = (sum / spectrum.barCount).coerceIn(0f, 1f)
+
+        val cx = size.width / 2f
+        val cy = size.height / 2f
+        val maxRadius = min(size.width, size.height) / 2f
+        val minRadius = maxRadius * 0.12f
+        // Con más nivel, cada anillo también "nace" con más fuerza y llega
+        // más lejos antes de apagarse.
+        val expandRange = maxRadius * (0.75f + avgLevel * 0.25f)
+
+        for (i in 0 until RIPPLE_RING_COUNT) {
+            val p = progress[i]
+            val radius = minRadius + expandRange * p
+            // Se desvanece a medida que se expande: se siente como una onda
+            // perdiendo energía, no un aro fijo que solo cambia de tamaño.
+            val alpha = (1f - p) * (1f - p) * (0.5f + avgLevel * 0.5f)
+            val strokeWidth = (10f * (1f - p) + 2f).coerceAtLeast(1.5f)
+            drawCircle(
+                color = color.copy(alpha = (color.alpha * alpha).coerceIn(0f, 1f)),
+                radius = radius,
+                center = Offset(cx, cy),
+                style = Stroke(width = strokeWidth, cap = StrokeCap.Round)
+            )
+        }
+
+        // Punto central fijo que "respira" con el nivel promedio: el origen
+        // visual del que salen todas las ondas.
+        drawCircle(
+            color = color.copy(alpha = (color.alpha * (0.5f + avgLevel * 0.5f)).coerceIn(0f, 1f)),
+            radius = minRadius * (0.5f + avgLevel * 0.3f),
+            center = Offset(cx, cy)
+        )
+    }
+}
+
+// --- 4i) CONSTELACIÓN ---
+// 4 constelaciones "reales" (formas fijas tipo Casiopea/Osa Mayor/Cruz del
+// Sur/Orión, no un grafo de vecinos recalculado cada frame): cada una vive
+// en una posición/escala/rotación semi-fija sorteada UNA SOLA VEZ (como pide
+// un cielo real y no partículas caóticas), y cada estrella representa una
+// banda de frecuencia del espectro. La altura de cada constelación respeta
+// su banda: la de graves tiende a aparecer abajo, la de agudos arriba.
+//
+// Brillo con decay: cada estrella tiene su propio nivel suavizado (ataque
+// rápido, caída lenta) para que no titile feo. Las líneas entre dos
+// estrellas de una misma constelación SOLO se dibujan cuando AMBAS superan
+// un umbral de brillo al mismo tiempo — así la forma se arma y se deshace en
+// vivo según lo que suena, en vez de ser un dibujo fijo que solo cambia de
+// opacidad. Un micro-drift lento (seno en el tiempo) hace que las estrellas
+// "respiren" en vez de quedar clavadas cuando no hay mucho audio.
+private data class ConstellationShape(val points: List<Offset>, val edges: List<Pair<Int, Int>>)
+
+private val CONSTELLATION_SHAPES = listOf(
+    // Zigzag tipo Casiopea.
+    ConstellationShape(
+        points = listOf(
+            Offset(-1f, 0.1f), Offset(-0.55f, -0.7f), Offset(0f, 0.15f),
+            Offset(0.55f, -0.75f), Offset(1f, 0f)
+        ),
+        edges = listOf(0 to 1, 1 to 2, 2 to 3, 3 to 4)
+    ),
+    // Cucharón tipo Osa Mayor.
+    ConstellationShape(
+        points = listOf(
+            Offset(-1f, -0.2f), Offset(-0.55f, -0.55f), Offset(-0.1f, -0.35f),
+            Offset(0.35f, -0.5f), Offset(0.55f, 0.05f), Offset(0.95f, 0.5f)
+        ),
+        edges = listOf(0 to 1, 1 to 2, 2 to 3, 3 to 4, 4 to 5)
+    ),
+    // Cruz tipo Cruz del Sur.
+    ConstellationShape(
+        points = listOf(
+            Offset(0f, -1f), Offset(0f, 0.7f), Offset(-0.85f, 0.05f),
+            Offset(0.85f, -0.05f), Offset(0.05f, 0.05f)
+        ),
+        edges = listOf(0 to 4, 4 to 1, 2 to 4, 4 to 3)
+    ),
+    // Cinturón + hombros tipo Orión.
+    ConstellationShape(
+        points = listOf(
+            Offset(-0.6f, -0.05f), Offset(0f, 0.05f), Offset(0.6f, -0.05f),
+            Offset(-0.9f, -1f), Offset(0.9f, -0.9f), Offset(0f, 1f)
+        ),
+        edges = listOf(0 to 1, 1 to 2, 3 to 0, 4 to 2, 1 to 5)
+    )
+)
+
+private class ConstellationLayout(
+    val centerXFraction: Float,
+    val centerYFraction: Float,
+    val scale: Float,
+    val rotationDeg: Float,
+    val bandStart: Int,
+    val bandEnd: Int
+)
+
+@Composable
+fun ConstellationEqualizerCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val barCount = spectrum.barCount
+    val shapes = CONSTELLATION_SHAPES
+    val totalStars = remember { shapes.sumOf { it.points.size } }
+
+    // Layout aleatorio (posición, escala, rotación y banda de frecuencia)
+    // de cada una de las 4 constelaciones — sorteado una sola vez por
+    // barCount, no en cada frame.
+    val layouts = remember(barCount) {
+        val bandSize = (barCount / shapes.size).coerceAtLeast(1)
+        shapes.indices.map { g ->
+            val yBase = 0.82f - g * (0.62f / (shapes.size - 1))
+            ConstellationLayout(
+                centerXFraction = 0.18f + Random.nextFloat() * 0.64f,
+                centerYFraction = (yBase + (Random.nextFloat() - 0.5f) * 0.12f).coerceIn(0.14f, 0.86f),
+                // Escala más grande (antes 0.65-1.15): constelaciones bien visibles,
+                // no puntitos chicos perdidos en la franja del ecualizador.
+                scale = 0.95f + Random.nextFloat() * 0.65f,
+                rotationDeg = Random.nextFloat() * 50f - 25f,
+                bandStart = g * bandSize,
+                bandEnd = if (g == shapes.size - 1) barCount - 1 else ((g + 1) * bandSize - 1).coerceAtMost(barCount - 1)
+            )
+        }
+    }
+
+    // A qué índice del espectro escucha cada estrella global (repartido
+    // dentro de la banda de su propia constelación).
+    val starSpectrumIndex = remember(barCount) {
+        val list = IntArray(totalStars)
+        var s = 0
+        shapes.forEachIndexed { g, shape ->
+            val layout = layouts[g]
+            val span = (layout.bandEnd - layout.bandStart + 1).coerceAtLeast(1)
+            for (local in shape.points.indices) {
+                list[s] = layout.bandStart + (local % span)
+                s++
+            }
+        }
+        list
+    }
+
+    val brightness = remember(totalStars) { FloatArray(totalStars) }
+    val driftPhase = remember(totalStars) { FloatArray(totalStars) { Random.nextFloat() * 6.2832f } }
+    val timeState = remember { mutableStateOf(0f) }
+    var localTick by remember { mutableStateOf(0) }
+
+    LaunchedEffect(totalStars) {
+        var lastNanos = 0L
+        var t = 0f
+        while (true) {
+            withFrameNanos { frameNanos ->
+                val dt = if (lastNanos == 0L) 0f else (frameNanos - lastNanos) / 1_000_000_000f
+                lastNanos = frameNanos
+                t += dt
+                for (i in 0 until totalStars) {
+                    val target = spectrum.displayLevels[starSpectrumIndex[i]].coerceIn(0f, 1f)
+                    val current = brightness[i]
+                    // Ataque rápido (se enciende ya) pero caída lenta
+                    // (decay), para que no parpadee feo — se apaga
+                    // gradual, no de golpe.
+                    brightness[i] = if (target > current) {
+                        current + (target - current) * (dt * 14f).coerceIn(0f, 1f)
+                    } else {
+                        current + (target - current) * (dt * 2.4f).coerceIn(0f, 1f)
+                    }
+                }
+                timeState.value = t
+            }
+            localTick++
+        }
+    }
+
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        localTick
+        val t = timeState.value
+
         val w = size.width
         val h = size.height
-        val slot = w / barCount
+        val threshold = 0.3f
+        var starOffset = 0
 
-        for (i in 0 until barCount) {
-            val level = spectrum.displayLevels[i].coerceIn(0f, 1f)
-            val x = (i + 0.5f) * slot
-            val y = dropY[i] * h
-            val baseRadius = 3f + level * 5f
-            val isNearBottom = dropY[i] > 0.92f
-            val radius = if (isNearBottom) baseRadius * bounceScale[i] else baseRadius
+        for (g in shapes.indices) {
+            val shape = shapes[g]
+            val layout = layouts[g]
+            val cx = layout.centerXFraction * w
+            val cy = layout.centerYFraction * h
+            // Spread más grande (antes 0.17f): la forma de cada constelación ocupa
+            // bastante más espacio, para que se lea clara en vez de diminuta.
+            val radiusBase = min(w, h) * 0.32f * layout.scale
+            val rot = Math.toRadians(layout.rotationDeg.toDouble())
+            val cosR = cos(rot).toFloat()
+            val sinR = sin(rot).toFloat()
 
-            // Estela corta hacia arriba, para dar sensación de caída.
-            drawLine(
-                color = color.copy(alpha = color.alpha * 0.25f),
-                start = Offset(x, (y - baseRadius * 3f).coerceAtLeast(0f)),
-                end = Offset(x, y),
-                strokeWidth = 2f
-            )
+            fun starPos(localIndex: Int): Offset {
+                val s = starOffset + localIndex
+                val drift = 0.03f * sin(t * 0.6f + driftPhase[s])
+                val p = shape.points[localIndex]
+                val lx = (p.x + drift) * radiusBase
+                val ly = p.y * radiusBase
+                val rx = lx * cosR - ly * sinR
+                val ry = lx * sinR + ly * cosR
+                return Offset(cx + rx, cy + ry)
+            }
 
-            drawCircle(
-                color = color.copy(alpha = (color.alpha * (0.4f + level * 0.6f)).coerceIn(0f, 1f)),
-                radius = radius,
-                center = Offset(x, y.coerceIn(radius, h - radius))
-            )
+            // Líneas: solo aparecen cuando AMBAS puntas superan el umbral de
+            // brillo al mismo tiempo — la constelación se arma y se deshace
+            // en vivo según lo que suena en ese momento.
+            for ((a, b) in shape.edges) {
+                val brightA = brightness[starOffset + a]
+                val brightB = brightness[starOffset + b]
+                if (brightA > threshold && brightB > threshold) {
+                    val lineAlpha = (min(brightA, brightB) - threshold) / (1f - threshold)
+                    drawLine(
+                        color = color.copy(alpha = (color.alpha * lineAlpha * 0.8f).coerceIn(0f, 1f)),
+                        start = starPos(a),
+                        end = starPos(b),
+                        strokeWidth = 3f
+                    )
+                }
+            }
+
+            // Estrellas: halo tenue + núcleo brillante, tamaño y opacidad
+            // según el brillo (ya suavizado con decay arriba).
+            for (localIndex in shape.points.indices) {
+                val bright = brightness[starOffset + localIndex]
+                val pos = starPos(localIndex)
+                // Estrellas más grandes (antes 2f + bright*5f, halo x2.2): núcleo y
+                // halo bien visibles, no puntitos perdidos entre las líneas.
+                val radius = 3.5f + bright * 8f
+                drawCircle(
+                    color = color.copy(alpha = (color.alpha * bright * 0.35f).coerceIn(0f, 1f)),
+                    radius = radius * 2.4f,
+                    center = pos
+                )
+                drawCircle(
+                    color = color.copy(alpha = (color.alpha * (0.25f + bright * 0.75f)).coerceIn(0f, 1f)),
+                    radius = radius,
+                    center = pos
+                )
+            }
+
+            starOffset += shape.points.size
         }
     }
 }

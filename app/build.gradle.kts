@@ -138,6 +138,8 @@ dependencies {
     implementation("com.google.http-client:google-http-client-android:1.43.3")
     implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    // Meta de ahorro (token de GitHub cifrado en el dispositivo)
+    implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-splashscreen:1.0.1")
     // Escritura real de tags (carátula/título/artista/álbum) en el archivo de
     // audio en disco. Soporta mp3, flac, ogg, wav, m4a, wma, aiff, dsf y opus.

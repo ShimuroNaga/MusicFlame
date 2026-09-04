@@ -580,7 +580,7 @@ class MainActivity : ComponentActivity() {
                                                                 selectedSongs.clear(); manualSongSelectionMode = false
                                                             }
                                                         } else {
-                                                            Toast.makeText(context, "Por favor, vincula Google Drive en CONFIGURACION primero", Toast.LENGTH_LONG).show()
+                                                            Toast.makeText(context, "Por favor, vincula Google Drive en Configuración primero", Toast.LENGTH_LONG).show()
                                                         }
                                                     }
                                                 )
@@ -722,7 +722,7 @@ class MainActivity : ComponentActivity() {
                                                 AnimatedVisibility(visible = !isSearchActive, enter = fadeIn(), exit = fadeOut()) {
                                                     Text(
                                                         text = when {
-                                                            showSettings -> "CONFIGURACION"
+                                                            showSettings -> "Configuración"
                                                             selectedPlaylist != null -> selectedPlaylist!!.name
                                                             selectedAlbum != null -> selectedAlbum!!.name
                                                             selectedArtist != null -> selectedArtist!!.name

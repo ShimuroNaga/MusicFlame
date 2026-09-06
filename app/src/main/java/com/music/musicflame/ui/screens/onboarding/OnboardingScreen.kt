@@ -79,10 +79,15 @@ fun OnboardingScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                if (currentStep == 4) {
-                    TextButton(onClick = { currentStep++ }) { Text("Omitir por ahora") }
-                } else {
-                    Spacer(modifier = Modifier.width(1.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    WizardMascot(step = currentStep)
+
+                    if (currentStep == 4) {
+                        TextButton(onClick = { currentStep++ }) { Text("Omitir por ahora") }
+                    }
                 }
 
                 Button(

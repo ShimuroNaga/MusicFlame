@@ -366,7 +366,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                 fontWeight = FontWeight.Black,
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(horizontal = 16.dp, top = 16.dp, bottom = 4.dp)
+                modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 16.dp, bottom = 4.dp)
             )
 
             shimuroFaq.forEachIndexed { index, faq ->

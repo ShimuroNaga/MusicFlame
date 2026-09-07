@@ -23,6 +23,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.MusicNote
@@ -592,6 +593,7 @@ fun SettingsScreen(
                         }
                         item {
                             listOf(
+                                Triple("Hogar de Shimuro", "Tu mascota interactiva", Icons.Filled.Home),
                                 Triple("Cuenta", "Cuenta de Google y sesión", Icons.Filled.AccountCircle),
                                 Triple("Apariencia", "Fondo, colores, carátula, ícono", Icons.Filled.Palette),
                                 Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
@@ -2240,6 +2242,14 @@ fun SettingsScreen(
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    // HOGAR DE SHIMURO
+                    if (activeSection.value == "Hogar de Shimuro") {
+                        item { sectionHeader("Hogar de Shimuro") }
+                        item {
+                            ShimuroHomeCard()
                         }
                     }
                 }

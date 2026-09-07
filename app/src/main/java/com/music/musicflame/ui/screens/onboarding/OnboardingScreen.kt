@@ -83,7 +83,10 @@ fun OnboardingScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    WizardMascot(step = currentStep)
+                    WizardMascot(
+                        step = currentStep,
+                        forceCelebrate = currentStep == 4 && isUserSignedIn
+                    )
 
                     if (currentStep == 4) {
                         TextButton(onClick = { currentStep++ }) { Text("Omitir por ahora") }

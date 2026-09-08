@@ -1,15 +1,11 @@
 package com.music.musicflame.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
+import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -24,10 +20,10 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.KeyboardArrowDown
-import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.KeyboardArrowRight
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
@@ -35,6 +31,8 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -46,10 +44,12 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.music.musicflame.R
 import java.time.LocalTime
 import kotlinx.coroutines.delay
@@ -76,7 +76,21 @@ import kotlinx.coroutines.launch
  * Los toques siguientes (ya de pie) solo alternan calma/hablando, con el cuarto
  * vacío siempre de fondo.
  *
- * NOCHE: no hay secuencia, es directo crossfade cerrado/abierto (mascot_night / mascot_talk_night).
+ * NOCHE: al ENTRAR a la card (sin que el usuario toque nada) Shimuro saluda
+ * solo, automáticamente: "Ah... ¡Hola, <Nombre>! ¿Necesitas algo?", usando el
+ * nombre real de la cuenta de Google Sign-In. Esto pasa siempre que se entra
+ * de noche, no solo la primera vez.
+ *
+ * PREGUNTAS FRECUENTES: las 8 preguntas de la lista de abajo son
+ * seleccionables (se tocan directamente, ya no se despliegan solas). Al
+ * tocar una, Shimuro "habla" (sprite/crossfade de hablar) y en su bubble
+ * aparece SOLO la respuesta (la pregunta no se repite ahí, ya se ve en la
+ * lista). Si todavía está sentado (de día), primero se para con su
+ * secuencia normal y después contesta.
+ *
+ * DESPEDIDA: al salir de esta card (se sale de composición, ej. al volver a
+ * Ajustes), Shimuro despide con un Toast usando el nombre real: "Buen día,
+ * <Nombre>" de día o "Buenas noches, <Nombre>" de noche.
  */
 
 private enum class ShimuroTimeOfDay { DAY, NIGHT }
@@ -97,13 +111,8 @@ private fun standingStickerFor(visual: DayVisual): Int? = when (visual) {
     else -> null
 }
 
-private val shimuroPhrases = listOf(
-    "¿Qué querés escuchar hoy?",
-    "La música suena mejor con buena compañía.",
-    "¿Ya probaste el modo Arcoíris del ecualizador?",
-    "Este es mi rincón, hacé como en tu casa.",
-    "¿Seguimos armando la biblioteca?"
-)
+/** Lo único que dice Shimuro cuando no está respondiendo una pregunta puntual. */
+private const val SHIMURO_DEFAULT_LINE = "¿Necesitas algo?"
 
 private data class ShimuroFaq(val question: String, val answer: String)
 
@@ -161,6 +170,20 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
     // no hay timer corriendo en 2do plano.
     val timeOfDay = remember { currentShimuroTimeOfDay() }
 
+    val context = LocalContext.current
+
+    // Nombre real del usuario vía Google Sign-In (solo el primer nombre, para
+    // que los mensajes no queden larguísimos). Si no hay sesión iniciada o no
+    // trae nombre, cae a un genérico neutro.
+    val userFirstName = remember {
+        GoogleSignIn.getLastSignedInAccount(context)
+            ?.displayName
+            ?.trim()
+            ?.substringBefore(" ")
+            ?.takeIf { it.isNotBlank() }
+            ?: "amigo"
+    }
+
     // --- Estado de NOCHE (simple, cerrado/abierto) ---
     var nightTalking by remember { mutableStateOf(false) }
 
@@ -170,19 +193,51 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
     var isAnimatingStandUp by remember { mutableStateOf(false) }
 
     var bubbleVisible by remember { mutableStateOf(false) }
-    val phrase = remember { shimuroPhrases.random() }
+    var bubbleText by remember { mutableStateOf(SHIMURO_DEFAULT_LINE) }
 
     val scope = rememberCoroutineScope()
     val popScale = remember { Animatable(1f) }
 
+    // Al ENTRAR a la card de noche, saluda solo, sin que el usuario toque nada.
+    LaunchedEffect(Unit) {
+        if (timeOfDay == ShimuroTimeOfDay.NIGHT) {
+            nightTalking = true
+            bubbleText = "Ah... ¡Hola, $userFirstName! ¿Necesitas algo?"
+            bubbleVisible = true
+        }
+    }
+
+    // Al SALIR de la card (se destruye la composición), despedida por nombre.
+    DisposableEffect(Unit) {
+        onDispose {
+            val farewell = if (timeOfDay == ShimuroTimeOfDay.DAY) {
+                "Buen día, $userFirstName"
+            } else {
+                "Buenas noches, $userFirstName"
+            }
+            Toast.makeText(context, farewell, Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    fun playPop() {
+        scope.launch {
+            popScale.animateTo(1.03f, animationSpec = tween(90))
+            popScale.animateTo(1f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy))
+        }
+    }
+
+    // Toque directo sobre la mascota: solo para pararse (de día) o alternar
+    // calma/hablando con la línea genérica. Las respuestas puntuales de las
+    // preguntas van por onSelectFaq().
     fun onTap() {
+        if (isAnimatingStandUp) return
         when (timeOfDay) {
             ShimuroTimeOfDay.NIGHT -> {
                 nightTalking = !nightTalking
+                bubbleText = SHIMURO_DEFAULT_LINE
                 bubbleVisible = nightTalking
             }
             ShimuroTimeOfDay.DAY -> {
-                if (isAnimatingStandUp) return
                 if (!hasStoodUp) {
                     // Secuencia única: se levanta de la silla, se pone de pie, sonríe y habla.
                     isAnimatingStandUp = true
@@ -195,21 +250,57 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                         dayVisual = DayVisual.STANDING_SMILE
                         delay(320)
                         dayVisual = DayVisual.STANDING_TALK
+                        bubbleText = SHIMURO_DEFAULT_LINE
                         bubbleVisible = true
                         hasStoodUp = true
                         isAnimatingStandUp = false
                     }
                 } else {
-                    // Ya de pie: solo alterna calma <-> hablando.
+                    // Ya de pie: solo alterna calma <-> hablando, siempre diciendo lo mismo.
                     dayVisual = if (dayVisual == DayVisual.STANDING_TALK) DayVisual.STANDING_CALM else DayVisual.STANDING_TALK
+                    bubbleText = SHIMURO_DEFAULT_LINE
                     bubbleVisible = (dayVisual == DayVisual.STANDING_TALK)
-                }
-                scope.launch {
-                    popScale.animateTo(1.03f, animationSpec = tween(90))
-                    popScale.animateTo(1f, animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy))
                 }
             }
         }
+        playPop()
+    }
+
+    // El usuario elige una de las 8 preguntas: Shimuro "habla" y en su bubble
+    // aparece SOLO la respuesta (la pregunta ya se ve en la lista de abajo).
+    fun onSelectFaq(faq: ShimuroFaq) {
+        if (isAnimatingStandUp) return
+        when (timeOfDay) {
+            ShimuroTimeOfDay.NIGHT -> {
+                nightTalking = true
+                bubbleText = faq.answer
+                bubbleVisible = true
+            }
+            ShimuroTimeOfDay.DAY -> {
+                if (!hasStoodUp) {
+                    isAnimatingStandUp = true
+                    bubbleVisible = false
+                    scope.launch {
+                        dayVisual = DayVisual.ALONE
+                        delay(380)
+                        dayVisual = DayVisual.STANDING_CALM
+                        delay(380)
+                        dayVisual = DayVisual.STANDING_SMILE
+                        delay(320)
+                        dayVisual = DayVisual.STANDING_TALK
+                        hasStoodUp = true
+                        isAnimatingStandUp = false
+                        bubbleText = faq.answer
+                        bubbleVisible = true
+                    }
+                } else {
+                    dayVisual = DayVisual.STANDING_TALK
+                    bubbleText = faq.answer
+                    bubbleVisible = true
+                }
+            }
+        }
+        playPop()
     }
 
     // Edge-to-edge: sin margen lateral en la card ni padding alrededor de la
@@ -343,6 +434,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                     Box(
                         modifier = Modifier
                             .padding(12.dp)
+                            .widthIn(max = 280.dp)
                             .background(
                                 MaterialTheme.colorScheme.surface.copy(alpha = 0.92f),
                                 RoundedCornerShape(10.dp)
@@ -350,7 +442,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                             .padding(horizontal = 10.dp, vertical = 6.dp)
                     ) {
                         Text(
-                            phrase,
+                            bubbleText,
                             fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -359,8 +451,9 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
             }
 
             // --- Preguntas frecuentes, en la voz de Shimuro ---
-            var expandedFaqIndex by remember { mutableStateOf<Int?>(null) }
-
+            // Ya no se despliegan solas: son botones/filas seleccionables que
+            // hacen que Shimuro responda arriba, en su bubble (solo la
+            // respuesta, sin repetir la pregunta).
             Text(
                 "Preguntas frecuentes",
                 fontWeight = FontWeight.Black,
@@ -370,45 +463,26 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
             )
 
             shimuroFaq.forEachIndexed { index, faq ->
-                val isExpanded = expandedFaqIndex == index
-                Column(
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable {
-                            expandedFaqIndex = if (isExpanded) null else index
-                        }
-                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                        .clickable { onSelectFaq(faq) }
+                        .padding(horizontal = 16.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Text(
-                            faq.question,
-                            fontWeight = FontWeight.SemiBold,
-                            fontSize = 14.sp,
-                            color = MaterialTheme.colorScheme.onSurface,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            imageVector = if (isExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                            contentDescription = if (isExpanded) "Contraer" else "Expandir",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    AnimatedVisibility(
-                        visible = isExpanded,
-                        enter = fadeIn() + expandVertically(),
-                        exit = fadeOut() + shrinkVertically()
-                    ) {
-                        Text(
-                            faq.answer,
-                            fontSize = 13.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(top = 8.dp)
-                        )
-                    }
+                    Text(
+                        faq.question,
+                        fontWeight = FontWeight.SemiBold,
+                        fontSize = 14.sp,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Spacer(Modifier.width(8.dp))
+                    Icon(
+                        imageVector = Icons.Filled.KeyboardArrowRight,
+                        contentDescription = "Preguntarle a Shimuro",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
                 if (index != shimuroFaq.lastIndex) {
                     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))

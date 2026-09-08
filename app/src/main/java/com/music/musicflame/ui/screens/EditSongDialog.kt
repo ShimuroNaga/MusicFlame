@@ -24,13 +24,11 @@ import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongCustomizationRepository
 import com.music.musicflame.data.SongLibraryHolder
 import kotlinx.coroutines.launch
-import com.music.musicflame.data.CroppedImageStorage
 import com.music.musicflame.data.getDefaultAlbumArtUri
 import com.music.musicflame.data.getOriginalSongTitle
 import com.music.musicflame.data.getOriginalSongArtist
 import com.music.musicflame.data.getOriginalSongAlbum
 import com.music.musicflame.ui.components.AlbumArt
-import com.music.musicflame.ui.components.ImageCropperDialog
 
 /**
  * Resultado de una edición: qué canción cambió y cuáles son sus valores FINALES
@@ -81,9 +79,6 @@ fun EditSongDialog(
     var titleText by remember(song?.id) { mutableStateOf(song?.title ?: "") }
     var pickedCoverUri by remember { mutableStateOf<String?>(null) }
     var resetCover by remember { mutableStateOf(false) }
-    // Imagen recién elegida en el picker, pendiente de pasar por el recorte
-    // (nunca se usa para GIFs: el recorte solo aplica a imágenes estáticas).
-    var imageUriPendingCrop by remember { mutableStateOf<Uri?>(null) }
     var resetTitle by remember { mutableStateOf(false) }
     // --- NUEVO: editor de etiquetas/metadata (artista y álbum) ---
     var artistText by remember(song?.id) { mutableStateOf(song?.artist ?: "") }
@@ -99,31 +94,9 @@ fun EditSongDialog(
             try {
                 context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (e: Exception) {}
-            val mimeType = context.contentResolver.getType(it)
-            if (mimeType == "image/gif") {
-                // Los GIF no pasan por el recorte (se pierde la animación al
-                // decodificarlos como Bitmap estático): se usan tal cual, igual
-                // que antes.
-                pickedCoverUri = it.toString()
-                resetCover = false
-            } else {
-                imageUriPendingCrop = it
-            }
+            pickedCoverUri = it.toString()
+            resetCover = false
         }
-    }
-
-    imageUriPendingCrop?.let { uriToCrop ->
-        ImageCropperDialog(
-            imageUri = uriToCrop,
-            aspectRatio = 1f, // carátula cuadrada, igual que AlbumArt
-            onCropped = { bitmap ->
-                val savedUri = CroppedImageStorage.saveCroppedBitmap(context, bitmap, "covers")
-                pickedCoverUri = savedUri.toString()
-                resetCover = false
-                imageUriPendingCrop = null
-            },
-            onDismiss = { imageUriPendingCrop = null }
-        )
     }
 
     // Lo que se ve en la vista previa del diálogo

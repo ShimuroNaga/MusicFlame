@@ -69,6 +69,19 @@ class LicenseRepository(context: Context) {
         return sha256(email.trim().lowercase()) in AUTHORIZED_EMAIL_SHA256_SET
     }
 
+    /**
+     * true SOLO si la cuenta de Google activa es la del dueño/creador real
+     * (oomo) — a diferencia de [isOwnerAccount], que acepta cualquier correo
+     * de [AUTHORIZED_EMAIL_SHA256_SET] (incluye a onano8294@gmail.com, que
+     * sí tiene Pro desbloqueado pero NO debe poder modificar la Meta de
+     * ahorro). Usar esta función específicamente para gatear esa edición.
+     */
+    fun canEditSavingsGoal(): Boolean {
+        val account = GoogleSignIn.getLastSignedInAccount(appContext) ?: return false
+        val email = account.email ?: return false
+        return sha256(email.trim().lowercase()) in SAVINGS_GOAL_EDITOR_EMAIL_SHA256_SET
+    }
+
     private fun sha256(text: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
@@ -212,6 +225,14 @@ class LicenseRepository(context: Context) {
         val AUTHORIZED_EMAIL_SHA256_SET = setOf(
             "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8",
             "35a83b8adf17dbf05c1158eb4d1e53eded0bb5e842bdefc0ded8568986ad40ed"
+        )
+
+        // Subconjunto de lo de arriba: SOLO el dueño real (oomo). A pedido
+        // explícito, la Meta de ahorro (SavingsGoalRepository, que escribe
+        // de verdad en el repo de GitHub) solo la puede modificar esta
+        // cuenta — onano8294@gmail.com sigue teniendo Pro, pero no esto.
+        val SAVINGS_GOAL_EDITOR_EMAIL_SHA256_SET = setOf(
+            "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8"
         )
 
         // TODO: reemplaza esto por el link real de tu checkout/producto en

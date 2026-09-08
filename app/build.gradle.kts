@@ -145,4 +145,7 @@ dependencies {
     // audio en disco. Soporta mp3, flac, ogg, wav, m4a, wma, aiff, dsf y opus.
     // No re-codifica el audio: solo reescribe el bloque de metadatos.
     implementation("com.github.Adonai:jaudiotagger:2.3.15")
+
+    // Recorte de imágenes (carátulas / fondo) con pan+zoom, respeta orientación EXIF
+    implementation("androidx.exifinterface:exifinterface:1.3.7")
 }

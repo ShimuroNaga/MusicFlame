@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.BugReport
 import coil.compose.AsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.material3.pulltorefresh.PullToRefreshDefaults
@@ -123,6 +124,8 @@ import com.music.musicflame.data.LicenseRepository
 import com.music.musicflame.data.LicenseStatus
 import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.data.LicenseValidationResult
+import com.music.musicflame.data.CroppedImageStorage
+import com.music.musicflame.ui.components.ImageCropperDialog
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.widget.MusicFlameWidgetProvider
 
@@ -407,17 +410,38 @@ fun SettingsScreen(
     val refreshScope = rememberCoroutineScope()
     val pullState = rememberPullToRefreshState()
 
+    // Imagen de fondo recién elegida, pendiente de pasar por el recorte.
+    var backgroundUriPendingCrop by remember { mutableStateOf<Uri?>(null) }
+
     val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             try {
                 context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
             } catch (e: Exception) {}
-            settingsRepo.saveBackgroundImageUri(it.toString())
-            backgroundImageUri.value = it.toString()
-            settingsRepo.removePlayerGifUri()
-            playerGifUri.value = null
-            onBackgroundImageChanged()
+            backgroundUriPendingCrop = it
         }
+    }
+
+    // Aspect ratio real de la pantalla del dispositivo, para que el recorte
+    // coincida con el área donde se pinta el fondo (fillMaxSize + Crop).
+    val screenConfig = LocalConfiguration.current
+    val screenAspectRatio = screenConfig.screenWidthDp.toFloat() / screenConfig.screenHeightDp.toFloat()
+
+    backgroundUriPendingCrop?.let { uriToCrop ->
+        ImageCropperDialog(
+            imageUri = uriToCrop,
+            aspectRatio = screenAspectRatio,
+            onCropped = { bitmap ->
+                val savedUri = CroppedImageStorage.saveCroppedBitmap(context, bitmap, "backgrounds")
+                settingsRepo.saveBackgroundImageUri(savedUri.toString())
+                backgroundImageUri.value = savedUri.toString()
+                settingsRepo.removePlayerGifUri()
+                playerGifUri.value = null
+                onBackgroundImageChanged()
+                backgroundUriPendingCrop = null
+            },
+            onDismiss = { backgroundUriPendingCrop = null }
+        )
     }
 
     val pickGifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->

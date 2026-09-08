@@ -1142,32 +1142,9 @@ fun FullScreenPlayer(
                 }
             }
 
-            // --- Mascota "mascot_relax": acompaña, no es interactuable ---
-            // Solo aparece de día (mismo rango horario 6:00-18:59 que usa la card
-            // "Hogar de Shimuro"); de noche no se dibuja nada, ni el Image se
-            // compone. No tiene .clickable ni onClick: es puramente decorativo,
-            // "está ahí" acompañando al usuario, no reacciona al toque.
-            // Ancla al borde IZQUIERDO real de la pantalla (este es el Box
-            // EXTERIOR sin insets, ver comentario grande más arriba), declarada
-            // como el ÚLTIMO hijo del Box exterior + zIndex explícito por encima
-            // del 1f que usa la fila de arriba del ecualizador espejado, así
-            // queda "por delante" del ecualizador gráfico como se pidió. El
-            // padding inferior la deja flotando arriba del borde físico de la
-            // pantalla, sin invadir la fila de botones Anterior/Play/Siguiente.
-            val isDaytimeForMascotRelax = remember {
-                java.time.LocalTime.now().hour in 6..18
-            }
-            if (isDaytimeForMascotRelax) {
-                Image(
-                    painter = painterResource(id = R.drawable.mascot_relax),
-                    contentDescription = null,
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .padding(start = 2.dp, bottom = 28.dp)
-                        .width(130.dp)
-                        .zIndex(1.5f)
-                )
-            }
+            // Mascota "mascot_relax" quitada de FullScreenPlayer a pedido: ya no se
+            // dibuja acá (sigue existiendo el drawable/otros usos en otras pantallas,
+            // como la card "Hogar de Shimuro" en SettingsScreen, esto no los toca).
         }
     }
 }

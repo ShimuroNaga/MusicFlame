@@ -77,7 +77,7 @@ import kotlinx.coroutines.launch
  * vacío siempre de fondo.
  *
  * NOCHE: al ENTRAR a la card (sin que el usuario toque nada) Shimuro saluda
- * solo, automáticamente: "Ah... ¡Hola, <Nombre>! ¿Necesitas algo?", usando el
+ * solo, automáticamente: "Ah... Hola, <Nombre>... ¿Necesitas algo?", usando el
  * nombre real de la cuenta de Google Sign-In. Esto pasa siempre que se entra
  * de noche, no solo la primera vez.
  *
@@ -90,7 +90,7 @@ import kotlinx.coroutines.launch
  *
  * DESPEDIDA: al salir de esta card (se sale de composición, ej. al volver a
  * Ajustes), Shimuro despide con un Toast usando el nombre real: "Buen día,
- * <Nombre>" de día o "Buenas noches, <Nombre>" de noche.
+ * <Nombre>" de día o "Buenas noches....<Nombre>.." de noche.
  */
 
 private enum class ShimuroTimeOfDay { DAY, NIGHT }
@@ -202,7 +202,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) {
         if (timeOfDay == ShimuroTimeOfDay.NIGHT) {
             nightTalking = true
-            bubbleText = "Ah... ¡Hola, $userFirstName! ¿Necesitas algo?"
+            bubbleText = "Ah... Hola, $userFirstName... ¿Necesitas algo?"
             bubbleVisible = true
         }
     }
@@ -213,7 +213,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
             val farewell = if (timeOfDay == ShimuroTimeOfDay.DAY) {
                 "Buen día, $userFirstName"
             } else {
-                "Buenas noches, $userFirstName"
+                "Buenas noches....$userFirstName.."
             }
             Toast.makeText(context, farewell, Toast.LENGTH_SHORT).show()
         }

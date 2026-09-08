@@ -196,8 +196,14 @@ private fun CropFrame(
     val minUserScale = 1f
     val maxUserScale = 5f
 
+    // Antes: Modifier.fillMaxWidth() -> el marco ocupaba TODO el ancho disponible,
+    // lo que con imágenes grandes dejaba muy poco margen alrededor para mover/hacer
+    // zoom con precisión y elegir bien qué parte de la imagen quedaba dentro.
+    // Ahora usa el 72% del ancho: el marco queda un poco más chico, con más aire
+    // alrededor para maniobrar. El pinch-to-zoom (detectTransformGestures) y el
+    // pan siguen funcionando exactamente igual, solo cambia el tamaño del marco.
     BoxWithConstraints(
-        modifier = Modifier.fillMaxWidth().aspectRatio(aspectRatio)
+        modifier = Modifier.fillMaxWidth(0.72f).aspectRatio(aspectRatio)
     ) {
         val frameWidthPx = with(density) { maxWidth.toPx() }
         val frameHeightPx = with(density) { maxHeight.toPx() }

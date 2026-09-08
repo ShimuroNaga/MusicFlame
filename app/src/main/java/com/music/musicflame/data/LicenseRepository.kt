@@ -55,7 +55,8 @@ class LicenseRepository(context: Context) {
     /**
      * true si la cuenta de Google con la que el usuario ya inició sesión en la
      * app (la misma que usa para Drive/YouTube, ver MainActivity) es la del
-     * dueño/creador (comparada por hash SHA-256, ver OWNER_EMAIL_SHA256). No
+     * dueño/creador, o cualquier otro correo autorizado (comparados por hash
+     * SHA-256, ver AUTHORIZED_EMAIL_SHA256_SET). No
      * requiere ninguna license key.
      *
      * Si nadie inició sesión con Google en la app (GoogleSignIn.getLastSignedInAccount
@@ -65,7 +66,7 @@ class LicenseRepository(context: Context) {
     fun isOwnerAccount(): Boolean {
         val account = GoogleSignIn.getLastSignedInAccount(appContext) ?: return false
         val email = account.email ?: return false
-        return sha256(email.trim().lowercase()) == OWNER_EMAIL_SHA256
+        return sha256(email.trim().lowercase()) in AUTHORIZED_EMAIL_SHA256_SET
     }
 
     private fun sha256(text: String): String {
@@ -200,12 +201,18 @@ class LicenseRepository(context: Context) {
     }
 
     companion object {
-        // Hash SHA-256 (correo en minúsculas, sin espacios) del dueño/creador
-        // de la app: si la sesión de Google Sign-In activa en el dispositivo
-        // coincide con este hash, isProUnlocked() da true automáticamente,
-        // sin necesidad de license key. Se guarda como hash (no el correo en
-        // texto plano) para que no quede legible al decompilar el APK.
-        const val OWNER_EMAIL_SHA256 = "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8"
+        // Hashes SHA-256 (correo en minúsculas, sin espacios) de las cuentas
+        // con Pro desbloqueado sin necesidad de license key: si la sesión de
+        // Google Sign-In activa en el dispositivo coincide con alguno de
+        // estos hashes, isProUnlocked() da true automáticamente. Se guardan
+        // como hash (no el correo en texto plano) para que no quede legible
+        // al decompilar el APK.
+        //   - Dueño/creador de la app.
+        //   - onano8294@gmail.com (agregado a pedido).
+        val AUTHORIZED_EMAIL_SHA256_SET = setOf(
+            "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8",
+            "35a83b8adf17dbf05c1158eb4d1e53eded0bb5e842bdefc0ded8568986ad40ed"
+        )
 
         // TODO: reemplaza esto por el link real de tu checkout/producto en
         // Lemon Squeezy (Store > Products > "Get link" o tu propia página de

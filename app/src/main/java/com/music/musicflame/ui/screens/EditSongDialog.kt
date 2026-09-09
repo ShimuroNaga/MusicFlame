@@ -86,6 +86,10 @@ fun EditSongDialog(
     // todas comparten el mismo álbum de origen, y solo se aplica si el usuario
     // escribe algo explícitamente.
     var albumText by remember(song?.id) { mutableStateOf(if (isSingle) song?.album ?: "" else "") }
+    // --- NUEVO: título de visualización con códigos § (solo visual, nunca al mp3 real) ---
+    var displayTitleFormatted by remember(song?.id) {
+        mutableStateOf(existingCustomization?.displayTitleFormatted ?: "")
+    }
     var resetArtist by remember { mutableStateOf(false) }
     var resetAlbum by remember { mutableStateOf(false) }
 
@@ -185,6 +189,15 @@ fun EditSongDialog(
 
                     Spacer(Modifier.height(8.dp))
 
+                    // --- NUEVO: título de visualización con códigos § (solo dentro de
+                    // la app, nunca se escribe al tag real del mp3 vía RealTagWriter) ---
+                    com.music.musicflame.ui.components.DisplayTitleField(
+                        value = displayTitleFormatted,
+                        onValueChange = { displayTitleFormatted = it },
+                    )
+
+                    Spacer(Modifier.height(8.dp))
+
                     // --- NUEVO: editor de etiquetas/metadata (artista) ---
                     OutlinedTextField(
                         value = artistText,
@@ -271,6 +284,8 @@ fun EditSongDialog(
                             coverUri = pickedCoverUri,
                             artist = newArtist,
                             album = newAlbum,
+                            displayTitleFormatted = displayTitleFormatted.takeIf { it.isNotBlank() },
+                            clearDisplayTitleFormatted = displayTitleFormatted.isBlank(),
                             clearTitle = resetTitle,
                             clearCover = resetCover,
                             clearArtist = resetArtist,

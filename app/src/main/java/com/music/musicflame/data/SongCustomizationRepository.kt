@@ -13,7 +13,13 @@ data class SongCustomization(
     val coverUri: String? = null,
     // --- NUEVO: editor de etiquetas/metadata ---
     val artist: String? = null,
-    val album: String? = null
+    val album: String? = null,
+    // --- NUEVO: título de visualización con códigos § (colores/glitch/etc, ver
+    // FormatCodeText.kt). A DIFERENCIA de `title`, este campo es PURAMENTE
+    // visual: nunca se pasa a RealTagWriter ni se escribe al tag físico del
+    // mp3. Úsalo con FormatCodeText/resolveDisplayTitle para pintar el título
+    // en la UI (SongItemCard, FullScreenPlayer, MiniPlayer, etc).
+    val displayTitleFormatted: String? = null
 )
 
 /**
@@ -35,8 +41,9 @@ class SongCustomizationRepository(context: Context) {
                 val coverUri = if (entry.has("coverUri") && !entry.isNull("coverUri")) entry.getString("coverUri") else null
                 val artist = if (entry.has("artist") && !entry.isNull("artist")) entry.getString("artist") else null
                 val album = if (entry.has("album") && !entry.isNull("album")) entry.getString("album") else null
-                if (title != null || coverUri != null || artist != null || album != null) {
-                    result[key] = SongCustomization(title = title, coverUri = coverUri, artist = artist, album = album)
+                val displayTitleFormatted = if (entry.has("displayTitleFormatted") && !entry.isNull("displayTitleFormatted")) entry.getString("displayTitleFormatted") else null
+                if (title != null || coverUri != null || artist != null || album != null || displayTitleFormatted != null) {
+                    result[key] = SongCustomization(title = title, coverUri = coverUri, artist = artist, album = album, displayTitleFormatted = displayTitleFormatted)
                 }
             }
             result
@@ -48,12 +55,13 @@ class SongCustomizationRepository(context: Context) {
     private fun writeAll(map: Map<String, SongCustomization>) {
         val obj = JSONObject()
         map.forEach { (id, custom) ->
-            if (custom.title != null || custom.coverUri != null || custom.artist != null || custom.album != null) {
+            if (custom.title != null || custom.coverUri != null || custom.artist != null || custom.album != null || custom.displayTitleFormatted != null) {
                 val entry = JSONObject()
                 if (custom.title != null) entry.put("title", custom.title)
                 if (custom.coverUri != null) entry.put("coverUri", custom.coverUri)
                 if (custom.artist != null) entry.put("artist", custom.artist)
                 if (custom.album != null) entry.put("album", custom.album)
+                if (custom.displayTitleFormatted != null) entry.put("displayTitleFormatted", custom.displayTitleFormatted)
                 obj.put(id, entry)
             }
         }
@@ -78,10 +86,12 @@ class SongCustomizationRepository(context: Context) {
         coverUri: String? = null,
         artist: String? = null,
         album: String? = null,
+        displayTitleFormatted: String? = null,
         clearTitle: Boolean = false,
         clearCover: Boolean = false,
         clearArtist: Boolean = false,
-        clearAlbum: Boolean = false
+        clearAlbum: Boolean = false,
+        clearDisplayTitleFormatted: Boolean = false
     ) {
         val map = readAll()
         val key = songId.toString()
@@ -107,14 +117,22 @@ class SongCustomizationRepository(context: Context) {
             album != null -> album.trim().takeIf { it.isNotBlank() }
             else -> current.album
         }
+        val newDisplayTitleFormatted = when {
+            clearDisplayTitleFormatted -> null
+            displayTitleFormatted != null -> displayTitleFormatted.takeIf { it.isNotBlank() }
+            else -> current.displayTitleFormatted
+        }
 
-        if (newTitle == null && newCover == null && newArtist == null && newAlbum == null) {
+        if (newTitle == null && newCover == null && newArtist == null && newAlbum == null && newDisplayTitleFormatted == null) {
             map.remove(key)
         } else {
-            map[key] = SongCustomization(title = newTitle, coverUri = newCover, artist = newArtist, album = newAlbum)
+            map[key] = SongCustomization(title = newTitle, coverUri = newCover, artist = newArtist, album = newAlbum, displayTitleFormatted = newDisplayTitleFormatted)
         }
         writeAll(map)
     }
+
+    /** Devuelve el título con códigos § de una canción, o null si no tiene uno guardado. */
+    fun getDisplayTitleFormatted(songId: Long): String? = readAll()[songId.toString()]?.displayTitleFormatted
 
     /** Aplica la misma carátula personalizada a varias canciones a la vez. */
     fun setCoverForSongs(songIds: List<Long>, coverUri: String?, clearCover: Boolean = false) {

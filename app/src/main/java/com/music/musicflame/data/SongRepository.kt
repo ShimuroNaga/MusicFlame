@@ -20,6 +20,10 @@ data class Song(
     // AlbumArt() usa este dato para decidir si respeta esa URI o si prueba
     // primero la carátula embebida en el propio archivo (ver AlbumArt.kt).
     val hasCustomCover: Boolean = false,
+    // NUEVO: título de visualización con códigos § (SongCustomization.displayTitleFormatted).
+    // null cuando la canción no tiene uno guardado; en ese caso las cards deben
+    // mostrar `title` tal cual (ver FormatCodeText.kt / rawDisplayTitle()).
+    val displayTitleFormatted: String? = null,
     val dateAdded: Long = 0L,
     val youtubeVideoId: String? = null, // <-- NUEVO: ID real del video en YouTube (distinto de `id`)
     // --- NUEVO: usados por el buscador con filtros (Artista/Álbum/Año/Género) ---
@@ -114,6 +118,7 @@ fun loadSongsFromDevice(context: Context): List<Song> {
                         path = path,
                         albumArtUri = customization?.coverUri ?: defaultAlbumArtUri,
                         hasCustomCover = customization?.coverUri != null,
+                        displayTitleFormatted = customization?.displayTitleFormatted,
                         dateAdded = it.getLong(dateAddedCol),
                         // youtubeVideoId queda null para canciones locales, es lo esperado
                         year = year,

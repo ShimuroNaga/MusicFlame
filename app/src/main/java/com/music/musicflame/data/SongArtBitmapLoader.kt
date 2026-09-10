@@ -3,8 +3,11 @@ package com.music.musicflame.data
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Canvas
+import android.graphics.drawable.BitmapDrawable
 import android.net.Uri
 import androidx.annotation.OptIn
+import androidx.core.content.ContextCompat
 import androidx.media3.common.util.BitmapLoader
 import androidx.media3.common.util.UnstableApi
 import com.google.common.util.concurrent.Futures
@@ -49,10 +52,47 @@ class SongArtBitmapLoader(private val context: Context) : BitmapLoader {
     override fun loadBitmap(uri: Uri): ListenableFuture<Bitmap> {
         return Futures.submit(
             Callable {
+                // ARREGLO icono personalizado en notificación: antes, si la
+                // canción no traía carátula real, SongArtLoader.loadBitmap
+                // devolvía null y esto lo convertía en una excepción. Cuando
+                // esa excepción reventaba el Future, Media3 nunca llegaba a
+                // llamar builder.setLargeIcon(...) y el sistema rellenaba el
+                // hueco solo con el icono "de fábrica" del manifest — el que
+                // NO cambia con el selector de Ajustes (ver AppIconManager),
+                // por eso la notificación siempre mostraba el logo original
+                // de MusicFlame sin importar qué icono personalizado
+                // (RemixFlame/DemonMusic/etc) tuvieras activo. Ahora, en vez
+                // de tirar la excepción, el respaldo final es el bitmap del
+                // icono que el usuario tiene elegido ahora mismo.
                 SongArtLoader.loadBitmap(context, uri)
-                    ?: throw IllegalStateException("No se pudo cargar la carátula desde $uri")
+                    ?: loadSelectedAppIconBitmap()
             },
             executor
         )
+    }
+
+    private fun loadSelectedAppIconBitmap(): Bitmap {
+        val iconRes = AppIconManager.getSelectedIconDrawableRes(context)
+        val drawable = ContextCompat.getDrawable(context, iconRes)
+            ?: throw IllegalStateException("No se pudo cargar el icono de la app ($iconRes) como respaldo de carátula")
+
+        // Camino simple: ícono plano de toda la vida (APIs sin icono
+        // adaptativo), se usa el bitmap tal cual.
+        if (drawable is BitmapDrawable && drawable.bitmap != null) {
+            return drawable.bitmap
+        }
+
+        // Ícono adaptativo (AdaptiveIconDrawable, API 26+): lo "aplanamos"
+        // dibujándolo sobre un canvas cuadrado de su tamaño intrínseco. No
+        // aplica la máscara circular/squircle del launcher (eso lo decide
+        // cada launcher, no este código), pero para el respaldo de carátula
+        // de la notificación el resultado se ve correcto igual.
+        val width = if (drawable.intrinsicWidth > 0) drawable.intrinsicWidth else 512
+        val height = if (drawable.intrinsicHeight > 0) drawable.intrinsicHeight else 512
+        val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, canvas.width, canvas.height)
+        drawable.draw(canvas)
+        return bitmap
     }
 }

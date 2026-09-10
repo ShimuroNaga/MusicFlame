@@ -356,7 +356,8 @@ fun PlaylistsScreen(
                                         songCount = mostPlayedPlaylist.value.songIds.size,
                                         kind = PlaylistKind.MOST_PLAYED,
                                         onPlaylistClick = { onPlaylistClick(it, PlaylistKind.MOST_PLAYED) },
-                                        onChangeCoverClick = {},
+                                        onChangeCoverClick = { onChangeCoverClick(SmartPlaylistIds.MOST_PLAYED) },
+                                        onResetCoverClick = { settingsRepo.saveMostPlayedCoverUri("") },
                                         hasBackgroundImage = hasBackgroundImage,
                                         isSelected = selectedPlaylists.contains(mostPlayedPlaylist.value),
                                         isSelectionMode = isSelectionMode,
@@ -368,7 +369,8 @@ fun PlaylistsScreen(
                                         songCount = neverPlayedPlaylist.value.songIds.size,
                                         kind = PlaylistKind.NEVER_PLAYED,
                                         onPlaylistClick = { onPlaylistClick(it, PlaylistKind.NEVER_PLAYED) },
-                                        onChangeCoverClick = {},
+                                        onChangeCoverClick = { onChangeCoverClick(SmartPlaylistIds.NEVER_PLAYED) },
+                                        onResetCoverClick = { settingsRepo.saveNeverPlayedCoverUri("") },
                                         hasBackgroundImage = hasBackgroundImage,
                                         isSelected = selectedPlaylists.contains(neverPlayedPlaylist.value),
                                         isSelectionMode = isSelectionMode,
@@ -597,9 +599,11 @@ fun PlaylistCard(
     val context = LocalContext.current
     val playlistRepo = remember { PlaylistRepository(context) }
     val showCoverDialog = remember { mutableStateOf(false) }
-    // Las playlists inteligentes no tienen carátula personalizable: su ícono
-    // (fuego / brújula) es fijo, igual que el corazón de Favoritos.
-    val coverIsEditable = kind == PlaylistKind.REGULAR || kind == PlaylistKind.FAVORITES
+    // Las playlists inteligentes (Lo Más Sonado / Por Descubrir) sí pueden
+    // llevar carátula personalizada, igual que Favoritos: si el usuario no
+    // eligió ninguna, se cae al ícono fijo (fuego / brújula / corazón).
+    val coverIsEditable = kind == PlaylistKind.REGULAR || kind == PlaylistKind.FAVORITES ||
+        kind == PlaylistKind.MOST_PLAYED || kind == PlaylistKind.NEVER_PLAYED
 
     val allSongsForDuration = com.music.musicflame.data.SongLibraryHolder.songs
     val totalDurationFormatted = remember(playlist.songIds, allSongsForDuration) {
@@ -679,11 +683,11 @@ fun PlaylistCard(
                     Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
                         Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = favoritesIconTint)
                     }
-                } else if (kind == PlaylistKind.MOST_PLAYED) {
+                } else if (kind == PlaylistKind.MOST_PLAYED && playlist.customCoverUri == null) {
                     Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
                         Icon(imageVector = Icons.Filled.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
                     }
-                } else if (kind == PlaylistKind.NEVER_PLAYED) {
+                } else if (kind == PlaylistKind.NEVER_PLAYED && playlist.customCoverUri == null) {
                     Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
                         Icon(imageVector = Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
                     }

@@ -105,10 +105,11 @@ class MainActivity : ComponentActivity() {
             } catch (e: Exception) {}
 
             selectedPlaylistForCover?.let { playlistId ->
-                if (playlistId == "favorites") {
-                    favoritesRepo.saveCoverUri(it.toString())
-                } else {
-                    playlistRepo.updatePlaylistCover(playlistId, it.toString())
+                when (playlistId) {
+                    "favorites" -> favoritesRepo.saveCoverUri(it.toString())
+                    SmartPlaylistIds.MOST_PLAYED -> SettingsRepository(this).saveMostPlayedCoverUri(it.toString())
+                    SmartPlaylistIds.NEVER_PLAYED -> SettingsRepository(this).saveNeverPlayedCoverUri(it.toString())
+                    else -> playlistRepo.updatePlaylistCover(playlistId, it.toString())
                 }
                 selectedPlaylistForCover = null
             }

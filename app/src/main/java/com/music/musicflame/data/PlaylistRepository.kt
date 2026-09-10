@@ -44,7 +44,8 @@ fun buildMostPlayedPlaylist(context: Context): Playlist {
     val topIds = statsRepo.getTopPlayed(MOST_PLAYED_LIMIT)
         .filter { (id, stat) -> stat.playCount > 0 && id in libraryIds }
         .map { it.first }
-    return Playlist(id = SmartPlaylistIds.MOST_PLAYED, name = "Lo Más Sonado", songIds = topIds, isDefault = true)
+    val coverUri = SettingsRepository(context).getMostPlayedCoverUri()
+    return Playlist(id = SmartPlaylistIds.MOST_PLAYED, name = "Lo Más Sonado", songIds = topIds, isDefault = true, customCoverUri = coverUri)
 }
 
 /**
@@ -60,7 +61,8 @@ fun buildNeverPlayedPlaylist(context: Context): Playlist {
         .filter { it.id !in playedIds }
         .sortedByDescending { it.dateAdded }
         .map { it.id }
-    return Playlist(id = SmartPlaylistIds.NEVER_PLAYED, name = "Por Descubrir", songIds = neverPlayedIds, isDefault = true)
+    val coverUri = SettingsRepository(context).getNeverPlayedCoverUri()
+    return Playlist(id = SmartPlaylistIds.NEVER_PLAYED, name = "Por Descubrir", songIds = neverPlayedIds, isDefault = true, customCoverUri = coverUri)
 }
 
 class PlaylistRepository(context: Context) {

@@ -291,4 +291,20 @@ class SettingsRepository(context: Context) {
     // --- ONBOARDING DE PRIMER USO ---
     fun isOnboardingCompleted(): Boolean = prefs.getBoolean("onboarding_completed", false)
     fun setOnboardingCompleted(completed: Boolean) = prefs.edit().putBoolean("onboarding_completed", completed).apply()
+
+    // --- CARÁTULA PERSONALIZADA DE LAS PLAYLISTS INTELIGENTES ---
+    // "Lo Más Sonado" y "Por Descubrir" no son playlists guardadas (se
+    // recalculan solas, ver buildMostPlayedPlaylist/buildNeverPlayedPlaylist
+    // en PlaylistRepository.kt), así que su carátula no puede vivir en el
+    // JSON de playlists normales. Mismo patrón que favorites_cover_uri de
+    // FavoritesRepository, una key plana en este mismo archivo de prefs.
+    fun getMostPlayedCoverUri(): String? = prefs.getString("most_played_cover_uri", null)
+    fun saveMostPlayedCoverUri(uri: String) {
+        prefs.edit().putString("most_played_cover_uri", if (uri.isBlank()) null else uri).apply()
+    }
+
+    fun getNeverPlayedCoverUri(): String? = prefs.getString("never_played_cover_uri", null)
+    fun saveNeverPlayedCoverUri(uri: String) {
+        prefs.edit().putString("never_played_cover_uri", if (uri.isBlank()) null else uri).apply()
+    }
 }

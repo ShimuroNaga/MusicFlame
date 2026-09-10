@@ -30,6 +30,8 @@ import androidx.compose.material.icons.filled.MusicNote
 import androidx.compose.material.icons.filled.Equalizer
 import androidx.compose.material.icons.filled.SmartToy
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Save
+import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.filled.Favorite
@@ -436,6 +438,34 @@ fun SettingsScreen(
         }
     }
 
+    // --- EXPORTAR / IMPORTAR CONFIGURACIÓN (copia de seguridad entre dispositivos) ---
+    val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
+        uri?.let {
+            try {
+                context.contentResolver.openOutputStream(it)?.use { out ->
+                    out.write(com.music.musicflame.data.ConfigExportRepository.exportToJson(context).toByteArray())
+                }
+                Toast.makeText(context, "Configuración exportada", Toast.LENGTH_SHORT).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo exportar: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    val importConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        uri?.let {
+            try {
+                val text = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
+                val applied = com.music.musicflame.data.ConfigExportRepository.importFromJson(context, text)
+                Toast.makeText(context, "Se aplicaron $applied ajustes. Reinicia MusicFlame para verlos todos.", Toast.LENGTH_LONG).show()
+            } catch (e: IllegalArgumentException) {
+                Toast.makeText(context, e.message ?: "Archivo inválido", Toast.LENGTH_LONG).show()
+            } catch (e: Exception) {
+                Toast.makeText(context, "No se pudo importar: ${e.message}", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
     Box(
         modifier = modifier
             .fillMaxSize()
@@ -600,6 +630,7 @@ fun SettingsScreen(
                                 Triple("Cuenta", "Cuenta de Google y sesión", Icons.Filled.AccountCircle),
                                 Triple("Apariencia", "Fondo, colores, carátula, ícono", Icons.Filled.Palette),
                                 Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
+                                Triple("Copia de seguridad", "Exportar/importar tu configuración", Icons.Filled.Save),
                                 Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info),
                                 Triple("Lyrics", "Velocidad, animación y color de la letra", Icons.Filled.MusicNote),
                                 Triple("Pagos (opcional)", "Licencia de apoyo y donación opcional", Icons.Filled.Favorite),
@@ -676,6 +707,42 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Black,
                             color = trailingColor
                         )
+                    }
+
+                    // COPIA DE SEGURIDAD (exportar/importar configuración)
+                    if (activeSection.value == "Copia de seguridad") {
+                        item { sectionHeader("Copia de seguridad") }
+
+                        item {
+                            Text(
+                                text = "Guarda tus ajustes de apariencia, ecualizador, letra y reproducción en un archivo, para restaurarlos o pasarlos a otro celular con MusicFlame. No incluye tu imagen de fondo, GIF del reproductor ni carátulas personalizadas (esas Uris son de este dispositivo, hay que volver a elegirlas a mano).",
+                                fontSize = 13.sp,
+                                color = mediumEmphasis,
+                                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+                            )
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Exportar configuración") },
+                                supportingContent = { Text("Guardar como archivo .json") },
+                                trailingContent = { Icon(Icons.Filled.Save, contentDescription = null, tint = trailingColor) },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { exportConfigLauncher.launch("musicflame_config.json") }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Importar configuración") },
+                                supportingContent = { Text("Elegir un archivo .json exportado antes") },
+                                trailingContent = { Icon(Icons.Filled.FileOpen, contentDescription = null, tint = trailingColor) },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { importConfigLauncher.launch("application/json") }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
                     }
 
                     // CUENTA

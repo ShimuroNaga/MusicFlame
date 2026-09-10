@@ -10,12 +10,15 @@ object AppIconManager {
 
     private val aliases = mapOf(
         "default" to "$PACKAGE.IconDefault",
+        "classic" to "$PACKAGE.IconClassic",
         "brilliant" to "$PACKAGE.IconBrilliant",
         "pixel" to "$PACKAGE.IconPixel",
         "cookies" to "$PACKAGE.IconCookies",
         "gray" to "$PACKAGE.IconGray",
         "remix" to "$PACKAGE.IconRemixFlame",
-        "demonmusic" to "$PACKAGE.IconDemonMusic"
+        "demonmusic" to "$PACKAGE.IconDemonMusic",
+        "musicpika" to "$PACKAGE.IconMusicPika",
+        "shimuflame" to "$PACKAGE.IconShimuFlame"
     )
 
     fun setIcon(context: Context, key: String) {

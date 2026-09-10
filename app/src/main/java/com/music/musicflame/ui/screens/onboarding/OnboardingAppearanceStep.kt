@@ -33,13 +33,16 @@ import com.music.musicflame.ui.theme.parseCustomTextColor
 
 // Mismos iconos, mismas claves y mismos labels que appIconOptions en SettingsScreen.kt
 private val appIconOptions = listOf(
-    Triple("default", "Original", R.mipmap.ic_launcher),
+    Triple("default", "MusicFlame", R.mipmap.ic_launcher_musicflameupgrade),
+    Triple("classic", "Original (versión anterior)", R.mipmap.ic_launcher),
     Triple("brilliant", "Brillante", R.mipmap.ic_launcher_brilliant),
     Triple("pixel", "Pixelart", R.mipmap.ic_launcher_pixel),
     Triple("cookies", "Cookies N Cream", R.mipmap.ic_launcher_cookies),
     Triple("gray", "Escala de grises", R.mipmap.ic_launcher_gray),
     Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
-    Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic)
+    Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic),
+    Triple("musicpika", "MusicPika", R.mipmap.ic_launcher_musicpika),
+    Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame)
 )
 
 // Mismos labels que muestra el diálogo de forma de carátula en SettingsScreen.kt

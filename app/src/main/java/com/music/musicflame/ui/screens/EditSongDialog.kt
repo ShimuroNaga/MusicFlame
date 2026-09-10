@@ -42,7 +42,10 @@ data class SongEditPatch(
     val newCoverUri: String? = null,
     // --- NUEVO: editor de etiquetas/metadata ---
     val newArtist: String? = null,
-    val newAlbum: String? = null
+    val newAlbum: String? = null,
+    // NUEVO: título de visualización con códigos §. null = no cambió;
+    // string vacío = se borró (queda sin formato); string no vacío = nuevo valor.
+    val newDisplayTitleFormatted: String? = null
 )
 
 /**
@@ -118,11 +121,17 @@ fun EditSongDialog(
     val previewIsCustomCover = pickedCoverUri != null ||
             (isSingle && !resetCover && song?.hasCustomCover == true)
 
+    // Bug corregido: antes esta bandera no consideraba el "Subtítulo de
+    // visualización" (displayTitleFormatted), así que escribir solo ahí
+    // dejaba el botón "Guardar" deshabilitado hasta tocar otro campo.
+    val displayTitleChanged = displayTitleFormatted != (existingCustomization?.displayTitleFormatted ?: "")
+
     val hasChanges = pickedCoverUri != null || resetCover ||
             (isSingle && (
                     resetTitle || (titleText.isNotBlank() && titleText != song?.title) ||
                             resetArtist || (artistText.isNotBlank() && artistText != song?.artist) ||
-                            resetAlbum || (albumText.isNotBlank() && albumText != song?.album)
+                            resetAlbum || (albumText.isNotBlank() && albumText != song?.album) ||
+                            displayTitleChanged
                     )) ||
             (!isSingle && albumText.isNotBlank())
 
@@ -322,8 +331,22 @@ fun EditSongDialog(
                         val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, song.id) else null
                         val finalArtist = newArtist ?: if (resetArtist) getOriginalSongArtist(context, song.id) else null
                         val finalAlbum = newAlbum ?: if (resetAlbum) getOriginalSongAlbum(context, song.id) else null
-                        if (finalTitle != null || finalCover != null || finalArtist != null || finalAlbum != null) {
-                            patches.add(SongEditPatch(song.id, finalTitle, finalCover, finalArtist, finalAlbum))
+                        // displayTitleFormatted no tiene botón de "restablecer" propio: si
+                        // cambió, se manda tal cual (vacío = se borró el formato).
+                        val finalDisplayTitleFormatted = if (displayTitleChanged) displayTitleFormatted else null
+                        if (finalTitle != null || finalCover != null || finalArtist != null || finalAlbum != null ||
+                            finalDisplayTitleFormatted != null
+                        ) {
+                            patches.add(
+                                SongEditPatch(
+                                    songId = song.id,
+                                    newTitle = finalTitle,
+                                    newCoverUri = finalCover,
+                                    newArtist = finalArtist,
+                                    newAlbum = finalAlbum,
+                                    newDisplayTitleFormatted = finalDisplayTitleFormatted
+                                )
+                            )
                         }
                     } else if (selectedSongs.isNotEmpty() && (pickedCoverUri != null || resetCover || albumText.isNotBlank())) {
                         val batchAlbum = albumText.takeIf { it.isNotBlank() }

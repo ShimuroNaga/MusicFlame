@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -98,14 +99,19 @@ fun SongItemCard(
                         )
                         Spacer(Modifier.width(6.dp))
                     }
-                    Text(
-                        text = song.title,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
+                    // NUEVO: respeta el "Subtítulo de visualización" con códigos §
+                    // (EditSongDialog); si la canción no tiene uno guardado, cae
+                    // en el título real como antes.
+                    FormatCodeText(
+                        rawTitle = song.rawDisplayTitle(),
+                        style = TextStyle(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            // <-- APLICANDO EL COLOR GLOBAL (Mantiene el color de selección si está activa)
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
+                        ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        // <-- APLICANDO EL COLOR GLOBAL (Mantiene el color de selección si está activa)
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
                     )
                 }
                 Text(

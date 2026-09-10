@@ -1,6 +1,8 @@
 package com.music.musicflame.ui.screens
 
 import android.content.Context
+import com.music.musicflame.ui.components.FormatCodeText
+import com.music.musicflame.ui.components.rawDisplayTitle
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -573,14 +575,19 @@ fun SongItemCard(
                         )
                         Spacer(Modifier.width(6.dp))
                     }
-                    Text(
-                        text = song.title,
-                        fontWeight = FontWeight.Medium,
-                        fontSize = 15.sp,
+                    // NUEVO: respeta el "Subtítulo de visualización" con códigos §
+                    // (mismo fix aplicado a components/SongItemCard.kt; este archivo
+                    // tiene su propia copia local que hay que mantener sincronizada).
+                    FormatCodeText(
+                        rawTitle = song.rawDisplayTitle(),
+                        style = androidx.compose.ui.text.TextStyle(
+                            fontWeight = FontWeight.Medium,
+                            fontSize = 15.sp,
+                            // <-- Aplicando LocalAppTextColor
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
+                        ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
-                        // <-- Aplicando LocalAppTextColor
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
                     )
                 }
                 Text(

@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
@@ -15,6 +16,7 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.text.withStyle
 import com.music.musicflame.ui.theme.rainbowColorAt
 import com.music.musicflame.ui.theme.rememberRainbowPhase
@@ -49,6 +51,27 @@ object FormatCodes {
         'f' to Color(0xFFFFFFFF), // blanco
     )
 
+    // Nombre en español de cada color, para mostrarlo en el desplegable de
+    // ejemplos (antes solo decía "Color" y no se distinguía uno de otro).
+    val COLOR_NAMES: Map<Char, String> = mapOf(
+        '0' to "Negro",
+        '1' to "Azul oscuro",
+        '2' to "Verde oscuro",
+        '3' to "Aqua oscuro",
+        '4' to "Rojo oscuro",
+        '5' to "Púrpura oscuro",
+        '6' to "Dorado",
+        '7' to "Gris",
+        '8' to "Gris oscuro",
+        '9' to "Azul",
+        'a' to "Verde",
+        'b' to "Aqua / cian",
+        'c' to "Rojo",
+        'd' to "Rosa / magenta",
+        'e' to "Amarillo",
+        'f' to "Blanco",
+    )
+
     // Modificadores de estilo (no son colores)
     const val OBFUSCATED = 'k'   // texto glitcheando
     const val BOLD = 'l'
@@ -65,7 +88,7 @@ object FormatCodes {
 
     fun examples(): List<CodeExample> = buildList {
         COLOR_CODES.forEach { (char, color) ->
-            add(CodeExample("$PREFIX$char", "Color", color))
+            add(CodeExample("$PREFIX$char", COLOR_NAMES[char] ?: "Color", color))
         }
         add(CodeExample("$PREFIX$RAINBOW", "Arcoíris (mismo modo del ecualizador)"))
         add(CodeExample("$PREFIX$OBFUSCATED", "Obfuscado (glitch)"))
@@ -185,6 +208,9 @@ private fun parseFormatCodes(raw: String): List<FormatSegment> {
 fun FormatCodeText(
     rawTitle: String,
     style: TextStyle,
+    modifier: Modifier = Modifier,
+    maxLines: Int = Int.MAX_VALUE,
+    overflow: TextOverflow = TextOverflow.Clip,
     animateObfuscated: Boolean = true,
     tickMillis: Long = 80L,
 ) {
@@ -209,7 +235,13 @@ fun FormatCodeText(
         buildAnnotatedString(rawTitle, animate = animateObfuscated, seed = tick, rainbowPhaseDeg = rainbowPhase)
     }
 
-    androidx.compose.material3.Text(text = annotated, style = style)
+    androidx.compose.material3.Text(
+        text = annotated,
+        style = style,
+        modifier = modifier,
+        maxLines = maxLines,
+        overflow = overflow,
+    )
 }
 
 private fun buildAnnotatedString(raw: String, animate: Boolean, seed: Int, rainbowPhaseDeg: Float = 0f): AnnotatedString {
@@ -263,3 +295,11 @@ fun resolveDisplayTitle(
     realTitle: String,
     customizationRepo: com.music.musicflame.data.SongCustomizationRepository,
 ): String = customizationRepo.getDisplayTitleFormatted(songId) ?: realTitle
+
+/**
+ * Igual que [resolveDisplayTitle] pero a partir de un [Song] ya cargado
+ * (que ya trae `displayTitleFormatted` desde SongRepository), sin tener que
+ * volver a leer SongCustomizationRepository por cada card de la lista.
+ */
+fun com.music.musicflame.data.Song.rawDisplayTitle(): String =
+    displayTitleFormatted?.takeIf { it.isNotBlank() } ?: title

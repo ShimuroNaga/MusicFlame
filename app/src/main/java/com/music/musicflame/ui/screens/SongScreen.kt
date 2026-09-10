@@ -30,9 +30,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import com.music.musicflame.ui.components.FormatCodeText
+import com.music.musicflame.ui.components.rawDisplayTitle
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -236,6 +239,12 @@ fun SongsScreen(
                     // --- NUEVO: editor de etiquetas/metadata (artista y álbum) ---
                     if (patch.newArtist != null) updated = updated.copy(artist = patch.newArtist)
                     if (patch.newAlbum != null) updated = updated.copy(album = patch.newAlbum)
+                    // NUEVO: título de visualización con códigos §. Vacío = se borró el formato.
+                    if (patch.newDisplayTitleFormatted != null) {
+                        updated = updated.copy(
+                            displayTitleFormatted = patch.newDisplayTitleFormatted.takeIf { it.isNotBlank() }
+                        )
+                    }
                     songs[idx] = updated
                 }
             }
@@ -409,13 +418,15 @@ fun SongsScreen(
                                                     )
                                                     Spacer(Modifier.width(6.dp))
                                                 }
-                                                Text(
-                                                    text = song.title,
-                                                    fontWeight = FontWeight.Bold,
-                                                    fontSize = 16.sp,
+                                                FormatCodeText(
+                                                    rawTitle = song.rawDisplayTitle(),
+                                                    style = TextStyle(
+                                                        fontWeight = FontWeight.Bold,
+                                                        fontSize = 16.sp,
+                                                        color = normalTextColor
+                                                    ),
                                                     maxLines = 1,
-                                                    overflow = TextOverflow.Ellipsis,
-                                                    color = normalTextColor
+                                                    overflow = TextOverflow.Ellipsis
                                                 )
                                             }
                                             Text(
@@ -546,13 +557,15 @@ fun SongsScreen(
                                                 )
                                                 Spacer(Modifier.width(6.dp))
                                             }
-                                            Text(
-                                                text = song.title,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 16.sp,
+                                            FormatCodeText(
+                                                rawTitle = song.rawDisplayTitle(),
+                                                style = TextStyle(
+                                                    fontWeight = FontWeight.Bold,
+                                                    fontSize = 16.sp,
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor
+                                                ),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor,
                                                 modifier = Modifier.weight(1f, fill = false)
                                             )
 

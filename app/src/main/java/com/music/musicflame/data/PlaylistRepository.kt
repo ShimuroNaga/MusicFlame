@@ -130,6 +130,17 @@ class PlaylistRepository(context: Context) {
         savePlaylists(playlists)
     }
 
+    // Renombra una playlist creada por el usuario (REGULAR). No aplica a Favoritos
+    // ni a las playlists inteligentes (Lo Más Sonado / Por Descubrir), que no viven aquí.
+    fun renamePlaylist(playlistId: String, newName: String) {
+        val trimmed = newName.trim()
+        if (trimmed.isEmpty()) return
+        val playlists = getAllPlaylists().map { playlist ->
+            if (playlist.id == playlistId) playlist.copy(name = trimmed) else playlist
+        }
+        savePlaylists(playlists)
+    }
+
     fun updatePlaylistCover(playlistId: String, coverUri: String) {
         val playlists = getAllPlaylists().map { playlist ->
             if (playlist.id == playlistId) {

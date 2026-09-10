@@ -126,7 +126,10 @@ fun PlaylistsScreen(
     onToggleSelection: (Playlist) -> Unit = {},
     // --- MODO DE SELECCIÓN POR TAP (sin necesidad de mantener presionado) ---
     selectionModeActive: Boolean = false,
-    onToggleSelectionModeButton: () -> Unit = {}
+    onToggleSelectionModeButton: () -> Unit = {},
+    // Se incrementa desde afuera (ej. tras renombrar una playlist desde la selección
+    // múltiple) para forzar una relectura de playlistRepo sin esperar a un pull-to-refresh.
+    playlistsRefreshTrigger: Int = 0
 ) {
     val context = LocalContext.current
     val playlistRepo = remember { PlaylistRepository(context) }
@@ -199,6 +202,21 @@ fun PlaylistsScreen(
         neverPlayedPlaylist.value = buildNeverPlayedPlaylist(context)
         displayPlaylists.clear()
         displayPlaylists.addAll(playlists)
+    }
+
+    LaunchedEffect(playlistsRefreshTrigger) {
+        if (playlistsRefreshTrigger > 0) {
+            playlists.clear()
+            playlists.addAll(playlistRepo.getPlaylists())
+            displayPlaylists.clear()
+            displayPlaylists.addAll(
+                when (sortType.value) {
+                    PlaylistSortType.DATE_CREATED -> playlists
+                    PlaylistSortType.A_Z -> playlists.sortedBy { it.name }
+                    PlaylistSortType.Z_A -> playlists.sortedByDescending { it.name }
+                }
+            )
+        }
     }
 
     LaunchedEffect(sortType.value, playlists.size) {

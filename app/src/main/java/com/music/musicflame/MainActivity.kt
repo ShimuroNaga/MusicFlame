@@ -357,6 +357,12 @@ class MainActivity : ComponentActivity() {
                 var showMultiDeleteDialog by remember { mutableStateOf(false) }
                 var showDeletePlaylistsDialog by remember { mutableStateOf(false) }
 
+                // Renombrar playlist propia desde la selección múltiple (solo aplica de a una,
+                // y solo a playlists REGULAR: no Favoritos ni las inteligentes)
+                var showRenamePlaylistDialog by remember { mutableStateOf(false) }
+                var renamePlaylistText by remember { mutableStateOf("") }
+                var playlistsRefreshTrigger by remember { mutableIntStateOf(0) }
+
                 // --- Editar carátula (imagen/GIF) y nombre de canción(es), desde la selección múltiple ---
                 var showEditSongDialog by remember { mutableStateOf(false) }
                 var songsPatchTrigger by remember { mutableIntStateOf(0) }
@@ -629,6 +635,20 @@ class MainActivity : ComponentActivity() {
                                                         selectedPlaylists.addAll(allPlaylists)
                                                     }
                                                 )
+                                                if (selectedPlaylists.size == 1 &&
+                                                    selectedPlaylists.first().id != "favorites" &&
+                                                    selectedPlaylists.first().id != SmartPlaylistIds.MOST_PLAYED &&
+                                                    selectedPlaylists.first().id != SmartPlaylistIds.NEVER_PLAYED
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Renombrar") } },
+                                                        onClick = {
+                                                            showPlaylistSelectionMenu = false
+                                                            renamePlaylistText = selectedPlaylists.first().name
+                                                            showRenamePlaylistDialog = true
+                                                        }
+                                                    )
+                                                }
                                                 DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Download, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary); Spacer(Modifier.width(8.dp)); Text("Exportar a M3U") } },
                                                     onClick = {
@@ -1026,7 +1046,8 @@ class MainActivity : ComponentActivity() {
                                             selectedPlaylists = selectedPlaylists,
                                             onToggleSelection = onTogglePlaylist,
                                             selectionModeActive = manualPlaylistSelectionMode,
-                                            onToggleSelectionModeButton = { manualPlaylistSelectionMode = !manualPlaylistSelectionMode }
+                                            onToggleSelectionModeButton = { manualPlaylistSelectionMode = !manualPlaylistSelectionMode },
+                                            playlistsRefreshTrigger = playlistsRefreshTrigger
                                         )
                                         Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong, currentPlayingSongId = currentSong?.id)
                                         Screen.Album -> AlbumScreen(
@@ -1106,6 +1127,39 @@ class MainActivity : ComponentActivity() {
                                         }
                                     },
                                     confirmButton = { TextButton(onClick = { showMultiPlaylistDialog = false }) { Text("Cancelar") } }
+                                )
+                            }
+
+                            if (showRenamePlaylistDialog) {
+                                val targetPlaylist = selectedPlaylists.firstOrNull()
+                                AlertDialog(
+                                    onDismissRequest = { showRenamePlaylistDialog = false },
+                                    title = { Text("Renombrar Playlist", fontWeight = FontWeight.Bold) },
+                                    text = {
+                                        OutlinedTextField(
+                                            value = renamePlaylistText,
+                                            onValueChange = { renamePlaylistText = it },
+                                            label = { Text("Nombre") },
+                                            singleLine = true,
+                                            modifier = Modifier.fillMaxWidth()
+                                        )
+                                    },
+                                    confirmButton = {
+                                        Button(
+                                            onClick = {
+                                                val trimmedName = renamePlaylistText.trim()
+                                                if (trimmedName.isNotEmpty() && targetPlaylist != null) {
+                                                    playlistRepo.renamePlaylist(targetPlaylist.id, trimmedName)
+                                                    playlistsRefreshTrigger++
+                                                    showRenamePlaylistDialog = false
+                                                    selectedPlaylists.clear(); manualPlaylistSelectionMode = false
+                                                }
+                                            }
+                                        ) { Text("Guardar") }
+                                    },
+                                    dismissButton = {
+                                        TextButton(onClick = { showRenamePlaylistDialog = false }) { Text("Cancelar") }
+                                    }
                                 )
                             }
 

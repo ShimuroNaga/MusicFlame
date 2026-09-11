@@ -19,7 +19,11 @@ import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.DefaultRenderersFactory
 import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.RenderersFactory
+import androidx.media3.exoplayer.audio.AudioSink
+import androidx.media3.exoplayer.audio.DefaultAudioSink
 import androidx.media3.session.CommandButton
 import androidx.media3.session.DefaultMediaNotificationProvider
 import androidx.media3.session.MediaSession
@@ -30,10 +34,18 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
+import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
+import com.music.musicflame.audio.VolumeNormalizationAnalyzer
 import com.music.musicflame.widget.MusicFlameVinylWidgetProvider
 import com.music.musicflame.widget.MusicFlameWidgetProvider
 import com.music.musicflame.widget.WidgetPrefs
 import android.media.AudioManager
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 @OptIn(UnstableApi::class)
 class MusicPlaybackService : MediaSessionService() {
@@ -75,6 +87,21 @@ class MusicPlaybackService : MediaSessionService() {
     // es el mismo durante toda la sesión de reproducción — eso generaba un
     // micro-pop/glitch de audio en cada cambio de canción sin necesidad.
     private var currentAudioSessionId: Int = C.AUDIO_SESSION_ID_UNSET
+
+    // EQ PRO (ETAPA 1 — motor biquad de 10 bandas en software, ver clase para detalle).
+    // Es un AudioProcessor de Media3, así que vive DENTRO del pipeline de ExoPlayer
+    // (RenderersFactory de abajo), NO junto a equalizer/bassBoost/etc de arriba, que son
+    // efectos nativos de android.media.audiofx y siguen intactos para el EQ gratis de 5
+    // bandas. Ahora mismo el gate está hardcodeado dentro de la propia clase para pruebas
+    // (FORCE_ENABLED_FOR_TESTING); todavía NO está conectado a LicenseRepository.
+    private val proEqualizerAudioProcessor = ProBiquadEqualizerAudioProcessor()
+
+    // ETAPA 2 — normalización de volumen: caché por canción del gain calculado, y un scope
+    // propio del servicio para poder analizar canciones en segundo plano (Dispatchers.IO)
+    // sin bloquear el hilo principal ni el de audio. Se cancela en onDestroy().
+    private lateinit var volumeNormalizationCacheRepo: VolumeNormalizationCacheRepository
+    private val serviceJob = SupervisorJob()
+    private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
     private lateinit var sharedPrefs: SharedPreferences
 
@@ -132,6 +159,73 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     // RECEPTOR DE PANTALLA APAGADA/ENCENDIDA (ahorro de batería del widget Vinilo).
+    /**
+     * EQ PRO (ETAPA 1): RenderersFactory propia que reemplaza el AudioSink por defecto de
+     * ExoPlayer por uno que incluye a proEqualizerAudioProcessor en su cadena de
+     * AudioProcessors. Esto es lo único que hace falta para que Media3 empiece a pasar el
+     * PCM real por nuestros filtros biquad antes de mandarlo al AudioTrack del sistema.
+     *
+     * No toca nada de los efectos nativos (equalizer/bassBoost/virtualizer/loudnessEnhancer/
+     * presetReverb) que siguen enganchados por audioSessionId más abajo — ambos caminos
+     * conviven: los nativos actúan a nivel de audioSessionId/hardware, este actúa antes,
+     * a nivel de los bytes PCM dentro de ExoPlayer.
+     */
+    private fun buildProEqRenderersFactory(): RenderersFactory {
+        return object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): AudioSink? {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor))
+                    .build()
+            }
+        }
+    }
+
+    /**
+     * ETAPA 2 — aplica (o dispara el cálculo de) el gain de normalización de volumen de la
+     * canción que acaba de empezar a sonar.
+     *
+     * Si ya está en caché, se aplica de inmediato (sin ningún trabajo de fondo). Si no está
+     * en caché, se deja el EQ Pro en 0 dB de normalización mientras se analiza en segundo
+     * plano (Dispatchers.IO) — esto evita que la canción nueva arranque con el gain de la
+     * canción ANTERIOR pegado encima por error. En cuanto el análisis termina, se guarda en
+     * caché y se aplica en caliente, PERO solo si para entonces la canción actual sigue
+     * siendo la misma que arrancó el análisis (si el usuario ya cambió de canción, el
+     * resultado se guarda para la próxima vez que suene y no se aplica a la que está sonando
+     * ahora — evitaría "pisarle" su propio gain).
+     */
+    private fun applyVolumeNormalizationForCurrentSong() {
+        val songId = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        val filePath = SongLibraryHolder.songs.find { it.id == songId }?.path
+        if (filePath.isNullOrEmpty()) return
+
+        val cachedGainDb = volumeNormalizationCacheRepo.get(filePath)
+        if (cachedGainDb != null) {
+            proEqualizerAudioProcessor.setNormalizationGainDb(cachedGainDb)
+            return
+        }
+
+        proEqualizerAudioProcessor.setNormalizationGainDb(0f)
+
+        serviceScope.launch {
+            val gainDb = withContext(Dispatchers.IO) {
+                VolumeNormalizationAnalyzer.analyze(filePath)
+            } ?: return@launch
+
+            volumeNormalizationCacheRepo.set(filePath, gainDb)
+
+            val stillSameSong = player.currentMediaItem?.mediaId?.toLongOrNull() == songId
+            if (stillSameSong) {
+                proEqualizerAudioProcessor.setNormalizationGainDb(gainDb)
+            }
+        }
+    }
+
     // ACTION_SCREEN_OFF/ON son "implicit broadcasts": Android ya no los entrega a
     // receivers declarados en el Manifest desde la API 26, así que SÍ o SÍ hay que
     // registrarlos así, en runtime, igual que noisyReceiver de arriba.
@@ -150,6 +244,7 @@ class MusicPlaybackService : MediaSessionService() {
         sharedPrefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
         lyricsRepo = LyricsRepository(this)
         lyricsSettingsRepo = SettingsRepository(this)
+        volumeNormalizationCacheRepo = VolumeNormalizationCacheRepository(this)
 
         // Cargar valores iniciales
         currentBass = sharedPrefs.getFloat("bass_boost", 0f)
@@ -183,7 +278,7 @@ class MusicPlaybackService : MediaSessionService() {
             .setContentType(C.AUDIO_CONTENT_TYPE_MUSIC)
             .build()
 
-        player = ExoPlayer.Builder(this)
+        player = ExoPlayer.Builder(this, buildProEqRenderersFactory())
             .setAudioAttributes(audioAttributes, true)
             .build()
 
@@ -214,6 +309,7 @@ class MusicPlaybackService : MediaSessionService() {
                 checkIfCurrentSongIsFavorite()
                 syncWidgetState()
                 loadLyricsForCurrentSong()
+                applyVolumeNormalizationForCurrentSong()
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -661,6 +757,10 @@ class MusicPlaybackService : MediaSessionService() {
         virtualizer?.release()
         loudnessEnhancer?.release()
         presetReverb?.release()
+        // ETAPA 2: cancela cualquier análisis de normalización de volumen que siga corriendo
+        // en segundo plano — si no, quedaría una coroutine viva intentando decodificar un
+        // archivo aunque el servicio (y el player) ya no existan.
+        serviceScope.cancel()
         mediaSession?.run {
             player.release()
             release()

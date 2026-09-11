@@ -68,6 +68,14 @@ class MusicPlaybackService : MediaSessionService() {
     private var currentLoudness = 0f
     private var currentReverb = 0
 
+    // ARREGLO GRATIS: guarda qué audioSessionId ya tiene los 5 efectos creados, para
+    // no recrearlos (release() + constructor nuevo) en cada cambio de canción. Antes
+    // onPlaybackStateChanged(STATE_READY) llamaba a initAudioEffects() en CADA
+    // transición de canción, aunque el audioSessionId real de ExoPlayer casi siempre
+    // es el mismo durante toda la sesión de reproducción — eso generaba un
+    // micro-pop/glitch de audio en cada cambio de canción sin necesidad.
+    private var currentAudioSessionId: Int = C.AUDIO_SESSION_ID_UNSET
+
     private lateinit var sharedPrefs: SharedPreferences
 
     // --- LETRA EN VIVO EN EL WIDGET ---
@@ -182,7 +190,8 @@ class MusicPlaybackService : MediaSessionService() {
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio
         player.addListener(object : Player.Listener {
             override fun onAudioSessionIdChanged(audioSessionId: Int) {
-                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET) {
+                // Solo recrear los efectos si el audioSessionId realmente cambió.
+                if (audioSessionId != C.AUDIO_SESSION_ID_UNSET && audioSessionId != currentAudioSessionId) {
                     initAudioEffects(audioSessionId)
                 }
             }
@@ -190,7 +199,11 @@ class MusicPlaybackService : MediaSessionService() {
             override fun onPlaybackStateChanged(playbackState: Int) {
                 if (playbackState == Player.STATE_READY) {
                     val sessionId = player.audioSessionId
-                    if (sessionId != C.AUDIO_SESSION_ID_UNSET) {
+                    // Antes esto se disparaba en CADA canción porque STATE_READY se repite en
+                    // cada transición, aunque el sessionId no cambie. Ahora solo recrea los
+                    // efectos la primera vez (o si de verdad cambió); en canciones siguientes
+                    // con el mismo sessionId, los efectos ya existentes se reutilizan tal cual.
+                    if (sessionId != C.AUDIO_SESSION_ID_UNSET && sessionId != currentAudioSessionId) {
                         initAudioEffects(sessionId)
                     }
                 }
@@ -529,18 +542,41 @@ class MusicPlaybackService : MediaSessionService() {
             loudnessEnhancer = LoudnessEnhancer(audioSessionId)
             presetReverb = PresetReverb(1000, audioSessionId)
 
+            currentAudioSessionId = audioSessionId
             applyAudioSettings()
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
+    /**
+     * ARREGLO GRATIS: antes BassBoost + la banda de graves del EQ + LoudnessEnhancer
+     * podían subirse los tres al máximo al mismo tiempo sin ningún límite combinado,
+     * lo que causa clipping/distorsión real (probablemente la razón #1 de "no suena
+     * bien" en valores altos). Esto no toca lo que el usuario ve en los sliders —
+     * siguen en su rango de siempre — solo calcula cuánto hay que recortar,
+     * proporcionalmente, lo que de verdad se manda al hardware cuando la suma de
+     * ganancias activas (boosts, no recortes) pasa cierto umbral.
+     */
+    private fun computeSafeGainScale(): Float {
+        val bassNorm = (currentBass / 100f).coerceIn(0f, 1f)
+        val eqPositiveSum = currentBands.filter { it > 0f }.sum().coerceAtLeast(0f)
+        val loudnessNorm = currentLoudness.coerceAtLeast(0f)
+
+        val totalBoost = bassNorm + eqPositiveSum + loudnessNorm
+        val threshold = 1.6f
+
+        return if (totalBoost > threshold) threshold / totalBoost else 1f
+    }
+
     private fun applyAudioSettings() {
         try {
+            val gainScale = computeSafeGainScale()
+
             bassBoost?.let { boost ->
                 if (boost.strengthSupported) {
                     boost.enabled = true
-                    boost.setStrength((currentBass * 10).toInt().toShort())
+                    boost.setStrength((currentBass * gainScale * 10).toInt().toShort())
                 }
             }
 
@@ -553,7 +589,8 @@ class MusicPlaybackService : MediaSessionService() {
 
             loudnessEnhancer?.let { loud ->
                 loud.enabled = true
-                loud.setTargetGain((currentLoudness * 20).toInt())
+                val scaledLoudness = if (currentLoudness > 0f) currentLoudness * gainScale else currentLoudness
+                loud.setTargetGain((scaledLoudness * 20).toInt())
             }
 
             presetReverb?.let { reverb ->
@@ -573,15 +610,22 @@ class MusicPlaybackService : MediaSessionService() {
 
             equalizer?.let { eq ->
                 eq.enabled = true
-                for (i in 0 until eq.numberOfBands) {
+                // ARREGLO GRATIS: antes este for iba hasta eq.numberOfBands sin límite,
+                // pero currentBands solo tiene 5 casillas. En celulares (ej. algunos
+                // Samsung/Xiaomi con DSP propio) que reportan MÁS de 5 bandas reales,
+                // esto tronaba con ArrayIndexOutOfBoundsException. Ahora nunca se lee
+                // más allá de lo que currentBands realmente tiene.
+                val bandCount = minOf(eq.numberOfBands.toInt(), currentBands.size)
+                for (i in 0 until bandCount) {
                     val level = currentBands[i]
+                    val scaledLevel = if (level > 0f) level * gainScale else level
                     val minMilliBels = eq.bandLevelRange[0]
                     val maxMilliBels = eq.bandLevelRange[1]
 
-                    val calculatedMilliBels = if (level >= 0) {
-                        (level * maxMilliBels).toInt().toShort()
+                    val calculatedMilliBels = if (scaledLevel >= 0) {
+                        (scaledLevel * maxMilliBels).toInt().toShort()
                     } else {
-                        (kotlin.math.abs(level) * minMilliBels).toInt().toShort()
+                        (kotlin.math.abs(scaledLevel) * minMilliBels).toInt().toShort()
                     }
                     eq.setBandLevel(i.toShort(), calculatedMilliBels)
                 }

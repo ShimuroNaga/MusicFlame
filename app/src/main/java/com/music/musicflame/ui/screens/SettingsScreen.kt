@@ -2,6 +2,7 @@ package com.music.musicflame.ui.screens
 
 import android.content.Context
 import android.content.Intent
+import android.media.audiofx.Equalizer
 import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
@@ -3136,6 +3137,35 @@ fun SettingsScreen(
             val basePresets = listOf("Flat", "Rock", "Pop", "Hip hop", "Jazz", "Classical", "Electronico", "Refuerzo de graves", "Refuerzo de agudos", "Vocales", "Customizar")
             val allPresets = basePresets + customPresetsList
 
+            // ARREGLO GRATIS: antes las 5 frecuencias (60/230/910/3600/14000 Hz) estaban
+            // hardcodeadas en la UI asumiendo que TODOS los celulares traen exactamente
+            // 5 bandas en esas frecuencias. Muchos Samsung/Xiaomi con DSP propio reportan
+            // numberOfBands distinto, así que aquí se consulta el ecualizador REAL del
+            // dispositivo (con audioSessionId=0, que solo sirve para leer capacidades, sin
+            // necesidad de que haya audio sonando) para saber cuántas bandas hay de verdad
+            // y a qué frecuencia responde cada una. Si algo falla o el dispositivo no
+            // reporta nada usable, se cae de vuelta a los valores de siempre para no romper
+            // la app.
+            val fallbackFreqsHz = listOf(60, 230, 910, 3600, 14000)
+            val realDeviceBandFreqsHz = remember {
+                try {
+                    val probe = Equalizer(0, 0)
+                    val realBandCount = probe.numberOfBands.toInt()
+                    val freqs = (0 until realBandCount).map { i -> probe.getCenterFreq(i.toShort()) / 1000 }
+                    probe.release()
+                    freqs
+                } catch (e: Exception) {
+                    emptyList<Int>()
+                }
+            }
+            // Cuántos sliders tiene sentido mostrar/controlar en ESTE celular: nunca más de
+            // 5 (nuestros presets son de 5 bandas), pero si el hardware real solo tiene
+            // menos, no mostramos sliders para bandas que no existen.
+            val eqBandCount = if (realDeviceBandFreqsHz.isNotEmpty()) minOf(5, realDeviceBandFreqsHz.size) else 5
+            val eqFreqsHz = List(5) { i ->
+                if (i < realDeviceBandFreqsHz.size) realDeviceBandFreqsHz[i] else fallbackFreqsHz[i]
+            }
+
             val presetConfigs = mapOf(
                 "Flat" to listOf(0f, 0f, 0f, 0f, 0f),
                 "Rock" to listOf(0.5f, 0.3f, -0.1f, 0.3f, 0.5f),
@@ -3240,7 +3270,7 @@ fun SettingsScreen(
                                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Ecualizador 5 Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                            Text("Ecualizador $eqBandCount Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text("Hz", fontSize = 12.sp, color = if (!viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Switch(checked = viewKHz.value, onCheckedChange = { viewKHz.value = it }, modifier = Modifier.padding(horizontal = 4.dp))
@@ -3249,11 +3279,17 @@ fun SettingsScreen(
                                         }
                                         Spacer(Modifier.height(16.dp))
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
-                                            val freqsHz = listOf("60", "230", "910", "3600", "14000")
-                                            val freqsKHz = listOf("0.06", "0.23", "0.91", "3.6", "14.0")
-                                            for (i in 0 until 5) {
+                                            // Etiquetas armadas a partir de eqFreqsHz (real del dispositivo cuando se pudo
+                                            // leer, o el valor de siempre como respaldo) en vez de un texto fijo.
+                                            for (i in 0 until eqBandCount) {
+                                                val hzValue = eqFreqsHz[i]
+                                                val label = if (viewKHz.value) {
+                                                    String.format("%.2f", hzValue / 1000f)
+                                                } else {
+                                                    hzValue.toString()
+                                                }
                                                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                                    Text(if (viewKHz.value) freqsKHz[i] else freqsHz[i], fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                                    Text(label, fontSize = 11.sp, fontWeight = FontWeight.Bold)
                                                     Spacer(Modifier.height(8.dp))
                                                     Box(
                                                         modifier = Modifier

@@ -24,7 +24,10 @@ object PaymentCatalog {
     data class Item(
         val id: String,
         val section: String,
-        val label: String
+        val label: String,
+        // Precio individual en MXN. Por defecto el mismo de siempre (PRICE_PER_ITEM_MXN);
+        // algunos ítems más grandes (ej. el EQ Pro de 10 bandas) tienen un precio propio.
+        val priceMxn: Int = PRICE_PER_ITEM_MXN
     )
 
     val ITEMS: List<Item> = listOf(
@@ -60,8 +63,16 @@ object PaymentCatalog {
         Item("font_playfair_display", "Tipo de letra", "Playfair Display"),
         Item("font_orbitron", "Tipo de letra", "Orbitron"),
         Item("font_press_start_2p", "Tipo de letra", "Press Start 2P"),
-        Item("font_space_mono", "Tipo de letra", "Space Mono")
+        Item("font_space_mono", "Tipo de letra", "Space Mono"),
+
+        // NUEVO: motor de EQ Pro de 10 bandas (ProBiquadEqualizerAudioProcessor) +
+        // normalización de volumen entre canciones. Precio propio de $20 MXN por TODO el
+        // ecualizador PRO junto (no $5 como el resto de ítems) — a pedido explícito. El
+        // candado real vive en MusicPlaybackService (LicenseRepository.isProUnlocked(),
+        // reevaluado por sesión de audio y por canción) y en el diálogo "Studio Pro EQ" de
+        // SettingsScreen.
+        Item("pro_eq_10band", "Ecualizador PRO", "10 bandas + normalización de volumen", priceMxn = 20)
     )
 
-    val TOTAL_PRICE_MXN: Int = ITEMS.size * PRICE_PER_ITEM_MXN
+    val TOTAL_PRICE_MXN: Int = ITEMS.sumOf { it.priceMxn }
 }

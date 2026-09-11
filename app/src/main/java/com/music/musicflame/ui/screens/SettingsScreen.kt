@@ -192,6 +192,7 @@ fun SettingsScreen(
     val showSleepTimerDialog = remember { mutableStateOf(false) }
     val showThemeDialog = remember { mutableStateOf(false) }
     val showEqualizerDialog = remember { mutableStateOf(false) }
+    val showProEqualizerDialog = remember { mutableStateOf(false) }
     // --- NUEVO: "Búsqueda de anomalías" (Ajustes > Canciones) ---
     val showAnomalyScanDialog = remember { mutableStateOf(false) }
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
@@ -1495,6 +1496,30 @@ fun SettingsScreen(
                                             contentColor = MaterialTheme.colorScheme.onPrimary
                                         )
                                     ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
+                            ListItem(
+                                headlineContent = { Text(if (isProEqUnlocked) "EQ PRO — 10 Bandas" else "EQ PRO — 10 Bandas 🔒") },
+                                supportingContent = {
+                                    Text(
+                                        if (isProEqUnlocked) "Motor propio, pre-amp, presets y normalización de volumen"
+                                        else "Función de pago — toca para ver más"
+                                    )
+                                },
+                                trailingContent = {
+                                    Button(
+                                        onClick = { showProEqualizerDialog.value = true },
+                                        colors = ButtonDefaults.buttonColors(
+                                            containerColor = MaterialTheme.colorScheme.primary,
+                                            contentColor = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    ) { Text(if (isProEqUnlocked) "Abrir" else "Ver", fontWeight = FontWeight.ExtraBold) }
                                 },
                                 colors = listItemColors
                             )
@@ -3119,6 +3144,10 @@ fun SettingsScreen(
                 playerManager = playerManager,
                 onDismiss = { showAnomalyScanDialog.value = false }
             )
+        }
+
+        if (showProEqualizerDialog.value) {
+            ProEqualizerDialog(onDismiss = { showProEqualizerDialog.value = false })
         }
 
         if (showEqualizerDialog.value) {

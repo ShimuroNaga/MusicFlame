@@ -141,6 +141,16 @@ class MusicPlaybackService : MediaSessionService() {
                         currentBands[i] = intent.getFloatExtra("eq_band_$i", 0f)
                     }
                 }
+                // EQ PRO: si el intent trae el extra del bypass A/B, es porque viene del
+                // diálogo del EQ Pro (SettingsScreen -> ProEqualizerDialog); si no lo trae
+                // (viene del diálogo del EQ gratis de siempre), no tocamos el bypass actual.
+                if (intent.hasExtra("pro_eq_bypass")) {
+                    proEqualizerAudioProcessor.setBypassed(intent.getBooleanExtra("pro_eq_bypass", false))
+                }
+                // Se llama SIEMPRE (venga de cualquiera de los dos diálogos), porque cualquiera
+                // de los dos puede afectar si el nativo de 5 bandas debe apagarse (modo
+                // exclusivo del Pro) y porque no cuesta nada releer 10 floats de SharedPreferences.
+                syncProEqualizerState()
                 applyAudioSettings()
             }
         }
@@ -185,6 +195,36 @@ class MusicPlaybackService : MediaSessionService() {
             }
         }
     }
+
+    /**
+     * Sincroniza el motor del EQ Pro (proEqualizerAudioProcessor) con el estado real:
+     * - Licencia: ProStatusHolder.isProUnlocked (mismo holder reactivo que ya usa el resto
+     *   de la app — Theme.kt, FullScreenPlayer.kt, SettingsScreen.kt — para saber si el Pro
+     *   está desbloqueado; MainActivity/SettingsScreen ya lo mantienen al día con
+     *   ProStatusHolder.refresh() cada vez que cambia login o licencia).
+     * - Las 10 bandas y el pre-amp, leídos de SharedPreferences (mismas keys que guarda
+     *   ProEqualizerDialog antes de mandar el broadcast "UPDATE_EQ").
+     * Se llama al arrancar el servicio, en cada cambio de canción, y cada vez que llega el
+     * broadcast de actualización de EQ (venga del diálogo gratis o del Pro).
+     */
+    private fun syncProEqualizerState() {
+        proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isProUnlocked)
+        for (i in 0 until ProBiquadEqualizerAudioProcessor.BAND_COUNT) {
+            proEqualizerAudioProcessor.setBandGainDb(i, sharedPrefs.getFloat("pro_eq_band_$i", 0f))
+        }
+        proEqualizerAudioProcessor.setPreAmpGainDb(sharedPrefs.getFloat("pro_eq_preamp", 0f))
+    }
+
+    /**
+     * true si el EQ Pro debe tener el escenario COMPLETO para él solo: el usuario tiene Pro
+     * desbloqueado Y dejó activado el "Modo PRO exclusivo" (por default sí, ver
+     * ProEqualizerDialog). En ese caso el Equalizer NATIVO de 5 bandas se apaga por completo
+     * en applyAudioSettings() — de lo contrario ambos quedarían sumándose (el nativo de 5
+     * bandas del usuario + las 10 bandas del Pro encima), lo cual además de sonar raro hace
+     * más difícil notar el efecto real del Pro por separado.
+     */
+    private fun isProExclusiveModeActive(): Boolean =
+        ProStatusHolder.isProUnlocked && sharedPrefs.getBoolean("pro_eq_exclusive", true)
 
     /**
      * ETAPA 2 — aplica (o dispara el cálculo de) el gain de normalización de volumen de la
@@ -245,6 +285,7 @@ class MusicPlaybackService : MediaSessionService() {
         lyricsRepo = LyricsRepository(this)
         lyricsSettingsRepo = SettingsRepository(this)
         volumeNormalizationCacheRepo = VolumeNormalizationCacheRepository(this)
+        syncProEqualizerState()
 
         // Cargar valores iniciales
         currentBass = sharedPrefs.getFloat("bass_boost", 0f)
@@ -310,6 +351,10 @@ class MusicPlaybackService : MediaSessionService() {
                 syncWidgetState()
                 loadLyricsForCurrentSong()
                 applyVolumeNormalizationForCurrentSong()
+                // Barato (un boolean + 11 floats de SharedPreferences) y cubre el caso de
+                // que la licencia se haya activado a media sesión sin pasar por el broadcast
+                // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
+                proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isProUnlocked)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -705,7 +750,11 @@ class MusicPlaybackService : MediaSessionService() {
             }
 
             equalizer?.let { eq ->
-                eq.enabled = true
+                // EQ PRO — modo exclusivo: si el usuario tiene Pro desbloqueado y dejó el
+                // modo exclusivo activado (default), el nativo de 5 bandas se apaga por
+                // completo y solo queda sonando el motor Pro de 10 bandas (ver
+                // isProExclusiveModeActive). Si no, se comporta exactamente como siempre.
+                eq.enabled = !isProExclusiveModeActive()
                 // ARREGLO GRATIS: antes este for iba hasta eq.numberOfBands sin límite,
                 // pero currentBands solo tiene 5 casillas. En celulares (ej. algunos
                 // Samsung/Xiaomi con DSP propio) que reportan MÁS de 5 bandas reales,

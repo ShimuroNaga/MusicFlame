@@ -187,7 +187,8 @@ fun SettingsScreen(
     isDriveLinked: Boolean = false,
     onLinkDriveClick: () -> Unit = { /* Lógica para pedir el scope de Google Drive */ },
     onCheckForUpdates: () -> Unit,
-    playerManager: com.music.musicflame.data.MusicPlayerManager
+    playerManager: com.music.musicflame.data.MusicPlayerManager,
+    onBlurEffectChanged: (Boolean) -> Unit = {}
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -216,6 +217,7 @@ fun SettingsScreen(
     val appTheme = remember { mutableStateOf(settingsRepo.getAppTheme()) }
     val amoledMode = remember { mutableStateOf(settingsRepo.isAmoledModeEnabled()) }
     val useRoundCorners = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
+    val blurEffectEnabled = remember { mutableStateOf(settingsRepo.isBlurEffectEnabled()) }
     val albumGridColumns = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
     val equalizerBarCount = remember { mutableStateOf(settingsRepo.getEqualizerBarCount()) }
     // Estilo visual del ecualizador gráfico (catálogo de personalizaciones
@@ -1210,6 +1212,25 @@ fun SettingsScreen(
                                             useRoundCorners.value = isChecked
                                             settingsRepo.saveUseRoundCorners(isChecked)
                                             onRoundCornersChanged(isChecked)
+                                        }
+                                    )
+                                },
+                                colors = listItemColors
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Efecto de desenfoque") },
+                                supportingContent = { Text("Vidrio esmerilado en la barra superior e inferior") },
+                                trailingContent = {
+                                    Switch(
+                                        checked = blurEffectEnabled.value,
+                                        onCheckedChange = { isChecked ->
+                                            blurEffectEnabled.value = isChecked
+                                            settingsRepo.setBlurEffectEnabled(isChecked)
+                                            onBlurEffectChanged(isChecked)
                                         }
                                     )
                                 },

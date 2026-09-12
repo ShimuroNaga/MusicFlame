@@ -67,11 +67,20 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import com.music.musicflame.ui.components.YoutubePlayerScreen
 import com.music.musicflame.ui.screens.onboarding.OnboardingScreen
+import dev.chrisbanes.haze.HazeState
+import dev.chrisbanes.haze.haze
+import dev.chrisbanes.haze.hazeChild
+import dev.chrisbanes.haze.materials.HazeMaterials
 
 // ⚠️ Reemplaza esto con tu "Web Client ID" de Google Cloud Console.
 private const val WEB_CLIENT_ID = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k.apps.googleusercontent.com"
 
 val LocalUseRoundCorners = compositionLocalOf { true }
+
+// --- EFECTO DE DESENFOQUE (vidrio esmerilado) en barra superior y barra
+// inferior (mini-reproductor + nav), configurable desde Ajustes > Apariencia ---
+val LocalHazeState = compositionLocalOf<HazeState?> { null }
+val LocalBlurEffectEnabled = compositionLocalOf { false }
 
 // --- FORMA DE LA CARÁTULA (configurable desde Ajustes > Apariencia) ---
 enum class AlbumArtShapeType {
@@ -286,6 +295,8 @@ class MainActivity : ComponentActivity() {
                 val useRoundCornersState = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
                 val albumArtShapeState = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
                 val albumGridColumnsState = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
+                val blurEffectEnabledState = remember { mutableStateOf(settingsRepo.isBlurEffectEnabled()) }
+                val hazeState = remember { HazeState() }
 
                 val pagerState = rememberPagerState(pageCount = { bottomNavItems.size })
 
@@ -446,7 +457,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
+                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalAlbumGridColumns provides albumGridColumnsState.value, LocalHazeState provides hazeState, LocalBlurEffectEnabled provides blurEffectEnabledState.value) {
                     BackHandler(enabled = showFullScreenPlayer || isAnySelectionMode) {
                         if (showFullScreenPlayer) showFullScreenPlayer = false
                         else {
@@ -455,7 +466,12 @@ class MainActivity : ComponentActivity() {
                         }
                     }
 
-                    Box(modifier = Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background)) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.background)
+                            .then(if (blurEffectEnabledState.value) Modifier.haze(hazeState) else Modifier)
+                    ) {
 
                         if (hasBackgroundImage) {
                             if (playerGifUri.value != null) {
@@ -493,6 +509,7 @@ class MainActivity : ComponentActivity() {
                             topBar = {
                                 if (isSongSelectionMode) {
                                     TopAppBar(
+                                        modifier = if (blurEffectEnabledState.value) Modifier.hazeChild(hazeState, style = HazeMaterials.thin()) else Modifier,
                                         title = { Text("${selectedSongs.size} / $totalSongsOnDevice", fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
                                             IconButton(onClick = { selectedSongs.clear(); manualSongSelectionMode = false }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
@@ -613,10 +630,11 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             }
                                         },
-                                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer, titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer, navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer, actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        colors = TopAppBarDefaults.topAppBarColors(containerColor = if (blurEffectEnabledState.value) Color.Transparent else MaterialTheme.colorScheme.primaryContainer, titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer, navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer, actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer)
                                     )
                                 } else if (isPlaylistSelectionMode) {
                                     TopAppBar(
+                                        modifier = if (blurEffectEnabledState.value) Modifier.hazeChild(hazeState, style = HazeMaterials.thin()) else Modifier,
                                         title = { Text("${selectedPlaylists.size} seleccionadas", fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
                                             IconButton(onClick = { selectedPlaylists.clear(); manualPlaylistSelectionMode = false }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
@@ -673,10 +691,11 @@ class MainActivity : ComponentActivity() {
                                                 )
                                             }
                                         },
-                                        colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primaryContainer, titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer, navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer, actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        colors = TopAppBarDefaults.topAppBarColors(containerColor = if (blurEffectEnabledState.value) Color.Transparent else MaterialTheme.colorScheme.primaryContainer, titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer, navigationIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer, actionIconContentColor = MaterialTheme.colorScheme.onPrimaryContainer)
                                     )
                                 } else {
                                     CenterAlignedTopAppBar(
+                                        modifier = if (blurEffectEnabledState.value) Modifier.hazeChild(hazeState, style = HazeMaterials.thin()) else Modifier,
                                         title = {
                                             Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.CenterStart) {
                                                 AnimatedVisibility(visible = isSearchActive, enter = fadeIn(), exit = fadeOut()) {
@@ -801,7 +820,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
-                                            containerColor = if (hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.surface,
+                                            containerColor = if (blurEffectEnabledState.value || hasBackgroundImage) Color.Transparent else MaterialTheme.colorScheme.surface,
                                             titleContentColor = LocalAppTextColor.current,
                                             navigationIconContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface,
                                             actionIconContentColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
@@ -831,7 +850,12 @@ class MainActivity : ComponentActivity() {
                                             enter = slideInVertically(initialOffsetY = { it }) + fadeIn(),
                                             exit = slideOutVertically(targetOffsetY = { it }) + fadeOut()
                                         ) {
-                                            Box(modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(if (useRoundCornersState.value) 16.dp else 0.dp))) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .clip(RoundedCornerShape(if (useRoundCornersState.value) 16.dp else 0.dp))
+                                                    .then(if (blurEffectEnabledState.value) Modifier.hazeChild(hazeState, style = HazeMaterials.thin()) else Modifier)
+                                            ) {
                                                 MiniPlayer(
                                                     currentSong = currentSong!!,
                                                     isPlaying = isPlaying,
@@ -867,7 +891,18 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     Row(
-                                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp).clip(RoundedCornerShape(if (useRoundCornersState.value) 24.dp else 0.dp)).background(if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainer).padding(vertical = 4.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(top = 8.dp)
+                                            .clip(RoundedCornerShape(if (useRoundCornersState.value) 24.dp else 0.dp))
+                                            .then(
+                                                if (blurEffectEnabledState.value) {
+                                                    Modifier.hazeChild(hazeState, style = HazeMaterials.thin())
+                                                } else {
+                                                    Modifier.background(if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainer)
+                                                }
+                                            )
+                                            .padding(vertical = 4.dp),
                                         horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
                                         bottomNavItems.forEachIndexed { index, screen ->
@@ -903,6 +938,7 @@ class MainActivity : ComponentActivity() {
                                         bgBrightness.floatValue = settingsRepo.getBackgroundBrightness()
                                     },
                                     onRoundCornersChanged = { newState -> useRoundCornersState.value = newState },
+                                    onBlurEffectChanged = { newState -> blurEffectEnabledState.value = newState },
                                     onAlbumGridColumnsChanged = { newState -> albumGridColumnsState.value = newState },
                                     onAlbumArtShapeChanged = { newShape -> albumArtShapeState.value = newShape },
                                     hasBackgroundImage = hasBackgroundImage,

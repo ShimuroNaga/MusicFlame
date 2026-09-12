@@ -2,7 +2,6 @@ package com.music.musicflame.ui.screens
 
 import android.content.Context
 import android.content.Intent
-import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -14,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -44,7 +44,6 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
-import com.music.musicflame.data.LicenseRepository
 import com.music.musicflame.data.ProStatusHolder
 
 /**
@@ -129,7 +128,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                 }
 
                 if (!isProUnlocked) {
-                    LockedProEqualizerContent(context)
+                    LockedProEqualizerContent()
                 } else {
                     LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                         item { Spacer(Modifier.height(4.dp)) }
@@ -262,7 +261,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
 }
 
 @Composable
-private fun LockedProEqualizerContent(context: Context) {
+private fun LockedProEqualizerContent() {
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -276,6 +275,12 @@ private fun LockedProEqualizerContent(context: Context) {
         )
         Spacer(Modifier.height(16.dp))
         Text("EQ PRO bloqueado", fontWeight = FontWeight.Black, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
+        Spacer(Modifier.height(6.dp))
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+            Spacer(Modifier.width(2.dp))
+            Text("$20 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+        }
         Spacer(Modifier.height(8.dp))
         Text(
             "El ecualizador de 10 bandas con motor propio, pre-amp, presets y normalización de volumen entre canciones es una función de pago.",
@@ -284,16 +289,6 @@ private fun LockedProEqualizerContent(context: Context) {
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         Spacer(Modifier.height(24.dp))
-        Button(onClick = {
-            try {
-                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(LicenseRepository.CHECKOUT_URL)))
-            } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo abrir el link de compra.", Toast.LENGTH_SHORT).show()
-            }
-        }) {
-            Text("Comprar EQ PRO", fontWeight = FontWeight.Bold)
-        }
-        Spacer(Modifier.height(12.dp))
         Text(
             "¿Ya tienes tu license key? Actívala en Ajustes → Licencia.",
             fontSize = 12.sp,

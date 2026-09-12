@@ -1505,7 +1505,17 @@ fun SettingsScreen(
                         item {
                             val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
                             ListItem(
-                                headlineContent = { Text(if (isProEqUnlocked) "EQ PRO — 10 Bandas" else "EQ PRO — 10 Bandas 🔒") },
+                                headlineContent = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("EQ PRO — 10 Bandas")
+                                        if (!isProEqUnlocked) {
+                                            Spacer(Modifier.width(6.dp))
+                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Spacer(Modifier.width(2.dp))
+                                            Text("$20 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                },
                                 supportingContent = {
                                     Text(
                                         if (isProEqUnlocked) "Motor propio, pre-amp, presets y normalización de volumen"
@@ -2021,7 +2031,7 @@ fun SettingsScreen(
                                                     Spacer(Modifier.width(4.dp))
                                                     Text(catalogItem.label, fontSize = 13.sp, modifier = Modifier.weight(1f))
                                                     Text(
-                                                        "$${com.music.musicflame.data.PaymentCatalog.PRICE_PER_ITEM_MXN} MXN",
+                                                        "$${catalogItem.priceMxn} MXN",
                                                         fontSize = 12.sp,
                                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                                     )
@@ -2032,7 +2042,9 @@ fun SettingsScreen(
                                     HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
 
                                     val selectedCount = selectedCatalogItemIds.value.size
-                                    val selectedTotal = selectedCount * com.music.musicflame.data.PaymentCatalog.PRICE_PER_ITEM_MXN
+                                    val selectedTotal = com.music.musicflame.data.PaymentCatalog.ITEMS
+                                        .filter { selectedCatalogItemIds.value.contains(it.id) }
+                                        .sumOf { it.priceMxn }
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.SpaceBetween,

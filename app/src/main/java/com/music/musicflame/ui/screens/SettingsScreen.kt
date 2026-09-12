@@ -46,6 +46,11 @@ import androidx.compose.material3.pulltorefresh.rememberPullToRefreshState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material.icons.filled.CloudDone
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.PhoneAndroid
+import androidx.compose.material.icons.filled.Storage
+import androidx.compose.material.icons.filled.Memory
+import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
@@ -126,6 +131,7 @@ import com.music.musicflame.data.LicenseRepository
 import com.music.musicflame.data.LicenseStatus
 import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.data.LicenseValidationResult
+import com.music.musicflame.data.DeviceInfoProvider
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.widget.MusicFlameWidgetProvider
 
@@ -842,6 +848,15 @@ fun SettingsScreen(
                                 }
                             )
                             HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            Spacer(Modifier.height(4.dp))
+                            DeviceInfoCard(
+                                highEmphasis = highEmphasis,
+                                mediumEmphasis = mediumEmphasis,
+                                trailingColor = trailingColor
+                            )
                         }
 
                         // APARIENCIA
@@ -3408,5 +3423,169 @@ fun SettingsScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun DeviceInfoCard(
+    highEmphasis: Color,
+    mediumEmphasis: Color,
+    trailingColor: Color
+) {
+    val context = LocalContext.current
+    val deviceInfo = remember { DeviceInfoProvider.get(context) }
+    var batteryExpanded by remember { mutableStateOf(false) }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+
+            // Encabezado: fabricante + modelo + hardware
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Filled.PhoneAndroid,
+                    contentDescription = null,
+                    tint = trailingColor,
+                    modifier = Modifier.size(28.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Column {
+                    Text(
+                        "${deviceInfo.manufacturer} ${deviceInfo.model}".trim(),
+                        fontWeight = FontWeight.Black,
+                        fontSize = 16.sp,
+                        color = highEmphasis
+                    )
+                    if (deviceInfo.hardware.isNotBlank()) {
+                        Text(
+                            deviceInfo.model + " (" + deviceInfo.hardware + ")",
+                            fontSize = 13.sp,
+                            color = mediumEmphasis
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            // Versión de Android
+            val androidTitle = if (deviceInfo.codename.isNotBlank())
+                "Android ${deviceInfo.androidRelease} (${deviceInfo.codename})"
+            else
+                "Android ${deviceInfo.androidRelease}"
+            Text(androidTitle, fontWeight = FontWeight.SemiBold, fontSize = 15.sp, color = trailingColor)
+            val patchLine = if (deviceInfo.securityPatch.isNotBlank())
+                "API ${deviceInfo.apiLevel} • Patch: ${deviceInfo.securityPatch}"
+            else
+                "API ${deviceInfo.apiLevel}"
+            Text(patchLine, fontSize = 12.sp, color = mediumEmphasis)
+            if (deviceInfo.buildDisplay.isNotBlank()) {
+                Text("Build: ${deviceInfo.buildDisplay}", fontSize = 11.sp, color = mediumEmphasis.copy(alpha = 0.8f))
+            }
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Spacer(Modifier.height(14.dp))
+
+            // Almacenamiento y memoria
+            Row(modifier = Modifier.fillMaxWidth()) {
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Storage, null, tint = trailingColor, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text("Almacenamiento", fontSize = 12.sp, color = mediumEmphasis)
+                        Text(
+                            DeviceInfoProvider.bytesToGbLabel(deviceInfo.storageTotalBytes),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = highEmphasis
+                        )
+                    }
+                }
+                Row(modifier = Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Filled.Memory, null, tint = trailingColor, modifier = Modifier.size(20.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Column {
+                        Text("Memoria", fontSize = 12.sp, color = mediumEmphasis)
+                        Text(
+                            DeviceInfoProvider.bytesToGbLabel(deviceInfo.ramTotalBytes),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 15.sp,
+                            color = highEmphasis
+                        )
+                    }
+                }
+            }
+
+            Spacer(Modifier.height(14.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f))
+            Spacer(Modifier.height(4.dp))
+
+            // Batería, expandible con el detalle
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { batteryExpanded = !batteryExpanded }
+                    .padding(vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = if (deviceInfo.battery.isCharging) Icons.Filled.BatteryChargingFull else Icons.Filled.BatteryStd,
+                    contentDescription = null,
+                    tint = trailingColor,
+                    modifier = Modifier.size(20.dp)
+                )
+                Spacer(Modifier.width(10.dp))
+                Text(
+                    "${deviceInfo.battery.percent}%",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 15.sp,
+                    color = highEmphasis
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Batería", fontSize = 14.sp, color = mediumEmphasis, modifier = Modifier.weight(1f))
+                Icon(
+                    imageVector = if (batteryExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = null,
+                    tint = mediumEmphasis
+                )
+            }
+
+            AnimatedVisibility(visible = batteryExpanded) {
+                Column(modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)) {
+                    DeviceInfoDetailRow("Estado", deviceInfo.battery.statusLabel, mediumEmphasis, highEmphasis)
+                    DeviceInfoDetailRow("Salud", deviceInfo.battery.healthLabel, mediumEmphasis, highEmphasis)
+                    deviceInfo.battery.temperatureC?.let {
+                        DeviceInfoDetailRow("Temperatura", "${it}°C", mediumEmphasis, highEmphasis)
+                    }
+                    deviceInfo.battery.voltageMv?.let {
+                        DeviceInfoDetailRow("Voltaje", "${it} mV", mediumEmphasis, highEmphasis)
+                    }
+                    deviceInfo.battery.technology?.let {
+                        DeviceInfoDetailRow("Tecnología", it, mediumEmphasis, highEmphasis)
+                    }
+                    deviceInfo.battery.plugLabel?.let {
+                        DeviceInfoDetailRow("Fuente de carga", it, mediumEmphasis, highEmphasis)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DeviceInfoDetailRow(label: String, value: String, mediumEmphasis: Color, highEmphasis: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(label, fontSize = 13.sp, color = mediumEmphasis)
+        Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = highEmphasis)
     }
 }

@@ -17,6 +17,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
@@ -29,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.music.musicflame.LocalUseRoundCorners
+import com.music.musicflame.LocalBlurEffectEnabled
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
@@ -164,7 +166,13 @@ fun MiniPlayer(
             }
             .clickable(enabled = currentSong != null) { onExpand() },
         shape = RoundedCornerShape(cornerRadius),
-        colors = TransparentCardDefaults.surfaceContainer(hasBackgroundImage),
+        colors = if (LocalBlurEffectEnabled.current) {
+            // Con el blur activo, el Box de afuera (hazeChild) ya pinta el fondo
+            // desenfocado; si este Card queda opaco, tapa el efecto por completo.
+            CardDefaults.cardColors(containerColor = Color.Transparent)
+        } else {
+            TransparentCardDefaults.surfaceContainer(hasBackgroundImage)
+        },
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(

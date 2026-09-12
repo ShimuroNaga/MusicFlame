@@ -80,6 +80,12 @@ class SettingsRepository(context: Context) {
     fun getUseRoundCorners(): Boolean = prefs.getBoolean("use_round_corners", true)
     fun saveUseRoundCorners(enabled: Boolean) = prefs.edit().putBoolean("use_round_corners", enabled).apply()
 
+    // --- EFECTO DE DESENFOQUE (vidrio esmerilado / blur) ---
+    // Aplica a la barra superior y a la barra inferior (mini-reproductor + nav).
+    // Apagado por defecto: tiene costo de rendimiento en algunos dispositivos.
+    fun isBlurEffectEnabled(): Boolean = prefs.getBoolean("blur_effect_enabled", false)
+    fun setBlurEffectEnabled(enabled: Boolean) = prefs.edit().putBoolean("blur_effect_enabled", enabled).apply()
+
     // Opacidad del fondo gris del widget de home screen (0f = transparente, 1f = opaco)
     fun getWidgetBackgroundOpacity(): Float = prefs.getFloat("widget_bg_opacity", 0.8f)
     fun saveWidgetBackgroundOpacity(value: Float) = prefs.edit().putFloat("widget_bg_opacity", value).apply()

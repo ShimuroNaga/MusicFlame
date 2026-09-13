@@ -1066,7 +1066,7 @@ class MainActivity : ComponentActivity() {
                                                 playlist = selectedPlaylist!!,
                                                 kind = selectedPlaylistKind,
                                                 onBack = { selectedPlaylist = null },
-                                                onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },
+                                                onSongClick = { song, list -> songList = list; playerManager.playSong(song, list, selectedPlaylist?.id, selectedPlaylistKind) },
                                                 hasBackgroundImage = hasBackgroundImage,
                                                 selectedSongs = selectedSongs,
                                                 onToggleSelection = onToggleSong,

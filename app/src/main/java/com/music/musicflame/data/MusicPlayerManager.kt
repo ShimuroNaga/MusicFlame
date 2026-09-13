@@ -514,7 +514,14 @@ class MusicPlayerManager(private val context: Context) {
             .build()
     }
 
-    fun playSong(song: Song, songList: List<Song>) {
+    // NUEVO: playlistId/playlistKind son opcionales y solo los pasa la pantalla de
+    // Playlist (PlaylistDetailScreen vía MainActivity) para avisarle al
+    // PlaybackContextTracker "estoy reproduciendo esta playlist ahora mismo". El
+    // resto de pantallas (Songs, Mix, Álbum, Artista, Queue...) no los pasan, así
+    // que por el valor por defecto null se limpia el tracker automáticamente: el
+    // Tile de Mezclar sabe así si debe remezclar la playlist activa o solo activar
+    // el modo aleatorio normal.
+    fun playSong(song: Song, songList: List<Song>, playlistId: String? = null, playlistKind: PlaylistKind? = null) {
         currentPlaylist = songList
 
         val mediaItems = songList.map { s -> buildMediaItem(s) }
@@ -542,6 +549,13 @@ class MusicPlayerManager(private val context: Context) {
         // que no tiene sentido acumularles estadísticas de reproducción.
         if (song.id > 0) {
             statsRepo.incrementPlayCount(song.id)
+        }
+
+        // NUEVO: le avisa al Tile de Mezclar si esto es (o no) una playlist.
+        if (playlistId != null && playlistKind != null) {
+            PlaybackContextTracker.setActivePlaylist(context, playlistId, playlistKind)
+        } else {
+            PlaybackContextTracker.clearActivePlaylist(context)
         }
     }
 

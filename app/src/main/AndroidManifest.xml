@@ -236,6 +236,30 @@
             </intent-filter>
         </service>
 
+        <!-- Quick Settings Tile: Reproducir/Pausar -->
+        <service
+            android:name=".tile.PlayPauseTileService"
+            android:label="Reproducir/Pausar"
+            android:icon="@drawable/ic_tile_play_pause"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Quick Settings Tile: Mezclar Playlist -->
+        <service
+            android:name=".tile.ShuffleTileService"
+            android:label="Mezclar Playlist"
+            android:icon="@drawable/ic_tile_shuffle"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
         <receiver
             android:name=".widget.MusicFlameWidgetProvider"
             android:exported="true">

@@ -17,6 +17,7 @@ import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.DefaultRenderersFactory
@@ -345,6 +346,38 @@ class MusicPlaybackService : MediaSessionService() {
                 }
             }
 
+            // NUEVO: sin esto, cualquier error de reproducción (archivo corrupto, borrado
+            // del disco pero todavía indexado en MediaStore, permiso de lectura revocado,
+            // formato no soportado por el decoder del celular, hipo de I/O, etc.) dejaba a
+            // ExoPlayer trabado en STATE_IDLE para siempre: la música se detenía y no había
+            // forma de que la app se recuperara sola — se sentía como que "se cierra sola".
+            // Ahora, ante un error, saltamos automáticamente a la siguiente canción de la
+            // cola (o volvemos al principio si estábamos en la última) en vez de quedarnos
+            // trabados esperando un toque manual que nunca iba a arreglar nada por sí solo.
+            override fun onPlayerError(error: PlaybackException) {
+                error.printStackTrace()
+                when {
+                    player.hasNextMediaItem() -> {
+                        player.seekToNextMediaItem()
+                        player.prepare()
+                        player.play()
+                    }
+                    player.mediaItemCount > 1 -> {
+                        // Era la última de la cola (sin repetir): volvemos al principio en
+                        // vez de quedarnos parados justo ahí.
+                        player.seekTo(0, 0)
+                        player.prepare()
+                        player.play()
+                    }
+                    else -> {
+                        // Cola de una sola canción y es la que falló: no hay a dónde saltar.
+                        // Dejamos el player preparado para que un toque de Play reintente en
+                        // vez de quedar en un estado roto sin remedio.
+                        player.prepare()
+                    }
+                }
+            }
+
             override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                 super.onMediaItemTransition(mediaItem, reason)
                 checkIfCurrentSongIsFavorite()
@@ -355,6 +388,21 @@ class MusicPlaybackService : MediaSessionService() {
                 // que la licencia se haya activado a media sesión sin pasar por el broadcast
                 // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
                 proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isProUnlocked)
+
+                // MITIGACIÓN: en algunos celulares (tarjeta de reproducción propia de
+                // Honor/Magic UI en pantalla de bloqueo/notificaciones), justo al arrancar
+                // una canción nueva se ve por un momento el orden de botones viejo/roto
+                // (Favorito-Anterior-Pausa-Cíclico, sin Siguiente) hasta que el sistema
+                // termina de sincronizar con el layout real que ya mandamos. checkIfCurrentSongIsFavorite()
+                // de arriba ya llama a setCustomLayout() al instante, pero se refuerza con
+                // un segundo llamado unos milisegundos después para forzar que ese celular
+                // vuelva a leer el orden correcto en vez de quedarse con la primera lectura.
+                val mediaIdAtTransition = mediaItem?.mediaId
+                lyricsTickHandler.postDelayed({
+                    if (player.currentMediaItem?.mediaId == mediaIdAtTransition) {
+                        mediaSession?.setCustomLayout(getCustomLayout())
+                    }
+                }, 600L)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {

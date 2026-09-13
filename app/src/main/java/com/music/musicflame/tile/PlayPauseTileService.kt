@@ -23,6 +23,13 @@ class PlayPauseTileService : TileService() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
 
+    // Mismo problema y mismo arreglo que en ShuffleTileService: si el usuario
+    // toca el tile antes de que el MediaController termine de conectarse
+    // (muy común al abrir recién el panel de ajustes rápidos), el toque se
+    // perdía en silencio -> parecía que había que tocar 2-3 veces. Ahora se
+    // guarda y se ejecuta apenas el controller esté listo.
+    private var pendingClick = false
+
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
             updateTile(isPlaying)
@@ -40,12 +47,27 @@ class PlayPauseTileService : TileService() {
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
         controllerFuture = null
+        pendingClick = false
     }
 
     override fun onClick() {
         super.onClick()
-        val c = controller ?: return
-        if (c.isPlaying) c.pause() else c.play()
+        val c = controller
+        if (c == null) {
+            // Todavía conectando al MediaController: no perder el toque.
+            pendingClick = true
+            return
+        }
+        performToggle(c)
+    }
+
+    // Pinta el tile al instante en vez de esperar el viaje de ida y vuelta
+    // del listener de Media3 -> responde al primer toque en vez de sentirse
+    // atascado.
+    private fun performToggle(c: MediaController) {
+        val newIsPlaying = !c.isPlaying
+        if (newIsPlaying) c.play() else c.pause()
+        updateTile(newIsPlaying)
     }
 
     private fun connectController() {
@@ -59,6 +81,10 @@ class PlayPauseTileService : TileService() {
             controller = future.get().also { c ->
                 c.addListener(playerListener)
                 updateTile(c.isPlaying)
+                if (pendingClick) {
+                    pendingClick = false
+                    performToggle(c)
+                }
             }
         }, MoreExecutors.directExecutor())
     }

@@ -44,9 +44,16 @@ class ShuffleTileService : TileService() {
     private var controllerFuture: ListenableFuture<MediaController>? = null
     private var controller: MediaController? = null
 
+    // Si el usuario toca el tile antes de que el MediaController termine de
+    // conectarse (muy común: recién se abrió el panel de ajustes rápidos),
+    // el toque se perdía en silencio -> parecía que el tile "no respondía" y
+    // había que tocarlo 2-3 veces hasta que la conexión ya estuviera lista.
+    // Ahora se guarda y se ejecuta apenas el controller esté listo.
+    private var pendingClick = false
+
     private val playerListener = object : Player.Listener {
         override fun onShuffleModeEnabledChanged(shuffleModeEnabled: Boolean) {
-            updateTile()
+            updateTile(shuffleModeEnabled)
         }
     }
 
@@ -61,18 +68,34 @@ class ShuffleTileService : TileService() {
         controllerFuture?.let { MediaController.releaseFuture(it) }
         controller = null
         controllerFuture = null
+        pendingClick = false
     }
 
     override fun onClick() {
         super.onClick()
-        val c = controller ?: return
+        val c = controller
+        if (c == null) {
+            // Todavía conectando al MediaController: no perder el toque.
+            pendingClick = true
+            return
+        }
+        performToggle(c)
+    }
 
+    // Ejecuta la acción real del tile (reshuffle de playlist activa, o toggle
+    // de shuffle suelto) y pinta el tile al instante -> ya no se espera el
+    // viaje de ida y vuelta del listener de Media3 para dar feedback visual,
+    // por eso ahora responde al primer toque en vez de sentirse "atascado".
+    private fun performToggle(c: MediaController) {
         val activePlaylist = PlaybackContextTracker.getActivePlaylist(applicationContext)
         if (activePlaylist != null) {
             val (playlistId, kind) = activePlaylist
             reshufflePlaylist(c, playlistId, kind)
+            updateTile(true)
         } else {
-            c.shuffleModeEnabled = !c.shuffleModeEnabled
+            val newShuffleState = !c.shuffleModeEnabled
+            c.shuffleModeEnabled = newShuffleState
+            updateTile(newShuffleState)
         }
     }
 
@@ -86,7 +109,11 @@ class ShuffleTileService : TileService() {
         future.addListener({
             controller = future.get().also { c ->
                 c.addListener(playerListener)
-                updateTile()
+                updateTile(c.shuffleModeEnabled)
+                if (pendingClick) {
+                    pendingClick = false
+                    performToggle(c)
+                }
             }
         }, MoreExecutors.directExecutor())
     }
@@ -144,10 +171,9 @@ class ShuffleTileService : TileService() {
             .build()
     }
 
-    private fun updateTile() {
+    private fun updateTile(shuffleModeEnabled: Boolean) {
         val tile = qsTile ?: return
-        val c = controller
-        tile.state = if (c?.isPlaying == true) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
+        tile.state = if (shuffleModeEnabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile_shuffle)
         tile.label = "Mezclar"
         tile.updateTile()

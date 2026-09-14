@@ -11,6 +11,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.horizontalScroll
@@ -1725,6 +1726,28 @@ fun SettingsScreen(
                                 colors = listItemColors,
                                 modifier = Modifier.clickable {
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/gGZ4zCZvab"))
+                                    context.startActivity(intent)
+                                }
+                            )
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Colaboraciones") },
+                                supportingContent = { Text("GreenyPika") },
+                                leadingContent = {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.ic_artist_greenypika),
+                                        contentDescription = "GreenyPika",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                    )
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://open.spotify.com/artist/0jaY21Zd3ouygWqNdIpr8N?si=3IVegY4ESPuKJyJTLgiU9A&utm_source=copy-link"))
                                     context.startActivity(intent)
                                 }
                             )

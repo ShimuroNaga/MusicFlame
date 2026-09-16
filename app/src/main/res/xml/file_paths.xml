@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Solo exponemos la subcarpeta donde se generan los clips para compartir, nada más
+         del caché de la app queda accesible a otras apps. -->
+    <cache-path name="share_clips" path="share_clips/" />
+</paths>

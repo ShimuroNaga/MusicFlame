@@ -519,6 +519,39 @@ class MainActivity : ComponentActivity() {
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Añadir a playlist") } },
                                                     onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }
                                                 )
+                                                // --- COMPARTIR FRAGMENTO (carátula + audio horneados en un mp4, para
+                                                // cualquier app vía el selector genérico de Android) ---
+                                                DropdownMenuItem(
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Share, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Compartir fragmento") } },
+                                                    onClick = {
+                                                        showSelectionMenu = false
+                                                        if (selectedSongs.size != 1) {
+                                                            Toast.makeText(context, "Selecciona solo una canción para compartir", Toast.LENGTH_SHORT).show()
+                                                        } else {
+                                                            val songToShare = selectedSongs.first()
+                                                            selectedSongs.clear(); manualSongSelectionMode = false
+                                                            Toast.makeText(context, "Generando video para compartir…", Toast.LENGTH_SHORT).show()
+                                                            coroutineScope.launch(Dispatchers.IO) {
+                                                                val clipFile = com.music.musicflame.audio.MusicClipVideoGenerator.generate(context, songToShare.path)
+                                                                withContext(Dispatchers.Main) {
+                                                                    if (clipFile != null) {
+                                                                        val clipUri = androidx.core.content.FileProvider.getUriForFile(
+                                                                            context, "${context.packageName}.fileprovider", clipFile
+                                                                        )
+                                                                        val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                                                                            type = "video/mp4"
+                                                                            putExtra(android.content.Intent.EXTRA_STREAM, clipUri)
+                                                                            addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                                                        }
+                                                                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir canción"))
+                                                                    } else {
+                                                                        Toast.makeText(context, "No se pudo generar el video para compartir", Toast.LENGTH_SHORT).show()
+                                                                    }
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                )
                                                 run {
                                                     val allSelectedAreFavorites = selectedSongs.isNotEmpty() && selectedSongs.all { favoriteIds.contains(it.id) }
                                                     DropdownMenuItem(

@@ -68,7 +68,7 @@ object PaymentCatalog {
         Item("font_press_start_2p", "Tipo de letra", "Press Start 2P"),
         Item("font_space_mono", "Tipo de letra", "Space Mono"),
 
-        Item("pro_eq_10band", "Ecualizador PRO", "10 bandas + normalización de volumen", priceMxn = 15)
+        Item("pro_eq_10band", "Ecualizador PRO", "10 bandas + normalización de volumen", priceMxn = 20)
     )
 
     val TOTAL_PRICE_MXN: Int = ITEMS.sumOf { it.priceMxn }

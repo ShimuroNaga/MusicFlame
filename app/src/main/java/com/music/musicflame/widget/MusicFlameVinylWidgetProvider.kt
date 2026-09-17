@@ -91,7 +91,7 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
          * criterio que el resto de features de pago de la app.
          */
         private fun isUnlocked(context: Context): Boolean =
-            com.music.musicflame.data.LicenseRepository(context).isProUnlocked()
+            com.music.musicflame.data.LicenseRepository(context).isItemUnlocked("vinyl_widget")
 
         private const val VINYL_FRAME_COUNT = 18
         private const val VINYL_FRAME_INTERVAL_MS = 200L

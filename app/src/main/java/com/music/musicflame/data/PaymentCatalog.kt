@@ -1,21 +1,27 @@
 package com.music.musicflame.data
 
 /**
- * Catálogo único de los 15 ítems cosméticos bloqueados hasta que el usuario
- * pague, y su precio individual (usado SOLO para mostrar en la tabla
- * informativa/preview de Ajustes > Pagos, ver SettingsScreen). El
- * desbloqueo real es "todo o nada": una sola compra/licencia activa
- * (LicenseRepository.isProUnlocked()) abre TODOS los ítems a la vez, sea
- * cual sea lo que el usuario haya marcado en la tabla — Lemon Squeezy no
- * tiene forma nativa de vender sub-conjuntos de un mismo producto.
+ * Catálogo único de los ítems cosméticos vendidos por separado en Lemon
+ * Squeezy, con su precio individual (usado para mostrar en la tabla
+ * informativa/preview de Ajustes > Pagos, ver SettingsScreen).
+ *
+ * NOTA sobre "Adaptativo": es SIEMPRE gratis en los 3 selectores de color
+ * (texto, Now Playing y ecualizador) — por eso no hay eq_color_adaptive/
+ * text_color_adaptive/now_playing_adaptive en esta lista. El código de
+ * SettingsScreen.kt (comentario junto al diálogo "Color del ecualizador")
+ * decía lo contrario para ese selector en particular, pero es intencional
+ * ignorarlo: el usuario confirmó que Adaptativo debe ser gratis ahí también,
+ * así que ese comentario/candado quedó desactualizado y hay que sacarlo del
+ * diálogo correspondiente en SettingsScreen.kt.
  *
  * Los candados de verdad (los que de verdad impiden usar cada opción) viven
  * en cada selector/lugar donde se usan (EqualizerStylePickerDialog, los
- * diálogos de color en SettingsScreen, MusicFlameVinylWidgetProvider), todos
- * consultando LicenseRepository.isProUnlocked(). Esta lista es solo para
- * pintar la tabla y calcular el total seleccionado; si algún día cambia el
- * precio o la lista de ítems, este es el único lugar que hay que tocar para
- * que la tabla de Ajustes > Pagos se actualice.
+ * diálogos de color en SettingsScreen, MusicFlameVinylWidgetProvider), cada
+ * uno consultando el desbloqueo específico de su ítem en LicenseRepository
+ * (no un solo isProUnlocked global). Esta lista es solo para pintar la
+ * tabla y calcular el total; si algún día cambia el precio o la lista de
+ * ítems, este es el único lugar que hay que tocar para que la tabla de
+ * Ajustes > Pagos se actualice.
  */
 object PaymentCatalog {
 
@@ -41,7 +47,8 @@ object PaymentCatalog {
         Item("eq_style_skyline", "Estilos de ecualizador", "Ondas concéntricas"),
         Item("eq_style_rain", "Estilos de ecualizador", "Constelación"),
 
-        Item("eq_color_adaptive", "Color del ecualizador", "Adaptativo"),
+        // "Adaptativo" del ecualizador vuelto a ser gratis (igual que en
+        // texto/Now Playing) — no se vende, no tiene id de catálogo.
         Item("eq_color_custom", "Color del ecualizador", "Personalizado"),
         Item("eq_color_rainbow", "Color del ecualizador", "Arcoíris"),
 
@@ -55,23 +62,13 @@ object PaymentCatalog {
         Item("lyrics_custom", "Color de letras", "Personalizado"),
         Item("lyrics_rainbow", "Color de letras", "Arcoíris"),
 
-        // NUEVO: tipos de letra para toda la app (ver ui/theme/AppFonts.kt).
-        // Roboto (default), Lato, Open Sans, Inter, Asap Sharp y Nunito son
-        // gratis y no aparecen acá. El candado real vive en AppFont.isFree /
-        // MusicFlameTheme, no en esta lista (esta solo pinta la tabla).
         Item("font_comfortaa", "Tipo de letra", "Comfortaa"),
         Item("font_playfair_display", "Tipo de letra", "Playfair Display"),
         Item("font_orbitron", "Tipo de letra", "Orbitron"),
         Item("font_press_start_2p", "Tipo de letra", "Press Start 2P"),
         Item("font_space_mono", "Tipo de letra", "Space Mono"),
 
-        // NUEVO: motor de EQ Pro de 10 bandas (ProBiquadEqualizerAudioProcessor) +
-        // normalización de volumen entre canciones. Precio propio de $20 MXN por TODO el
-        // ecualizador PRO junto (no $5 como el resto de ítems) — a pedido explícito. El
-        // candado real vive en MusicPlaybackService (LicenseRepository.isProUnlocked(),
-        // reevaluado por sesión de audio y por canción) y en el diálogo "Studio Pro EQ" de
-        // SettingsScreen.
-        Item("pro_eq_10band", "Ecualizador PRO", "10 bandas + normalización de volumen", priceMxn = 20)
+        Item("pro_eq_10band", "Ecualizador PRO", "10 bandas + normalización de volumen", priceMxn = 15)
     )
 
     val TOTAL_PRICE_MXN: Int = ITEMS.sumOf { it.priceMxn }

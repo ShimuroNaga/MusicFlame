@@ -236,15 +236,19 @@ fun FullScreenPlayer(
     // que tenía cuando se abría el reproductor a pantalla completa, así que
     // comprar o iniciar sesión con la cuenta dueña no se reflejaba acá hasta
     // reiniciar la app. Ahora se lee del estado global compartido.
-    val isProUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
+    //
+    // CAMBIO DE ARQUITECTURA (venta por ítem separado): ya no hay un
+    // isProUnlocked único; se consulta unlockedIds (Set<String>) por ítem.
+    val unlockedIds = com.music.musicflame.data.ProStatusHolder.unlockedIds
     val lyricsSpeed = remember { settingsRepo.getLyricsSpeed() }
     val lyricsAnimType = remember { settingsRepo.getLyricsAnimationType() }
-    // remember(isProUnlocked): se recalcula solo cuando cambia el desbloqueo
+    // remember(unlockedIds): se recalcula solo cuando cambia el desbloqueo
     // (no en cada tick de posición), pero ya no queda pegado al valor viejo.
-    val lyricsColorMode = remember(isProUnlocked) {
+    val lyricsColorMode = remember(unlockedIds) {
         val saved = settingsRepo.getLyricsTextColorMode()
-        val locked = saved == "Personalizado" || saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW
-        if (!isProUnlocked && locked) "Adaptativo" else saved
+        val locked = (saved == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
+            (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
+        if (locked) "Adaptativo" else saved
     }
     // Hex del color personalizado (catálogo, punto 2). Antes se pasaba "" a
     // resolveLyricsTextColor y por eso "Personalizado" nunca pintaba nada
@@ -269,9 +273,10 @@ fun FullScreenPlayer(
     // Estilo visual del ecualizador (barras clásicas, espejado, ondas, círculo
     // pulsante, partículas, barras finas o VU meter retro), configurable en
     // Ajustes > Apariencia > "Estilo de ecualizador gráfico".
-    val equalizerStyle = remember(isProUnlocked) {
+    val equalizerStyle = remember(unlockedIds) {
         val saved = settingsRepo.getEqualizerStyle()
-        if (!isProUnlocked && saved != com.music.musicflame.ui.components.EqualizerStyle.BARS) {
+        val catalogId = saved.catalogId // null = BARS, siempre gratis
+        if (catalogId != null && !unlockedIds.contains(catalogId)) {
             com.music.musicflame.ui.components.EqualizerStyle.BARS
         } else saved
     }
@@ -289,9 +294,15 @@ fun FullScreenPlayer(
     // selector en particular, así que sin desbloquear cae siempre a "" (que
     // resolveEqualizerColor no reconoce y por lo tanto usa adaptiveColor,
     // el comportamiento de siempre).
-    val equalizerColorMode = remember(isProUnlocked) {
+    val equalizerColorMode = remember(unlockedIds) {
         val saved = settingsRepo.getEqualizerColorMode()
-        if (!isProUnlocked) "" else saved
+        val requiredId = when (saved) {
+            // "Adaptativo" es gratis (igual que en texto/Now Playing).
+            "Personalizado" -> "eq_color_custom"
+            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "eq_color_rainbow"
+            else -> null
+        }
+        if (requiredId != null && !unlockedIds.contains(requiredId)) "" else saved
     }
     val equalizerCustomColorHex = remember { settingsRepo.getEqualizerCustomColorHex() }
     val equalizerAdaptiveColor = if (hasBackgroundImage) {

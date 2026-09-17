@@ -14,47 +14,61 @@ import kotlin.math.sin
  *
  * displayName: lo que ve el usuario en el selector de Ajustes.
  * description: subtítulo corto que explica el estilo en una línea.
+ * catalogId: id en PaymentCatalog.ITEMS que hay que consultar con
+ *            LicenseRepository.isItemUnlocked/ProStatusHolder.isItemUnlocked
+ *            para saber si este estilo está desbloqueado; null = gratis
+ *            (BARS es el único estilo gratis).
  */
-enum class EqualizerStyle(val displayName: String, val description: String) {
+enum class EqualizerStyle(val displayName: String, val description: String, val catalogId: String?) {
     BARS(
         "Barras clásicas",
-        "El ecualizador de siempre: barras verticales tipo espectro."
+        "El ecualizador de siempre: barras verticales tipo espectro.",
+        catalogId = null
     ),
     MIRRORED_BARS(
         "Doble espejado",
-        "Dos filas de barras reflejadas, arriba y abajo, simétricas."
+        "Dos filas de barras reflejadas, arriba y abajo, simétricas.",
+        catalogId = "eq_style_mirrored"
     ),
     WATER_WAVE(
         "Ondas de agua",
-        "Una onda continua y fluida, tipo osciloscopio."
+        "Una onda continua y fluida, tipo osciloscopio.",
+        catalogId = "eq_style_wave"
     ),
     PULSE_CIRCLE(
         "Círculo pulsante",
-        "Un aro que late de tamaño según la intensidad del audio."
+        "Un aro que late de tamaño según la intensidad del audio.",
+        catalogId = "eq_style_pulse"
     ),
     PARTICLES(
         "Partículas",
-        "Puntos que saltan y rebotan con cada frecuencia."
+        "Puntos que saltan y rebotan con cada frecuencia.",
+        catalogId = "eq_style_particles"
     ),
     THIN_BARS(
         "Barras finas",
-        "Versión ultra delgada, estilo Spotify Canvas."
+        "Versión ultra delgada, estilo Spotify Canvas.",
+        catalogId = "eq_style_thin"
     ),
     VU_METER_RETRO(
         "VU meter retro",
-        "Agujas analógicas estilo ecualizador vintage."
+        "Agujas analógicas estilo ecualizador vintage.",
+        catalogId = "eq_style_vu"
     ),
     OSCILLOSCOPE(
         "Osciloscopio",
-        "Trazo en vivo tipo monitor de audio, sube y baja del centro."
+        "Trazo en vivo tipo monitor de audio, sube y baja del centro.",
+        catalogId = "eq_style_oscilloscope"
     ),
     CONCENTRIC_RIPPLES(
         "Ondas concéntricas",
-        "Anillos que se expanden hacia afuera con delay, como un eco."
+        "Anillos que se expanden hacia afuera con delay, como un eco.",
+        catalogId = "eq_style_skyline"
     ),
     CONSTELLATION(
         "Constelación",
-        "Estrellas conectadas por líneas que brillan según la frecuencia."
+        "Estrellas conectadas por líneas que brillan según la frecuencia.",
+        catalogId = "eq_style_rain"
     );
 
     companion object {

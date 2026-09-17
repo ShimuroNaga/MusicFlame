@@ -199,7 +199,7 @@ class MusicPlaybackService : MediaSessionService() {
 
     /**
      * Sincroniza el motor del EQ Pro (proEqualizerAudioProcessor) con el estado real:
-     * - Licencia: ProStatusHolder.isProUnlocked (mismo holder reactivo que ya usa el resto
+     * - Licencia: ProStatusHolder.isItemUnlocked("pro_eq_10band") (mismo holder reactivo que ya usa el resto
      *   de la app — Theme.kt, FullScreenPlayer.kt, SettingsScreen.kt — para saber si el Pro
      *   está desbloqueado; MainActivity/SettingsScreen ya lo mantienen al día con
      *   ProStatusHolder.refresh() cada vez que cambia login o licencia).
@@ -209,7 +209,7 @@ class MusicPlaybackService : MediaSessionService() {
      * broadcast de actualización de EQ (venga del diálogo gratis o del Pro).
      */
     private fun syncProEqualizerState() {
-        proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isProUnlocked)
+        proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isItemUnlocked("pro_eq_10band"))
         for (i in 0 until ProBiquadEqualizerAudioProcessor.BAND_COUNT) {
             proEqualizerAudioProcessor.setBandGainDb(i, sharedPrefs.getFloat("pro_eq_band_$i", 0f))
         }
@@ -225,7 +225,7 @@ class MusicPlaybackService : MediaSessionService() {
      * más difícil notar el efecto real del Pro por separado.
      */
     private fun isProExclusiveModeActive(): Boolean =
-        ProStatusHolder.isProUnlocked && sharedPrefs.getBoolean("pro_eq_exclusive", true)
+        ProStatusHolder.isItemUnlocked("pro_eq_10band") && sharedPrefs.getBoolean("pro_eq_exclusive", true)
 
     /**
      * ETAPA 2 — aplica (o dispara el cálculo de) el gain de normalización de volumen de la
@@ -387,7 +387,7 @@ class MusicPlaybackService : MediaSessionService() {
                 // Barato (un boolean + 11 floats de SharedPreferences) y cubre el caso de
                 // que la licencia se haya activado a media sesión sin pasar por el broadcast
                 // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
-                proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isProUnlocked)
+                proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isItemUnlocked("pro_eq_10band"))
 
                 // MITIGACIÓN: en algunos celulares (tarjeta de reproducción propia de
                 // Honor/Magic UI en pantalla de bloqueo/notificaciones), justo al arrancar

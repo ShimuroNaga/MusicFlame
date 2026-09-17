@@ -279,45 +279,48 @@ fun SettingsScreen(
     // de la función) en vez de dentro del bloque `if` de la LazyColumn, porque el
     // lambda de contenido de LazyColumn es un LazyListScope normal, no @Composable,
     // así que remember{} no puede invocarse ahí directamente salvo dentro de item{}.
+    //
+    // CAMBIO DE ARQUITECTURA (venta por ítem separado, ya NO todo-o-nada): ahora
+    // el usuario puede terminar con VARIAS license keys guardadas (una por cada
+    // producto que compró en Lemon Squeezy), por eso el estado es una lista
+    // (savedLicenses) en vez de una sola key/status/productName como antes.
     val licenseRepo = remember { LicenseRepository(context) }
     var licenseInput by remember { mutableStateOf("") }
-    var licenseStatus by remember { mutableStateOf(licenseRepo.getStatus()) }
-    var maskedKey by remember { mutableStateOf(licenseRepo.maskedKey()) }
-    var productName by remember { mutableStateOf(licenseRepo.getProductName()) }
+    var savedLicenses by remember { mutableStateOf(licenseRepo.getSavedLicenses()) }
     var isValidating by remember { mutableStateOf(false) }
-    var errorMessage by remember { mutableStateOf<String?>(licenseRepo.getLastError()) }
+    var errorMessage by remember { mutableStateOf<String?>(null) }
     val paymentsScope = rememberCoroutineScope()
     // Bandera temporal: la sección está lista en UI pero aún bloqueada
     // para interacción (checkout/backend todavía no confirmados).
     // Cambiar a false cuando se habilite el flujo real.
-    val paymentsSectionLocked = true
+    val paymentsSectionLocked = false
 
-    // Gatilla real de las 15 personalizaciones de pago del catálogo (estilos
-    // de ecualizador, colores, widget vinilo): true solo si hay licencia
-    // activa o si quien inició sesión con Google en la app es el dueño (ver
-    // LicenseRepository.isOwnerAccount). Independiente de paymentsSectionLocked
-    // de arriba, que solo bloquea la UI de "pegar license key" mientras no
-    // exista la tienda real.
+    // Gatilla real de las personalizaciones de pago del catálogo (estilos de
+    // ecualizador, colores, widget vinilo, EQ Pro): true ítem por ítem, según
+    // qué compró el usuario (o si es el dueño, ver LicenseRepository.isOwnerAccount).
+    // Independiente de paymentsSectionLocked de arriba, que solo bloquea la UI de
+    // "pegar license key" mientras no exista la tienda real.
     // Reactivo (ver ProStatusHolder): se actualiza solo apenas se valida una
     // key o se inicia sesión con la cuenta dueña, sin esperar a reabrir esta
     // pantalla ni la app.
-    val isProUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
+    val unlockedIds = com.music.musicflame.data.ProStatusHolder.unlockedIds
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.music.musicflame.data.ProStatusHolder.refresh(context)
     }
     fun showLockedFeatureToast() {
         Toast.makeText(
             context,
-            "Esto es de pago ($5 MXN). Actívalo en Ajustes > Pagos (opcional).",
+            "Esto es de pago. Actívalo en Ajustes > Pagos (opcional).",
             Toast.LENGTH_SHORT
         ).show()
     }
-
-    // Selección del usuario en la tabla informativa/preview de Ajustes > Pagos
-    // (ver PaymentCatalog): NO desbloquea nada por sí sola — el desbloqueo real
-    // es "todo o nada" con una sola licencia (isProUnlocked) — solo sirve para
-    // que el usuario vea cuánto costaría lo que le interesa antes de comprar.
-    val selectedCatalogItemIds = remember { mutableStateOf(setOf<String>()) }
+    fun showLockedLyricsColorToast() {
+        Toast.makeText(
+            context,
+            "Personalizado y Arcoíris se venden juntos por $10 MXN (un solo producto). Actívalo en Ajustes > Pagos (opcional).",
+            Toast.LENGTH_SHORT
+        ).show()
+    }
 
     // --- "Meta de ahorro" (arriba de todo en Ajustes) ---
     // Lectura pública (todos los usuarios) vía raw.githubusercontent.com;
@@ -1519,7 +1522,7 @@ fun SettingsScreen(
                         }
 
                         item {
-                            val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
+                            val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isItemUnlocked("pro_eq_10band")
                             ListItem(
                                 headlineContent = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1528,7 +1531,7 @@ fun SettingsScreen(
                                             Spacer(Modifier.width(6.dp))
                                             Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                                             Spacer(Modifier.width(2.dp))
-                                            Text("$20 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                            Text("$15 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 },
@@ -1842,13 +1845,14 @@ fun SettingsScreen(
                                         listOf("Blanco", "Negro", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { opt ->
                                             val selected = lyricsColorModePref.value == opt
                                             // Personalizado y Arcoíris son de pago acá; Blanco y Negro gratis.
-                                            val locked = !isProUnlocked && (opt == "Personalizado" || opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW)
+                                            val locked = (opt == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
+                                                (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
                                             androidx.compose.material3.FilterChip(
                                                 selected = selected,
                                                 enabled = !locked,
                                                 onClick = {
                                                     if (locked) {
-                                                        showLockedFeatureToast()
+                                                        showLockedLyricsColorToast()
                                                     } else if (opt == "Personalizado") {
                                                         // Selección visual inmediata; el modo recién se
                                                         // persiste al confirmar un color en el diálogo
@@ -1999,12 +2003,17 @@ fun SettingsScreen(
                     }
 
                     // PAGOS (OPCIONAL) — Licencia de apoyo vía Lemon Squeezy
+                    // CAMBIO DE ARQUITECTURA (venta por ítem separado, ya NO todo-o-nada):
+                    // cada ítem (o grupo chico de 2, agrupados solo por precio mínimo de
+                    // Lemon Squeezy) es un producto propio con su propia license key. El
+                    // usuario puede comprar solo lo que le interesa, o "TODO" de una vez.
+                    // Puede terminar con VARIAS keys guardadas — ver savedLicenses arriba.
                     if (activeSection.value == "Pagos (opcional)") {
                         item { sectionHeader("Licencia de apoyo (opcional)") }
 
                         item {
                             Text(
-                                "Próximamente · Todo por $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN",
+                                "Compra solo lo que te interesa, o todo junto por $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN",
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2012,125 +2021,7 @@ fun SettingsScreen(
                             )
                         }
 
-                        // --- TABLA SELECCIONABLE DEL CATÁLOGO (informativa/preview) ---
-                        item {
-                            Card(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
-                                colors = CardDefaults.cardColors(
-                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
-                                )
-                            ) {
-                                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
-                                    Text(
-                                        "Personalizaciones disponibles",
-                                        fontWeight = FontWeight.Bold,
-                                        fontSize = 15.sp
-                                    )
-                                    Text(
-                                        "Marca lo que te interese para ver cuánto costaría. La compra real desbloquea TODO de una sola vez (no se puede comprar solo una parte).",
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
-                                    )
-
-                                    com.music.musicflame.data.PaymentCatalog.ITEMS
-                                        .groupBy { it.section }
-                                        .forEach { (section, itemsInSection) ->
-                                            Text(
-                                                section,
-                                                fontWeight = FontWeight.Bold,
-                                                fontSize = 12.sp,
-                                                color = MaterialTheme.colorScheme.primary,
-                                                modifier = Modifier.padding(top = 8.dp, bottom = 2.dp)
-                                            )
-                                            itemsInSection.forEach { catalogItem ->
-                                                val checked = selectedCatalogItemIds.value.contains(catalogItem.id)
-                                                Row(
-                                                    verticalAlignment = Alignment.CenterVertically,
-                                                    modifier = Modifier
-                                                        .fillMaxWidth()
-                                                        .clickable {
-                                                            selectedCatalogItemIds.value =
-                                                                if (checked) selectedCatalogItemIds.value - catalogItem.id
-                                                                else selectedCatalogItemIds.value + catalogItem.id
-                                                        }
-                                                        .padding(vertical = 4.dp)
-                                                ) {
-                                                    Checkbox(
-                                                        checked = checked,
-                                                        onCheckedChange = { isChecked ->
-                                                            selectedCatalogItemIds.value =
-                                                                if (isChecked) selectedCatalogItemIds.value + catalogItem.id
-                                                                else selectedCatalogItemIds.value - catalogItem.id
-                                                        }
-                                                    )
-                                                    Spacer(Modifier.width(4.dp))
-                                                    Text(catalogItem.label, fontSize = 13.sp, modifier = Modifier.weight(1f))
-                                                    Text(
-                                                        "$${catalogItem.priceMxn} MXN",
-                                                        fontSize = 12.sp,
-                                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                    )
-                                                }
-                                            }
-                                        }
-
-                                    HorizontalDivider(modifier = Modifier.padding(vertical = 12.dp))
-
-                                    val selectedCount = selectedCatalogItemIds.value.size
-                                    val selectedTotal = com.music.musicflame.data.PaymentCatalog.ITEMS
-                                        .filter { selectedCatalogItemIds.value.contains(it.id) }
-                                        .sumOf { it.priceMxn }
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            "Total seleccionado ($selectedCount de ${com.music.musicflame.data.PaymentCatalog.ITEMS.size})",
-                                            fontSize = 13.sp,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        Text(
-                                            "$$selectedTotal MXN",
-                                            fontSize = 16.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = MaterialTheme.colorScheme.primary
-                                        )
-                                    }
-
-                                    Spacer(Modifier.height(12.dp))
-
-                                    Button(
-                                        onClick = {
-                                            if (selectedCount == 0) {
-                                                Toast.makeText(context, "Marca al menos un ítem primero.", Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(LicenseRepository.CHECKOUT_URL))
-                                                context.startActivity(intent)
-                                            }
-                                        },
-                                        enabled = !paymentsSectionLocked,
-                                        modifier = Modifier.fillMaxWidth()
-                                    ) {
-                                        Text(
-                                            if (selectedCount == 0) "Selecciona algo para desbloquear"
-                                            else "Desbloquear por $$selectedTotal MXN",
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                    Text(
-                                        "Recuerda: aunque marques menos de $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN, la compra abre TODAS las personalizaciones (Lemon Squeezy no vende partes sueltas de un mismo producto).",
-                                        fontSize = 11.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        modifier = Modifier.padding(top = 8.dp)
-                                    )
-                                }
-                            }
-                        }
-
+                        // --- "COMPRAR TODO" (producto TODO de Lemon Squeezy) ---
                         item {
                             Card(
                                 modifier = Modifier
@@ -2150,7 +2041,7 @@ fun SettingsScreen(
                                         )
                                         Spacer(Modifier.width(12.dp))
                                         Text(
-                                            "Una sola licencia desbloquea las ${com.music.musicflame.data.PaymentCatalog.ITEMS.size} personalizaciones de la tabla de arriba ($${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN en total). MusicFlame en sí es y seguirá siendo gratis.",
+                                            "Una sola compra de \"TODO\" desbloquea las ${com.music.musicflame.data.PaymentCatalog.ITEMS.size} personalizaciones de una vez. MusicFlame en sí es y seguirá siendo gratis.",
                                             fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onTertiaryContainer
                                         )
@@ -2175,45 +2066,180 @@ fun SettingsScreen(
                                         }
                                     }
 
-                                    Spacer(Modifier.height(16.dp))
+                                    Spacer(Modifier.height(12.dp))
 
-                                    // --- INDICADOR DE ESTADO ---
-                                    when (licenseStatus) {
-                                        LicenseStatus.ACTIVE -> {
-                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                    val hasEverything = com.music.musicflame.data.PaymentCatalog.ITEMS.all { unlockedIds.contains(it.id) }
+                                    if (hasEverything) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                Icons.Filled.CloudDone,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                            Spacer(Modifier.width(8.dp))
+                                            Text(
+                                                "Ya tenés todo desbloqueado",
+                                                fontWeight = FontWeight.Bold,
+                                                color = MaterialTheme.colorScheme.onTertiaryContainer
+                                            )
+                                        }
+                                    } else {
+                                        Button(
+                                            onClick = {
+                                                val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.music.musicflame.data.LicenseRepository.CHECKOUT_URL_TODO))
+                                                context.startActivity(intent)
+                                            },
+                                            enabled = !paymentsSectionLocked,
+                                            modifier = Modifier.fillMaxWidth()
+                                        ) {
+                                            Text("Comprar TODO por $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN", fontWeight = FontWeight.Bold)
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // --- TABLA DEL CATÁLOGO: estado real por ítem + botón "Comprar" por producto ---
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Text(
+                                        "O comprá por separado",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                    Text(
+                                        "Cada fila es un producto real de Lemon Squeezy (algunos agrupan 2 ítems solo por el precio mínimo de la plataforma). El check indica si ya lo tenés.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                                    )
+
+                                    // Un "producto" = una entrada del mapa (no un ítem del catálogo
+                                    // suelto), así que si 2 ítems están agrupados aparecen en UNA
+                                    // sola fila con un solo botón "Comprar" (mismo checkout link).
+                                    com.music.musicflame.data.LicenseRepository.PRODUCT_NAME_TO_CATALOG_IDS
+                                        .filterKeys { it != "TODO" }
+                                        .forEach { (productName, ids) ->
+                                            val itemsInProduct = com.music.musicflame.data.PaymentCatalog.ITEMS.filter { it.id in ids }
+                                            val label = itemsInProduct.joinToString(" + ") { it.label }
+                                            val priceMxn = itemsInProduct.sumOf { it.priceMxn }
+                                            val owned = ids.all { unlockedIds.contains(it) }
+                                            val checkoutUrl = com.music.musicflame.data.LicenseRepository.PRODUCT_NAME_TO_CHECKOUT_URL[productName]
+
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(vertical = 6.dp)
+                                            ) {
                                                 Icon(
-                                                    Icons.Filled.CloudDone,
+                                                    if (owned) Icons.Filled.CloudDone else Icons.Filled.Lock,
                                                     contentDescription = null,
-                                                    tint = MaterialTheme.colorScheme.onTertiaryContainer
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = if (owned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                                 Spacer(Modifier.width(8.dp))
-                                                Column {
+                                                Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                                                if (owned) {
                                                     Text(
-                                                        "Licencia activa" + (productName?.let { " · $it" } ?: ""),
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = MaterialTheme.colorScheme.onTertiaryContainer
-                                                    )
-                                                    Text(
-                                                        maskedKey ?: "",
+                                                        "Ya la tenés",
                                                         fontSize = 12.sp,
-                                                        color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = MaterialTheme.colorScheme.primary
                                                     )
+                                                } else {
+                                                    OutlinedButton(
+                                                        onClick = {
+                                                            if (checkoutUrl != null) {
+                                                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(checkoutUrl)))
+                                                            }
+                                                        },
+                                                        enabled = !paymentsSectionLocked && checkoutUrl != null,
+                                                        contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
+                                                    ) {
+                                                        Text("$$priceMxn MXN", fontSize = 12.sp)
+                                                    }
                                                 }
                                             }
                                         }
-                                        LicenseStatus.INACTIVE -> {
-                                            Text(
-                                                "Sin activar",
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                        LicenseStatus.ERROR -> {
-                                            Text(
-                                                "No se pudo verificar la última vez",
-                                                fontWeight = FontWeight.Bold,
-                                                color = MaterialTheme.colorScheme.error
-                                            )
+                                }
+                            }
+                        }
+
+                        // --- LICENCIAS GUARDADAS + CAMPO PARA PEGAR UNA NUEVA ---
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                                    .alpha(if (paymentsSectionLocked) 0.6f else 1f),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Text(
+                                        "Tus licencias",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                    Text(
+                                        "Cada compra te llega por correo como una license key distinta. Pegá cada una acá para activarla.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                                    )
+
+                                    if (savedLicenses.isEmpty()) {
+                                        Text(
+                                            "Todavía no activaste ninguna licencia.",
+                                            fontSize = 13.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    } else {
+                                        savedLicenses.forEach { lic ->
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
+                                            ) {
+                                                Icon(
+                                                    if (lic.status == LicenseStatus.ACTIVE.name) Icons.Filled.CloudDone else Icons.Filled.Lock,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp),
+                                                    tint = if (lic.status == LicenseStatus.ACTIVE.name) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                                )
+                                                Spacer(Modifier.width(8.dp))
+                                                Column(modifier = Modifier.weight(1f)) {
+                                                    Text(
+                                                        licenseRepo.labelFor(lic.unlockedItemIds),
+                                                        fontSize = 13.sp,
+                                                        fontWeight = FontWeight.Bold
+                                                    )
+                                                    Text(
+                                                        licenseRepo.mask(lic.key) + (lic.lastError?.let { " · $it" } ?: ""),
+                                                        fontSize = 11.sp,
+                                                        color = if (lic.lastError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
+                                                    )
+                                                }
+                                                TextButton(
+                                                    onClick = {
+                                                        licenseRepo.removeLicense(lic.key)
+                                                        savedLicenses = licenseRepo.getSavedLicenses()
+                                                        com.music.musicflame.data.ProStatusHolder.refresh(context)
+                                                    },
+                                                    enabled = !paymentsSectionLocked
+                                                ) {
+                                                    Text("Quitar", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                                }
+                                            }
                                         }
                                     }
 
@@ -2228,7 +2254,7 @@ fun SettingsScreen(
 
                                     Spacer(Modifier.height(16.dp))
 
-                                    // --- CAMPO PARA PEGAR LA LICENSE KEY ---
+                                    // --- CAMPO PARA PEGAR UNA LICENSE KEY NUEVA ---
                                     OutlinedTextField(
                                         value = licenseInput,
                                         onValueChange = { licenseInput = it },
@@ -2241,96 +2267,58 @@ fun SettingsScreen(
 
                                     Spacer(Modifier.height(12.dp))
 
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                    ) {
-                                        OutlinedButton(
-                                            onClick = {
-                                                val intent = Intent(
-                                                    Intent.ACTION_VIEW,
-                                                    Uri.parse(LicenseRepository.CHECKOUT_URL)
-                                                )
-                                                context.startActivity(intent)
-                                            },
-                                            enabled = !paymentsSectionLocked,
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text("Comprar")
-                                        }
-
-                                        Button(
-                                            onClick = {
-                                                val keyToValidate = licenseInput
-                                                isValidating = true
-                                                errorMessage = null
-                                                paymentsScope.launch {
-                                                    when (val result = licenseRepo.validateAndSave(keyToValidate)) {
-                                                        is LicenseValidationResult.Success -> {
-                                                            licenseStatus = LicenseStatus.ACTIVE
-                                                            maskedKey = licenseRepo.maskedKey()
-                                                            productName = result.productName
-                                                            licenseInput = ""
-                                                            errorMessage = null
-                                                            // Activa Arcoíris y el resto de cosméticos de pago
-                                                            // al instante en toda la app (tema, reproductor, etc.).
-                                                            com.music.musicflame.data.ProStatusHolder.refresh(context)
-                                                            Toast.makeText(
-                                                                context,
-                                                                "¡Licencia activada! Gracias por tu apoyo.",
-                                                                Toast.LENGTH_LONG
-                                                            ).show()
-                                                        }
-                                                        is LicenseValidationResult.Invalid -> {
-                                                            licenseStatus = licenseRepo.getStatus()
-                                                            errorMessage = result.reason
-                                                        }
-                                                        LicenseValidationResult.NetworkError -> {
-                                                            errorMessage = "Sin conexión. Revisa tu internet e intenta de nuevo."
-                                                        }
+                                    Button(
+                                        onClick = {
+                                            val keyToValidate = licenseInput
+                                            isValidating = true
+                                            errorMessage = null
+                                            paymentsScope.launch {
+                                                when (val result = licenseRepo.validateAndAdd(keyToValidate)) {
+                                                    is LicenseValidationResult.Success -> {
+                                                        savedLicenses = licenseRepo.getSavedLicenses()
+                                                        licenseInput = ""
+                                                        errorMessage = null
+                                                        // Activa la personalización comprada al instante
+                                                        // en toda la app (tema, reproductor, etc.).
+                                                        com.music.musicflame.data.ProStatusHolder.refresh(context)
+                                                        Toast.makeText(
+                                                            context,
+                                                            "¡Activado! ${result.unlockedLabel}. Gracias por tu apoyo.",
+                                                            Toast.LENGTH_LONG
+                                                        ).show()
                                                     }
-                                                    isValidating = false
+                                                    is LicenseValidationResult.Invalid -> {
+                                                        savedLicenses = licenseRepo.getSavedLicenses()
+                                                        errorMessage = result.reason
+                                                    }
+                                                    LicenseValidationResult.AlreadyAdded -> {
+                                                        errorMessage = "Esa key ya está activada."
+                                                    }
+                                                    LicenseValidationResult.NetworkError -> {
+                                                        errorMessage = "Sin conexión. Revisa tu internet e intenta de nuevo."
+                                                    }
                                                 }
-                                            },
-                                            enabled = !isValidating && !paymentsSectionLocked && licenseInput.isNotBlank(),
-                                            modifier = Modifier.weight(1f)
-                                        ) {
-                                            if (isValidating) {
-                                                CircularProgressIndicator(
-                                                    modifier = Modifier.size(18.dp),
-                                                    strokeWidth = 2.dp,
-                                                    color = MaterialTheme.colorScheme.onPrimary
-                                                )
-                                            } else {
-                                                Text("Activar")
+                                                isValidating = false
                                             }
-                                        }
-                                    }
-
-                                    if (licenseRepo.getSavedLicenseKey() != null) {
-                                        Spacer(Modifier.height(4.dp))
-                                        TextButton(
-                                            onClick = {
-                                                licenseRepo.clearLicense()
-                                                licenseStatus = LicenseStatus.INACTIVE
-                                                maskedKey = null
-                                                productName = null
-                                                errorMessage = null
-                                                licenseInput = ""
-                                                // Bloquea Arcoíris y el resto de cosméticos de pago
-                                                // al instante en toda la app.
-                                                com.music.musicflame.data.ProStatusHolder.refresh(context)
-                                            },
-                                            enabled = !paymentsSectionLocked,
-                                            modifier = Modifier.fillMaxWidth()
-                                        ) {
-                                            Text("Quitar licencia", color = MaterialTheme.colorScheme.error)
+                                        },
+                                        enabled = !isValidating && !paymentsSectionLocked && licenseInput.isNotBlank(),
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        if (isValidating) {
+                                            CircularProgressIndicator(
+                                                modifier = Modifier.size(18.dp),
+                                                strokeWidth = 2.dp,
+                                                color = MaterialTheme.colorScheme.onPrimary
+                                            )
+                                        } else {
+                                            Text("Activar")
                                         }
                                     }
                                 }
                             }
                         }
                     }
+
 
                     // AVISO DE USO
                     if (activeSection.value == "Aviso de Uso") {
@@ -2620,7 +2608,7 @@ fun SettingsScreen(
         if (showEqualizerStyleDialog.value) {
             com.music.musicflame.ui.components.EqualizerStylePickerDialog(
                 currentStyle = equalizerStyle.value,
-                isUnlocked = isProUnlocked,
+                isStyleUnlocked = { style -> style.catalogId == null || unlockedIds.contains(style.catalogId) },
                 onDismiss = { showEqualizerStyleDialog.value = false },
                 onConfirm = { newStyle ->
                     equalizerStyle.value = newStyle
@@ -2634,7 +2622,10 @@ fun SettingsScreen(
         if (showFontDialog.value) {
             com.music.musicflame.ui.components.AppFontPickerDialog(
                 currentFont = appFontPref.value,
-                isUnlocked = isProUnlocked,
+                // Las 5 fuentes premium se venden juntas como un solo "Paquete"
+                // (ver PaymentCatalog/LicenseRepository), así que cualquiera de
+                // sus ids representa el desbloqueo del paquete completo.
+                isUnlocked = unlockedIds.contains("font_comfortaa"),
                 onDismiss = { showFontDialog.value = false },
                 onConfirm = { newFont ->
                     appFontPref.value = newFont
@@ -2719,7 +2710,7 @@ fun SettingsScreen(
                     Column {
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
                             // Solo Arcoíris es de pago acá; Adaptativo y Personalizado son gratis.
-                            val locked = !isProUnlocked && colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW
+                            val locked = !unlockedIds.contains("text_color_rainbow") && colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -2848,12 +2839,15 @@ fun SettingsScreen(
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
-                        // Los 3 modos (Adaptativo, Personalizado, Arcoíris) son de pago
-                        // para este selector en particular (a diferencia de "Color de
-                        // texto"/"Now Playing", donde Adaptativo es gratis): el gratis
-                        // acá es simplemente no tocar este selector.
+                        // "Adaptativo" es gratis acá también (igual que en "Color de
+                        // texto"/"Now Playing") — Personalizado y Arcoíris son de pago,
+                        // vendidos juntos en un solo producto (eq_color_custom + eq_color_rainbow).
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
-                            val locked = !isProUnlocked
+                            val locked = when (colorOption) {
+                                "Personalizado" -> !unlockedIds.contains("eq_color_custom")
+                                com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> !unlockedIds.contains("eq_color_rainbow")
+                                else -> false
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -2897,7 +2891,7 @@ fun SettingsScreen(
                             }
                         }
 
-                        if (tempEqColorMode.value == "Personalizado" && isProUnlocked) {
+                        if (tempEqColorMode.value == "Personalizado" && unlockedIds.contains("eq_color_custom")) {
                             Spacer(Modifier.height(4.dp))
 
                             // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color de texto" ---
@@ -3073,7 +3067,11 @@ fun SettingsScreen(
                         )
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
                             // Personalizado y Arcoíris son de pago acá; Adaptativo es gratis.
-                            val locked = !isProUnlocked && colorOption != "Adaptativo"
+                            val locked = when (colorOption) {
+                                "Personalizado" -> !unlockedIds.contains("now_playing_custom")
+                                com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> !unlockedIds.contains("now_playing_rainbow")
+                                else -> false
+                            }
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
@@ -3117,7 +3115,7 @@ fun SettingsScreen(
                             }
                         }
 
-                        if (tempNowPlayingColorMode.value == "Personalizado" && isProUnlocked) {
+                        if (tempNowPlayingColorMode.value == "Personalizado" && unlockedIds.contains("now_playing_custom")) {
                             Spacer(Modifier.height(4.dp))
 
                             // --- SELECTOR DE COLOR: mismos cuadros tocables que "Color del ecualizador" ---

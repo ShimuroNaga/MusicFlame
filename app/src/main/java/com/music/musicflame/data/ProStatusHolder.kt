@@ -4,36 +4,46 @@ import android.content.Context
 import androidx.compose.runtime.mutableStateOf
 
 /**
- * Estado global y reactivo de "¿está desbloqueado el Pro?", para que TODA la
- * app (Theme.kt, FullScreenPlayer.kt, SettingsScreen.kt) se entere al
- * instante cuando cambia, sin necesidad de cerrar y reabrir la app.
+ * Estado global y reactivo de qué ítems del catálogo (PaymentCatalog) están
+ * desbloqueados, para que TODA la app (Theme.kt, FullScreenPlayer.kt,
+ * SettingsScreen.kt, MusicPlaybackService.kt) se entere al instante cuando
+ * cambia, sin necesidad de cerrar y reabrir la app.
  *
- * ANTES: cada pantalla llamaba a LicenseRepository(context).isProUnlocked()
- * envuelto en remember { ... } sin claves, así que el resultado quedaba
- * "congelado" desde el momento en que esa pantalla entraba en composición.
- * Aunque el usuario acabara de iniciar sesión con la cuenta dueña (correo,
- * ver isOwnerAccount()) o de activar una license key (pago), el Arcoíris y
- * el resto de personalizaciones de pago seguían viéndose "bloqueados" hasta
- * reiniciar la app por completo — eso era el "tarda en activarse".
- *
- * AHORA: el valor vive en un solo mutableStateOf compartido. Cualquier
- * composable que lea [isProUnlocked] se recompone automáticamente en cuanto
- * cambia, sin importar por cuál de los dos caminos (correo o pago) se haya
- * desbloqueado.
+ * REEMPLAZA el [isProUnlocked] booleano único de antes: ahora que cada
+ * compra en Lemon Squeezy desbloquea solo un subconjunto del catálogo (ver
+ * LicenseRepository.isItemUnlocked/unlockedItemIds), un solo booleano ya no
+ * alcanza. El valor vive en un solo mutableStateOf<Set<String>> compartido;
+ * cualquier composable que lea [isItemUnlocked] se recompone automáticamente
+ * en cuanto cambia, sin importar por cuál camino se haya desbloqueado
+ * (cuenta dueña, o cualquiera de las licencias compradas).
  *
  * Llamar a [refresh] justo después de:
  *  - Iniciar sesión con Google exitosamente (MainActivity, login por correo)
- *  - revalidateSilently() al abrir la app (MainActivity)
+ *  - revalidateAllSilently() al abrir la app (MainActivity)
  *  - Validar una license key nueva (SettingsScreen, pago)
- *  - Quitar la licencia (SettingsScreen)
+ *  - Quitar una o todas las licencias (SettingsScreen)
  */
 object ProStatusHolder {
-    private val state = mutableStateOf(false)
+    private val unlockedIdsState = mutableStateOf<Set<String>>(emptySet())
 
+    /** true si el ítem [catalogId] (un id de PaymentCatalog.ITEMS) está desbloqueado ahora mismo. */
+    fun isItemUnlocked(catalogId: String): Boolean = catalogId in unlockedIdsState.value
+
+    /** Todos los ids actualmente desbloqueados (para pintar listas completas sin repetir el chequeo ítem por ítem). */
+    val unlockedIds: Set<String>
+        get() = unlockedIdsState.value
+
+    /**
+     * Compatibilidad: true si TODO el catálogo está desbloqueado (dueño de
+     * la app, o compró el producto "TODO"). Usar solo donde de verdad se
+     * necesita "¿tiene todo?" (ej. mostrar una insignia "Pro completo") —
+     * para gatear un selector o botón puntual, usar [isItemUnlocked] con el
+     * id específico de ese ítem.
+     */
     val isProUnlocked: Boolean
-        get() = state.value
+        get() = PaymentCatalog.ITEMS.isNotEmpty() && PaymentCatalog.ITEMS.all { it.id in unlockedIdsState.value }
 
     fun refresh(context: Context) {
-        state.value = LicenseRepository(context).isProUnlocked()
+        unlockedIdsState.value = LicenseRepository(context).unlockedItemIds()
     }
 }

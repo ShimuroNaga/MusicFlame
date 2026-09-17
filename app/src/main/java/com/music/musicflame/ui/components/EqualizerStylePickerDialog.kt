@@ -55,20 +55,27 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun EqualizerStylePickerDialog(
     currentStyle: EqualizerStyle,
-    isUnlocked: Boolean,
+    // Antes era un solo Boolean ("todo o nada"); ahora cada estilo puede estar
+    // en un producto distinto de Lemon Squeezy (ver EqualizerStyle.catalogId +
+    // LicenseRepository), así que se recibe una función que resuelve el
+    // desbloqueo estilo por estilo. Pasar { style -> ProStatusHolder.isItemUnlocked(style.catalogId ?: "") }
+    // desde SettingsScreen.kt (BARS tiene catalogId null, así que ese branch
+    // nunca se evalúa para el único estilo gratis).
+    isStyleUnlocked: (EqualizerStyle) -> Boolean,
     onDismiss: () -> Unit,
     onConfirm: (EqualizerStyle) -> Unit,
     onLockedStyleClick: () -> Unit = {}
 ) {
     var tempStyle by remember { mutableStateOf(currentStyle) }
     val previewColor = MaterialTheme.colorScheme.primary
+    val anyLocked = EqualizerStyle.entries.any { it.catalogId != null && !isStyleUnlocked(it) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("Estilo de ecualizador gráfico", fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                if (!isUnlocked) {
+                if (anyLocked) {
                     Text(
                         "\"Barras clásicas\" es gratis. Los demás estilos son de pago (Ajustes > Pagos).",
                         fontSize = 12.sp,
@@ -84,7 +91,7 @@ fun EqualizerStylePickerDialog(
                     modifier = Modifier.heightIn(max = 420.dp)
                 ) {
                     items(EqualizerStyle.entries.toList()) { style ->
-                        val locked = !isUnlocked && style != EqualizerStyle.BARS
+                        val locked = style.catalogId != null && !isStyleUnlocked(style)
                         EqualizerStyleCard(
                             style = style,
                             isSelected = tempStyle == style,
@@ -175,7 +182,9 @@ private fun EqualizerStyleCard(
             Text(style.displayName, fontSize = 13.sp, fontWeight = FontWeight.Bold)
             if (locked) {
                 Spacer(Modifier.width(6.dp))
-                Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                val priceMxn = com.music.musicflame.data.PaymentCatalog.ITEMS
+                    .find { it.id == style.catalogId }?.priceMxn ?: com.music.musicflame.data.PaymentCatalog.PRICE_PER_ITEM_MXN
+                Text("$$priceMxn MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
             }
         }
         Text(

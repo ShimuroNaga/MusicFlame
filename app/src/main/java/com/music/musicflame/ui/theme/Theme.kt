@@ -49,7 +49,13 @@ fun MusicFlameTheme(
     // remember{} desde que arrancaba la app, así que iniciar sesión con la
     // cuenta dueña o activar una license key no se reflejaba en el Arcoíris
     // hasta cerrar y reabrir la app por completo.
-    val isProUnlocked = com.music.musicflame.data.ProStatusHolder.isProUnlocked
+    //
+    // CAMBIO DE ARQUITECTURA (venta por ítem separado, ver PaymentCatalog):
+    // ya no hay un solo "isProUnlocked" global — cada ítem se compra (y por
+    // lo tanto se desbloquea) por separado. Acá abajo se consulta
+    // ProStatusHolder.unlockedIds directo (Set<String>) donde antes se
+    // comparaba contra el booleano único.
+    val unlockedIds = com.music.musicflame.data.ProStatusHolder.unlockedIds
 
     // Primer chequeo al entrar en composición (por si esta instancia de
     // MusicFlameTheme se crea antes de que MainActivity haya corrido su
@@ -147,20 +153,23 @@ fun MusicFlameTheme(
     // Ahora solo se arranca la animación si de verdad hace falta: cuando el
     // usuario está desbloqueado Y tiene Arcoiris elegido en el color de
     // texto o en el de "Now Playing". Si no, queda un valor fijo sin costo.
-    val rainbowNeeded = isProUnlocked &&
-            (appTextColorState.value == COLOR_MODE_RAINBOW || nowPlayingColorModeState.value == COLOR_MODE_RAINBOW)
+    val rainbowNeeded =
+        (unlockedIds.contains("text_color_rainbow") && appTextColorState.value == COLOR_MODE_RAINBOW) ||
+        (unlockedIds.contains("now_playing_rainbow") && nowPlayingColorModeState.value == COLOR_MODE_RAINBOW)
     val rainbowPhase = if (rainbowNeeded) rememberRainbowPhase() else remember { mutableStateOf(0f) }
 
     val appTextColor = when {
-        !isProUnlocked && appTextColorState.value == COLOR_MODE_RAINBOW ->
+        appTextColorState.value == COLOR_MODE_RAINBOW && !unlockedIds.contains("text_color_rainbow") ->
             if (isDarkBackground) Color.White else Color.Black // Arcoíris es de pago: cae al default
         appTextColorState.value == "Personalizado" -> parseCustomTextColor(customTextColorHexState.value)
         appTextColorState.value == COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Negro", "Blanco" o cualquier default
     }
     val nowPlayingIndicatorColor = when {
-        !isProUnlocked && (nowPlayingColorModeState.value == "Personalizado" || nowPlayingColorModeState.value == COLOR_MODE_RAINBOW) ->
-            if (isDarkBackground) Color.White else Color.Black // Personalizado/Arcoíris son de pago: cae al default
+        nowPlayingColorModeState.value == "Personalizado" && !unlockedIds.contains("now_playing_custom") ->
+            if (isDarkBackground) Color.White else Color.Black // Personalizado es de pago: cae al default
+        nowPlayingColorModeState.value == COLOR_MODE_RAINBOW && !unlockedIds.contains("now_playing_rainbow") ->
+            if (isDarkBackground) Color.White else Color.Black // Arcoíris es de pago: cae al default
         nowPlayingColorModeState.value == "Personalizado" -> parseCustomTextColor(nowPlayingCustomColorHexState.value)
         nowPlayingColorModeState.value == COLOR_MODE_RAINBOW -> rainbowColorAt(rainbowPhase.value)
         else -> if (isDarkBackground) Color.White else Color.Black // "Adaptativo": mismo default histórico del componente
@@ -170,7 +179,8 @@ fun MusicFlameTheme(
     // guardado es una fuente de pago y el usuario no está desbloqueado, cae
     // a Roboto en vez de seguir mostrando la fuente premium sin haber pagado.
     val storedFont = AppFont.fromId(appFontIdState.value)
-    val effectiveFont = if (!isProUnlocked && !storedFont.isFree) AppFont.DEFAULT else storedFont
+    val effectiveFont =
+        if (!storedFont.isFree && !unlockedIds.contains("font_${storedFont.id}")) AppFont.DEFAULT else storedFont
     // 16sp es el tamaño original de bodyLarge en M3 (sin cambios = escala 1f).
     val fontScale = appFontSizeState.value / 16f
     // Mismo motivo que finalColorScheme arriba: remember para no reconstruir los 15

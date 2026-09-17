@@ -57,16 +57,17 @@ import com.music.musicflame.data.ProStatusHolder
  * escucha el servicio — con un extra nuevo, "pro_eq_bypass", que el servicio interpreta como
  * el botón de comparación A/B.
  *
- * GATE POR LICENCIA: se lee de ProStatusHolder.isProUnlocked (el mismo holder reactivo que ya
- * usa el resto de la app), NO se llama a LicenseRepository directo aquí — así, si el usuario
- * activa su key en la sección de Licencia de Ajustes mientras este diálogo está en pantalla,
+ * GATE POR LICENCIA: se lee de ProStatusHolder.isItemUnlocked("pro_eq_10band")
+ * (el mismo holder reactivo que ya usa el resto de la app), NO se llama a
+ * LicenseRepository directo aquí — así, si el usuario activa su key en la
+ * sección de Licencia de Ajustes mientras este diálogo está en pantalla,
  * se desbloquea solo, sin tener que cerrar y reabrir.
  */
 @Composable
 fun ProEqualizerDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
     val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
-    val isProUnlocked = ProStatusHolder.isProUnlocked
+    val isProUnlocked = ProStatusHolder.isItemUnlocked("pro_eq_10band")
 
     val bandCount = ProBiquadEqualizerAudioProcessor.BAND_COUNT
     val freqLabels = remember {
@@ -279,7 +280,7 @@ private fun LockedProEqualizerContent() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
             Spacer(Modifier.width(2.dp))
-            Text("$20 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            Text("$15 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
         Text(

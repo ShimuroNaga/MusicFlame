@@ -207,9 +207,9 @@ class MainActivity : ComponentActivity() {
 
                 // Si ya hay una license key guardada, la revalidamos en segundo plano y en
                 // silencio (sin diálogos ni Toasts) para detectar si Lemon Squeezy la revocó
-                // o reembolsó. Si no hay internet, revalidateSilently() no toca el estado local.
+                // o reembolsó. Si no hay internet, revalidateAllSilently() no toca el estado local.
                 LaunchedEffect(Unit) {
-                    licenseRepo.revalidateSilently()
+                    licenseRepo.revalidateAllSilently()
                     // Por si Lemon Squeezy revocó/reembolsó la licencia (o la
                     // reactivó) desde la última vez que se abrió la app.
                     com.music.musicflame.data.ProStatusHolder.refresh(context)

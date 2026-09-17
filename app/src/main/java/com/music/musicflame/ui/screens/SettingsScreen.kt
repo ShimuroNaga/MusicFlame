@@ -1846,7 +1846,7 @@ fun SettingsScreen(
                                             val selected = lyricsColorModePref.value == opt
                                             // Personalizado y Arcoíris son de pago acá; Blanco y Negro gratis.
                                             val locked = (opt == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
-                                                (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
+                                                    (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
                                             androidx.compose.material3.FilterChip(
                                                 selected = selected,
                                                 enabled = !locked,
@@ -2010,6 +2010,71 @@ fun SettingsScreen(
                     // Puede terminar con VARIAS keys guardadas — ver savedLicenses arriba.
                     if (activeSection.value == "Pagos (opcional)") {
                         item { sectionHeader("Licencia de apoyo (opcional)") }
+
+                        // --- PASO A PASO: cómo comprar y activar ---
+                        item {
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                colors = CardDefaults.cardColors(
+                                    containerColor = MaterialTheme.colorScheme.surfaceVariant
+                                )
+                            ) {
+                                Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
+                                    Text(
+                                        "¿Cómo funciona?",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 15.sp
+                                    )
+                                    Text(
+                                        "Es pago único (no es suscripción): pagás una sola vez y lo comprado es tuyo para siempre.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
+                                    )
+
+                                    val steps = listOf(
+                                        "Elegí qué comprar: un producto suelto de la tabla de abajo, o \"Comprar TODO\" para desbloquear las ${com.music.musicflame.data.PaymentCatalog.ITEMS.size} personalizaciones de una vez.",
+                                        "Tocá \"Comprar\": se abre el checkout de Lemon Squeezy fuera de la app (en el navegador).",
+                                        "Pagá ahí con tarjeta o el método que te muestre Lemon Squeezy.",
+                                        "Te llega un correo con tu license key de esa compra.",
+                                        "Volvé a la app, pegá esa key en \"Tus licencias\" (más abajo) y tocá \"Activar\": se desbloquea al instante, sin reiniciar la app."
+                                    )
+                                    steps.forEachIndexed { index, step ->
+                                        Row(
+                                            verticalAlignment = Alignment.Top,
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .size(20.dp)
+                                                    .clip(androidx.compose.foundation.shape.CircleShape)
+                                                    .background(MaterialTheme.colorScheme.primary),
+                                                contentAlignment = Alignment.Center
+                                            ) {
+                                                Text(
+                                                    "${index + 1}",
+                                                    fontSize = 11.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = MaterialTheme.colorScheme.onPrimary
+                                                )
+                                            }
+                                            Spacer(Modifier.width(10.dp))
+                                            Text(step, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                        }
+                                    }
+
+                                    Spacer(Modifier.height(8.dp))
+                                    Text(
+                                        "¿Compraste varios productos sueltos? Te llega una key distinta por cada uno — repetí el paso 5 con cada key. Todas quedan guardadas juntas y podés \"Quitar\" cualquiera sin afectar a las demás.",
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.padding(top = 4.dp)
+                                    )
+                                }
+                            }
+                        }
 
                         item {
                             Text(

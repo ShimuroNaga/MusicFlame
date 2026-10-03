@@ -310,7 +310,7 @@ fun PlaylistsScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(horizontal = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     item { Spacer(modifier = Modifier.height(8.dp)) }
 
@@ -352,8 +352,8 @@ fun PlaylistsScreen(
                                 exit = fadeOut() + shrinkVertically()
                             ) {
                                 Column(
-                                    modifier = Modifier.padding(top = 12.dp),
-                                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                                    modifier = Modifier.padding(top = 6.dp),
+                                    verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
                                     val favoritesPlaylist = Playlist("favorites", "Favoritos", favoritesRepo.getAllFavoriteIds().toList(), customCoverUri = favoritesRepo.getCoverUri())
                                     PlaylistCard(
@@ -635,7 +635,7 @@ fun PlaylistCard(
     val isRounded = LocalUseRoundCorners.current
     val albumArtShape = LocalAlbumArtShape.current
     val cardRadius = if (isRounded) 16.dp else 0.dp
-    val albumRadius = if (isRounded) 12.dp else 0.dp
+    val albumRadius = if (isRounded) 8.dp else 0.dp
     val dialogRadius = if (isRounded) 28.dp else 0.dp
 
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
@@ -674,13 +674,13 @@ fun PlaylistCard(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(16.dp),
+                .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Box(
                 modifier = if (!isSelected) {
                     Modifier
-                        .size(56.dp)
+                        .size(50.dp)
                         .clip(RoundedCornerShape(albumRadius))
                         .combinedClickable(
                             onClick = { },
@@ -688,7 +688,7 @@ fun PlaylistCard(
                         )
                 } else {
                     Modifier
-                        .size(56.dp)
+                        .size(50.dp)
                         .clip(RoundedCornerShape(albumRadius))
                 },
                 contentAlignment = Alignment.Center
@@ -698,27 +698,27 @@ fun PlaylistCard(
                     // (el tono de texto estándar de Material You que usa el resto de la app)
                     // en vez de onTertiaryContainer, que sacaba un matiz raro (verde) del wallpaper.
                     val favoritesIconTint = Color.White
-                    Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                        Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(32.dp), tint = favoritesIconTint)
+                    Box(modifier = Modifier.size(50.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Filled.Favorite, contentDescription = null, modifier = Modifier.size(28.dp), tint = favoritesIconTint)
                     }
                 } else if (kind == PlaylistKind.MOST_PLAYED && playlist.customCoverUri == null) {
-                    Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                        Icon(imageVector = Icons.Filled.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
+                    Box(modifier = Modifier.size(50.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Filled.LocalFireDepartment, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color.White)
                     }
                 } else if (kind == PlaylistKind.NEVER_PLAYED && playlist.customCoverUri == null) {
-                    Box(modifier = Modifier.size(56.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
-                        Icon(imageVector = Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(32.dp), tint = Color.White)
+                    Box(modifier = Modifier.size(50.dp).background(Color.Transparent), contentAlignment = Alignment.Center) {
+                        Icon(imageVector = Icons.Filled.Explore, contentDescription = null, modifier = Modifier.size(28.dp), tint = Color.White)
                     }
                 } else if (playlist.customCoverUri != null) {
-                    AlbumArt(albumArtUri = playlist.customCoverUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape)
+                    AlbumArt(albumArtUri = playlist.customCoverUri, size = 50.dp, cornerRadius = albumRadius, shape = albumArtShape)
                 } else {
                     val firstSongId = playlist.songIds.firstOrNull()
                     if (firstSongId != null) {
                         val allSongs = com.music.musicflame.data.SongLibraryHolder.songs
                         val firstSong = allSongs.find { it.id == firstSongId }
-                        AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 56.dp, cornerRadius = albumRadius, shape = albumArtShape, filePath = firstSong?.path, isCustomCover = firstSong?.hasCustomCover ?: false)
+                        AlbumArt(albumArtUri = firstSong?.albumArtUri, size = 50.dp, cornerRadius = albumRadius, shape = albumArtShape, filePath = firstSong?.path, isCustomCover = firstSong?.hasCustomCover ?: false)
                     } else {
-                        Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(32.dp), tint = MaterialTheme.colorScheme.primary)
+                        Icon(Icons.Filled.MusicNote, contentDescription = null, modifier = Modifier.size(28.dp), tint = MaterialTheme.colorScheme.primary)
                     }
                 }
 
@@ -728,7 +728,7 @@ fun PlaylistCard(
                 if (isSelected) {
                     Box(
                         modifier = Modifier
-                            .size(56.dp)
+                            .size(50.dp)
                             .clip(RoundedCornerShape(albumRadius))
                             .background(Color.Black.copy(alpha = 0.4f)),
                         contentAlignment = Alignment.Center
@@ -737,7 +737,7 @@ fun PlaylistCard(
                             imageVector = Icons.Filled.CheckCircle,
                             contentDescription = "Seleccionada",
                             tint = Color.White,
-                            modifier = Modifier.size(28.dp)
+                            modifier = Modifier.size(24.dp)
                         )
                     }
                 }

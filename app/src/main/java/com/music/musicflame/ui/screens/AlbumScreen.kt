@@ -303,8 +303,7 @@ private fun ArtistCard(artist: Artist, artSize: androidx.compose.ui.unit.Dp, onC
             AlbumArt(
                 albumArtUri = artist.albumArtUri,
                 size = artSize,
-                cornerRadius = artSize / 2,
-                shape = AlbumArtShapeType.CIRCLE,
+                cornerRadius = 12.dp,
                 filePath = artist.albumArtSourcePath,
                 isCustomCover = artist.albumArtIsCustom
             )

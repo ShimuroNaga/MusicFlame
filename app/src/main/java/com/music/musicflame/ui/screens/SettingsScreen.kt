@@ -574,24 +574,36 @@ fun SettingsScreen(
                                                             ?.coerceIn(0, SavingsGoalRepository.META_MAX)
                                                         if (value == null) return@Button
                                                         if (!savingsGoalRepo.hasToken()) {
-                                                            showSavingsGoalTokenDialog = true
+                                                            // Si el almacén cifrado del celular falla, se muestra el motivo
+                                                            // en pantalla (antes esto cerraba la app).
+                                                            val storageError = savingsGoalRepo.secureStorageError()
+                                                            if (storageError != null) {
+                                                                savingsGoalError = "No se pudo abrir el almacén cifrado: $storageError"
+                                                            } else {
+                                                                showSavingsGoalTokenDialog = true
+                                                            }
                                                             return@Button
                                                         }
                                                         savingsGoalSaving = true
                                                         savingsGoalError = null
                                                         savingsGoalScope.launch {
-                                                            when (val result = savingsGoalRepo.pushActual(value)) {
-                                                                is SavingsGoalRepository.PushResult.Success -> {
-                                                                    savingsGoalActual = value
+                                                            try {
+                                                                when (val result = savingsGoalRepo.pushActual(value)) {
+                                                                    is SavingsGoalRepository.PushResult.Success -> {
+                                                                        savingsGoalActual = value
+                                                                    }
+                                                                    is SavingsGoalRepository.PushResult.NoToken -> {
+                                                                        showSavingsGoalTokenDialog = true
+                                                                    }
+                                                                    is SavingsGoalRepository.PushResult.Error -> {
+                                                                        savingsGoalError = result.message
+                                                                    }
                                                                 }
-                                                                is SavingsGoalRepository.PushResult.NoToken -> {
-                                                                    showSavingsGoalTokenDialog = true
-                                                                }
-                                                                is SavingsGoalRepository.PushResult.Error -> {
-                                                                    savingsGoalError = result.message
-                                                                }
+                                                            } catch (t: Throwable) {
+                                                                savingsGoalError = "Error inesperado: ${t.javaClass.simpleName}: ${t.message ?: ""}"
+                                                            } finally {
+                                                                savingsGoalSaving = false
                                                             }
-                                                            savingsGoalSaving = false
                                                         }
                                                     }
                                                 ) { Text(if (savingsGoalSaving) "..." else "Guardar") }
@@ -624,9 +636,13 @@ fun SettingsScreen(
                                     confirmButton = {
                                         TextButton(onClick = {
                                             if (savingsGoalTokenInput.isNotBlank()) {
-                                                savingsGoalRepo.saveToken(savingsGoalTokenInput)
+                                                val saved = savingsGoalRepo.saveToken(savingsGoalTokenInput)
                                                 savingsGoalTokenInput = ""
                                                 showSavingsGoalTokenDialog = false
+                                                if (!saved) {
+                                                    savingsGoalError = "No se pudo guardar el token: " +
+                                                        (savingsGoalRepo.secureStorageError() ?: "error desconocido")
+                                                }
                                             }
                                         }) { Text("Guardar") }
                                     },

@@ -490,7 +490,8 @@ fun SongItemCard(
 ) {
     // Animación suave del color de fondo al ser seleccionado
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
-    val backgroundColor by animateColorAsState(
+    val npColors = if (isCurrentlyPlaying && !isSelected) com.music.musicflame.ui.components.nowPlayingCardColors() else null
+    val baseBackgroundColor by animateColorAsState(
         targetValue = when {
             isSelected -> MaterialTheme.colorScheme.primaryContainer
             hasBackgroundImage -> {
@@ -501,6 +502,8 @@ fun SongItemCard(
         },
         label = "selectionColor"
     )
+    // La card que suena usa el color del Now Playing directo (sin animar, para que Arcoíris no se "arrastre").
+    val backgroundColor = npColors?.container ?: baseBackgroundColor
 
     Card(
         modifier = Modifier
@@ -568,13 +571,6 @@ fun SongItemCard(
                     .padding(start = 12.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isCurrentlyPlaying) {
-                        com.music.musicflame.ui.components.NowPlayingIndicator(
-                            modifier = Modifier.height(14.dp),
-                            color = com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor.current
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
                     // NUEVO: respeta el "Subtítulo de visualización" con códigos §
                     // (mismo fix aplicado a components/SongItemCard.kt; este archivo
                     // tiene su propia copia local que hay que mantener sincronizada).
@@ -584,7 +580,7 @@ fun SongItemCard(
                             fontWeight = FontWeight.Medium,
                             fontSize = 15.sp,
                             // <-- Aplicando LocalAppTextColor
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else (npColors?.content ?: LocalAppTextColor.current)
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -594,7 +590,7 @@ fun SongItemCard(
                     text = song.artist,
                     fontSize = 13.sp,
                     // <-- Aplicando LocalAppTextColor con transparencia para el texto secundario
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else LocalAppTextColor.current.copy(alpha = 0.7f),
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else (npColors?.content ?: LocalAppTextColor.current).copy(alpha = 0.7f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

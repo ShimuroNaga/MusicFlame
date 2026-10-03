@@ -133,6 +133,9 @@ class MainActivity : ComponentActivity() {
 
         // App cerrada -> el archivo que la abrió viaja en el intent de onCreate.
         handleIncomingMusicIntent(intent)
+        // Atajos de app (pulsación larga del ícono). savedInstanceState == null evita
+        // que se vuelva a disparar al recrearse la Activity (rotación, etc.).
+        if (savedInstanceState == null) handleShortcutIntent(intent)
 
         setContent {
             MusicFlameTheme {
@@ -301,10 +304,17 @@ class MainActivity : ComponentActivity() {
                 // de canción, porque el pager quedaba en un estado inconsistente. Aquí
                 // reconstruimos songList con la librería completa en cuanto detectamos el desfase.
                 LaunchedEffect(currentSong?.id) {
-                    if (currentSong != null && songList.isEmpty()) {
+                    val cs = currentSong
+                    if (cs != null && songList.isEmpty()) {
                         SongLibraryHolder.ensureLoaded(context)
                         val trashedIds = withContext(Dispatchers.IO) { trashRepo.getTrash().map { it.song.id } }
                         songList = SongLibraryHolder.songs.filter { it.id !in trashedIds }
+                    } else if (cs != null && songList.none { it.id == cs.id }) {
+                        // La reproducción la arrancó algo ajeno a la UI (atajo de app): se usa la
+                        // misma lista con la que sonó, para que el pager del reproductor completo
+                        // y el mini-reproductor coincidan con lo que realmente suena.
+                        val played = playerManager.getCurrentPlaylistSnapshot()
+                        if (played.any { it.id == cs.id }) songList = played
                     }
                 }
 
@@ -1365,6 +1375,19 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent) // getIntent() debe quedar apuntando al intent más reciente
         handleIncomingMusicIntent(intent)
+        handleShortcutIntent(intent)
+    }
+
+    // Atajos de app: Retomar / Mezclar todo / Favoritas (ver shortcut/AppShortcutHandler.kt
+    // y res/xml/shortcuts.xml).
+    private fun handleShortcutIntent(intent: Intent?) {
+        val action = intent?.action
+        if (!com.music.musicflame.shortcut.AppShortcutActions.isShortcutAction(action)) return
+        lifecycleScope.launch {
+            com.music.musicflame.shortcut.AppShortcutHandler.handle(
+                this@MainActivity, action!!, playerManager
+            )
+        }
     }
 
     // Punto único que procesan tanto onCreate como onNewIntent: si el intent es

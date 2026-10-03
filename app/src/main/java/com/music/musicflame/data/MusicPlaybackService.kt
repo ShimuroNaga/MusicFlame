@@ -16,6 +16,7 @@ import android.os.Looper
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
+import androidx.media3.common.ForwardingPlayer
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
@@ -389,20 +390,9 @@ class MusicPlaybackService : MediaSessionService() {
                 // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
                 proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isItemUnlocked("pro_eq_10band"))
 
-                // MITIGACIÓN: en algunos celulares (tarjeta de reproducción propia de
-                // Honor/Magic UI en pantalla de bloqueo/notificaciones), justo al arrancar
-                // una canción nueva se ve por un momento el orden de botones viejo/roto
-                // (Favorito-Anterior-Pausa-Cíclico, sin Siguiente) hasta que el sistema
-                // termina de sincronizar con el layout real que ya mandamos. checkIfCurrentSongIsFavorite()
-                // de arriba ya llama a setCustomLayout() al instante, pero se refuerza con
-                // un segundo llamado unos milisegundos después para forzar que ese celular
-                // vuelva a leer el orden correcto en vez de quedarse con la primera lectura.
-                val mediaIdAtTransition = mediaItem?.mediaId
-                lyricsTickHandler.postDelayed({
-                    if (player.currentMediaItem?.mediaId == mediaIdAtTransition) {
-                        mediaSession?.setCustomLayout(getCustomLayout())
-                    }
-                }, 600L)
+                // (Se quitó el refuerzo con postDelayed: checkIfCurrentSongIsFavorite() ya manda
+                // el layout, y mandarlo dos veces provocaba parpadeos del orden de botones.
+                // El orden estable ahora lo garantiza AlwaysNavigablePlayer.)
             }
 
             override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -434,8 +424,10 @@ class MusicPlaybackService : MediaSessionService() {
             }
         })
 
-        mediaSession = MediaSession.Builder(this, player)
+        mediaSession = MediaSession.Builder(this, AlwaysNavigablePlayer(player))
             .setCallback(CustomMediaSessionCallback())
+            // Layout correcto desde la primera lectura del sistema
+            .setCustomLayout(getCustomLayout())
             // ARREGLO carátula en la notificación: sin este BitmapLoader, Media3
             // intenta cargar directamente la Uri "de fábrica" de MediaStore por
             // álbum (deprecada en Android 10+) y falla en silencio. Ver
@@ -968,5 +960,46 @@ class MusicPlaybackService : MediaSessionService() {
 
             return buttons.build()
         }
+    }
+}
+
+/**
+ * Envuelve al ExoPlayer SOLO de cara a la MediaSession para que Anterior y Siguiente
+ * estén SIEMPRE disponibles. La tarjeta de reproducción del sistema (panel / pantalla
+ * de bloqueo) arma sus 5 casillas a partir del PlaybackState: si "Siguiente" deja de
+ * estar disponible un instante (última canción, canción suelta, transición), el sistema
+ * mete un botón personalizado en esa casilla y todo se reacomoda. Con navegación
+ * siempre disponible las casillas quedan fijas: [Cíclico][Anterior][Play][Siguiente][Favorito].
+ */
+@UnstableApi
+private class AlwaysNavigablePlayer(wrapped: Player) : ForwardingPlayer(wrapped) {
+
+    private val navCommands = intArrayOf(
+        Player.COMMAND_SEEK_TO_NEXT,
+        Player.COMMAND_SEEK_TO_NEXT_MEDIA_ITEM,
+        Player.COMMAND_SEEK_TO_PREVIOUS,
+        Player.COMMAND_SEEK_TO_PREVIOUS_MEDIA_ITEM
+    )
+
+    override fun getAvailableCommands(): Player.Commands {
+        val base = super.getAvailableCommands()
+        if (mediaItemCount == 0) return base
+        val builder = base.buildUpon()
+        navCommands.forEach { builder.add(it) }
+        return builder.build()
+    }
+
+    override fun isCommandAvailable(command: Int): Boolean =
+        getAvailableCommands().contains(command)
+
+    // Si no hay siguiente, da la vuelta a la cola en vez de quedarse sin botón
+    override fun seekToNext() {
+        if (hasNextMediaItem()) super.seekToNext()
+        else if (mediaItemCount > 0) seekTo(0, C.TIME_UNSET)
+    }
+
+    override fun seekToNextMediaItem() {
+        if (hasNextMediaItem()) super.seekToNextMediaItem()
+        else if (mediaItemCount > 0) seekTo(0, C.TIME_UNSET)
     }
 }

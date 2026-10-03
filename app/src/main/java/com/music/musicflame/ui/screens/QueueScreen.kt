@@ -310,8 +310,9 @@ fun QueueScreen(
                         val isCurrent = currentSong?.id == song.id
                         val isBeingDragged = dragState.draggingItemIndex == index
 
+                        val npColors = if (isCurrent) com.music.musicflame.ui.components.nowPlayingCardColors() else null
                         val containerColor = when {
-                            isCurrent -> MaterialTheme.colorScheme.primaryContainer
+                            npColors != null -> npColors.container
                             // Tono ligeramente más claro mientras se arrastra, para reforzar
                             // la sensación de que el item está "levantado" del resto.
                             isBeingDragged -> MaterialTheme.colorScheme.surfaceContainerHighest
@@ -416,26 +417,19 @@ fun QueueScreen(
 
                                 Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        if (isCurrent) {
-                                            com.music.musicflame.ui.components.NowPlayingIndicator(
-                                                modifier = Modifier.height(14.dp),
-                                                color = com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor.current
-                                            )
-                                            Spacer(Modifier.width(6.dp))
-                                        }
                                         Text(
                                             text = song.title,
                                             fontWeight = FontWeight.Bold,
                                             fontSize = 16.sp,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis,
-                                            color = if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else adaptiveContentColor
+                                            color = npColors?.content ?: adaptiveContentColor
                                         )
                                     }
                                     Text(
                                         text = song.artist,
                                         fontSize = 13.sp,
-                                        color = (if (isCurrent) MaterialTheme.colorScheme.onPrimaryContainer else adaptiveContentColor).copy(alpha = 0.7f),
+                                        color = (npColors?.content ?: adaptiveContentColor).copy(alpha = 0.7f),
                                         maxLines = 1,
                                         overflow = TextOverflow.Ellipsis
                                     )

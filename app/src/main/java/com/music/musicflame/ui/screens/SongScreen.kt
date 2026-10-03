@@ -394,6 +394,8 @@ fun SongsScreen(
                         ) {
                             item { Spacer(modifier = Modifier.height(8.dp)) }
                             items(displaySongs, key = { it.id }) { song ->
+                                val npColors = if (currentPlayingSongId != null && currentPlayingSongId == song.id) com.music.musicflame.ui.components.nowPlayingCardColors() else null
+                                val rowTextColor = npColors?.content ?: normalTextColor
                                 Card(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -403,7 +405,7 @@ fun SongsScreen(
                                             onLongClick = {}
                                         ),
                                     colors = CardDefaults.cardColors(
-                                        containerColor = if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                                        containerColor = npColors?.container ?: (if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainerHigh)
                                     ),
                                     shape = RoundedCornerShape(cardRadius)
                                 ) {
@@ -411,19 +413,12 @@ fun SongsScreen(
                                         AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape, filePath = song.path, isCustomCover = song.hasCustomCover)
                                         Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                if (currentPlayingSongId != null && currentPlayingSongId == song.id) {
-                                                    com.music.musicflame.ui.components.NowPlayingIndicator(
-                                                        modifier = Modifier.height(14.dp),
-                                                        color = com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor.current
-                                                    )
-                                                    Spacer(Modifier.width(6.dp))
-                                                }
                                                 FormatCodeText(
                                                     rawTitle = song.rawDisplayTitle(),
                                                     style = TextStyle(
                                                         fontWeight = FontWeight.Bold,
                                                         fontSize = 16.sp,
-                                                        color = normalTextColor
+                                                        color = rowTextColor
                                                     ),
                                                     maxLines = 1,
                                                     overflow = TextOverflow.Ellipsis
@@ -432,7 +427,7 @@ fun SongsScreen(
                                             Text(
                                                 text = song.artist,
                                                 fontSize = 13.sp,
-                                                color = normalTextColor.copy(alpha = 0.7f),
+                                                color = rowTextColor.copy(alpha = 0.7f),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis
                                             )
@@ -501,8 +496,11 @@ fun SongsScreen(
                         items(displaySongs, key = { it.id }) { song ->
                             val isSelected = selectedSongs.contains(song)
 
+                            val npColors = if (!isSelected && currentPlayingSongId != null && currentPlayingSongId == song.id) com.music.musicflame.ui.components.nowPlayingCardColors() else null
+                            val rowTextColor = npColors?.content ?: normalTextColor
                             val containerColor = when {
                                 isSelected -> MaterialTheme.colorScheme.primaryContainer
+                                npColors != null -> npColors.container
                                 hasBackgroundImage -> MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.70f)
                                 else -> MaterialTheme.colorScheme.surfaceContainerHigh
                             }
@@ -550,19 +548,12 @@ fun SongsScreen(
                                     // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---
                                     Column(modifier = Modifier.padding(start = 16.dp).weight(1f)) {
                                         Row(verticalAlignment = Alignment.CenterVertically) {
-                                            if (currentPlayingSongId != null && currentPlayingSongId == song.id) {
-                                                com.music.musicflame.ui.components.NowPlayingIndicator(
-                                                    modifier = Modifier.height(14.dp),
-                                                    color = com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor.current
-                                                )
-                                                Spacer(Modifier.width(6.dp))
-                                            }
                                             FormatCodeText(
                                                 rawTitle = song.rawDisplayTitle(),
                                                 style = TextStyle(
                                                     fontWeight = FontWeight.Bold,
                                                     fontSize = 16.sp,
-                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor
+                                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else rowTextColor
                                                 ),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
@@ -584,7 +575,7 @@ fun SongsScreen(
                                             Text(
                                                 text = song.artist,
                                                 fontSize = 13.sp,
-                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else normalTextColor.copy(alpha = 0.7f),
+                                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else rowTextColor.copy(alpha = 0.7f),
                                                 maxLines = 1,
                                                 overflow = TextOverflow.Ellipsis,
                                                 modifier = Modifier.weight(1f, fill = false)
@@ -595,7 +586,7 @@ fun SongsScreen(
                                                 Icon(
                                                     imageVector = Icons.Filled.Subject,
                                                     contentDescription = "Letra disponible",
-                                                    tint = (if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else normalTextColor).copy(alpha = 0.5f),
+                                                    tint = (if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else rowTextColor).copy(alpha = 0.5f),
                                                     modifier = Modifier.size(13.dp)
                                                 )
                                             }
@@ -607,7 +598,7 @@ fun SongsScreen(
                                         Icon(
                                             imageVector = if (favoriteIds.contains(song.id)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
                                             contentDescription = "Favorito",
-                                            tint = if (favoriteIds.contains(song.id)) Color(0xFFE91E63) else normalTextColor.copy(alpha = 0.5f)
+                                            tint = if (favoriteIds.contains(song.id)) Color(0xFFE91E63) else rowTextColor.copy(alpha = 0.5f)
                                         )
                                     }
                                 }

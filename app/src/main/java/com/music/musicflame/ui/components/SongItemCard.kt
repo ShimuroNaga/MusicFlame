@@ -23,7 +23,6 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
-import com.music.musicflame.ui.theme.LocalNowPlayingIndicatorColor
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -40,11 +39,22 @@ fun SongItemCard(
     // NUEVO: true cuando esta es la canción que está sonando ahora mismo.
     // Muestra el mismo icono de "sonando" (barritas) que ya usa QueueScreen,
     // a un lado del título.
-    isCurrentlyPlaying: Boolean = false
+    isCurrentlyPlaying: Boolean = false,
+    // NUEVO: true = mismas medidas que la card de SongScreen (carátula 50dp,
+    // separación 16dp, título 16sp en negrita). Lo usa MixScreen.
+    matchSongScreenStyle: Boolean = false
 ) {
+    val artSize = if (matchSongScreenStyle) 50.dp else 48.dp
+    val textStart = if (matchSongScreenStyle) 16.dp else 12.dp
+    val titleSize = if (matchSongScreenStyle) 16.sp else 15.sp
+    val titleWeight = if (matchSongScreenStyle) FontWeight.Bold else FontWeight.Medium
+    val artRadius = if (radius > 0.dp) 8.dp else 0.dp
     // <-- CAMBIO APLICADO: Lógica de color de fondo dependiente del tema
+    // La card que suena se "activa" con el color del Now Playing (sin ícono animado).
+    val npColors = if (isCurrentlyPlaying && !isSelected) nowPlayingCardColors() else null
     val containerColor = when {
         isSelected -> MaterialTheme.colorScheme.primaryContainer
+        npColors != null -> npColors.container
         hasBackgroundImage -> {
             if (MaterialTheme.colorScheme.surface.red > 0.5f) Color.White.copy(alpha = 0.8f)
             else Color.Black.copy(alpha = 0.5f)
@@ -71,12 +81,12 @@ fun SongItemCard(
         ) {
             // Carátula siempre visible; al seleccionar se superpone un overlay + check (estilo unificado)
             Box(contentAlignment = Alignment.Center) {
-                AlbumArt(albumArtUri = song.albumArtUri, size = 48.dp, cornerRadius = if (radius > 0.dp) 8.dp else 0.dp, shape = albumArtShape, filePath = song.path, isCustomCover = song.hasCustomCover)
+                AlbumArt(albumArtUri = song.albumArtUri, size = artSize, cornerRadius = artRadius, shape = albumArtShape, filePath = song.path, isCustomCover = song.hasCustomCover)
                 if (isSelected) {
                     Box(
                         modifier = Modifier
-                            .size(48.dp)
-                            .clip(RoundedCornerShape(if (radius > 0.dp) 8.dp else 0.dp))
+                            .size(artSize)
+                            .clip(RoundedCornerShape(artRadius))
                             .background(Color.Black.copy(alpha = 0.4f)),
                         contentAlignment = Alignment.Center
                     ) {
@@ -90,25 +100,18 @@ fun SongItemCard(
                 }
             }
 
-            Column(modifier = Modifier.weight(1f).padding(start = 12.dp)) {
+            Column(modifier = Modifier.weight(1f).padding(start = textStart)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (isCurrentlyPlaying) {
-                        NowPlayingIndicator(
-                            modifier = Modifier.height(14.dp),
-                            color = LocalNowPlayingIndicatorColor.current
-                        )
-                        Spacer(Modifier.width(6.dp))
-                    }
                     // NUEVO: respeta el "Subtítulo de visualización" con códigos §
                     // (EditSongDialog); si la canción no tiene uno guardado, cae
                     // en el título real como antes.
                     FormatCodeText(
                         rawTitle = song.rawDisplayTitle(),
                         style = TextStyle(
-                            fontWeight = FontWeight.Medium,
-                            fontSize = 15.sp,
+                            fontWeight = titleWeight,
+                            fontSize = titleSize,
                             // <-- APLICANDO EL COLOR GLOBAL (Mantiene el color de selección si está activa)
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else LocalAppTextColor.current
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else (npColors?.content ?: LocalAppTextColor.current)
                         ),
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
@@ -118,7 +121,7 @@ fun SongItemCard(
                     text = song.artist,
                     fontSize = 13.sp,
                     // <-- APLICANDO EL COLOR GLOBAL CON TRANSPARENCIA
-                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else LocalAppTextColor.current.copy(alpha = 0.7f),
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f) else (npColors?.content ?: LocalAppTextColor.current).copy(alpha = 0.7f),
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )

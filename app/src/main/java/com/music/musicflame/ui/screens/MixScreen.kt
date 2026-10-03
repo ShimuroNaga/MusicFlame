@@ -183,7 +183,7 @@ fun MixScreen(
                     .fillMaxSize()
                     .padding(padding)
                     .padding(horizontal = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                verticalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 item { Spacer(Modifier.height(8.dp)) }
 
@@ -250,8 +250,9 @@ fun MixScreen(
                         song = song,
                         onClick = { onSongClick(song, mixSongs) },
                         hasBackgroundImage = hasBackgroundImage,
-                        radius = itemRadius,
+                        radius = if (isRounded) 16.dp else 0.dp,
                         albumArtShape = albumArtShape,
+                        matchSongScreenStyle = true,
                         isSelected = selectedSongs.contains(song),
                         isSelectionMode = isSelectionMode,
                         onToggleSelection = { onToggleSelection(song) },

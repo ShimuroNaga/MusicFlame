@@ -279,6 +279,14 @@ class MusicPlayerManager(private val context: Context) {
                 val actionsToRun = pendingActions.toList()
                 pendingActions.clear()
                 actionsToRun.forEach { it() }
+                // FIX atajos de app: el Player.Listener de más abajo se agrega DESPUÉS de
+                // correr estas acciones, así que los eventos que dispara playSong() (cambio de
+                // canción, cola) podían perderse y el mini-reproductor se quedaba con la
+                // canción vieja que restauró syncCurrentSongState() arriba.
+                syncCurrentSongState(controller)
+                _isPlayingState.value = controller.isPlaying
+                _shuffleEnabledState.value = controller.shuffleModeEnabled
+                refreshQueue(controller)
             }
 
             controller.addListener(object : Player.Listener {
@@ -538,6 +546,9 @@ class MusicPlayerManager(private val context: Context) {
             setMediaItems(mediaItems, indexToPlay, 0)
             prepare()
             play()
+            // FIX atajos de app: actualiza el mini-reproductor al instante con la canción que
+            // realmente va a sonar, sin depender de que llegue onMediaItemTransition.
+            _currentSong.value = songList.getOrNull(indexToPlay) ?: song
             refreshQueue(this)
         }
 
@@ -558,6 +569,11 @@ class MusicPlayerManager(private val context: Context) {
             PlaybackContextTracker.clearActivePlaylist(context)
         }
     }
+
+    // Lista con la que se llamó al último playSong() (la usa MainActivity para mantener
+    // sincronizado el pager del reproductor completo cuando algo ajeno a la UI, como un
+    // atajo de app, arranca la reproducción).
+    fun getCurrentPlaylistSnapshot(): List<Song> = currentPlaylist
 
     // NUEVO: agrega canciones AL FINAL de la cola actual sin interrumpir lo que está
     // sonando (a diferencia de playSong, no llama a setMediaItems ni prepare/play).

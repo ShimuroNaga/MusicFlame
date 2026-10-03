@@ -26,4 +26,12 @@
     <string name="widget_music_flame_vinyl_description">Vinilo de MusicFlame: la carátula asoma como un disco que gira mientras suena la canción. Toca el disco para reproducir o pausar (redimensionable de 1x1 a 2x2).</string>
     <string name="widget_vinyl_disc_desc">Disco de vinilo: toca para reproducir o pausar</string>
     <string name="widget_vinyl_sleeve_desc">Abrir MusicFlame</string>
+
+    <!-- Atajos de app (menú de pulsación larga del ícono) -->
+    <string name="shortcut_resume_short">Retomar</string>
+    <string name="shortcut_resume_long">Retomar última canción</string>
+    <string name="shortcut_shuffle_short">Mezclar todo</string>
+    <string name="shortcut_shuffle_long">Mezclar toda mi música</string>
+    <string name="shortcut_favorites_short">Favoritas</string>
+    <string name="shortcut_favorites_long">Reproducir mis favoritas</string>
 </resources>

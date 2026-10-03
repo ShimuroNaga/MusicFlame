@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- 1) Retoma la última canción que sonó (según StatsRepository.lastPlayedAt) -->
+    <shortcut
+        android:shortcutId="resume_last"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_resume"
+        android:shortcutShortLabel="@string/shortcut_resume_short"
+        android:shortcutLongLabel="@string/shortcut_resume_long">
+        <intent
+            android:action="com.music.musicflame.action.SHORTCUT_RESUME_LAST"
+            android:targetPackage="com.music.musicflame"
+            android:targetClass="com.music.musicflame.MainActivity" />
+    </shortcut>
+
+    <!-- 2) Mezcla TODA la biblioteca -->
+    <shortcut
+        android:shortcutId="shuffle_all"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_shuffle_all"
+        android:shortcutShortLabel="@string/shortcut_shuffle_short"
+        android:shortcutLongLabel="@string/shortcut_shuffle_long">
+        <intent
+            android:action="com.music.musicflame.action.SHORTCUT_SHUFFLE_ALL"
+            android:targetPackage="com.music.musicflame"
+            android:targetClass="com.music.musicflame.MainActivity" />
+    </shortcut>
+
+    <!-- 3) Reproduce tus favoritas -->
+    <shortcut
+        android:shortcutId="play_favorites"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_favorites"
+        android:shortcutShortLabel="@string/shortcut_favorites_short"
+        android:shortcutLongLabel="@string/shortcut_favorites_long">
+        <intent
+            android:action="com.music.musicflame.action.SHORTCUT_PLAY_FAVORITES"
+            android:targetPackage="com.music.musicflame"
+            android:targetClass="com.music.musicflame.MainActivity" />
+    </shortcut>
+
+</shortcuts>

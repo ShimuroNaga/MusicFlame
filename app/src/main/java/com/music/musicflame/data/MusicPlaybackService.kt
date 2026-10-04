@@ -98,6 +98,20 @@ class MusicPlaybackService : MediaSessionService() {
     // (FORCE_ENABLED_FOR_TESTING); todavía NO está conectado a LicenseRepository.
     private val proEqualizerAudioProcessor = ProBiquadEqualizerAudioProcessor()
 
+    // FIX "el EQ Pro se apaga/prende solo": antes la licencia se leía de ProStatusHolder, que
+    // SOLO la llena la UI (MainActivity/Theme/Ajustes). Si Android recrea este servicio sin
+    // abrir la app (botón de audífonos, Quick Tile, notificación, proceso reiniciado),
+    // ProStatusHolder arrancaba vacío -> licencia "false" -> el EQ Pro quedaba en bypass y el
+    // EQ nativo de 5 bandas se volvía a encender; al abrir la app el holder se llenaba y en la
+    // siguiente canción el Pro "se reactivaba solo". Ahora el servicio lee la licencia directo
+    // de LicenseRepository (SharedPreferences + cuenta de Google ya guardada), que no necesita UI.
+    private val licenseRepo by lazy { LicenseRepository(applicationContext) }
+    private fun isProEqLicensed(): Boolean = try {
+        licenseRepo.isItemUnlocked("pro_eq_10band")
+    } catch (e: Exception) {
+        ProStatusHolder.isItemUnlocked("pro_eq_10band")
+    }
+
     // ETAPA 2 — normalización de volumen: caché por canción del gain calculado, y un scope
     // propio del servicio para poder analizar canciones en segundo plano (Dispatchers.IO)
     // sin bloquear el hilo principal ni el de audio. Se cancela en onDestroy().
@@ -143,12 +157,9 @@ class MusicPlaybackService : MediaSessionService() {
                         currentBands[i] = intent.getFloatExtra("eq_band_$i", 0f)
                     }
                 }
-                // EQ PRO: si el intent trae el extra del bypass A/B, es porque viene del
-                // diálogo del EQ Pro (SettingsScreen -> ProEqualizerDialog); si no lo trae
-                // (viene del diálogo del EQ gratis de siempre), no tocamos el bypass actual.
-                if (intent.hasExtra("pro_eq_bypass")) {
-                    proEqualizerAudioProcessor.setBypassed(intent.getBooleanExtra("pro_eq_bypass", false))
-                }
+                // EQ PRO: el bypass A/B ya NO viaja como extra del intent (se perdía al
+                // reiniciar el servicio); ProEqualizerDialog lo guarda en SharedPreferences
+                // ("pro_eq_bypass") y syncProEqualizerState() de abajo lo lee de ahí.
                 // Se llama SIEMPRE (venga de cualquiera de los dos diálogos), porque cualquiera
                 // de los dos puede afectar si el nativo de 5 bandas debe apagarse (modo
                 // exclusivo del Pro) y porque no cuesta nada releer 10 floats de SharedPreferences.
@@ -210,7 +221,10 @@ class MusicPlaybackService : MediaSessionService() {
      * broadcast de actualización de EQ (venga del diálogo gratis o del Pro).
      */
     private fun syncProEqualizerState() {
-        proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isItemUnlocked("pro_eq_10band"))
+        proEqualizerAudioProcessor.setProLicensed(isProEqLicensed())
+        // El A/B ahora se GUARDA ("pro_eq_bypass"): antes vivía solo en memoria y se perdía
+        // (volvía a "con EQ") cada vez que se reiniciaba el servicio o se reabría el diálogo.
+        proEqualizerAudioProcessor.setBypassed(sharedPrefs.getBoolean("pro_eq_bypass", false))
         for (i in 0 until ProBiquadEqualizerAudioProcessor.BAND_COUNT) {
             proEqualizerAudioProcessor.setBandGainDb(i, sharedPrefs.getFloat("pro_eq_band_$i", 0f))
         }
@@ -226,7 +240,7 @@ class MusicPlaybackService : MediaSessionService() {
      * más difícil notar el efecto real del Pro por separado.
      */
     private fun isProExclusiveModeActive(): Boolean =
-        ProStatusHolder.isItemUnlocked("pro_eq_10band") && sharedPrefs.getBoolean("pro_eq_exclusive", true)
+        isProEqLicensed() && sharedPrefs.getBoolean("pro_eq_exclusive", true)
 
     /**
      * ETAPA 2 — aplica (o dispara el cálculo de) el gain de normalización de volumen de la
@@ -388,7 +402,8 @@ class MusicPlaybackService : MediaSessionService() {
                 // Barato (un boolean + 11 floats de SharedPreferences) y cubre el caso de
                 // que la licencia se haya activado a media sesión sin pasar por el broadcast
                 // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
-                proEqualizerAudioProcessor.setProLicensed(ProStatusHolder.isItemUnlocked("pro_eq_10band"))
+                syncProEqualizerState()
+                applyAudioSettings()
 
                 // (Se quitó el refuerzo con postDelayed: checkIfCurrentSongIsFavorite() ya manda
                 // el layout, y mandarlo dos veces provocaba parpadeos del orden de botones.

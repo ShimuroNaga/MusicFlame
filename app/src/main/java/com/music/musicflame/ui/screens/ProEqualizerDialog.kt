@@ -32,6 +32,9 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,6 +48,9 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
 import com.music.musicflame.data.ProStatusHolder
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.drop
 
 /**
  * EQ PRO — pantalla de las 10 bandas de pago.
@@ -63,6 +69,7 @@ import com.music.musicflame.data.ProStatusHolder
  * sección de Licencia de Ajustes mientras este diálogo está en pantalla,
  * se desbloquea solo, sin tener que cerrar y reabrir.
  */
+@OptIn(FlowPreview::class)
 @Composable
 fun ProEqualizerDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
@@ -82,24 +89,39 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
     }
     val tempPreamp = remember { mutableFloatStateOf(sharedPrefs.getFloat("pro_eq_preamp", 0f)) }
     val exclusiveMode = remember { mutableStateOf(sharedPrefs.getBoolean("pro_eq_exclusive", true)) }
-    val bypassEnabled = remember { mutableStateOf(false) } // transitorio: no se guarda entre sesiones
+    // A/B GUARDADO ("pro_eq_bypass"): antes arrancaba siempre en false aunque el servicio siguiera
+    // en bypass, y al tocar cualquier cosa se mandaba false y el EQ se "reactivaba solo".
+    val bypassEnabled = remember { mutableStateOf(sharedPrefs.getBoolean("pro_eq_bypass", false)) }
 
     fun applyCurrentState() {
         val editor = sharedPrefs.edit()
         for (i in 0 until bandCount) editor.putFloat("pro_eq_band_$i", tempBands[i].floatValue)
         editor.putFloat("pro_eq_preamp", tempPreamp.floatValue)
         editor.putBoolean("pro_eq_exclusive", exclusiveMode.value)
+        editor.putBoolean("pro_eq_bypass", bypassEnabled.value)
         editor.apply()
 
         val intent = Intent("com.music.musicflame.UPDATE_EQ")
         intent.setPackage(context.packageName)
-        intent.putExtra("pro_eq_bypass", bypassEnabled.value)
         context.sendBroadcast(intent)
     }
 
     fun applyPreset(gains: FloatArray) {
         for (i in 0 until minOf(bandCount, gains.size)) tempBands[i].floatValue = gains[i]
         applyCurrentState()
+    }
+
+    // AUTOGUARDADO: ya no hace falta pulsar "Guardar" para que el EQ recuerde los sliders.
+    // 1) mientras se mueven, se aplica y guarda ~300 ms después del último cambio;
+    // 2) al cerrar el diálogo (flecha, atrás o tocar fuera) se guarda el estado final.
+    LaunchedEffect(Unit) {
+        snapshotFlow { tempBands.map { it.floatValue } to tempPreamp.floatValue }
+            .drop(1)
+            .debounce(300)
+            .collect { if (ProStatusHolder.isItemUnlocked("pro_eq_10band")) applyCurrentState() }
+    }
+    DisposableEffect(Unit) {
+        onDispose { if (ProStatusHolder.isItemUnlocked("pro_eq_10band")) applyCurrentState() }
     }
 
     Dialog(

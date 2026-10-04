@@ -31,7 +31,7 @@ data class Song(
     val genre: String? = null
 )
 
-fun loadSongsFromDevice(context: Context): List<Song> {
+fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<Song> {
     val songs = mutableListOf<Song>()
     val settingsRepo = SettingsRepository(context)
     // Carátulas y nombres personalizados por el usuario (ver SongCustomizationRepository).
@@ -56,7 +56,10 @@ fun loadSongsFromDevice(context: Context): List<Song> {
     // Se arma aparte porque el género no vive en la tabla Media sino en
     // MediaStore.Audio.Genres (funciona en todas las versiones de Android,
     // a diferencia de la columna GENRE directa que solo existe desde API 30).
-    val genreBySongId = loadGenreMapFromDevice(context)
+    // includeGenres=false: SongLibraryHolder pide primero la lista rápida (sin
+    // géneros) para mostrarla al instante, y el mapa de géneros (1 query extra
+    // POR CADA género) lo completa después en segundo plano.
+    val genreBySongId = if (includeGenres) loadGenreMapFromDevice(context) else emptyMap()
 
     val projection = arrayOf(
         MediaStore.Audio.Media._ID,
@@ -137,7 +140,7 @@ fun loadSongsFromDevice(context: Context): List<Song> {
  * No todos los archivos tienen género etiquetado; los que no aparecen en este
  * mapa simplemente no tendrán filtro de género disponible.
  */
-private fun loadGenreMapFromDevice(context: Context): Map<Long, String> {
+internal fun loadGenreMapFromDevice(context: Context): Map<Long, String> {
     val result = mutableMapOf<Long, String>()
     try {
         val genresCursor = context.contentResolver.query(

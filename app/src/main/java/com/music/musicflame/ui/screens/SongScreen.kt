@@ -188,11 +188,24 @@ fun SongsScreen(
     // Color de texto normal para toda la pantalla, controlado desde Ajustes > Color de texto.
     val normalTextColor = LocalAppTextColor.current
 
+    // Sube cada vez que la lista local se vuelve a copiar de la librería, para que el
+    // efecto de orden/filtros se reejecute aunque el tamaño no cambie (ej. llegan los géneros).
+    val songsVersion = remember { mutableStateOf(0) }
     val refreshSongs = {
         val trashedIds = trashRepo.getTrash().map { it.song.id }
         val loaded = com.music.musicflame.data.SongLibraryHolder.songs
         songs.clear()
         songs.addAll(loaded.filter { it.id !in trashedIds })
+        songsVersion.value = songsVersion.value + 1
+    }
+
+    // NUEVO: la lista de esta pantalla ahora SIGUE a SongLibraryHolder. Antes se copiaba
+    // una sola vez al entrar (y al hacer pull-to-refresh), por eso una canción nueva solo
+    // aparecía saliendo y volviendo a entrar. Ahora cada vez que la librería cambia
+    // (ContentObserver de MediaStore / onResume / ediciones) se vuelve a copiar sola.
+    val libraryDeviceSongs = com.music.musicflame.data.SongLibraryHolder.songs
+    LaunchedEffect(libraryDeviceSongs) {
+        refreshSongs()
     }
 
     val lyricsRepo = remember { LyricsRepository(context) }
@@ -265,7 +278,7 @@ fun SongsScreen(
 
     // Reacciona cuando cambia la búsqueda, el modo, los recomendados de YouTube, se aplica un patch,
     // o cambia alguno de los filtros (Artista/Álbum/Año/Género).
-    LaunchedEffect(sortType.value, songs.size, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger, filterArtist, filterAlbum, filterYear, filterGenre) {
+    LaunchedEffect(sortType.value, songs.size, songsVersion.value, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger, filterArtist, filterAlbum, filterYear, filterGenre) {
         if (searchMode == SearchMode.LOCAL) {
             val sortedBase = when (sortType.value) {
                 SortType.DATE_CREATED -> songs.sortedByDescending { it.dateAdded }

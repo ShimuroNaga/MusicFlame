@@ -125,6 +125,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Precarga de la librería lo antes posible (antes de que cualquier pantalla
+        // la pida) + observador de MediaStore para que las canciones nuevas
+        // aparezcan solas sin salir y volver a entrar a la app.
+        com.music.musicflame.data.SongLibraryHolder.start(this)
+        lifecycleScope.launch {
+            com.music.musicflame.data.SongLibraryHolder.refreshIfPermitted(this@MainActivity)
+        }
+
         // --- Anti-tampering: verificación de firma ---
         if (!AppConfig.isEnvironmentReady(this)) {
             finishAffinity()
@@ -1506,6 +1514,15 @@ class MainActivity : ComponentActivity() {
     override fun onStop() {
         super.onStop()
         if (!SettingsRepository(this).getPlayInBackground()) playerManager.pause()
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Al volver a la app (desde el explorador de archivos, de descargar música,
+        // o tras conceder el permiso de audio) se revisa si hay canciones nuevas.
+        lifecycleScope.launch {
+            com.music.musicflame.data.SongLibraryHolder.refreshIfPermitted(this@MainActivity)
+        }
     }
 
     override fun onDestroy() {

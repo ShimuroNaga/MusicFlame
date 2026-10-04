@@ -21,8 +21,12 @@ import androidx.core.content.ContextCompat
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.MainActivity
 import com.music.musicflame.R
+import com.music.musicflame.data.CoverDesign
+import com.music.musicflame.data.CoverFigure
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.SongArtLoader
+import com.music.musicflame.ui.utils.CoverPathSink
+import com.music.musicflame.ui.utils.CoverShapeGeometry
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -134,12 +138,14 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
             // fija que usaba el widget antes sin importar la preferencia del usuario.
             val settingsRepo = SettingsRepository(context)
             val albumArtShape = settingsRepo.getAlbumArtShape()
+            // Diseño propio (editor de carátulas): solo se lee si la forma elegida es CUSTOM.
+            val coverDesign = if (albumArtShape == AlbumArtShapeType.CUSTOM) settingsRepo.getActiveCoverDesign() else null
 
             // Carátula recortada a la forma elegida; si no hay carátula (o falló la
             // carga), se arma un placeholder recortado a esa misma forma en vez de
             // caer en el cuadrado fijo de siempre.
-            val artBitmap = loadRoundedAlbumArt(context, state.albumArtUri, albumArtShape)
-                ?: buildPlaceholderArt(context, albumArtShape)
+            val artBitmap = loadRoundedAlbumArt(context, state.albumArtUri, albumArtShape, coverDesign)
+                ?: buildPlaceholderArt(context, albumArtShape, coverDesign)
             val backgroundAlpha = (settingsRepo.getWidgetBackgroundOpacity() * 255).toInt().coerceIn(0, 255)
 
             // LETRA EN VIVO: líneas guardadas por MusicPlaybackService cada vez que
@@ -445,7 +451,8 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
         private suspend fun loadRoundedAlbumArt(
             context: Context,
             artUriString: String?,
-            shape: AlbumArtShapeType
+            shape: AlbumArtShapeType,
+            design: CoverDesign? = null
         ): Bitmap? {
             if (artUriString.isNullOrEmpty()) return null
 
@@ -456,7 +463,7 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                     // carátula embebida real con fallback (ver SongArtLoader.kt);
                     // el content resolver directo ya no alcanza para ese caso.
                     val source = SongArtLoader.loadBitmap(context, artUriString) ?: return@withContext null
-                    clipToShape(source, shape, cornerRadiusPx = 20f)
+                    clipToShape(source, shape, cornerRadiusPx = 20f, design = design)
                 } catch (e: IOException) {
                     null
                 } catch (e: SecurityException) {
@@ -470,7 +477,7 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
          * ícono de nota musical de siempre, pero ahora sobre un fondo recortado a
          * la forma elegida en Ajustes > Apariencia, en vez del cuadrado fijo.
          */
-        private fun buildPlaceholderArt(context: Context, shape: AlbumArtShapeType): Bitmap {
+        private fun buildPlaceholderArt(context: Context, shape: AlbumArtShapeType, design: CoverDesign? = null): Bitmap {
             val size = PLACEHOLDER_ART_SIZE_PX
             val base = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(base)
@@ -484,7 +491,7 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                 icon.draw(canvas)
             }
 
-            return clipToShape(base, shape, cornerRadiusPx = size * 20f / 48f)
+            return clipToShape(base, shape, cornerRadiusPx = size * 20f / 48f, design = design)
         }
 
         /**
@@ -496,15 +503,28 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
         // internal (antes private): la reusa MusicFlameVinylWidgetProvider para
         // recortar el disco del widget "Vinilo" a la misma forma VINYL exacta
         // (círculo + surcos + hoyo central) sin duplicar esta geometría.
-        internal fun clipToShape(bitmap: Bitmap, shape: AlbumArtShapeType, cornerRadiusPx: Float): Bitmap {
+        //
+        // [design] solo se usa con shape == CUSTOM (editor de diseños de carátula).
+        internal fun clipToShape(
+            bitmap: Bitmap,
+            shape: AlbumArtShapeType,
+            cornerRadiusPx: Float,
+            design: CoverDesign? = null
+        ): Bitmap {
             val w = bitmap.width.toFloat()
             val h = bitmap.height.toFloat()
             val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
             val canvas = Canvas(output)
             val paint = Paint(Paint.ANTI_ALIAS_FLAG)
 
-            canvas.drawPath(clipPathFor(shape, w, h, cornerRadiusPx), paint)
+            canvas.drawPath(clipPathFor(shape, w, h, cornerRadiusPx, design), paint)
             paint.xfermode = PorterDuffXfermode(PorterDuff.Mode.SRC_IN)
+            // Transparencia del diseño personalizado: con SRC_IN el alpha del paint se
+            // multiplica con el de la máscara, así que la carátula queda translúcida
+            // dentro de la figura (igual que Modifier.alpha en AlbumArt.kt).
+            if (shape == AlbumArtShapeType.CUSTOM && design != null) {
+                paint.alpha = (design.opacity * 255f).toInt().coerceIn(0, 255)
+            }
             canvas.drawBitmap(bitmap, 0f, 0f, paint)
 
             // Detalle de disco de vinilo (surcos + hoyo central), igual que
@@ -522,8 +542,31 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
          * portada de androidx.compose.ui.graphics.Path a android.graphics.Path
          * porque RemoteViews no puede usar Compose.
          */
-        private fun clipPathFor(shape: AlbumArtShapeType, w: Float, h: Float, cornerRadiusPx: Float): Path {
+        private fun clipPathFor(
+            shape: AlbumArtShapeType,
+            w: Float,
+            h: Float,
+            cornerRadiusPx: Float,
+            design: CoverDesign? = null
+        ): Path {
             return when (shape) {
+                AlbumArtShapeType.CUSTOM -> Path().apply {
+                    if (design != null) {
+                        // Misma geometría que CustomCoverShape en AlbumArt.kt (Compose):
+                        // CoverShapeGeometry dibuja sobre un android.graphics.Path.
+                        CoverShapeGeometry.build(
+                            sink = AndroidPathSink(this),
+                            isStar = design.figure == CoverFigure.STAR,
+                            sides = design.sides,
+                            roundness = design.roundness,
+                            width = w,
+                            height = h
+                        )
+                    } else {
+                        // Diseño borrado o ilegible: mismo respaldo que AlbumArt() (cuadrado redondeado).
+                        addRoundRect(RectF(0f, 0f, w, h), cornerRadiusPx, cornerRadiusPx, Path.Direction.CW)
+                    }
+                }
                 AlbumArtShapeType.CIRCLE, AlbumArtShapeType.VINYL -> Path().apply {
                     addOval(RectF(0f, 0f, w, h), Path.Direction.CW)
                 }
@@ -557,6 +600,15 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                     addRoundRect(RectF(0f, 0f, w, h), cornerRadiusPx, cornerRadiusPx, Path.Direction.CW)
                 }
             }
+        }
+
+        /** Adaptador de CoverShapeGeometry (pura, sin Android) a android.graphics.Path. */
+        private class AndroidPathSink(private val path: Path) : CoverPathSink {
+            override fun moveTo(x: Float, y: Float) = path.moveTo(x, y)
+            override fun lineTo(x: Float, y: Float) = path.lineTo(x, y)
+            override fun cubicTo(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) =
+                path.cubicTo(x1, y1, x2, y2, x3, y3)
+            override fun close() = path.close()
         }
 
         /** Surcos finos + hoyo central, misma geometría que VinylOverlay() en AlbumArt.kt (Compose). */

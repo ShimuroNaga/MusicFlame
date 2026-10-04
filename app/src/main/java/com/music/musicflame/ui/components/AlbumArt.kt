@@ -23,9 +23,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
@@ -49,6 +51,11 @@ import coil.fetch.Fetcher
 import coil.request.ImageRequest
 import coil.request.Options
 import com.music.musicflame.AlbumArtShapeType
+import com.music.musicflame.LocalCustomCoverDesign
+import com.music.musicflame.data.CoverDesign
+import com.music.musicflame.data.CoverFigure
+import com.music.musicflame.ui.utils.CoverPathSink
+import com.music.musicflame.ui.utils.CoverShapeGeometry
 import com.music.musicflame.data.ArtworkCacheRepository
 import com.music.musicflame.data.ArtworkSource
 import kotlinx.coroutines.Dispatchers
@@ -100,16 +107,48 @@ private class SquircleShape(private val n: Double = 4.0) : Shape {
     }
 }
 
+// Adaptador: la geometría de CoverShapeGeometry (pura, sin Android) dibuja sobre un
+// androidx.compose.ui.graphics.Path. Los widgets usan el mismo código con android.graphics.Path.
+private class ComposePathSink(private val path: Path) : CoverPathSink {
+    override fun moveTo(x: Float, y: Float) = path.moveTo(x, y)
+    override fun lineTo(x: Float, y: Float) = path.lineTo(x, y)
+    override fun cubicTo(x1: Float, y1: Float, x2: Float, y2: Float, x3: Float, y3: Float) =
+        path.cubicTo(x1, y1, x2, y2, x3, y3)
+    override fun close() = path.close()
+}
+
+// Forma del diseño personalizado del usuario (polígono / estrella con redondeo).
+private class CustomCoverShape(private val design: CoverDesign) : Shape {
+    override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
+        val path = Path()
+        CoverShapeGeometry.build(
+            sink = ComposePathSink(path),
+            isStar = design.figure == CoverFigure.STAR,
+            sides = design.sides,
+            roundness = design.roundness,
+            width = size.width,
+            height = size.height
+        )
+        return Outline.Generic(path)
+    }
+}
+
 // Devuelve la Shape de recorte que corresponde a cada estilo de carátula.
 // Centralizado aquí para que AlbumArt() y la vista previa del selector de Ajustes
 // usen exactamente la misma geometría.
-private fun clipShapeFor(shape: AlbumArtShapeType, cornerRadius: Dp): Shape = when (shape) {
+// CUSTOM sin diseño disponible (p. ej. se borró el diseño activo) cae a cuadrado redondeado.
+private fun clipShapeFor(shape: AlbumArtShapeType, cornerRadius: Dp, design: CoverDesign? = null): Shape = when (shape) {
     AlbumArtShapeType.CIRCLE -> CircleShape
     AlbumArtShapeType.VINYL -> CircleShape
     AlbumArtShapeType.HEXAGON -> HexagonShape()
     AlbumArtShapeType.SQUIRCLE -> SquircleShape()
     AlbumArtShapeType.SQUARE -> RoundedCornerShape(cornerRadius)
+    AlbumArtShapeType.CUSTOM -> if (design != null) CustomCoverShape(design) else RoundedCornerShape(cornerRadius)
 }
+
+// Transparencia del diseño personalizado; 1f (sin efecto) para cualquier otra forma.
+private fun coverAlphaFor(shape: AlbumArtShapeType, design: CoverDesign?): Float =
+    if (shape == AlbumArtShapeType.CUSTOM && design != null) design.opacity else 1f
 
 // Surcos finos + hoyo central del disco de vinilo, dibujados encima del contenido.
 @Composable
@@ -141,19 +180,49 @@ private fun VinylOverlay(size: Dp) {
 fun AlbumArtShapePreview(
     shape: AlbumArtShapeType,
     size: Dp = 40.dp,
-    color: Color = MaterialTheme.colorScheme.primary
+    color: Color = MaterialTheme.colorScheme.primary,
+    // Solo se usa cuando shape == CUSTOM: el diseño a dibujar.
+    customDesign: CoverDesign? = null
 ) {
-    val clipShape = remember(shape) { clipShapeFor(shape, size / 5) }
+    val clipShape = remember(shape, customDesign) { clipShapeFor(shape, size / 5, customDesign) }
     Box(
         modifier = Modifier
             .size(size)
             .clip(clipShape)
+            .alpha(coverAlphaFor(shape, customDesign))
             .background(color),
         contentAlignment = Alignment.Center
     ) {
         if (shape == AlbumArtShapeType.VINYL) {
             VinylOverlay(size)
         }
+    }
+}
+
+// Vista previa de un diseño con un degradado vistoso en vez de una carátula real.
+// La usa el editor de diseños cuando no hay ninguna canción con carátula para mostrar:
+// el degradado deja ver bien el redondeo, la cantidad de caras y la transparencia.
+@Composable
+fun CoverDesignSwatch(design: CoverDesign, size: Dp) {
+    val clipShape = remember(design) { CustomCoverShape(design) }
+    Box(
+        modifier = Modifier
+            .size(size)
+            .clip(clipShape)
+            .alpha(design.opacity)
+            .background(
+                Brush.linearGradient(
+                    listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.tertiary)
+                )
+            ),
+        contentAlignment = Alignment.Center
+    ) {
+        Icon(
+            Icons.Filled.MusicNote,
+            contentDescription = null,
+            modifier = Modifier.size(size / 3),
+            tint = Color.White.copy(alpha = 0.85f)
+        )
     }
 }
 
@@ -263,11 +332,17 @@ fun AlbumArt(
     // usuario (Song.hasCustomCover / Album.albumArtIsCustom), y no la URI
     // "de fábrica" de MediaStore por álbum. Los llamadores deben pasar este
     // flag; por defecto es false (URI de fábrica).
-    isCustomCover: Boolean = false
+    isCustomCover: Boolean = false,
+    // NUEVO: diseño personalizado a usar cuando shape == CUSTOM. Si es null se toma el
+    // diseño activo de la app (LocalCustomCoverDesign). El editor de diseños lo pasa
+    // explícito para mostrar el borrador que se está editando.
+    customDesign: CoverDesign? = null
 ) {
     val context = LocalContext.current
 
-    val clipShape = remember(shape, cornerRadius) { clipShapeFor(shape, cornerRadius) }
+    val activeDesign = customDesign ?: LocalCustomCoverDesign.current
+    val clipShape = remember(shape, cornerRadius, activeDesign) { clipShapeFor(shape, cornerRadius, activeDesign) }
+    val coverAlpha = coverAlphaFor(shape, activeDesign)
 
     // Reutilizamos el mismo ImageLoader compartido en vez de crear uno por fila.
     val imageLoader = remember { SharedAlbumArtImageLoader.get(context) }
@@ -349,7 +424,8 @@ fun AlbumArt(
     Box(
         modifier = Modifier
             .size(size)
-            .clip(clipShape),
+            .clip(clipShape)
+            .alpha(coverAlpha),
         contentAlignment = Alignment.Center
     ) {
         if (effectiveModel != null) {

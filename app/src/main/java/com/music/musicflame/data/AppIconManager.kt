@@ -19,7 +19,8 @@ object AppIconManager {
         "remix" to "$PACKAGE.IconRemixFlame",
         "demonmusic" to "$PACKAGE.IconDemonMusic",
         "musicpika" to "$PACKAGE.IconMusicPika",
-        "shimuflame" to "$PACKAGE.IconShimuFlame"
+        "shimuflame" to "$PACKAGE.IconShimuFlame",
+        "musicbear" to "$PACKAGE.IconMusicBear"
     )
 
     // Mismo mapeo clave->recurso que appIconOptions en SettingsScreen.kt (ahí
@@ -37,7 +38,8 @@ object AppIconManager {
         "remix" to R.mipmap.ic_launcher_remixflame,
         "demonmusic" to R.mipmap.ic_launcher_demonmusic,
         "musicpika" to R.mipmap.ic_launcher_musicpika,
-        "shimuflame" to R.mipmap.ic_launcher_shimuflame
+        "shimuflame" to R.mipmap.ic_launcher_shimuflame,
+        "musicbear" to R.mipmap.ic_launcher_musicbear
     )
 
     fun setIcon(context: Context, key: String) {

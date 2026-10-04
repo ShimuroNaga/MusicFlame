@@ -44,7 +44,8 @@ private val appIconOptions = listOf(
     Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
     Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic),
     Triple("musicpika", "MusicPika", R.mipmap.ic_launcher_musicpika),
-    Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame)
+    Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame),
+    Triple("musicbear", "BearFlame", R.mipmap.ic_launcher_musicbear)
 )
 
 // Mismos labels que muestra el diálogo de forma de carátula en SettingsScreen.kt

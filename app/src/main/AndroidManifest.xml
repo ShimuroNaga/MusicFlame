@@ -270,6 +270,25 @@
                 android:resource="@xml/shortcuts" />
         </activity-alias>
 
+        <!-- Alias: icono BearFlame (arte de Bear Spring; cambia también el nombre a BearFlame) -->
+        <activity-alias
+            android:name=".IconMusicBear"
+            android:targetActivity=".MainActivity"
+            android:enabled="false"
+            android:exported="true"
+            android:icon="@mipmap/ic_launcher_musicbear"
+            android:roundIcon="@mipmap/ic_launcher_musicbear"
+            android:label="@string/app_name_musicbear"
+            android:theme="@style/Theme.MusicFlame">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
+        </activity-alias>
+
         <service
             android:name=".data.MusicPlaybackService"
             android:foregroundServiceType="mediaPlayback"

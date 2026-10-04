@@ -285,7 +285,8 @@ fun SettingsScreen(
             Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
             Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic),
             Triple("musicpika", "MusicPika", R.mipmap.ic_launcher_musicpika),
-            Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame)
+            Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame),
+            Triple("musicbear", "BearFlame", R.mipmap.ic_launcher_musicbear)
         )
     }
 
@@ -1771,10 +1772,12 @@ fun SettingsScreen(
                             )
                         }
 
+                        item { sectionHeader("Colaboraciones") }
+
                         item {
                             ListItem(
-                                headlineContent = { Text("Colaboraciones") },
-                                supportingContent = { Text("GreenyPika") },
+                                headlineContent = { Text("GreenyPika") },
+                                supportingContent = { Text("Artista") },
                                 leadingContent = {
                                     Image(
                                         painter = painterResource(id = R.drawable.ic_artist_greenypika),
@@ -1788,6 +1791,29 @@ fun SettingsScreen(
                                 colors = listItemColors,
                                 modifier = Modifier.clickable {
                                     val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://open.spotify.com/artist/0jaY21Zd3ouygWqNdIpr8N?si=3IVegY4ESPuKJyJTLgiU9A&utm_source=copy-link"))
+                                    context.startActivity(intent)
+                                }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            ListItem(
+                                headlineContent = { Text("Bear Spring") },
+                                supportingContent = { Text("Artista") },
+                                leadingContent = {
+                                    Image(
+                                        painter = painterResource(id = R.drawable.ic_artist_bearspring),
+                                        contentDescription = "Bear Spring",
+                                        contentScale = ContentScale.Crop,
+                                        modifier = Modifier
+                                            .size(40.dp)
+                                            .clip(CircleShape)
+                                    )
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable {
+                                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/berspring7"))
                                     context.startActivity(intent)
                                 }
                             )

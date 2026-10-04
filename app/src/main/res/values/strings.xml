@@ -11,6 +11,7 @@
     <string name="app_name_demonmusic">DemonMusic</string>
     <string name="app_name_musicpika">MusicPika</string>
     <string name="app_name_shimuflame">ShimuFlame</string>
+    <string name="app_name_musicbear">BearFlame</string>
 
     <!-- Widget de home screen -->
     <string name="widget_music_flame_description">Reproductor compacto de MusicFlame: carátula, nombre de la canción, play/pause y siguiente (agrándalo para tener también un botón de anterior).</string>

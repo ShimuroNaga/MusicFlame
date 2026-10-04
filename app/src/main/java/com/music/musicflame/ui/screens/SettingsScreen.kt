@@ -127,6 +127,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.res.painterResource
+import com.music.musicflame.audio.EqPresets
 import com.music.musicflame.R
 import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.SettingsRepository
@@ -654,7 +655,7 @@ fun SettingsScreen(
                                                 showSavingsGoalTokenDialog = false
                                                 if (!saved) {
                                                     savingsGoalError = "No se pudo guardar el token: " +
-                                                        (savingsGoalRepo.secureStorageError() ?: "error desconocido")
+                                                            (savingsGoalRepo.secureStorageError() ?: "error desconocido")
                                                 }
                                             }
                                         }) { Text("Guardar") }
@@ -3439,11 +3440,16 @@ fun SettingsScreen(
             val tempVolume = remember { mutableStateOf(eqVolume.value) }
             val tempLoudness = remember { mutableStateOf(sharedPrefs.getFloat("loudness_enhancer", 0f)) }
             val tempReverb = remember { mutableStateOf(sharedPrefs.getInt("reverb_preset", 0)) }
+            // MODO PRO EXCLUSIVO: con Pro desbloqueado (o cuenta dueña) y este modo activo (default),
+            // MusicPlaybackService APAGA el Equalizer nativo de 5 bandas por completo, así que los
+            // sliders de este diálogo no se oían. Aquí se muestra el estado y se puede apagar.
+            val proEqAvailable = com.music.musicflame.data.ProStatusHolder.isItemUnlocked("pro_eq_10band")
+            val proExclusiveOn = remember { mutableStateOf(sharedPrefs.getBoolean("pro_eq_exclusive", true)) }
             val showSaveCustomDialog = remember { mutableStateOf(false) }
             val customPresetName = remember { mutableStateOf("") }
             val customNamesString = sharedPrefs.getString("custom_preset_names", "") ?: ""
             val customPresetsList = if (customNamesString.isNotEmpty()) customNamesString.split(",") else emptyList()
-            val basePresets = listOf("Flat", "Rock", "Pop", "Hip hop", "Jazz", "Classical", "Electronico", "Refuerzo de graves", "Refuerzo de agudos", "Vocales", "Customizar")
+            val basePresets = listOf("Flat", "Rock", "Pop", "Hip hop", "Jazz", "Classical", "Electronico", "Refuerzo de graves", "Refuerzo de agudos", "Vocales") + EqPresets.FREE_NAMES + "Customizar"
             val allPresets = basePresets + customPresetsList
 
             // ARREGLO GRATIS: antes las 5 frecuencias (60/230/910/3600/14000 Hz) estaban
@@ -3486,7 +3492,7 @@ fun SettingsScreen(
                 "Refuerzo de graves" to listOf(0.9f, 0.5f, 0f, 0f, 0f),
                 "Refuerzo de agudos" to listOf(0f, 0f, 0f, 0.5f, 0.9f),
                 "Vocales" to listOf(-0.2f, 0f, 0.6f, 0.4f, -0.1f)
-            )
+            ) + EqPresets.FREE_BANDS
 
             Dialog(
                 onDismissRequest = { showEqualizerDialog.value = false },
@@ -3537,6 +3543,41 @@ fun SettingsScreen(
 
                         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
                             item { Spacer(Modifier.height(8.dp)) }
+                            if (proEqAvailable) {
+                                item {
+                                    Card(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        colors = CardDefaults.cardColors(
+                                            containerColor = if (proExclusiveOn.value) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.surfaceContainer
+                                        )
+                                    ) {
+                                        Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
+                                            Column(modifier = Modifier.weight(1f)) {
+                                                Text(
+                                                    if (proExclusiveOn.value) "Modo PRO exclusivo activo" else "Modo PRO exclusivo apagado",
+                                                    fontWeight = FontWeight.Black, fontSize = 14.sp
+                                                )
+                                                Text(
+                                                    if (proExclusiveOn.value) "Este ecualizador de 5 bandas está silenciado: solo suena el EQ Pro de 10 bandas. Apaga el modo para que estos sliders se escuchen."
+                                                    else "Este ecualizador de 5 bandas suena junto con el EQ Pro. Si el Pro tiene bandas movidas, se suman.",
+                                                    fontSize = 12.sp
+                                                )
+                                            }
+                                            Switch(
+                                                checked = proExclusiveOn.value,
+                                                onCheckedChange = { on ->
+                                                    proExclusiveOn.value = on
+                                                    sharedPrefs.edit().putBoolean("pro_eq_exclusive", on).apply()
+                                                    // Sin extras: el servicio solo relee el estado y reaplica.
+                                                    val sync = Intent("com.music.musicflame.UPDATE_EQ")
+                                                    sync.setPackage(context.packageName)
+                                                    context.sendBroadcast(sync)
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                             item {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                                     Text("Ajustes Preestablecidos", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
@@ -3556,6 +3597,7 @@ fun SettingsScreen(
                                                     for (i in 0 until 5) tempSliders[i].value = config[i]
                                                     if (preset == "Flat") { tempBass.value = 0f; tempVirtualizer.value = 0f; tempLoudness.value = 0f; tempReverb.value = 0 }
                                                     if (preset == "Refuerzo de graves") tempBass.value = 100f
+                                                    EqPresets.FREE_BASS[preset]?.let { tempBass.value = it }
                                                 } else {
                                                     val savedBands = sharedPrefs.getString("preset_${preset}_bands", "")
                                                     if (savedBands != null && savedBands.isNotEmpty()) {

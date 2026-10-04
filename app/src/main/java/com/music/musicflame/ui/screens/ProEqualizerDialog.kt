@@ -46,6 +46,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import com.music.musicflame.audio.EqPresets
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
 import com.music.musicflame.data.ProStatusHolder
 import kotlinx.coroutines.FlowPreview
@@ -209,7 +210,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                                     "Super Bass" to FloatArray(bandCount) { i -> if (i in 0..2) 9f else 0f },
                                     "Vocal Clarity" to FloatArray(bandCount) { i -> if (i in 5..6) 6f else 0f },
                                     "Treble Boost" to FloatArray(bandCount) { i -> if (i in 8..9) 8f else 0f }
-                                )
+                                ) + EqPresets.PRO
                             }
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 items(presets) { (name, gains) ->

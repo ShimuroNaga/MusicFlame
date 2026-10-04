@@ -76,6 +76,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
@@ -178,6 +180,7 @@ fun SettingsScreen(
     onRoundCornersChanged: (Boolean) -> Unit = {},
     onAlbumGridColumnsChanged: (Int) -> Unit = {},
     onAlbumArtShapeChanged: (com.music.musicflame.AlbumArtShapeType) -> Unit = {},
+    onCoverDesignChanged: (com.music.musicflame.data.CoverDesign?) -> Unit = {},
     hasBackgroundImage: Boolean = false,
     isUserSignedIn: Boolean = false,
     userName: String? = null,
@@ -258,6 +261,16 @@ fun SettingsScreen(
     }
     val albumArtShapePref = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
     val showAlbumArtShapeDialog = remember { mutableStateOf(false) }
+    // --- Editor de diseños de carátula (Forma de la carátula > "+ Crear diseño") ---
+    val coverDesigns = remember { mutableStateOf(settingsRepo.getCoverDesigns()) }
+    val activeCoverDesignId = remember { mutableStateOf(settingsRepo.getActiveCoverDesignId()) }
+    // Selección provisional del diálogo de forma (se aplica con "Guardar"). Viven aquí,
+    // y no dentro del diálogo, para que el editor pueda dejar marcado el diseño recién guardado.
+    val shapeDialogShape = remember { mutableStateOf(albumArtShapePref.value) }
+    val shapeDialogDesignId = remember { mutableStateOf<String?>(null) }
+    val showCoverEditor = remember { mutableStateOf(false) }
+    val editingCoverDesign = remember { mutableStateOf<com.music.musicflame.data.CoverDesign?>(null) }
+    val coverDesignToDelete = remember { mutableStateOf<com.music.musicflame.data.CoverDesign?>(null) }
     val iconPickerExpanded = remember { mutableStateOf(false) }
     val selectedAppIcon = remember { mutableStateOf(settingsRepo.getSelectedAppIcon()) }
     val appIconOptions = remember {
@@ -1249,10 +1262,17 @@ fun SettingsScreen(
                                             com.music.musicflame.AlbumArtShapeType.HEXAGON -> "Hexágono"
                                             com.music.musicflame.AlbumArtShapeType.VINYL -> "Vinilo"
                                             com.music.musicflame.AlbumArtShapeType.SQUIRCLE -> "Squircle"
+                                            com.music.musicflame.AlbumArtShapeType.CUSTOM ->
+                                                coverDesigns.value.firstOrNull { it.id == activeCoverDesignId.value }?.name ?: "Personalizado"
                                         }
                                     )
                                 },
-                                trailingContent = { TextButton(onClick = { showAlbumArtShapeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                trailingContent = { TextButton(onClick = {
+                                    // El diálogo arranca mostrando lo que está aplicado ahora mismo.
+                                    shapeDialogShape.value = albumArtShapePref.value
+                                    shapeDialogDesignId.value = activeCoverDesignId.value
+                                    showAlbumArtShapeDialog.value = true
+                                }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -2731,12 +2751,11 @@ fun SettingsScreen(
         }
 
         if (showAlbumArtShapeDialog.value) {
-            val tempShape = remember { mutableStateOf(albumArtShapePref.value) }
             AlertDialog(
                 onDismissRequest = { showAlbumArtShapeDialog.value = false },
                 title = { Text("Forma de la carátula", fontWeight = FontWeight.Bold) },
                 text = {
-                    Column {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         listOf(
                             com.music.musicflame.AlbumArtShapeType.SQUARE to "Cuadrado",
                             com.music.musicflame.AlbumArtShapeType.CIRCLE to "Círculo",
@@ -2744,12 +2763,12 @@ fun SettingsScreen(
                             com.music.musicflame.AlbumArtShapeType.VINYL to "Vinilo",
                             com.music.musicflame.AlbumArtShapeType.SQUIRCLE to "Squircle"
                         ).forEach { (shape, label) ->
-                            val isSelected = tempShape.value == shape
+                            val isSelected = shapeDialogShape.value == shape
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .clickable { tempShape.value = shape }
+                                    .clickable { shapeDialogShape.value = shape }
                                     .padding(vertical = 10.dp)
                             ) {
                                 com.music.musicflame.ui.components.AlbumArtShapePreview(
@@ -2764,20 +2783,152 @@ fun SettingsScreen(
                                     fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                                     modifier = Modifier.weight(1f)
                                 )
-                                RadioButton(selected = isSelected, onClick = { tempShape.value = shape })
+                                RadioButton(selected = isSelected, onClick = { shapeDialogShape.value = shape })
                             }
+                        }
+
+                        // --- Diseños propios ---
+                        HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                        Text(
+                            "Mis diseños",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                        coverDesigns.value.forEach { design ->
+                            val isSelected = shapeDialogShape.value == com.music.musicflame.AlbumArtShapeType.CUSTOM && shapeDialogDesignId.value == design.id
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable {
+                                        shapeDialogShape.value = com.music.musicflame.AlbumArtShapeType.CUSTOM
+                                        shapeDialogDesignId.value = design.id
+                                    }
+                                    .padding(vertical = 6.dp)
+                            ) {
+                                com.music.musicflame.ui.components.AlbumArtShapePreview(
+                                    shape = com.music.musicflame.AlbumArtShapeType.CUSTOM,
+                                    size = 40.dp,
+                                    color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant,
+                                    customDesign = design
+                                )
+                                Spacer(Modifier.width(14.dp))
+                                Text(
+                                    design.name,
+                                    fontSize = 14.sp,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = {
+                                    editingCoverDesign.value = design
+                                    showCoverEditor.value = true
+                                }) { Icon(Icons.Filled.Edit, contentDescription = "Editar diseño") }
+                                IconButton(onClick = { coverDesignToDelete.value = design }) {
+                                    Icon(Icons.Filled.Delete, contentDescription = "Borrar diseño")
+                                }
+                                RadioButton(selected = isSelected, onClick = {
+                                    shapeDialogShape.value = com.music.musicflame.AlbumArtShapeType.CUSTOM
+                                    shapeDialogDesignId.value = design.id
+                                })
+                            }
+                        }
+                        TextButton(
+                            onClick = {
+                                editingCoverDesign.value = null
+                                showCoverEditor.value = true
+                            },
+                            modifier = Modifier.padding(top = 4.dp)
+                        ) {
+                            Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp))
+                            Text("Crear diseño", fontWeight = FontWeight.Bold)
                         }
                     }
                 },
                 confirmButton = {
                     Button(onClick = {
-                        settingsRepo.saveAlbumArtShape(tempShape.value)
-                        albumArtShapePref.value = tempShape.value
-                        onAlbumArtShapeChanged(tempShape.value)
+                        // Un diseño propio solo es válido si todavía existe en la lista.
+                        val chosenDesign = if (shapeDialogShape.value == com.music.musicflame.AlbumArtShapeType.CUSTOM)
+                            coverDesigns.value.firstOrNull { it.id == shapeDialogDesignId.value }
+                        else null
+                        val finalShape = if (shapeDialogShape.value == com.music.musicflame.AlbumArtShapeType.CUSTOM && chosenDesign == null)
+                            com.music.musicflame.AlbumArtShapeType.SQUARE
+                        else shapeDialogShape.value
+                        settingsRepo.saveAlbumArtShape(finalShape)
+                        if (chosenDesign != null) {
+                            settingsRepo.saveActiveCoverDesignId(chosenDesign.id)
+                            activeCoverDesignId.value = chosenDesign.id
+                        }
+                        albumArtShapePref.value = finalShape
+                        onAlbumArtShapeChanged(finalShape)
+                        onCoverDesignChanged(settingsRepo.getActiveCoverDesign())
+                        // Los widgets leen la forma al dibujarse: refrescarlos para que la tomen ya.
+                        MusicFlameWidgetProvider.refreshAllWidgets(context)
                         showAlbumArtShapeDialog.value = false
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showAlbumArtShapeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        // Editor de diseños (pantalla completa, con vista previa en vivo).
+        if (showCoverEditor.value) {
+            com.music.musicflame.ui.components.CoverDesignEditorDialog(
+                initial = editingCoverDesign.value,
+                previewSong = playerManager.currentSong.value,
+                onDismiss = { showCoverEditor.value = false },
+                onSave = { saved ->
+                    val list = coverDesigns.value
+                    val updated = if (list.any { it.id == saved.id }) list.map { if (it.id == saved.id) saved else it } else list + saved
+                    settingsRepo.saveCoverDesigns(updated)
+                    coverDesigns.value = updated
+                    // Si se editó el diseño que está en uso, se aplica al instante (app y widgets).
+                    if (albumArtShapePref.value == com.music.musicflame.AlbumArtShapeType.CUSTOM && activeCoverDesignId.value == saved.id) {
+                        onCoverDesignChanged(saved)
+                        MusicFlameWidgetProvider.refreshAllWidgets(context)
+                    }
+                    // El diálogo de forma deja marcado el diseño recién guardado (se aplica con "Guardar").
+                    shapeDialogShape.value = com.music.musicflame.AlbumArtShapeType.CUSTOM
+                    shapeDialogDesignId.value = saved.id
+                    showCoverEditor.value = false
+                }
+            )
+        }
+
+        // Confirmación antes de borrar un diseño.
+        coverDesignToDelete.value?.let { design ->
+            AlertDialog(
+                onDismissRequest = { coverDesignToDelete.value = null },
+                title = { Text("Borrar diseño", fontWeight = FontWeight.Bold) },
+                text = { Text("¿Borrar \"${design.name}\"? Esta acción no se puede deshacer.") },
+                confirmButton = {
+                    TextButton(onClick = {
+                        val remaining = coverDesigns.value.filter { it.id != design.id }
+                        settingsRepo.saveCoverDesigns(remaining)
+                        coverDesigns.value = remaining
+                        if (shapeDialogDesignId.value == design.id) {
+                            shapeDialogDesignId.value = null
+                            if (shapeDialogShape.value == com.music.musicflame.AlbumArtShapeType.CUSTOM) shapeDialogShape.value = com.music.musicflame.AlbumArtShapeType.SQUARE
+                        }
+                        // Si era el diseño en uso, vuelve a cuadrado para no dejar una forma sin definición.
+                        if (activeCoverDesignId.value == design.id) {
+                            settingsRepo.saveActiveCoverDesignId(null)
+                            activeCoverDesignId.value = null
+                            if (albumArtShapePref.value == com.music.musicflame.AlbumArtShapeType.CUSTOM) {
+                                settingsRepo.saveAlbumArtShape(com.music.musicflame.AlbumArtShapeType.SQUARE)
+                                albumArtShapePref.value = com.music.musicflame.AlbumArtShapeType.SQUARE
+                                onAlbumArtShapeChanged(com.music.musicflame.AlbumArtShapeType.SQUARE)
+                            }
+                            onCoverDesignChanged(null)
+                            MusicFlameWidgetProvider.refreshAllWidgets(context)
+                        }
+                        coverDesignToDelete.value = null
+                    }) { Text("Borrar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { coverDesignToDelete.value = null }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

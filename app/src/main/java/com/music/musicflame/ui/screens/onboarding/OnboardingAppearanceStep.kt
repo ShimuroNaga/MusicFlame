@@ -26,8 +26,10 @@ import coil.compose.AsyncImage
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.R
 import com.music.musicflame.data.AppIconManager
+import com.music.musicflame.data.CoverDesign
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.ui.components.AlbumArtShapePreview
+import com.music.musicflame.ui.components.CoverDesignEditorDialog
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.ui.theme.parseCustomTextColor
 
@@ -52,6 +54,7 @@ private fun shapeLabel(shape: AlbumArtShapeType) = when (shape) {
     AlbumArtShapeType.HEXAGON -> "Hexágono"
     AlbumArtShapeType.VINYL -> "Vinilo"
     AlbumArtShapeType.SQUIRCLE -> "Squircle"
+    AlbumArtShapeType.CUSTOM -> "Personalizado"
 }
 
 // Mismos textos exactos que usa MusicFlameTheme para leer/guardar "app_theme"
@@ -77,6 +80,10 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
     var selectedIcon by remember { mutableStateOf(settingsRepo.getSelectedAppIcon()) }
     var selectedTheme by remember { mutableStateOf(settingsRepo.getAppTheme()) }
     var selectedShape by remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
+    // Diseños propios (editor de carátulas): se muestran junto a las formas fijas.
+    var coverDesigns by remember { mutableStateOf(settingsRepo.getCoverDesigns()) }
+    var selectedDesignId by remember { mutableStateOf(settingsRepo.getActiveCoverDesignId()) }
+    var showCoverEditor by remember { mutableStateOf(false) }
     // "Negro" y "Blanco" se fusionaron en una sola opción "Adaptativo": MusicFlameTheme
     // siempre auto-corrige el color de texto contra la luminancia real del fondo (ver
     // Theme.kt), así que mantenerlos como dos presets separados era engañoso — daba a
@@ -92,6 +99,26 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
         )
     }
     var customTextColorHex by remember { mutableStateOf(settingsRepo.getCustomTextColorHex()) }
+
+    if (showCoverEditor) {
+        CoverDesignEditorDialog(
+            initial = null,
+            previewSong = null,
+            onDismiss = { showCoverEditor = false },
+            onSave = { saved ->
+                // En el onboarding cada opción se aplica al tocarla, así que el diseño
+                // recién creado queda elegido de una vez.
+                val updated = coverDesigns + saved
+                settingsRepo.saveCoverDesigns(updated)
+                settingsRepo.saveActiveCoverDesignId(saved.id)
+                settingsRepo.saveAlbumArtShape(AlbumArtShapeType.CUSTOM)
+                coverDesigns = updated
+                selectedDesignId = saved.id
+                selectedShape = AlbumArtShapeType.CUSTOM
+                showCoverEditor = false
+            }
+        )
+    }
 
     LazyColumn(
         modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)
@@ -282,7 +309,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(AlbumArtShapeType.entries.toList()) { shape ->
+                items(AlbumArtShapeType.entries.filter { it != AlbumArtShapeType.CUSTOM }) { shape ->
                     val isSelected = selectedShape == shape
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -308,6 +335,65 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
                             color = if (isSelected) trailingColor else mediumEmphasis
                         )
+                    }
+                }
+
+                // Diseños propios ya creados
+                items(coverDesigns, key = { it.id }) { design ->
+                    val isSelected = selectedShape == AlbumArtShapeType.CUSTOM && selectedDesignId == design.id
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable {
+                            selectedShape = AlbumArtShapeType.CUSTOM
+                            selectedDesignId = design.id
+                            settingsRepo.saveAlbumArtShape(AlbumArtShapeType.CUSTOM)
+                            settingsRepo.saveActiveCoverDesignId(design.id)
+                        }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .background(
+                                    if (isSelected) trailingColor.copy(alpha = 0.15f) else Color.Transparent,
+                                    RoundedCornerShape(16.dp)
+                                )
+                                .padding(8.dp)
+                        ) {
+                            AlbumArtShapePreview(
+                                shape = AlbumArtShapeType.CUSTOM,
+                                size = 44.dp,
+                                color = trailingColor,
+                                customDesign = design
+                            )
+                        }
+                        Text(
+                            design.name,
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+                            color = if (isSelected) trailingColor else mediumEmphasis,
+                            modifier = Modifier.widthIn(max = 72.dp)
+                        )
+                    }
+                }
+
+                // "+ Crear diseño": abre el editor
+                item {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.clickable { showCoverEditor = true }
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .padding(4.dp)
+                                .padding(8.dp)
+                                .size(44.dp)
+                                .border(1.5.dp, trailingColor, RoundedCornerShape(12.dp)),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                        }
+                        Text("Crear diseño", fontSize = 12.sp, color = mediumEmphasis)
                     }
                 }
             }

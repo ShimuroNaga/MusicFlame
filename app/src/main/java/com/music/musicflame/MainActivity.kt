@@ -75,9 +75,14 @@ val LocalUseRoundCorners = compositionLocalOf { true }
 
 // --- FORMA DE LA CARÁTULA (configurable desde Ajustes > Apariencia) ---
 enum class AlbumArtShapeType {
-    SQUARE, CIRCLE, HEXAGON, VINYL, SQUIRCLE
+    SQUARE, CIRCLE, HEXAGON, VINYL, SQUIRCLE,
+    // Diseño propio del usuario (editor en Ajustes > Apariencia > Forma de la carátula).
+    // El diseño concreto en uso viaja en LocalCustomCoverDesign.
+    CUSTOM
 }
 val LocalAlbumArtShape = compositionLocalOf { AlbumArtShapeType.SQUARE }
+// Diseño activo cuando LocalAlbumArtShape == CUSTOM. null = no hay (AlbumArt cae a cuadrado).
+val LocalCustomCoverDesign = compositionLocalOf<com.music.musicflame.data.CoverDesign?> { null }
 
 // --- CANTIDAD DE CARÁTULAS POR RENGLÓN EN ÁLBUMES (configurable desde Ajustes > Apariencia) ---
 val LocalAlbumGridColumns = compositionLocalOf { 2 }
@@ -288,6 +293,7 @@ class MainActivity : ComponentActivity() {
                 val hasBackgroundImage = backgroundImageUri.value != null || playerGifUri.value != null
                 val useRoundCornersState = remember { mutableStateOf(settingsRepo.getUseRoundCorners()) }
                 val albumArtShapeState = remember { mutableStateOf(settingsRepo.getAlbumArtShape()) }
+                val customCoverDesignState = remember { mutableStateOf(settingsRepo.getActiveCoverDesign()) }
                 val albumGridColumnsState = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
 
                 val pagerState = rememberPagerState(pageCount = { bottomNavItems.size })
@@ -456,7 +462,7 @@ class MainActivity : ComponentActivity() {
                     }
                 }
 
-                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
+                CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalCustomCoverDesign provides customCoverDesignState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
                     BackHandler(enabled = showFullScreenPlayer || isAnySelectionMode) {
                         if (showFullScreenPlayer) showFullScreenPlayer = false
                         else {
@@ -961,6 +967,7 @@ class MainActivity : ComponentActivity() {
                                     onRoundCornersChanged = { newState -> useRoundCornersState.value = newState },
                                     onAlbumGridColumnsChanged = { newState -> albumGridColumnsState.value = newState },
                                     onAlbumArtShapeChanged = { newShape -> albumArtShapeState.value = newShape },
+                                    onCoverDesignChanged = { newDesign -> customCoverDesignState.value = newDesign },
                                     hasBackgroundImage = hasBackgroundImage,
                                     isUserSignedIn = isUserLoggedIn,
                                     userName = userName,
@@ -1360,7 +1367,13 @@ class MainActivity : ComponentActivity() {
                                 isUserSignedIn = isUserLoggedIn,
                                 userName = userName,
                                 onSignInClick = { signInLauncher.launch(googleSignInClient.signInIntent) },
-                                onFinished = { showOnboarding = false }
+                                onFinished = {
+                                    showOnboarding = false
+                                    // El onboarding guarda la forma/diseño de carátula directo en las prefs:
+                                    // se vuelven a leer para que se apliquen sin reiniciar la app.
+                                    albumArtShapeState.value = settingsRepo.getAlbumArtShape()
+                                    customCoverDesignState.value = settingsRepo.getActiveCoverDesign()
+                                }
                             )
                         }
                     }

@@ -18,8 +18,9 @@ import org.json.JSONObject
  *   biblioteca (IDs de MediaStore de ESTE dispositivo), no "configuración".
  *
  * Todo lo demás en el archivo de prefs "settings" (tema, colores, tipografía,
- * ecualizador, forma de carátula, ícono elegido, filtros de duración,
- * formatos ocultos, etc.) sí es portátil y se exporta completo leyendo
+ * ecualizador, forma de carátula, diseños de carátula propios ("cover_designs"
+ * y "active_cover_design_id", del editor de Ajustes > Apariencia), ícono elegido,
+ * filtros de duración, formatos ocultos, etc.) sí es portátil y se exporta completo leyendo
  * prefs.all directamente, sin tener que mantener una lista de claves aparte
  * cada vez que se agrega un ajuste nuevo a SettingsRepository.
  */

@@ -84,7 +84,7 @@ class SettingsRepository(context: Context) {
     fun getWidgetBackgroundOpacity(): Float = prefs.getFloat("widget_bg_opacity", 0.8f)
     fun saveWidgetBackgroundOpacity(value: Float) = prefs.edit().putFloat("widget_bg_opacity", value).apply()
 
-    // --- FORMA DE LA CARÁTULA: SQUARE, CIRCLE, HEXAGON, VINYL o SQUIRCLE ---
+    // --- FORMA DE LA CARÁTULA: SQUARE, CIRCLE, HEXAGON, VINYL, SQUIRCLE o CUSTOM (diseño propio) ---
     fun getAlbumArtShape(): com.music.musicflame.AlbumArtShapeType {
         val name = prefs.getString("album_art_shape", com.music.musicflame.AlbumArtShapeType.SQUARE.name)
             ?: com.music.musicflame.AlbumArtShapeType.SQUARE.name
@@ -95,6 +95,29 @@ class SettingsRepository(context: Context) {
         }
     }
     fun saveAlbumArtShape(shape: com.music.musicflame.AlbumArtShapeType) = prefs.edit().putString("album_art_shape", shape.name).apply()
+
+    // --- DISEÑOS DE CARÁTULA PERSONALIZADOS (Ajustes > Apariencia > Forma de la carátula > "+ Crear diseño") ---
+    // Se guardan como un JSON en el mismo archivo de prefs "settings", así que
+    // ConfigExportRepository los exporta/importa junto con el resto de ajustes sin
+    // código extra. getCoverDesigns() valida y recorta cada valor al leer, por si el
+    // JSON vino de un archivo importado o editado a mano.
+    fun getCoverDesigns(): List<com.music.musicflame.data.CoverDesign> =
+        com.music.musicflame.data.CoverDesign.listFromJson(prefs.getString("cover_designs", null))
+
+    fun saveCoverDesigns(designs: List<com.music.musicflame.data.CoverDesign>) =
+        prefs.edit().putString("cover_designs", com.music.musicflame.data.CoverDesign.listToJson(designs)).apply()
+
+    // Id del diseño en uso cuando la forma elegida es CUSTOM.
+    fun getActiveCoverDesignId(): String? = prefs.getString("active_cover_design_id", null)
+
+    fun saveActiveCoverDesignId(id: String?) =
+        prefs.edit().apply { if (id == null) remove("active_cover_design_id") else putString("active_cover_design_id", id) }.apply()
+
+    /** El diseño activo, o null si no hay (o si el id guardado ya no existe en la lista). */
+    fun getActiveCoverDesign(): com.music.musicflame.data.CoverDesign? {
+        val id = getActiveCoverDesignId() ?: return null
+        return getCoverDesigns().firstOrNull { it.id == id }
+    }
 
     fun getCarouselStyle(): String = prefs.getString("carousel_style", "Desactivar") ?: "Desactivar"
     fun saveCarouselStyle(style: String) = prefs.edit().putString("carousel_style", style).apply()

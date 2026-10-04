@@ -22,7 +22,6 @@ import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.MainActivity
 import com.music.musicflame.R
 import com.music.musicflame.data.CoverDesign
-import com.music.musicflame.data.CoverFigure
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.SongArtLoader
 import com.music.musicflame.ui.utils.CoverPathSink
@@ -556,9 +555,7 @@ class MusicFlameWidgetProvider : AppWidgetProvider() {
                         // CoverShapeGeometry dibuja sobre un android.graphics.Path.
                         CoverShapeGeometry.build(
                             sink = AndroidPathSink(this),
-                            isStar = design.figure == CoverFigure.STAR,
-                            sides = design.sides,
-                            roundness = design.roundness,
+                            design = design,
                             width = w,
                             height = h
                         )

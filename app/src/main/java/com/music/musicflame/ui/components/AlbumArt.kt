@@ -53,7 +53,6 @@ import coil.request.Options
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.LocalCustomCoverDesign
 import com.music.musicflame.data.CoverDesign
-import com.music.musicflame.data.CoverFigure
 import com.music.musicflame.ui.utils.CoverPathSink
 import com.music.musicflame.ui.utils.CoverShapeGeometry
 import com.music.musicflame.data.ArtworkCacheRepository
@@ -117,15 +116,13 @@ private class ComposePathSink(private val path: Path) : CoverPathSink {
     override fun close() = path.close()
 }
 
-// Forma del diseño personalizado del usuario (polígono / estrella con redondeo).
+// Forma del diseño personalizado del usuario (polígono, estrella, flor, corazón, cruz, engrane o rombo).
 private class CustomCoverShape(private val design: CoverDesign) : Shape {
     override fun createOutline(size: Size, layoutDirection: LayoutDirection, density: Density): Outline {
         val path = Path()
         CoverShapeGeometry.build(
             sink = ComposePathSink(path),
-            isStar = design.figure == CoverFigure.STAR,
-            sides = design.sides,
-            roundness = design.roundness,
+            design = design,
             width = size.width,
             height = size.height
         )
@@ -137,7 +134,7 @@ private class CustomCoverShape(private val design: CoverDesign) : Shape {
 // Centralizado aquí para que AlbumArt() y la vista previa del selector de Ajustes
 // usen exactamente la misma geometría.
 // CUSTOM sin diseño disponible (p. ej. se borró el diseño activo) cae a cuadrado redondeado.
-private fun clipShapeFor(shape: AlbumArtShapeType, cornerRadius: Dp, design: CoverDesign? = null): Shape = when (shape) {
+internal fun clipShapeFor(shape: AlbumArtShapeType, cornerRadius: Dp, design: CoverDesign? = null): Shape = when (shape) {
     AlbumArtShapeType.CIRCLE -> CircleShape
     AlbumArtShapeType.VINYL -> CircleShape
     AlbumArtShapeType.HEXAGON -> HexagonShape()
@@ -147,7 +144,7 @@ private fun clipShapeFor(shape: AlbumArtShapeType, cornerRadius: Dp, design: Cov
 }
 
 // Transparencia del diseño personalizado; 1f (sin efecto) para cualquier otra forma.
-private fun coverAlphaFor(shape: AlbumArtShapeType, design: CoverDesign?): Float =
+internal fun coverAlphaFor(shape: AlbumArtShapeType, design: CoverDesign?): Float =
     if (shape == AlbumArtShapeType.CUSTOM && design != null) design.opacity else 1f
 
 // Surcos finos + hoyo central del disco de vinilo, dibujados encima del contenido.

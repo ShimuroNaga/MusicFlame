@@ -1,10 +1,14 @@
 package com.music.musicflame.ui.utils
 
+import com.music.musicflame.data.CoverDesign
+import com.music.musicflame.data.CoverFigure
 import kotlin.math.PI
+import kotlin.math.abs
 import kotlin.math.acos
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 import kotlin.math.sqrt
 import kotlin.math.tan
@@ -33,16 +37,26 @@ object CoverShapeGeometry {
     // Radio interior de la estrella, como fracción del radio exterior.
     private const val STAR_INNER_RATIO = 0.5f
 
-    /**
-     * Dibuja en [sink] un polígono regular (o una estrella) de [sides] lados/puntas,
-     * con las esquinas redondeadas según [roundness] (0 = esquinas vivas,
-     * 1 = redondeo máximo), ajustado y centrado dentro de un área de [width] x [height]
-     * (el ajuste se calcula sobre el contorno ya redondeado).
-     *
-     * El redondeo usa arcos de circunferencia tangentes a los dos lados de cada
-     * esquina. Con roundness = 1 cada arco llega justo hasta la mitad del lado, así
-     * que cualquier polígono regular se convierte en un círculo perfecto.
-     */
+    const val DEFAULT_DEPTH = 0.5f
+
+    // Puntos con los que se muestrean las figuras curvas (flor, corazón).
+    private const val SMOOTH_POINTS = 192
+
+    /** Atajo: dibuja el diseño completo del usuario (figura, caras, redondeo, profundidad, giro). */
+    fun build(sink: CoverPathSink, design: CoverDesign, width: Float, height: Float) {
+        build(
+            sink = sink,
+            figure = design.figure,
+            sides = design.sides,
+            roundness = design.roundness,
+            depth = design.depth,
+            rotationDeg = design.rotation,
+            width = width,
+            height = height
+        )
+    }
+
+    /** Versión original (solo polígono / estrella); se conserva para no romper pruebas ni llamadas viejas. */
     fun build(
         sink: CoverPathSink,
         isStar: Boolean,
@@ -51,9 +65,50 @@ object CoverShapeGeometry {
         width: Float,
         height: Float
     ) {
+        build(
+            sink = sink,
+            figure = if (isStar) CoverFigure.STAR else CoverFigure.POLYGON,
+            sides = sides,
+            roundness = roundness,
+            depth = DEFAULT_DEPTH,
+            rotationDeg = 0f,
+            width = width,
+            height = height
+        )
+    }
+
+    /**
+     * Dibuja en [sink] la [figure] elegida con las esquinas redondeadas según [roundness]
+     * (0 = esquinas vivas, 1 = redondeo máximo), ajustada y centrada dentro de un área de
+     * [width] x [height] (el ajuste se calcula sobre el contorno ya redondeado y girado).
+     *
+     *  - [sides]: caras (polígono), puntas (estrella), pétalos (flor) o dientes (engrane).
+     *  - [depth] 0..1: profundidad de las puntas/pétalos, grosor de la cruz, altura de los
+     *    dientes o anchura del rombo (el corazón no la usa).
+     *  - [rotationDeg]: giro de la figura en grados, sentido de las manecillas del reloj.
+     *
+     * El redondeo usa arcos de circunferencia tangentes a los dos lados de cada
+     * esquina. Con roundness = 1 cada arco llega justo hasta la mitad del lado, así
+     * que cualquier polígono regular se convierte en un círculo perfecto. En las figuras
+     * curvas (flor, corazón) el redondeo las va mezclando con un círculo.
+     */
+    fun build(
+        sink: CoverPathSink,
+        figure: CoverFigure,
+        sides: Int,
+        roundness: Float,
+        depth: Float,
+        rotationDeg: Float,
+        width: Float,
+        height: Float
+    ) {
         val n = sides.coerceIn(MIN_SIDES, MAX_SIDES)
-        val r = roundness.coerceIn(0f, 1f)
-        val unit = unitVertices(isStar, n)
+        val r = (if (roundness.isNaN()) 0f else roundness).coerceIn(0f, 1f)
+        val d = (if (depth.isNaN()) DEFAULT_DEPTH else depth).coerceIn(0f, 1f)
+        val smooth = figure == CoverFigure.FLOWER || figure == CoverFigure.HEART
+        val unit = rotate(unitVertices(figure, n, d, r), if (rotationDeg.isNaN()) 0f else rotationDeg)
+        // En las figuras curvas el redondeo ya va dentro de los puntos (se mezclan con un círculo).
+        val cornerR = if (smooth) 0f else r
         val count = unit.size / 2
         val ux = FloatArray(count) { unit[it * 2] }
         val uy = FloatArray(count) { unit[it * 2 + 1] }
@@ -62,7 +117,7 @@ object CoverShapeGeometry {
         // triángulo o un pentágono con mucho redondeo sigue llenando y centrándose
         // en el área, en vez de quedar como una figura chica y corrida.
         val bounds = BoundsSink()
-        emit(bounds, ux, uy, r)
+        emit(bounds, ux, uy, cornerR)
         val extentW = bounds.maxX - bounds.minX
         val extentH = bounds.maxY - bounds.minY
 
@@ -74,7 +129,7 @@ object CoverShapeGeometry {
         val vy = FloatArray(count) { uy[it] * scale + offsetY }
 
         // Pasada 2: el trazado real, ya a escala.
-        emit(sink, vx, vy, r)
+        emit(sink, vx, vy, cornerR)
     }
 
     // Mide el rectángulo que ocupa un trazado (las curvas se muestrean).
@@ -175,27 +230,106 @@ object CoverShapeGeometry {
         sink.close()
     }
 
-    // Vértices (x0, y0, x1, y1, ...) sobre la circunferencia unitaria.
-    private fun unitVertices(isStar: Boolean, n: Int): FloatArray {
-        return if (isStar) {
-            // Estrella: 2n vértices alternando radio exterior e interior, punta arriba.
-            FloatArray(n * 4) { idx ->
-                val k = idx / 2
-                val isX = idx % 2 == 0
-                val outer = k % 2 == 0
-                val radius = if (outer) 1f else STAR_INNER_RATIO
-                val angle = -PI / 2.0 + k * PI / n
-                (if (isX) radius * cos(angle) else radius * sin(angle)).toFloat()
-            }
-        } else {
-            // Polígono: con n par queda una arista plana arriba (el cuadrado se ve como
-            // cuadrado); con n impar, un vértice apunta hacia arriba (triángulo, pentágono).
-            val start = if (n % 2 == 0) -PI / 2.0 + PI / n else -PI / 2.0
-            FloatArray(n * 2) { idx ->
-                val k = idx / 2
-                val angle = start + 2.0 * PI * k / n
-                (if (idx % 2 == 0) cos(angle) else sin(angle)).toFloat()
-            }
+    // Gira los vértices (x0, y0, x1, y1, ...) alrededor del origen; con y hacia abajo, un
+    // ángulo positivo gira en sentido de las manecillas del reloj.
+    private fun rotate(v: FloatArray, deg: Float): FloatArray {
+        if (abs(deg % 360f) < 1e-3f) return v
+        val a = Math.toRadians(deg.toDouble())
+        val c = cos(a).toFloat()
+        val s = sin(a).toFloat()
+        return FloatArray(v.size) { idx ->
+            val x = v[idx - idx % 2]
+            val y = v[idx - idx % 2 + 1]
+            if (idx % 2 == 0) x * c - y * s else x * s + y * c
         }
     }
+
+    // Vértices (x0, y0, x1, y1, ...) de la figura sobre (aprox.) la circunferencia unitaria.
+    private fun unitVertices(figure: CoverFigure, n: Int, depth: Float, roundness: Float): FloatArray =
+        when (figure) {
+            CoverFigure.POLYGON -> polygonVertices(n)
+            CoverFigure.STAR -> starVertices(n, (1f - depth).coerceIn(0.12f, 0.92f))
+            CoverFigure.FLOWER -> flowerPoints(n, depth * 0.6f * (1f - roundness))
+            CoverFigure.HEART -> heartPoints(roundness)
+            CoverFigure.CROSS -> crossVertices(0.2f + depth * 0.55f)
+            CoverFigure.GEAR -> gearVertices(n, (1f - depth * 0.5f).coerceIn(0.5f, 0.95f))
+            CoverFigure.DIAMOND -> diamondVertices(0.35f + depth * 0.65f)
+        }
+
+    // Polígono: con n par queda una arista plana arriba (el cuadrado se ve como
+    // cuadrado); con n impar, un vértice apunta hacia arriba (triángulo, pentágono).
+    private fun polygonVertices(n: Int): FloatArray {
+        val start = if (n % 2 == 0) -PI / 2.0 + PI / n else -PI / 2.0
+        return FloatArray(n * 2) { idx ->
+            val k = idx / 2
+            val angle = start + 2.0 * PI * k / n
+            (if (idx % 2 == 0) cos(angle) else sin(angle)).toFloat()
+        }
+    }
+
+    // Estrella: 2n vértices alternando radio exterior e interior, punta arriba.
+    private fun starVertices(n: Int, innerRatio: Float): FloatArray =
+        FloatArray(n * 4) { idx ->
+            val k = idx / 2
+            val isX = idx % 2 == 0
+            val outer = k % 2 == 0
+            val radius = if (outer) 1f else innerRatio
+            val angle = -PI / 2.0 + k * PI / n
+            (if (isX) radius * cos(angle) else radius * sin(angle)).toFloat()
+        }
+
+    // Flor: r(t) = 1 + amplitud * cos(n t), un pétalo apunta hacia arriba.
+    private fun flowerPoints(n: Int, amplitude: Float): FloatArray =
+        FloatArray(SMOOTH_POINTS * 2) { idx ->
+            val k = idx / 2
+            val t = 2.0 * PI * k / SMOOTH_POINTS
+            val radius = 1.0 + amplitude * cos(n * t)
+            val angle = -PI / 2.0 + t
+            (if (idx % 2 == 0) radius * cos(angle) else radius * sin(angle)).toFloat()
+        }
+
+    // Corazón (curva clásica), mezclado con un círculo según el redondeo.
+    private fun heartPoints(roundness: Float): FloatArray =
+        FloatArray(SMOOTH_POINTS * 2) { idx ->
+            val k = idx / 2
+            val t = 2.0 * PI * k / SMOOTH_POINTS
+            val heart = if (idx % 2 == 0) {
+                16.0 * sin(t).pow(3) / 17.0
+            } else {
+                -(13.0 * cos(t) - 5.0 * cos(2 * t) - 2.0 * cos(3 * t) - cos(4 * t)) / 17.0
+            }
+            val circle = if (idx % 2 == 0) sin(t) else -cos(t)
+            ((1f - roundness) * heart + roundness * circle).toFloat()
+        }
+
+    // Cruz (signo +) de 12 vértices; [arm] = mitad del grosor de los brazos (0..1).
+    private fun crossVertices(arm: Float): FloatArray {
+        val w = arm.coerceIn(0.1f, 0.9f)
+        return floatArrayOf(
+            -w, -1f, w, -1f, w, -w, 1f, -w, 1f, w, w, w,
+            w, 1f, -w, 1f, -w, w, -1f, w, -1f, -w, -w, -w
+        )
+    }
+
+    // Engrane: [teeth] dientes trapezoidales sobre un cuerpo de radio [innerRatio].
+    private fun gearVertices(teeth: Int, innerRatio: Float): FloatArray {
+        val out = FloatArray(teeth * 8)
+        val slot = 2.0 * PI / teeth
+        for (i in 0 until teeth) {
+            val center = -PI / 2.0 + slot * i
+            val baseHalf = slot * 0.28
+            val tipHalf = slot * 0.17
+            val radii = floatArrayOf(innerRatio, 1f, 1f, innerRatio)
+            val offsets = doubleArrayOf(-baseHalf, -tipHalf, tipHalf, baseHalf)
+            for (j in 0 until 4) {
+                out[i * 8 + j * 2] = (radii[j] * cos(center + offsets[j])).toFloat()
+                out[i * 8 + j * 2 + 1] = (radii[j] * sin(center + offsets[j])).toFloat()
+            }
+        }
+        return out
+    }
+
+    // Rombo con la punta arriba; [halfWidth] = anchura relativa a la altura (1 = cuadrado girado).
+    private fun diamondVertices(halfWidth: Float): FloatArray =
+        floatArrayOf(0f, -1f, halfWidth, 0f, 0f, 1f, -halfWidth, 0f)
 }

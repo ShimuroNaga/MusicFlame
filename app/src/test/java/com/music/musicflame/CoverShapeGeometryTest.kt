@@ -1,6 +1,7 @@
 package com.music.musicflame
 
 import com.music.musicflame.data.CoverDesign
+import com.music.musicflame.data.CoverFigure
 import com.music.musicflame.ui.utils.CoverPathSink
 import com.music.musicflame.ui.utils.CoverShapeGeometry
 import org.junit.Assert.assertEquals
@@ -101,5 +102,52 @@ class CoverShapeGeometryTest {
         assertEquals(CoverShapeGeometry.MIN_SIDES, nan.sides)
         assertEquals(0f, nan.roundness, 0f)
         assertEquals(0f, nan.transparency, 0f)
+    }
+
+    @Test
+    fun everyFigureIsClosedFiniteAndInsideTheAreaForAnyDepthAndRotation() {
+        for (figure in CoverFigure.entries) for (n in listOf(3, 6, 12)) for (depth in listOf(0f, 0.5f, 1f))
+            for (r in listOf(0f, 0.5f, 1f)) for (deg in listOf(0f, 45f, 200f)) {
+                val rec = Recorder().also {
+                    CoverShapeGeometry.build(it, figure, n, r, depth, deg, 200f, 200f)
+                }
+                val msg = "figure=$figure n=$n depth=$depth r=$r deg=$deg"
+                assertTrue(msg, rec.closed)
+                assertFalse(msg, rec.invalid)
+                assertTrue(msg, rec.xs.min() >= -0.5 && rec.ys.min() >= -0.5)
+                assertTrue(msg, rec.xs.max() <= 200.5 && rec.ys.max() <= 200.5)
+            }
+    }
+
+    @Test
+    fun rotatingASquare45DegreesGivesADiamondThatStillFillsTheArea() {
+        val rec = Recorder().also {
+            CoverShapeGeometry.build(it, CoverFigure.POLYGON, 4, 0f, 0.5f, 45f, 100f, 100f)
+        }
+        assertEquals(0.0, rec.xs.min(), 0.01); assertEquals(100.0, rec.xs.max(), 0.01)
+        assertEquals(0.0, rec.ys.min(), 0.01); assertEquals(100.0, rec.ys.max(), 0.01)
+        // Las puntas quedan en el centro de cada borde (no en las esquinas).
+        assertTrue(rec.xs.indices.any { abs(rec.xs[it] - 50) < 0.01 && abs(rec.ys[it]) < 0.01 })
+    }
+
+    @Test
+    fun oldDesignsKeepTheirLookThroughTheLegacyOverload() {
+        val legacy = record(true, 5, 0.3f)
+        val modern = Recorder().also {
+            CoverShapeGeometry.build(it, CoverFigure.STAR, 5, 0.3f, CoverShapeGeometry.DEFAULT_DEPTH, 0f, 200f, 200f)
+        }
+        assertEquals(legacy.xs, modern.xs)
+        assertEquals(legacy.ys, modern.ys)
+    }
+
+    @Test
+    fun sanitizedClampsDepthAndRotation() {
+        val dirty = CoverDesign(id = "x", depth = 7f, rotation = -90f).sanitized()
+        assertEquals(1f, dirty.depth, 0f)
+        assertEquals(270f, dirty.rotation, 0.001f)
+
+        val nan = CoverDesign(id = "y", depth = Float.NaN, rotation = Float.NaN).sanitized()
+        assertEquals(CoverDesign.DEFAULT_DEPTH, nan.depth, 0f)
+        assertEquals(0f, nan.rotation, 0f)
     }
 }

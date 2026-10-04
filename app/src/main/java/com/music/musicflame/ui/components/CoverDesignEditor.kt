@@ -2,6 +2,7 @@ package com.music.musicflame.ui.components
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -58,7 +59,8 @@ import kotlin.math.roundToInt
  * Editor de diseños de carátula (Ajustes > Apariencia > Forma de la carátula > "+ Crear diseño").
  *
  * Pantalla completa con una vista previa en vivo arriba y los controles abajo:
- * figura, cantidad de caras, redondeado y transparencia, más el nombre del diseño.
+ * figura (7 opciones), cantidad de caras/puntas/pétalos/dientes, profundidad, redondeado,
+ * rotación y transparencia, más el nombre del diseño.
  * La vista previa usa el mismo AlbumArt() que las listas, así que lo que se ve aquí
  * es exactamente lo que se verá en la app (y, con la misma geometría, en los widgets).
  *
@@ -135,7 +137,10 @@ fun CoverDesignEditorDialog(
                     Column {
                         Text("Figura", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(Modifier.height(8.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            modifier = Modifier.horizontalScroll(rememberScrollState())
+                        ) {
                             CoverFigure.entries.forEach { figure ->
                                 FilterChip(
                                     selected = draft.figure == figure,
@@ -146,15 +151,26 @@ fun CoverDesignEditorDialog(
                         }
                     }
 
-                    // Cantidad de caras / puntas
-                    val sidesLabel = if (draft.figure == CoverFigure.STAR) "Puntas" else "Caras"
-                    LabeledSlider(
-                        label = "$sidesLabel: ${draft.sides}",
-                        value = draft.sides.toFloat(),
-                        onValueChange = { draft = draft.copy(sides = it.roundToInt()) },
-                        valueRange = CoverShapeGeometry.MIN_SIDES.toFloat()..CoverShapeGeometry.MAX_SIDES.toFloat(),
-                        steps = CoverShapeGeometry.MAX_SIDES - CoverShapeGeometry.MIN_SIDES - 1
-                    )
+                    // Cantidad de caras / puntas / pétalos / dientes (solo si la figura lo usa)
+                    draft.figure.sidesLabel?.let { sidesLabel ->
+                        LabeledSlider(
+                            label = "$sidesLabel: ${draft.sides}",
+                            value = draft.sides.toFloat(),
+                            onValueChange = { draft = draft.copy(sides = it.roundToInt()) },
+                            valueRange = CoverShapeGeometry.MIN_SIDES.toFloat()..CoverShapeGeometry.MAX_SIDES.toFloat(),
+                            steps = CoverShapeGeometry.MAX_SIDES - CoverShapeGeometry.MIN_SIDES - 1
+                        )
+                    }
+
+                    // Profundidad / grosor / altura / anchura (según la figura)
+                    draft.figure.depthLabel?.let { depthLabel ->
+                        LabeledSlider(
+                            label = "$depthLabel: ${(draft.depth * 100).roundToInt()}%",
+                            value = draft.depth,
+                            onValueChange = { draft = draft.copy(depth = it) },
+                            valueRange = 0f..1f
+                        )
+                    }
 
                     // Redondeado
                     LabeledSlider(
@@ -162,6 +178,14 @@ fun CoverDesignEditorDialog(
                         value = draft.roundness,
                         onValueChange = { draft = draft.copy(roundness = it) },
                         valueRange = 0f..1f
+                    )
+
+                    // Rotación
+                    LabeledSlider(
+                        label = "Rotación: ${draft.rotation.roundToInt()}°",
+                        value = draft.rotation,
+                        onValueChange = { draft = draft.copy(rotation = it) },
+                        valueRange = 0f..360f
                     )
 
                     // Transparencia

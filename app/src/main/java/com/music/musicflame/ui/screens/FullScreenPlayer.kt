@@ -32,6 +32,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.shadow
@@ -51,6 +52,9 @@ import androidx.core.content.ContextCompat
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
+import com.music.musicflame.AlbumArtShapeType
+import com.music.musicflame.LocalAlbumArtShape
+import com.music.musicflame.LocalCustomCoverDesign
 import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.R
 import com.music.musicflame.data.MusicPlayerManager
@@ -59,6 +63,8 @@ import com.music.musicflame.data.ArtworkCacheRepository
 import com.music.musicflame.data.ArtworkSource
 import android.net.Uri
 import com.music.musicflame.ui.components.YoutubeVerifyWebView
+import com.music.musicflame.ui.components.clipShapeFor
+import com.music.musicflame.ui.components.coverAlphaFor
 import com.music.musicflame.ui.components.embeddedArtUriFor
 import com.music.musicflame.ui.components.SharedAlbumArtImageLoader
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
@@ -102,6 +108,18 @@ fun FullScreenPlayer(
 
     val isRounded = LocalUseRoundCorners.current
     val artRadius = if (isRounded) 24.dp else 0.dp
+
+    // Si el usuario eligió "Diseño personalizado" (Ajustes > Apariencia > Forma de la carátula),
+    // la carátula grande del reproductor expandido usa la MISMA figura y transparencia que
+    // AlbumArt() en las listas y que los widgets. Con cualquier otra forma queda como siempre.
+    val coverShapeType = LocalAlbumArtShape.current
+    val coverDesign = LocalCustomCoverDesign.current
+    val useCustomCover = coverShapeType == AlbumArtShapeType.CUSTOM && coverDesign != null
+    val artClipShape: androidx.compose.ui.graphics.Shape = remember(useCustomCover, coverDesign, artRadius) {
+        if (useCustomCover) clipShapeFor(AlbumArtShapeType.CUSTOM, artRadius, coverDesign)
+        else RoundedCornerShape(artRadius)
+    }
+    val artAlpha = coverAlphaFor(coverShapeType, coverDesign)
 
     val bgColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.65f) else MaterialTheme.colorScheme.background
 
@@ -823,12 +841,15 @@ fun FullScreenPlayer(
                                         modifier = Modifier
                                             .fillMaxWidth(0.85f)
                                             .aspectRatio(1f)
+                                            .alpha(artAlpha)
                                             .shadow(
-                                                elevation = if (hasBackgroundImage) 0.dp else 16.dp,
-                                                shape = RoundedCornerShape(artRadius),
+                                                // Una carátula transparente no lleva sombra (se vería el
+                                                // contorno detrás de la imagen).
+                                                elevation = if (hasBackgroundImage || artAlpha < 1f) 0.dp else 16.dp,
+                                                shape = artClipShape,
                                                 ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                             )
-                                            .clip(RoundedCornerShape(artRadius))
+                                            .clip(artClipShape)
                                             .background(MaterialTheme.colorScheme.surfaceVariant),
                                         contentAlignment = Alignment.Center
                                     ) {

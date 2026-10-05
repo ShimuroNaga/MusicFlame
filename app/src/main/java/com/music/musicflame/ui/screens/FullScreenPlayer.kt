@@ -265,7 +265,7 @@ fun FullScreenPlayer(
     val lyricsColorMode = remember(unlockedIds) {
         val saved = settingsRepo.getLyricsTextColorMode()
         val locked = (saved == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
-            (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
+                (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
         if (locked) "Adaptativo" else saved
     }
     // Hex del color personalizado (catálogo, punto 2). Antes se pasaba "" a
@@ -870,6 +870,12 @@ fun FullScreenPlayer(
                                         // falla, forzamos el modelo a null para caer siempre al ícono, en vez
                                         // de depender de que el `when` no repita la misma rama fallida.
                                         var exhaustedAllFallbacks by remember(pageSong.id) { mutableStateOf(false) }
+                                        // FIX glitch de la nota: la nota musical ya NO se dibuja dentro de los
+                                        // estados Loading/Error/null (eran 3 ramas distintas que se recreaban
+                                        // una y otra vez al encadenar fallbacks al cambiar de canción, y se
+                                        // veía parpadear/saltar). Ahora es UNA sola nota de tamaño fijo,
+                                        // siempre presente detrás; solo se oculta cuando hay carátula real.
+                                        var realArtLoaded by remember(pageSong.id) { mutableStateOf(false) }
 
                                         val effectiveArtModel: Any? = when {
                                             exhaustedAllFallbacks -> null
@@ -879,11 +885,21 @@ fun FullScreenPlayer(
                                             else -> null
                                         }
 
+                                        // Nota musical ÚNICA y de tamaño fijo (80dp, el pequeño): siempre en la
+                                        // misma posición de la composición, primer hijo del Box (queda detrás de
+                                        // la imagen). Solo cambia su alpha: visible sin carátula real, oculta con ella.
+                                        Icon(
+                                            Icons.Filled.MusicNote,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(80.dp),
+                                            tint = adaptiveContentColor.copy(alpha = if (realArtLoaded) 0f else 0.3f)
+                                        )
+
                                         if (effectiveArtModel != null) {
                                             SubcomposeAsyncImage(
                                                 model = ImageRequest.Builder(context)
                                                     .data(effectiveArtModel)
-                                                    .crossfade(true)
+                                                    .crossfade(false)
                                                     .allowHardware(false)
                                                     .listener(
                                                         // FIX: este pager encuentra la carátula embebida real de
@@ -899,6 +915,7 @@ fun FullScreenPlayer(
                                                         // carátula (con éxito o agotando los intentos), lo guarda
                                                         // en el mismo caché que usan las listas, así se autocorrige.
                                                         onSuccess = { _, _ ->
+                                                            realArtLoaded = true
                                                             if (pageSong.path.isNotEmpty()) {
                                                                 val source = if (effectiveArtModel is Uri && effectiveArtModel.scheme == "musicflame-embedded") {
                                                                     ArtworkSource.EMBEDDED
@@ -909,6 +926,7 @@ fun FullScreenPlayer(
                                                             }
                                                         },
                                                         onError = { _, _ ->
+                                                            realArtLoaded = false
                                                             when {
                                                                 pageSong.hasCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
                                                                 !useAlbumUriFallback -> useAlbumUriFallback = true
@@ -927,22 +945,12 @@ fun FullScreenPlayer(
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             ) {
-                                                val painterState = painter.state
-                                                if (painterState is coil.compose.AsyncImagePainter.State.Success) {
-                                                    // Carátula encontrada: mostramos la imagen real
+                                                // Solo pintamos la imagen cuando ya cargó. El ícono vive
+                                                // aparte (abajo), así no cambia de rama entre estados.
+                                                if (painter.state is coil.compose.AsyncImagePainter.State.Success) {
                                                     SubcomposeAsyncImageContent()
-                                                } else if (painterState is coil.compose.AsyncImagePainter.State.Error) {
-                                                    // No hay carátula real (ni personalizada, ni embebida, ni de álbum): ícono
-                                                    Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
-                                                } else {
-                                                    // Mientras carga (Loading): mismo ícono y mismo tono que el
-                                                    // estado Error de arriba (antes 0.15f vs 0.3f, se veía
-                                                    // "apagado" mientras cargaba y luego saltaba a más marcado).
-                                                    Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
                                                 }
                                             }
-                                        } else {
-                                            Icon(Icons.Filled.MusicNote, null, modifier = Modifier.size(80.dp), tint = adaptiveContentColor.copy(alpha = 0.3f))
                                         }
                                     }
 

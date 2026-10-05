@@ -1364,7 +1364,8 @@ class MainActivity : ComponentActivity() {
                                     },
                                     onSkipNext = { playerManager.skipNext() }, onSkipPrevious = { playerManager.skipPrevious() }, onAddToPlaylist = { songToAddToPlaylist = currentSong; showAddToPlaylist = true },
                                     hasBackgroundImage = hasBackgroundImage,
-                                    onLyricsChanged = { lyricsRefreshTrigger++ }
+                                    onLyricsChanged = { lyricsRefreshTrigger++ },
+                                    onSongListChange = { songList = it }
                                 )
                             }
                         }

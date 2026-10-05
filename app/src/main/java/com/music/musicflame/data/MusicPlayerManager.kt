@@ -53,6 +53,12 @@ class MusicPlayerManager(private val context: Context) {
     private val playbackHistory = mutableListOf<Int>()
 
     // --- ESTADOS GLOBALES REACTIVOS ---
+    // NUEVO: true mientras suena el modo Highlights (cola de Momentos: cada canción suena solo
+    // su fragmento). Mientras esté activo, las posiciones del reproductor son RELATIVAS al
+    // fragmento, no al archivo completo (por eso la UI no marca/guarda Momentos en ese modo).
+    private val _highlightsActive = mutableStateOf(false)
+    val highlightsActive: State<Boolean> = _highlightsActive
+
     private val _currentSong = mutableStateOf<Song?>(null)
     val currentSong: State<Song?> = _currentSong
 
@@ -493,7 +499,7 @@ class MusicPlayerManager(private val context: Context) {
 
     // Extraído de playSong() para poder reutilizarlo también al agregar canciones
     // a la cola (addToQueue) sin duplicar la construcción de metadata/artwork.
-    private fun buildMediaItem(s: Song): MediaItem {
+    private fun buildMediaItem(s: Song, clip: Pair<Long, Long>? = null): MediaItem {
         val artUriString = s.albumArtUri?.toString()
         val finalArtworkUri: Uri = when {
             // Carátula elegida a mano por el usuario: es una Uri ya cargable
@@ -515,11 +521,44 @@ class MusicPlayerManager(private val context: Context) {
             .setArtworkUri(finalArtworkUri)
             .build()
 
-        return MediaItem.Builder()
+        val builder = MediaItem.Builder()
             .setMediaId(s.id.toString())
             .setUri(s.path)
             .setMediaMetadata(metadata)
-            .build()
+        // NUEVO (Highlights): Media3 recorta el ítem solo, así que reproductor, notificación y
+        // widgets lo tratan como una canción normal cuya duración es la del fragmento.
+        if (clip != null) {
+            builder.setClippingConfiguration(
+                MediaItem.ClippingConfiguration.Builder()
+                    .setStartPositionMs(clip.first)
+                    .setEndPositionMs(clip.second)
+                    .build()
+            )
+        }
+        return builder.build()
+    }
+
+    /**
+     * Modo Highlights: arma una cola donde cada canción suena SOLO su Momento.
+     * [clips] mapea id de canción -> (inicio, fin) en ms del fragmento a reproducir.
+     */
+    fun playHighlights(songs: List<Song>, clips: Map<Long, Pair<Long, Long>>) {
+        if (songs.isEmpty()) return
+        currentPlaylist = songs
+        val mediaItems = songs.map { s -> buildMediaItem(s, clips[s.id]) }
+
+        flushListenedTime()
+
+        mediaController?.apply {
+            playbackHistory.clear()
+            setMediaItems(mediaItems, 0, 0)
+            prepare()
+            play()
+            _currentSong.value = songs.first()
+            refreshQueue(this)
+        }
+        _highlightsActive.value = true
+        PlaybackContextTracker.clearActivePlaylist(context)
     }
 
     // NUEVO: playlistId/playlistKind son opcionales y solo los pasa la pantalla de
@@ -531,6 +570,8 @@ class MusicPlayerManager(private val context: Context) {
     // el modo aleatorio normal.
     fun playSong(song: Song, songList: List<Song>, playlistId: String? = null, playlistKind: PlaylistKind? = null) {
         currentPlaylist = songList
+        // Cualquier reproducción normal sale del modo Highlights.
+        _highlightsActive.value = false
 
         val mediaItems = songList.map { s -> buildMediaItem(s) }
 

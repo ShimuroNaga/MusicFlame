@@ -542,8 +542,9 @@ class MusicPlayerManager(private val context: Context) {
      * Modo Highlights: arma una cola donde cada canción suena SOLO su Momento.
      * [clips] mapea id de canción -> (inicio, fin) en ms del fragmento a reproducir.
      */
-    fun playHighlights(songs: List<Song>, clips: Map<Long, Pair<Long, Long>>) {
+    fun playHighlights(songs: List<Song>, clips: Map<Long, Pair<Long, Long>>, startIndex: Int = 0) {
         if (songs.isEmpty()) return
+        val start = startIndex.coerceIn(0, songs.lastIndex)
         currentPlaylist = songs
         val mediaItems = songs.map { s -> buildMediaItem(s, clips[s.id]) }
 
@@ -551,10 +552,10 @@ class MusicPlayerManager(private val context: Context) {
 
         mediaController?.apply {
             playbackHistory.clear()
-            setMediaItems(mediaItems, 0, 0)
+            setMediaItems(mediaItems, start, 0)
             prepare()
             play()
-            _currentSong.value = songs.first()
+            _currentSong.value = songs[start]
             refreshQueue(this)
         }
         _highlightsActive.value = true

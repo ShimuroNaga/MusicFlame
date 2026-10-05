@@ -1120,7 +1120,7 @@ class MainActivity : ComponentActivity() {
                                             onToggleSelectionModeButton = { manualPlaylistSelectionMode = !manualPlaylistSelectionMode },
                                             playlistsRefreshTrigger = playlistsRefreshTrigger
                                         )
-                                        Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong, currentPlayingSongId = currentSong?.id)
+                                        Screen.Mix -> MixScreen(onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) }, onPlayMoments = { list, clips, startIndex -> songList = list; playerManager.playHighlights(list, clips, startIndex) }, hasBackgroundImage = hasBackgroundImage, selectedSongs = selectedSongs, onToggleSelection = onToggleSong, currentPlayingSongId = currentSong?.id)
                                         Screen.Album -> AlbumScreen(
                                             hasBackgroundImage = hasBackgroundImage,
                                             selectedAlbum = selectedAlbum,

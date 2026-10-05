@@ -20,6 +20,14 @@ import androidx.compose.foundation.basicMarquee
 import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.clickable
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
@@ -59,6 +67,10 @@ import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.R
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.Song
+import com.music.musicflame.data.Moment
+import com.music.musicflame.data.MomentsRepository
+import com.music.musicflame.data.SongLibraryHolder
+import com.music.musicflame.data.TrashRepository
 import com.music.musicflame.data.ArtworkCacheRepository
 import com.music.musicflame.data.ArtworkSource
 import android.net.Uri
@@ -102,7 +114,10 @@ fun FullScreenPlayer(
     // Se llama cada vez que la letra guardada de alguna canción cambia (se borra,
     // se encuentra online, o se inserta a mano), para que la lista de canciones
     // pueda refrescar el icono de "letra disponible" sin tener que reabrir la app.
-    onLyricsChanged: () -> Unit = {}
+    onLyricsChanged: () -> Unit = {},
+    // Modo Highlights: avisa a quien guarda la lista (MainActivity) que la cola cambió, para
+    // que el pager muestre exactamente las canciones que están sonando.
+    onSongListChange: (List<Song>) -> Unit = {}
 ) {
     val context = LocalContext.current
 
@@ -227,6 +242,118 @@ fun FullScreenPlayer(
     val currentPositionMsState = remember { mutableLongStateOf(0L) }
     var isDragging by remember { mutableStateOf(false) }
 
+    // --- MOMENTOS (fragmentos favoritos de la canción) ---
+    val momentsRepo = remember { MomentsRepository(context) }
+    var moments by remember(song.path) { mutableStateOf(momentsRepo.getMoments(song.path)) }
+    var markStartMs by remember(song.id) { mutableStateOf<Long?>(null) }
+    var showMomentsDialog by remember { mutableStateOf(false) }
+    var showAllMomentsDialog by remember { mutableStateOf(false) }
+    val highlightsActive = playerManager.highlightsActive.value
+
+    if (showAllMomentsDialog) {
+        AllMomentsDialog(
+            repo = momentsRepo,
+            onDismiss = { showAllMomentsDialog = false },
+            onChanged = { moments = momentsRepo.getMoments(song.path) }
+        )
+    }
+
+    if (showMomentsDialog) {
+        MomentsDialog(
+            moments = moments,
+            durationMs = if (playerManager.duration > 0) playerManager.duration else song.duration,
+            onDismiss = { showMomentsDialog = false },
+            onSeek = { ms -> playerManager.seekTo(ms); currentPositionMsState.longValue = ms },
+            onDelete = { m ->
+                momentsRepo.deleteMoment(song.path, m.id)
+                moments = momentsRepo.getMoments(song.path)
+                if (moments.isEmpty()) showMomentsDialog = false
+            },
+            onUpdate = { m, s2, e2 ->
+                val ok = momentsRepo.updateMoment(song.path, m.id, s2, e2)
+                moments = momentsRepo.getMoments(song.path)
+                ok
+            },
+            onDeleteAll = {
+                moments.forEach { momentsRepo.deleteMoment(song.path, it.id) }
+                moments = momentsRepo.getMoments(song.path)
+                showMomentsDialog = false
+            }
+        )
+    }
+
+    fun toast(msg: String) = android.widget.Toast.makeText(context, msg, android.widget.Toast.LENGTH_SHORT).show()
+
+    fun saveMoment(startMs: Long, endMs: Long) {
+        if (momentsRepo.addMoment(song.path, startMs, endMs) != null) {
+            moments = momentsRepo.getMoments(song.path)
+            toast("Momento guardado")
+        } else {
+            toast("Muy corto: mínimo ${MomentsRepository.MIN_DURATION_MS / 1000} s")
+        }
+    }
+
+    // Un toque: marca inicio; segundo toque: marca fin y guarda.
+    fun onMomentTap() {
+        if (highlightsActive) { toast("Sal de Highlights para marcar momentos"); return }
+        val pos = currentPositionMsState.longValue
+        val start = markStartMs
+        if (start == null) {
+            markStartMs = pos
+            toast("Inicio marcado. Toca otra vez donde termina")
+        } else {
+            markStartMs = null
+            saveMoment(start, pos)
+        }
+    }
+
+    // Mantener presionado: guarda los últimos 15 s (para cuando el coro ya pasó).
+    fun onMomentLongPress() {
+        if (highlightsActive) { toast("Sal de Highlights para marcar momentos"); return }
+        val pos = currentPositionMsState.longValue
+        markStartMs = null
+        saveMoment((pos - MomentsRepository.QUICK_DURATION_MS).coerceAtLeast(0L), pos)
+    }
+
+    fun jumpToMoment(forward: Boolean) {
+        if (moments.isEmpty()) return
+        val pos = currentPositionMsState.longValue
+        val target = if (forward) {
+            moments.firstOrNull { it.startMs > pos + 500L } ?: moments.first()
+        } else {
+            moments.lastOrNull { it.startMs < pos - 1500L } ?: moments.last()
+        }
+        playerManager.seekTo(target.startMs)
+        currentPositionMsState.longValue = target.startMs
+    }
+
+    // Highlights: cola con UN momento (al azar) de cada canción que tenga, en orden aleatorio.
+    fun toggleHighlights() {
+        if (highlightsActive) {
+            // Salir: sigue con esas mismas canciones completas.
+            playerManager.playSong(song, effectiveSongList)
+            toast("Highlights desactivado")
+            return
+        }
+        val all = momentsRepo.getAll()
+        val trashedIds = try { TrashRepository(context).getTrash().map { it.song.id }.toSet() } catch (e: Exception) { emptySet() }
+        val candidates = SongLibraryHolder.songs.filter { s ->
+            s.id !in trashedIds && all[s.path].orEmpty().isNotEmpty()
+        }
+        if (candidates.isEmpty()) {
+            toast("Aún no tienes momentos. Marca uno en cualquier canción")
+            return
+        }
+        val shuffled = candidates.shuffled()
+        val clips = shuffled.associate { s ->
+            val m = all[s.path]!!.random()
+            s.id to (m.startMs to m.endMs)
+        }
+        onSongListChange(shuffled)
+        playerManager.playHighlights(shuffled, clips)
+        toast("Highlights: ${shuffled.size} canciones")
+    }
+
     LaunchedEffect(isPlaying, isDragging, song) {
         if (!isDragging) {
             currentPositionMsState.longValue = playerManager.currentPosition
@@ -244,6 +371,9 @@ fun FullScreenPlayer(
     // swipe que ya usa esta pantalla para mostrar la letra.
     var showQueueScreen by remember { mutableStateOf(false) }
     val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
+    // Color de las franjas de Momentos (Ajustes > Apariencia > Color de momentos).
+    val momentsColorMode = remember { settingsRepo.getMomentsColorMode() }
+    val momentsCustomColorHex = remember { settingsRepo.getMomentsCustomColorHex() }
     val lyricsRepoRef = remember { com.music.musicflame.data.LyricsRepository(context) }
     // Blinda el RENDERIZADO (no solo los selectores de Ajustes): si el valor
     // guardado es una opción de pago y el usuario no está desbloqueado (p.ej.
@@ -265,7 +395,7 @@ fun FullScreenPlayer(
     val lyricsColorMode = remember(unlockedIds) {
         val saved = settingsRepo.getLyricsTextColorMode()
         val locked = (saved == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
-                (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
+            (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
         if (locked) "Adaptativo" else saved
     }
     // Hex del color personalizado (catálogo, punto 2). Antes se pasaba "" a
@@ -870,11 +1000,8 @@ fun FullScreenPlayer(
                                         // falla, forzamos el modelo a null para caer siempre al ícono, en vez
                                         // de depender de que el `when` no repita la misma rama fallida.
                                         var exhaustedAllFallbacks by remember(pageSong.id) { mutableStateOf(false) }
-                                        // FIX glitch de la nota: la nota musical ya NO se dibuja dentro de los
-                                        // estados Loading/Error/null (eran 3 ramas distintas que se recreaban
-                                        // una y otra vez al encadenar fallbacks al cambiar de canción, y se
-                                        // veía parpadear/saltar). Ahora es UNA sola nota de tamaño fijo,
-                                        // siempre presente detrás; solo se oculta cuando hay carátula real.
+                                        // FIX glitch de la nota: una sola nota de tamaño fijo, siempre presente
+                                        // detrás de la imagen; solo se oculta cuando hay carátula real.
                                         var realArtLoaded by remember(pageSong.id) { mutableStateOf(false) }
 
                                         val effectiveArtModel: Any? = when {
@@ -885,9 +1012,6 @@ fun FullScreenPlayer(
                                             else -> null
                                         }
 
-                                        // Nota musical ÚNICA y de tamaño fijo (80dp, el pequeño): siempre en la
-                                        // misma posición de la composición, primer hijo del Box (queda detrás de
-                                        // la imagen). Solo cambia su alpha: visible sin carátula real, oculta con ella.
                                         Icon(
                                             Icons.Filled.MusicNote,
                                             contentDescription = null,
@@ -945,8 +1069,6 @@ fun FullScreenPlayer(
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             ) {
-                                                // Solo pintamos la imagen cuando ya cargó. El ícono vive
-                                                // aparte (abajo), así no cambia de rama entre estados.
                                                 if (painter.state is coil.compose.AsyncImagePainter.State.Success) {
                                                     SubcomposeAsyncImageContent()
                                                 }
@@ -992,6 +1114,9 @@ fun FullScreenPlayer(
                             positionState = currentPositionMsState,
                             totalDuration = totalDuration,
                             adaptiveContentColor = adaptiveContentColor,
+                            moments = if (highlightsActive) emptyList() else moments,
+                            momentsColorMode = momentsColorMode,
+                            momentsCustomColorHex = momentsCustomColorHex,
                             onDragStart = { isDragging = true },
                             onDragChange = { newPositionMs -> currentPositionMsState.longValue = newPositionMs },
                             onDragEnd = { finalPositionMs ->
@@ -1000,7 +1125,33 @@ fun FullScreenPlayer(
                             }
                         )
 
-                        Spacer(modifier = Modifier.height(32.dp))
+                        // Tira de momentos: solo aparece si la canción tiene al menos uno (y no en Highlights).
+                        if (moments.isNotEmpty() && !highlightsActive) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(onClick = { jumpToMoment(false) }, modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowLeft, "Momento anterior", tint = adaptiveContentColor)
+                                }
+                                Text(
+                                    text = if (moments.size == 1) "1 momento" else "${moments.size} momentos",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Medium,
+                                    color = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .clickable { showMomentsDialog = true }
+                                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                                )
+                                IconButton(onClick = { jumpToMoment(true) }, modifier = Modifier.size(36.dp)) {
+                                    Icon(Icons.Filled.KeyboardArrowRight, "Momento siguiente", tint = adaptiveContentColor)
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(if (moments.isNotEmpty() && !highlightsActive) 12.dp else 32.dp))
 
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -1021,6 +1172,45 @@ fun FullScreenPlayer(
 
                             IconButton(onClick = onAddToPlaylist) {
                                 Icon(Icons.Filled.PlaylistAdd, contentDescription = "Añadir a Playlist", tint = adaptiveContentColor)
+                            }
+
+                            // MOMENTO: toque = marcar inicio/fin; mantener = guardar los últimos 15 s.
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        onClick = { onMomentTap() },
+                                        onLongClick = { onMomentLongPress() }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val marking = markStartMs != null
+                                Icon(
+                                    imageVector = if (marking || moments.isNotEmpty()) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
+                                    contentDescription = "Momento",
+                                    tint = if (marking) MaterialTheme.colorScheme.primary
+                                    else adaptiveContentColor.copy(alpha = if (highlightsActive) 0.38f else 1f)
+                                )
+                            }
+
+                            // HIGHLIGHTS: reproduce solo los momentos de toda la biblioteca.
+                            // Toque = activar/desactivar. Mantener presionado = administrar (borrar) TODOS los momentos.
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clip(CircleShape)
+                                    .combinedClickable(
+                                        onClick = { toggleHighlights() },
+                                        onLongClick = { showAllMomentsDialog = true }
+                                    ),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.AutoAwesome,
+                                    contentDescription = "Highlights",
+                                    tint = if (highlightsActive) MaterialTheme.colorScheme.primary else adaptiveContentColor
+                                )
                             }
 
                             IconButton(onClick = onToggleFavorite) {
@@ -1209,7 +1399,10 @@ private fun PlaybackSeekBar(
     adaptiveContentColor: Color,
     onDragStart: () -> Unit,
     onDragChange: (Long) -> Unit,
-    onDragEnd: (Long) -> Unit
+    onDragEnd: (Long) -> Unit,
+    moments: List<Moment> = emptyList(),
+    momentsColorMode: String = "Adaptativo",
+    momentsCustomColorHex: String = "#FFC107"
 ) {
     val currentPositionMs = positionState.value
 
@@ -1226,6 +1419,7 @@ private fun PlaybackSeekBar(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
+        Box(modifier = Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) {
         Slider(
             value = progress,
             onValueChange = { newValue ->
@@ -1247,6 +1441,32 @@ private fun PlaybackSeekBar(
             ),
             modifier = Modifier.fillMaxWidth().height(24.dp)
         )
+
+        // Franjas de los Momentos sobre la pista. El Canvas no captura toques, así que el
+        // Slider sigue funcionando igual. El Slider de M3 deja ~10dp (mitad del thumb) a cada lado.
+        if (moments.isNotEmpty() && totalDuration > 0) {
+            // Se resuelve ACÁ (composable chico) para que, en modo Arcoíris, solo la barra se
+            // recomponga en cada tick de color y no todo el reproductor.
+            val markerColor = com.music.musicflame.ui.components.resolveEqualizerColor(
+                momentsColorMode, momentsCustomColorHex, MaterialTheme.colorScheme.tertiary
+            )
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val inset = 10.dp.toPx()
+                val trackWidth = size.width - inset * 2
+                val barHeight = 8.dp.toPx()
+                moments.forEach { m ->
+                    val x0 = inset + trackWidth * (m.startMs.toFloat() / totalDuration).coerceIn(0f, 1f)
+                    val x1 = inset + trackWidth * (m.endMs.toFloat() / totalDuration).coerceIn(0f, 1f)
+                    drawRoundRect(
+                        color = markerColor.copy(alpha = 0.85f),
+                        topLeft = Offset(x0, (size.height - barHeight) / 2f),
+                        size = Size((x1 - x0).coerceAtLeast(4.dp.toPx()), barHeight),
+                        cornerRadius = CornerRadius(barHeight / 2f)
+                    )
+                }
+            }
+        }
+        }
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
@@ -1345,4 +1565,171 @@ private fun EqualizerRainbowColor(
 ) {
     val color = com.music.musicflame.ui.components.resolveEqualizerColor(mode, customHex, adaptiveColor)
     content(color.copy(alpha = alpha))
+}
+
+/** Lista de Momentos de la canción actual: ir al inicio, ajustar inicio/fin o borrar. */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun MomentsDialog(
+    moments: List<Moment>,
+    durationMs: Long,
+    onDismiss: () -> Unit,
+    onSeek: (Long) -> Unit,
+    onDelete: (Moment) -> Unit,
+    onUpdate: (Moment, Long, Long) -> Boolean,
+    onDeleteAll: () -> Unit
+) {
+    val context = LocalContext.current
+    var confirmDeleteAll by remember { mutableStateOf(false) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Momentos de esta canción") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                moments.forEach { m ->
+                    key(m.id) {
+                        var range by remember(m.id, m.startMs, m.endMs) {
+                            mutableStateOf(m.startMs.toFloat()..m.endMs.toFloat())
+                        }
+                        Column {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "${formatDuration(range.start.toLong())} – ${formatDuration(range.endInclusive.toLong())}",
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                IconButton(onClick = { onSeek(m.startMs) }) {
+                                    Icon(Icons.Filled.PlayArrow, "Ir al momento")
+                                }
+                                IconButton(onClick = { onDelete(m) }) {
+                                    Icon(Icons.Filled.Delete, "Borrar momento", tint = MaterialTheme.colorScheme.error)
+                                }
+                            }
+                            if (durationMs > 0) {
+                                RangeSlider(
+                                    value = range,
+                                    onValueChange = { range = it },
+                                    valueRange = 0f..durationMs.toFloat(),
+                                    onValueChangeFinished = {
+                                        val ok = onUpdate(m, range.start.toLong(), range.endInclusive.toLong())
+                                        if (!ok) {
+                                            range = m.startMs.toFloat()..m.endMs.toFloat()
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                "Mínimo ${MomentsRepository.MIN_DURATION_MS / 1000} s",
+                                                android.widget.Toast.LENGTH_SHORT
+                                            ).show()
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        dismissButton = {
+            TextButton(onClick = {
+                if (confirmDeleteAll) onDeleteAll() else confirmDeleteAll = true
+            }) {
+                Text(
+                    if (confirmDeleteAll) "¿Seguro? Toca otra vez" else "Borrar todos",
+                    color = MaterialTheme.colorScheme.error
+                )
+            }
+        }
+    )
+}
+
+/** Administrador global: todos los momentos de la biblioteca, para borrar los que no quieras. */
+@Composable
+private fun AllMomentsDialog(
+    repo: MomentsRepository,
+    onDismiss: () -> Unit,
+    onChanged: () -> Unit
+) {
+    var all by remember { mutableStateOf(repo.getAll()) }
+    var confirmWipe by remember { mutableStateOf(false) }
+    // Ruta -> canción de la biblioteca (para mostrar título/artista). Si ya no existe el
+    // archivo se muestra el nombre del archivo.
+    val songsByPath = remember { SongLibraryHolder.songs.associateBy { it.path } }
+    val entries = all.entries
+        .filter { it.value.isNotEmpty() }
+        .sortedBy { (songsByPath[it.key]?.title ?: it.key).lowercase() }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Todos mis momentos") },
+        text = {
+            if (entries.isEmpty()) {
+                Text("No tienes momentos guardados.")
+            } else {
+                Column(
+                    modifier = Modifier.verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    entries.forEach { (path, list) ->
+                        val s = songsByPath[path]
+                        Column {
+                            Text(
+                                text = s?.title ?: path.substringAfterLast('/'),
+                                fontWeight = FontWeight.Bold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            if (s != null) {
+                                Text(
+                                    text = s.artist,
+                                    fontSize = 12.sp,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                            list.sortedBy { it.startMs }.forEach { m ->
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "${formatDuration(m.startMs)} – ${formatDuration(m.endMs)}",
+                                        fontSize = 14.sp,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    IconButton(onClick = {
+                                        repo.deleteMoment(path, m.id)
+                                        all = repo.getAll()
+                                        onChanged()
+                                    }) {
+                                        Icon(Icons.Filled.Delete, "Borrar momento", tint = MaterialTheme.colorScheme.error)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        dismissButton = {
+            if (entries.isNotEmpty()) {
+                TextButton(onClick = {
+                    if (confirmWipe) {
+                        all.forEach { (path, list) -> list.forEach { repo.deleteMoment(path, it.id) } }
+                        all = repo.getAll()
+                        confirmWipe = false
+                        onChanged()
+                    } else {
+                        confirmWipe = true
+                    }
+                }) {
+                    Text(
+                        if (confirmWipe) "¿Seguro? Toca otra vez" else "Borrar todos",
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            }
+        }
+    )
 }

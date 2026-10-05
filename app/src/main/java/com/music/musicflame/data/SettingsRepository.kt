@@ -228,6 +228,14 @@ class SettingsRepository(context: Context) {
     fun getEqualizerCustomColorHex(): String = prefs.getString("equalizer_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
     fun saveEqualizerCustomColorHex(value: String) = prefs.edit().putString("equalizer_custom_color_hex", value).apply()
 
+    // Color de las franjas de Momentos sobre la barra de progreso del reproductor:
+    // "Adaptativo" (color terciario Material You, como hasta ahora), "Personalizado" o Arcoíris.
+    fun getMomentsColorMode(): String = prefs.getString("moments_color_mode", "Adaptativo") ?: "Adaptativo"
+    fun saveMomentsColorMode(mode: String) = prefs.edit().putString("moments_color_mode", mode).apply()
+
+    fun getMomentsCustomColorHex(): String = prefs.getString("moments_custom_color_hex", "#FFC107") ?: "#FFC107"
+    fun saveMomentsCustomColorHex(value: String) = prefs.edit().putString("moments_custom_color_hex", value).apply()
+
     // --- COLOR ÚNICO DEL "NOW PLAYING" INDICATOR (punto 3 del catálogo) ---
     // Mismo patrón que el color del ecualizador (punto 1): "Adaptativo" (default,
     // blanco/negro según luminancia del fondo, tal cual funcionaba antes) o

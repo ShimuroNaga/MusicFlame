@@ -139,6 +139,7 @@ class MainActivity : ComponentActivity() {
             return
         }
 
+
         playerManager = MusicPlayerManager(this)
         playlistRepo = PlaylistRepository(this)
         favoritesRepo = FavoritesRepository(this)

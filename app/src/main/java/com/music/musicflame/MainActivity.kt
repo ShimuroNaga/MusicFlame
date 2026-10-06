@@ -94,6 +94,7 @@ enum class SearchMode {
 
 class MainActivity : ComponentActivity() {
     private lateinit var playerManager: MusicPlayerManager
+    private lateinit var togetherManager: com.music.musicflame.together.TogetherManager
     private lateinit var playlistRepo: PlaylistRepository
     private lateinit var favoritesRepo: FavoritesRepository
     private lateinit var songCustomizationRepo: SongCustomizationRepository
@@ -141,6 +142,8 @@ class MainActivity : ComponentActivity() {
 
 
         playerManager = MusicPlayerManager(this)
+        togetherManager = com.music.musicflame.together.TogetherManager(this, playerManager)
+        handleTogetherIntent(intent)
         playlistRepo = PlaylistRepository(this)
         favoritesRepo = FavoritesRepository(this)
         songCustomizationRepo = SongCustomizationRepository(this)
@@ -344,6 +347,12 @@ class MainActivity : ComponentActivity() {
                 var selectedArtist by remember { mutableStateOf<com.music.musicflame.data.Artist?>(null) }
                 var selectedGenre by remember { mutableStateOf<com.music.musicflame.data.Genre?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
+                var showTogether by remember { mutableStateOf(false) }
+                // Enlace musicflame://sala/CODIGO -> abre la pantalla "En compañía"
+                LaunchedEffect(togetherManager.pendingDeepLinkCode) {
+                    if (togetherManager.pendingDeepLinkCode != null) { showSettings = false; showTogether = true }
+                }
+                LaunchedEffect(Unit) { togetherManager.onToast = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() } }
 
                 // --- Selección múltiple de canciones (playlists, drive, etc.) ---
 
@@ -805,6 +814,7 @@ class MainActivity : ComponentActivity() {
                                                 AnimatedVisibility(visible = !isSearchActive, enter = fadeIn(), exit = fadeOut()) {
                                                     Text(
                                                         text = when {
+                                                            showTogether -> "En compañía"
                                                             showSettings -> "Configuración"
                                                             selectedPlaylist != null -> selectedPlaylist!!.name
                                                             selectedAlbum != null -> selectedAlbum!!.name
@@ -819,15 +829,16 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         navigationIcon = {
-                                            if (selectedPlaylist != null || selectedAlbum != null || selectedArtist != null || selectedGenre != null || showSettings) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; selectedArtist = null; selectedGenre = null; showSettings = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
+                                            if (selectedPlaylist != null || selectedAlbum != null || selectedArtist != null || selectedGenre != null || showSettings || showTogether) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; selectedArtist = null; selectedGenre = null; showSettings = false; showTogether = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
                                         },
                                         actions = {
-                                            if (selectedPlaylist == null && selectedAlbum == null && selectedArtist == null && selectedGenre == null && !showSettings && !isSearchActive) {
+                                            if (selectedPlaylist == null && selectedAlbum == null && selectedArtist == null && selectedGenre == null && !showSettings && !showTogether && !isSearchActive) {
                                                 IconButton(onClick = {
                                                     isSearchActive = true
                                                     youtubeVideoId = null
                                                 }) { Icon(Icons.Filled.Search, "Buscar") }
 
+                                                IconButton(onClick = { showTogether = true }) { Icon(Icons.Filled.Groups, "En compañía") }
                                                 IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, "Configuración") }
                                             }
                                             if (selectedPlaylist != null) {
@@ -964,7 +975,12 @@ class MainActivity : ComponentActivity() {
                                 }
                             }
                         ) { innerPadding ->
-                            if (showSettings) {
+                            if (showTogether) {
+                                com.music.musicflame.together.TogetherScreen(
+                                    manager = togetherManager,
+                                    modifier = Modifier.padding(innerPadding)
+                                )
+                            } else if (showSettings) {
                                 SettingsScreen(
                                     modifier = Modifier.padding(innerPadding),
                                     playerManager = playerManager,
@@ -1397,8 +1413,17 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent) // getIntent() debe quedar apuntando al intent más reciente
+        handleTogetherIntent(intent)
         handleIncomingMusicIntent(intent)
         handleShortcutIntent(intent)
+    }
+
+    // Enlaces de invitación: musicflame://sala/ABC123
+    private fun handleTogetherIntent(intent: Intent?) {
+        val uri = intent?.data ?: return
+        if (intent.action == Intent.ACTION_VIEW && uri.scheme == "musicflame" && uri.host == "sala") {
+            uri.lastPathSegment?.let { togetherManager.pendingDeepLinkCode = com.music.musicflame.together.TogetherManager.parseCode(it) }
+        }
     }
 
     // Atajos de app: Retomar / Mezclar todo / Favoritas (ver shortcut/AppShortcutHandler.kt
@@ -1420,6 +1445,7 @@ class MainActivity : ComponentActivity() {
     private fun handleIncomingMusicIntent(intent: Intent?) {
         if (intent == null || intent.action != Intent.ACTION_VIEW) return
         val uri = intent.data ?: return
+        if (uri.scheme == "musicflame") return // enlace de sala, no un archivo de audio
 
         // Muchos gestores de archivos solo otorgan permiso de lectura para esta
         // sesión (vía FLAG_GRANT_READ_URI_PERMISSION); si además lo dejan
@@ -1529,6 +1555,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
+        if (::togetherManager.isInitialized) togetherManager.release()
         playerManager.release()
     }
 

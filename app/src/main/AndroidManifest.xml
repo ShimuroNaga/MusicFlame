@@ -46,6 +46,14 @@
             android:launchMode="singleTask"
             android:theme="@style/Theme.MusicFlame">
 
+            <!-- Enlaces de invitación al modo "En compañía": musicflame://sala/ABC123 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="musicflame" android:host="sala" />
+            </intent-filter>
+
             <!-- Reproductor de audio: mimeType audio/* (cubre la mayoría de gestores
                  de archivos modernos y de content://) -->
             <intent-filter>

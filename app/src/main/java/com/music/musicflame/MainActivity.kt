@@ -353,6 +353,8 @@ class MainActivity : ComponentActivity() {
                     if (togetherManager.pendingDeepLinkCode != null) { showSettings = false; showTogether = true }
                 }
                 LaunchedEffect(Unit) { togetherManager.onToast = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() } }
+                // "A tu amigo le falta esta canción, ¿subirla?" (solo le sale al anfitrión de la sala)
+                com.music.musicflame.together.TogetherUploadPrompt(togetherManager)
 
                 // --- Selección múltiple de canciones (playlists, drive, etc.) ---
 

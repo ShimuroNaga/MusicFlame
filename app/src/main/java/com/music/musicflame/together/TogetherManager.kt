@@ -30,7 +30,9 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.io.File
 import java.security.SecureRandom
+import java.util.UUID
 import kotlin.math.abs
 
 /**
@@ -38,8 +40,11 @@ import kotlin.math.abs
  *
  * Cómo funciona (v1):
  *  - Firebase Realtime Database solo guarda ESTADO (qué suena, play/pausa, posición).
- *    El audio NO viaja por internet: cada persona reproduce el archivo desde su propia
- *    biblioteca. Si alguien no tiene esa canción, se le avisa cuál es.
+ *    Cada persona reproduce el archivo desde su propia biblioteca.
+ *  - Si a un invitado le falta la canción, lo marca en rooms/{code}/members/{uid}/missing;
+ *    al anfitrión le sale "a tu amigo le falta esta canción, ¿subirla?". Si acepta, el archivo
+ *    (máx. 25 MB) se sube al bucket "salas" de Supabase Storage, la ruta va en state/filePath,
+ *    los invitados lo descargan solos y lo reproducen. Todo se borra al cerrar la sala.
  *  - El anfitrión (quien crea la sala) publica su estado; los demás lo siguen.
  *  - Los relojes se alinean con .info/serverTimeOffset para compensar la latencia.
  *
@@ -54,7 +59,24 @@ class TogetherManager(
 ) {
     enum class Status { IDLE, CONNECTING, CONNECTED, DISCONNECTED, ERROR }
 
-    data class Member(val uid: String, val name: String, val online: Boolean, val isHost: Boolean)
+    data class Member(
+        val uid: String,
+        val name: String,
+        val online: Boolean,
+        val isHost: Boolean,
+        /** Clave de la canción que a este invitado le falta (la que suena en la sala), si aplica. */
+        val missing: String? = null
+    )
+
+    /** Pregunta que se le muestra al anfitrión cuando a alguien le falta la canción. */
+    data class UploadPrompt(
+        val key: String,
+        val title: String,
+        val artist: String,
+        val who: List<String>,
+        val sizeBytes: Long,
+        val tooBig: Boolean
+    )
 
     private data class HostState(
         val title: String,
@@ -62,7 +84,8 @@ class TogetherManager(
         val duration: Long,
         val isPlaying: Boolean,
         val positionMs: Long,
-        val updatedAt: Long
+        val updatedAt: Long,
+        val filePath: String? = null
     ) {
         val key: String get() = songKey(title, artist)
     }
@@ -92,6 +115,12 @@ class TogetherManager(
     var missingSongText by mutableStateOf<String?>(null)
         private set
     val members = mutableStateListOf<Member>()
+    /** Anfitrión: alguien no tiene la canción que suena → preguntar si se sube. */
+    var uploadPrompt by mutableStateOf<UploadPrompt?>(null)
+        private set
+    /** "Subiendo…" / "Descargando…" mientras hay una transferencia en curso. */
+    var transferText by mutableStateOf<String?>(null)
+        private set
     private val _busy = mutableStateOf(false)
     val busy: State<Boolean> = _busy
 
@@ -119,9 +148,25 @@ class TogetherManager(
     private var lastRequestedKey: String? = null
     private var lastRequestedAt = 0L
 
+    // Presencia (se re-registra cada vez que Firebase reconecta).
+    private var connectedRef: DatabaseReference? = null
+    private var connectedListener: ValueEventListener? = null
+    private var myPresenceRef: DatabaseReference? = null
+
+    // Compartir canciones (Supabase Storage).
+    private val uploadedPaths = mutableMapOf<String, String>()   // songKey -> ruta en el bucket (anfitrión)
+    private val declinedKeys = mutableSetOf<String>()            // canciones que el anfitrión rechazó subir
+    private var uploading = false
+    private val downloaded = mutableMapOf<String, Song>()        // songKey -> canción descargada (invitado)
+    private var downloadingKey: String? = null
+    private var latestHostState: HostState? = null
+    private var reportedMissing: String? = null
+
     init {
         // Si quedó una sala guardada de la sesión anterior, se ofrece reconectar (no se une sola).
         if (roomCode != null) { status = Status.DISCONNECTED; statusDetail = "Sala guardada. Pulsa Conectar para volver." }
+        // Archivos que quedaron en Supabase de una sesión anterior (la app se cerró sin cerrar la sala).
+        cleanupOrphanUploads()
         // Escucha el desfase con el reloj del servidor (una sola vez).
         try {
             offsetListener = object : ValueEventListener {
@@ -250,11 +295,16 @@ class TogetherManager(
         val uid = auth.currentUser?.uid
         detach()
         if (uid != null) {
-            try { db.getReference("rooms/$code/members/$uid/online").setValue(false) } catch (_: Throwable) {}
+            // Queda offline (y sin "missing"); la lista de la sala ya no lo muestra.
+            try {
+                db.getReference("rooms/$code/members/$uid")
+                    .updateChildren(mapOf<String, Any?>("online" to false, "missing" to null))
+            } catch (_: Throwable) {}
         }
         status = Status.DISCONNECTED
         statusDetail = "Desconectado. Pulsa Conectar para volver."
         nowPlayingText = null; missingSongText = null
+        uploadPrompt = null; transferText = null
     }
 
     /** Botón Reconectar: reinicia la conexión con Firebase y vuelve a sincronizar. */
@@ -306,17 +356,25 @@ class TogetherManager(
         isHost = hostUid == uid
         lastHostPlaying = null
 
-        // 1) Presencia: me registro como miembro y marco "offline" si se cae la conexión.
+        // 1) Presencia. Al caerse la conexión Firebase marca mi nodo offline (y quita "missing");
+        //    el nodo NO se borra porque tus reglas exigen existir en members para leer la sala
+        //    (si se borrara, al reconectar Firebase perdería el permiso de lectura).
+        //    Los miembros offline NO se muestran (ver listener de miembros), así no quedan fantasmas.
+        //    Se registra YA, antes de abrir los listeners, y de nuevo cada vez que Firebase reconecta.
         val myRef = db.getReference("rooms/$code/members/$uid")
-        myRef.onDisconnect().updateChildren(mapOf("online" to false))
-        myRef.updateChildren(
-            mapOf(
-                "name" to displayName(),
-                "online" to true,
-                "joinedAt" to ServerValue.TIMESTAMP
-            )
-        ).addOnFailureListener {
-            fail(it, "No se pudo entrar (¿sala llena? máximo $MAX_MEMBERS personas)")
+        myPresenceRef = myRef
+        reportedMissing = null
+        registerPresence(myRef)
+        connectedRef = db.getReference(".info/connected").also { ref ->
+            connectedListener = object : ValueEventListener {
+                override fun onDataChange(s: DataSnapshot) {
+                    if (s.getValue(Boolean::class.java) != true) return
+                    reportedMissing = null // tras reconectar hay que volver a avisar si me falta la canción
+                    registerPresence(myRef)
+                }
+                override fun onCancelled(e: DatabaseError) {}
+            }
+            ref.addValueEventListener(connectedListener!!)
         }
 
         // 2) Meta: si desaparece, el anfitrión cerró la sala.
@@ -341,17 +399,22 @@ class TogetherManager(
                 override fun onDataChange(s: DataSnapshot) {
                     val list = s.children.mapNotNull { c ->
                         val id = c.key ?: return@mapNotNull null
+                        val online = c.child("online").getValue(Boolean::class.java) ?: false
+                        // Los nodos viejos con online=false son fantasmas de versiones anteriores: se ignoran.
+                        if (!online) return@mapNotNull null
                         Member(
                             uid = id,
                             name = c.child("name").getValue(String::class.java) ?: "Invitado",
-                            online = c.child("online").getValue(Boolean::class.java) ?: false,
-                            isHost = id == hostUid
+                            online = true,
+                            isHost = id == hostUid,
+                            missing = c.child("missing").getValue(String::class.java)
                         )
                     }.sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.name.lowercase() })
                     members.clear(); members.addAll(list)
                     if (status == Status.CONNECTING) {
                         status = Status.CONNECTED; statusDetail = ""
                     }
+                    evaluateMissing()
                 }
                 override fun onCancelled(e: DatabaseError) {
                     fail(e.toException(), "Sin permiso para leer la sala")
@@ -366,6 +429,7 @@ class TogetherManager(
             stateListener = object : ValueEventListener {
                 override fun onDataChange(s: DataSnapshot) {
                     val st = parseState(s) ?: return
+                    latestHostState = st
                     scope.launch { applyHostState(st) }
                 }
                 override fun onCancelled(e: DatabaseError) {
@@ -381,14 +445,23 @@ class TogetherManager(
         metaListener?.let { metaRef?.removeEventListener(it) }
         membersListener?.let { membersRef?.removeEventListener(it) }
         stateListener?.let { stateRef?.removeEventListener(it) }
-        metaListener = null; membersListener = null; stateListener = null
-        metaRef = null; membersRef = null; stateRef = null
+        connectedListener?.let { connectedRef?.removeEventListener(it) }
+        metaListener = null; membersListener = null; stateListener = null; connectedListener = null
+        metaRef = null; membersRef = null; stateRef = null; connectedRef = null
+        latestHostState = null; downloadingKey = null
     }
 
     private suspend fun leaveInternal(removeRemote: Boolean) {
         val code = roomCode
         val uid = auth.currentUser?.uid
+        val wasHost = isHost
+        // Evita que un borrado de presencia pendiente ensucie la sala después de salir.
+        try { myPresenceRef?.onDisconnect()?.cancel() } catch (_: Throwable) {}
+        myPresenceRef = null
         detach()
+        // Limpieza de archivos compartidos: borra lo subido (anfitrión) y lo descargado (invitado).
+        if (wasHost) deleteUploadedFiles()
+        clearDownloads()
         if (removeRemote && code != null && uid != null) {
             try {
                 if (isHost) db.getReference("rooms/$code").removeValue().await()
@@ -400,6 +473,8 @@ class TogetherManager(
         roomCode = null; isHost = false; hostUid = null
         members.clear()
         nowPlayingText = null; missingSongText = null
+        uploadPrompt = null; transferText = null
+        declinedKeys.clear(); reportedMissing = null
         status = Status.IDLE; statusDetail = ""
         prefs.edit().remove(KEY_ROOM).remove(KEY_IS_HOST).apply()
     }
@@ -412,7 +487,7 @@ class TogetherManager(
             snapshotFlow {
                 val s = playerManager.currentSong.value
                 Pair(s?.let { songKey(it.title, it.artist) }, playerManager.isPlayingState.value)
-            }.collect { publishNow() }
+            }.collect { publishNow(); evaluateMissing() }
         }
         // …y cada 3 s para que los demás corrijan el desfase (y detecten saltos de barra).
         publishJobs += scope.launch {
@@ -426,16 +501,18 @@ class TogetherManager(
     private fun publishNow() {
         val ref = stateRef ?: return
         val song = playerManager.currentSong.value ?: return
-        ref.setValue(
-            mapOf(
-                "title" to song.title,
-                "artist" to song.artist,
-                "duration" to playerManager.duration.coerceAtLeast(0L),
-                "isPlaying" to playerManager.isPlayingState.value,
-                "positionMs" to playerManager.currentPosition,
-                "updatedAt" to ServerValue.TIMESTAMP
-            )
+        // Si el anfitrión ya subió ESTA canción, los invitados la descargan desde filePath.
+        val filePath = uploadedPaths[songKey(song.title, song.artist)]
+        val data = mutableMapOf<String, Any>(
+            "title" to song.title,
+            "artist" to song.artist,
+            "duration" to playerManager.duration.coerceAtLeast(0L),
+            "isPlaying" to playerManager.isPlayingState.value,
+            "positionMs" to playerManager.currentPosition,
+            "updatedAt" to ServerValue.TIMESTAMP
         )
+        if (filePath != null) data["filePath"] = filePath
+        ref.setValue(data)
     }
 
     // ================= Invitado: seguir al anfitrión =================
@@ -449,7 +526,8 @@ class TogetherManager(
             duration = s.child("duration").getValue(Long::class.java) ?: 0L,
             isPlaying = s.child("isPlaying").getValue(Boolean::class.java) ?: false,
             positionMs = s.child("positionMs").getValue(Long::class.java) ?: 0L,
-            updatedAt = s.child("updatedAt").getValue(Long::class.java) ?: serverNow()
+            updatedAt = s.child("updatedAt").getValue(Long::class.java) ?: serverNow(),
+            filePath = s.child("filePath").getValue(String::class.java)
         )
     }
 
@@ -467,12 +545,15 @@ class TogetherManager(
             // Evita lanzar playSong() varias veces seguidas mientras el reproductor carga.
             val now = SystemClock.elapsedRealtime()
             if (lastRequestedKey == st.key && now - lastRequestedAt < 4000) return
-            val mine = findLocalSong(st)
+            val mine = findLocalSong(st) ?: downloadedSongFor(st)
             if (mine == null) {
                 missingSongText = nowPlayingText
+                reportMissing(st.key)          // el anfitrión verá "¿subirla?"
+                if (st.filePath != null) startDownload(st)  // ya la subió: se descarga sola
                 return
             }
             missingSongText = null
+            reportMissing(null)
             lastRequestedKey = st.key; lastRequestedAt = now
             playerManager.playSong(mine, listOf(mine))
             delay(900) // damos tiempo a que el reproductor cargue antes de saltar a la posición
@@ -483,6 +564,7 @@ class TogetherManager(
         }
 
         missingSongText = null
+        reportMissing(null)
         val playing = playerManager.isPlayingState.value
 
         // Cambió play/pausa en el anfitrión → alineamos. (Si TÚ pausas a mano, no te forzamos a
@@ -509,6 +591,168 @@ class TogetherManager(
         val t = normalize(st.title)
         return all.firstOrNull {
             normalize(it.title) == t && (st.duration <= 0L || abs(it.duration - st.duration) <= 3000L)
+        }
+    }
+
+    /** Programa "offline al caerse" y me marca online. Las dos llamadas salen en orden por la misma conexión. */
+    private fun registerPresence(myRef: DatabaseReference) {
+        myRef.onDisconnect().updateChildren(mapOf<String, Any?>("online" to false, "missing" to null))
+        myRef.updateChildren(
+            mapOf(
+                "name" to displayName(),
+                "online" to true,
+                "joinedAt" to ServerValue.TIMESTAMP
+            )
+        ).addOnFailureListener {
+            fail(it, "No se pudo entrar (¿sala llena? máximo $MAX_MEMBERS personas)")
+        }
+    }
+
+    // ================= Compartir canciones (Supabase) =================
+
+    /** Invitado: avisa en mi nodo qué canción me falta (o la quita cuando ya la tengo). */
+    private fun reportMissing(key: String?) {
+        if (reportedMissing == key) return
+        reportedMissing = key
+        val code = roomCode ?: return
+        val uid = auth.currentUser?.uid ?: return
+        try {
+            val ref = db.getReference("rooms/$code/members/$uid/missing")
+            if (key == null) ref.removeValue() else ref.setValue(key)
+        } catch (t: Throwable) {
+            Log.w(TAG, "No se pudo avisar la canción faltante", t)
+        }
+    }
+
+    /** Anfitrión: ¿a algún invitado le falta lo que suena? Si sí, prepara la pregunta. */
+    private fun evaluateMissing() {
+        if (!isHost || status != Status.CONNECTED) { return }
+        val song = playerManager.currentSong.value
+        if (song == null) { uploadPrompt = null; return }
+        val key = songKey(song.title, song.artist)
+        val who = members.filter { !it.isHost && it.online && it.missing == key }
+        if (who.isEmpty()) { uploadPrompt = null; return }
+        if (uploading || key in declinedKeys || uploadedPaths.containsKey(key)) return
+        val file = File(song.path)
+        if (!file.isFile) { uploadPrompt = null; return } // p. ej. una canción de YouTube: no hay archivo que subir
+        val size = file.length()
+        val current = uploadPrompt
+        if (current != null && current.key == key && current.who == who.map { it.name } && current.sizeBytes == size) return
+        uploadPrompt = UploadPrompt(
+            key = key, title = song.title, artist = song.artist,
+            who = who.map { it.name }, sizeBytes = size, tooBig = size > SupabaseSalas.MAX_BYTES
+        )
+    }
+
+    /** El anfitrión pulsó "Subir". */
+    fun confirmUpload() {
+        val p = uploadPrompt ?: return
+        uploadPrompt = null
+        if (p.tooBig) { declinedKeys += p.key; return }
+        startUpload(p.key)
+    }
+
+    /** El anfitrión pulsó "Ahora no" (no se vuelve a preguntar por esa canción). */
+    fun dismissUploadPrompt() {
+        uploadPrompt?.let { declinedKeys += it.key }
+        uploadPrompt = null
+    }
+
+    private fun startUpload(key: String) {
+        val code = roomCode ?: return
+        val song = playerManager.currentSong.value ?: return
+        if (songKey(song.title, song.artist) != key || uploading) return
+        val file = File(song.path)
+        if (!file.isFile || file.length() > SupabaseSalas.MAX_BYTES) {
+            toast("Esa canción no se puede compartir (máximo 25 MB)")
+            return
+        }
+        val ext = file.extension.lowercase().filter { it.isLetterOrDigit() }.take(5).ifBlank { "mp3" }
+        val objectPath = "$code/${UUID.randomUUID()}.$ext"
+        uploading = true
+        transferText = "Subiendo «${song.title}»…"
+        scope.launch {
+            try {
+                SupabaseSalas.upload(file, objectPath, SupabaseSalas.mimeFor(ext))
+                uploadedPaths[key] = objectPath
+                persistUploadedPaths()
+                publishNow() // ahora el estado incluye filePath y los invitados la descargan
+                toast("Canción compartida: «${song.title}»")
+            } catch (t: Throwable) {
+                Log.e(TAG, "Falló la subida", t)
+                declinedKeys += key
+                toast("No se pudo subir la canción: ${t.message ?: "error desconocido"}")
+            } finally {
+                uploading = false
+                transferText = null
+            }
+        }
+    }
+
+    /** Invitado: descarga la canción que el anfitrión subió y la reproduce sincronizada. */
+    private fun startDownload(st: HostState) {
+        val path = st.filePath ?: return
+        if (downloadingKey == st.key) return
+        downloadingKey = st.key
+        transferText = "Descargando «${st.title}»…"
+        scope.launch {
+            try {
+                val dir = File(appContext.cacheDir, DOWNLOAD_DIR).apply { mkdirs() }
+                val dest = File(dir, path.substringAfterLast('/'))
+                if (!dest.isFile) SupabaseSalas.download(path, dest)
+                downloaded[st.key] = Song(
+                    id = -(abs(st.key.hashCode().toLong()) + 1000L), // id sintético negativo: no choca con la biblioteca
+                    title = st.title,
+                    artist = st.artist,
+                    album = "En compañía",
+                    duration = st.duration,
+                    path = dest.absolutePath
+                )
+                lastRequestedKey = null
+                // Se aplica el ESTADO MÁS RECIENTE (la posición ya avanzó mientras se descargaba).
+                latestHostState?.takeIf { it.key == st.key }?.let { applyHostState(it) }
+            } catch (t: Throwable) {
+                Log.e(TAG, "Falló la descarga", t)
+                toast("No se pudo descargar la canción del anfitrión")
+            } finally {
+                downloadingKey = null
+                transferText = null
+            }
+        }
+    }
+
+    private fun downloadedSongFor(st: HostState): Song? {
+        val song = downloaded[st.key] ?: return null
+        return if (File(song.path).isFile) song else { downloaded.remove(st.key); null }
+    }
+
+    private fun clearDownloads() {
+        // Si lo que suena es una canción descargada, se pausa antes de borrar el archivo.
+        val current = playerManager.currentSong.value
+        if (current != null && current.path.contains("/$DOWNLOAD_DIR/")) playerManager.pause()
+        downloaded.clear()
+        try { File(appContext.cacheDir, DOWNLOAD_DIR).deleteRecursively() } catch (_: Throwable) {}
+    }
+
+    private suspend fun deleteUploadedFiles() {
+        val paths = uploadedPaths.values.toList()
+        uploadedPaths.clear()
+        persistUploadedPaths()
+        if (paths.isNotEmpty()) {
+            try { SupabaseSalas.delete(paths) } catch (t: Throwable) { Log.w(TAG, "No se pudieron borrar archivos", t) }
+        }
+    }
+
+    private fun persistUploadedPaths() {
+        prefs.edit().putStringSet(KEY_UPLOADED, uploadedPaths.values.toSet()).apply()
+    }
+
+    private fun cleanupOrphanUploads() {
+        val orphans = prefs.getStringSet(KEY_UPLOADED, null)?.toList().orEmpty()
+        if (orphans.isEmpty()) return
+        prefs.edit().remove(KEY_UPLOADED).apply()
+        scope.launch {
+            try { SupabaseSalas.delete(orphans) } catch (_: Throwable) {}
         }
     }
 
@@ -565,6 +809,8 @@ class TogetherManager(
         private const val KEY_NAME = "user_name"
         private const val KEY_ROOM = "room_code"
         private const val KEY_IS_HOST = "is_host"
+        private const val KEY_UPLOADED = "uploaded_paths"
+        private const val DOWNLOAD_DIR = "together"
         private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // sin 0/O/1/I para no confundir
         private const val CODE_LEN = 6
         const val MAX_MEMBERS = 8

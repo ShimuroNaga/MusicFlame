@@ -53,8 +53,10 @@ fun TogetherScreen(
         item {
             Text(
                 "Escucha música a la vez con otras personas, juntas o a distancia. " +
-                    "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame solo sincroniza " +
-                    "qué suena, play/pausa y el momento exacto. De 2 a ${TogetherManager.MAX_MEMBERS} personas.",
+                    "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame sincroniza " +
+                    "qué suena, play/pausa y el momento exacto. Si a alguien le falta una canción, el anfitrión " +
+                    "puede subirla (máx. 25 MB) y se descarga sola; se borra al cerrar la sala. " +
+                    "De 2 a ${TogetherManager.MAX_MEMBERS} personas.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -166,8 +168,19 @@ fun TogetherScreen(
                             fontSize = 13.sp
                         )
                         manager.missingSongText?.let {
-                            Text("No tienes esta canción en tu biblioteca: $it", fontSize = 12.sp,
-                                color = MaterialTheme.colorScheme.error)
+                            Text(
+                                if (manager.transferText != null) "No la tienes en tu biblioteca: $it"
+                                else "No la tienes en tu biblioteca: $it. Se le avisó al anfitrión para que la suba.",
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                    manager.transferText?.let {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            Spacer(Modifier.width(8.dp))
+                            Text(it, fontSize = 12.sp)
                         }
                     }
                     if (connected && manager.isHost) {
@@ -217,6 +230,38 @@ fun TogetherScreen(
                 }
             }
         }
+    }
+}
+
+/**
+ * Diálogo para el ANFITRIÓN: "a tu amigo le falta esta canción, ¿subirla?".
+ * Se llama una sola vez desde MainActivity para que salga en cualquier pantalla.
+ */
+@Composable
+fun TogetherUploadPrompt(manager: TogetherManager) {
+    val p = manager.uploadPrompt ?: return
+    val names = p.who.joinToString(", ")
+    val mb = p.sizeBytes / 1_048_576.0
+    val song = if (p.artist.isBlank()) p.title else "${p.title} – ${p.artist}"
+    if (p.tooBig) {
+        AlertDialog(
+            onDismissRequest = { manager.dismissUploadPrompt() },
+            title = { Text("Canción muy pesada") },
+            text = {
+                Text("$names no tiene «$song», pero pesa ${"%.1f".format(mb)} MB y el límite para compartir es 25 MB.")
+            },
+            confirmButton = { TextButton(onClick = { manager.dismissUploadPrompt() }) { Text("Entendido") } }
+        )
+    } else {
+        AlertDialog(
+            onDismissRequest = { manager.dismissUploadPrompt() },
+            title = { Text(if (p.who.size == 1) "A tu amigo le falta esta canción" else "A tus amigos les falta esta canción") },
+            text = {
+                Text("$names no tiene «$song» (${"%.1f".format(mb)} MB). ¿Subirla para que la escuche contigo? Se borra al cerrar la sala.")
+            },
+            confirmButton = { TextButton(onClick = { manager.confirmUpload() }) { Text("Subir") } },
+            dismissButton = { TextButton(onClick = { manager.dismissUploadPrompt() }) { Text("Ahora no") } }
+        )
     }
 }
 

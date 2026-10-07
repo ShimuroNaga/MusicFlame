@@ -213,6 +213,7 @@ fun SettingsScreen(
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
     val showMomentsColorDialog = remember { mutableStateOf(false) }
+    val showTogetherColorDialog = remember { mutableStateOf(false) }
     val showLyricsColorDialog = remember { mutableStateOf(false) }
     val showNowPlayingColorDialog = remember { mutableStateOf(false) }
 
@@ -242,6 +243,9 @@ fun SettingsScreen(
     // Color de las franjas de Momentos (barra de progreso del reproductor completo).
     val momentsColorModePref = remember { mutableStateOf(settingsRepo.getMomentsColorMode()) }
     val momentsCustomColorHexPref = remember { mutableStateOf(settingsRepo.getMomentsCustomColorHex()) }
+    // Color de acento de la pantalla "En compañía".
+    val togetherColorModePref = remember { mutableStateOf(settingsRepo.getTogetherColorMode()) }
+    val togetherCustomColorHexPref = remember { mutableStateOf(settingsRepo.getTogetherCustomColorHex()) }
     // Color propio del texto de la letra sincronizada (catálogo, punto 2):
     // "Blanco", "Negro" o "Personalizado" (lyricsCustomColorHexPref). Mismo
     // patrón que equalizerColorModePref/equalizerCustomColorHexPref de arriba;
@@ -1259,6 +1263,30 @@ fun SettingsScreen(
                                 },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { showMomentsColorDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // NUEVO: color de acento de la pantalla "En compañía".
+                            ListItem(
+                                headlineContent = { Text("Color de En compañía") },
+                                supportingContent = {
+                                    Text(
+                                        when (togetherColorModePref.value) {
+                                            "Personalizado" -> "Personalizado: ${togetherCustomColorHexPref.value}"
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
+                                            else -> "Adaptativo (color del tema)"
+                                        }
+                                    )
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showTogetherColorDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showTogetherColorDialog.value = true }
                             )
                             HorizontalDivider(color = dividerColor)
                         }
@@ -3448,6 +3476,116 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showMomentsColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showTogetherColorDialog.value) {
+            val tempTogetherMode = remember { mutableStateOf(togetherColorModePref.value) }
+            val tempTogetherHex = remember { mutableStateOf(togetherCustomColorHexPref.value) }
+            AlertDialog(
+                onDismissRequest = { showTogetherColorDialog.value = false },
+                title = { Text("Color de En compañía", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column {
+                        Text(
+                            "Color de acento de la pantalla En compañía: botones, código de la sala y tarjeta.",
+                            fontSize = 12.sp,
+                            color = mediumEmphasis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempTogetherMode.value = colorOption }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = tempTogetherMode.value == colorOption,
+                                    onClick = { tempTogetherMode.value = colorOption }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                    Text(
+                                        when (colorOption) {
+                                            "Adaptativo" -> "Usa el color del tema (Material You), como hasta ahora"
+                                            "Personalizado" -> "Elige tu propio color"
+                                            else -> "Colores del espectro en movimiento continuo"
+                                        },
+                                        fontSize = 11.sp,
+                                        color = mediumEmphasis
+                                    )
+                                }
+                            }
+                        }
+
+                        if (tempTogetherMode.value == "Personalizado") {
+                            Spacer(Modifier.height(4.dp))
+                            val presetColors = listOf(
+                                "#FFFFFF", "#000000", "#F44336", "#E91E63", "#9C27B0",
+                                "#673AB7", "#3F51B5", "#2196F3", "#03A9F4", "#00BCD4",
+                                "#009688", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B",
+                                "#FFC107", "#FF9800", "#FF5722", "#795548", "#9E9E9E"
+                            )
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .horizontalScroll(rememberScrollState()),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                presetColors.forEach { hex ->
+                                    val isSelected = tempTogetherHex.value.equals(hex, ignoreCase = true)
+                                    Box(
+                                        modifier = Modifier
+                                            .size(36.dp)
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(com.music.musicflame.ui.theme.parseCustomTextColor(hex))
+                                            .border(
+                                                width = if (isSelected) 3.dp else 1.dp,
+                                                color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                                shape = RoundedCornerShape(8.dp)
+                                            )
+                                            .clickable { tempTogetherHex.value = hex }
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.height(12.dp))
+                            OutlinedTextField(
+                                value = tempTogetherHex.value,
+                                onValueChange = { tempTogetherHex.value = it },
+                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                singleLine = true,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(28.dp)
+                                        .clip(RoundedCornerShape(6.dp))
+                                        .background(com.music.musicflame.ui.theme.parseCustomTextColor(tempTogetherHex.value))
+                                        .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Text("Vista previa", fontSize = 12.sp)
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        settingsRepo.saveTogetherColorMode(tempTogetherMode.value)
+                        togetherColorModePref.value = tempTogetherMode.value
+                        if (tempTogetherMode.value == "Personalizado") {
+                            settingsRepo.saveTogetherCustomColorHex(tempTogetherHex.value)
+                            togetherCustomColorHexPref.value = tempTogetherHex.value
+                        }
+                        showTogetherColorDialog.value = false
+                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = { TextButton(onClick = { showTogetherColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
             )
         }
 

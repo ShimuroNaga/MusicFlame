@@ -236,6 +236,14 @@ class SettingsRepository(context: Context) {
     fun getMomentsCustomColorHex(): String = prefs.getString("moments_custom_color_hex", "#FFC107") ?: "#FFC107"
     fun saveMomentsCustomColorHex(value: String) = prefs.edit().putString("moments_custom_color_hex", value).apply()
 
+    // Color de acento de la pantalla "En compañía" (botones, código de sala, tarjeta, etc.):
+    // "Adaptativo" (color primario del tema, como hasta ahora), "Personalizado" o Arcoíris.
+    fun getTogetherColorMode(): String = prefs.getString("together_color_mode", "Adaptativo") ?: "Adaptativo"
+    fun saveTogetherColorMode(mode: String) = prefs.edit().putString("together_color_mode", mode).apply()
+
+    fun getTogetherCustomColorHex(): String = prefs.getString("together_custom_color_hex", "#2196F3") ?: "#2196F3"
+    fun saveTogetherCustomColorHex(value: String) = prefs.edit().putString("together_custom_color_hex", value).apply()
+
     // --- COLOR ÚNICO DEL "NOW PLAYING" INDICATOR (punto 3 del catálogo) ---
     // Mismo patrón que el color del ecualizador (punto 1): "Adaptativo" (default,
     // blanco/negro según luminancia del fondo, tal cual funcionaba antes) o

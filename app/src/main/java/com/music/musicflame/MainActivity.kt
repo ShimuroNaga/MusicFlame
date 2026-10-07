@@ -483,6 +483,11 @@ class MainActivity : ComponentActivity() {
                 }
 
                 CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalCustomCoverDesign provides customCoverDesignState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
+                    // El gesto/botón "atrás" del sistema también cierra "En compañía"
+                    // (la sala sigue activa en segundo plano; solo se cierra la pantalla).
+                    BackHandler(enabled = showTogether && !showFullScreenPlayer && !isAnySelectionMode) {
+                        showTogether = false
+                    }
                     BackHandler(enabled = showFullScreenPlayer || isAnySelectionMode) {
                         if (showFullScreenPlayer) showFullScreenPlayer = false
                         else {
@@ -963,6 +968,7 @@ class MainActivity : ComponentActivity() {
                                                     selectedArtist = null
                                                     selectedGenre = null
                                                     showSettings = false
+                                                    showTogether = false
                                                     isSearchActive = false
                                                     searchQuery = ""
                                                     selectedSongs.clear(); manualSongSelectionMode = false

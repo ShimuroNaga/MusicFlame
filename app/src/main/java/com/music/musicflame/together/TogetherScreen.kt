@@ -19,6 +19,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
@@ -36,6 +38,15 @@ fun TogetherScreen(
     val inRoom = manager.roomCode != null
     val connected = manager.status == TogetherManager.Status.CONNECTED
     val busy by manager.busy
+
+    // Color de acento elegido en Ajustes > Apariencia > "Color de En compañía".
+    // Se guarda como State y se LEE dentro de cada item/botón (no acá arriba) para que, en
+    // modo Arcoíris, solo se recomponga lo que usa el color y no toda la pantalla.
+    val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
+    val accent = rememberTogetherAccent(
+        mode = remember { settingsRepo.getTogetherColorMode() },
+        hex = remember { settingsRepo.getTogetherCustomColorHex() }
+    )
 
     // Si llegaste por un enlace musicflame://sala/CODIGO, entra solo.
     LaunchedEffect(manager.pendingDeepLinkCode) {
@@ -70,6 +81,11 @@ fun TogetherScreen(
                 label = { Text("Tu nombre en la sala") },
                 leadingIcon = { Icon(Icons.Filled.Person, null) },
                 singleLine = true,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = accent.value,
+                    focusedLabelColor = accent.value,
+                    cursorColor = accent.value
+                ),
                 modifier = Modifier.fillMaxWidth()
             )
         }
@@ -77,7 +93,8 @@ fun TogetherScreen(
         if (!inRoom) {
             // ---- Crear ----
             item {
-                Button(
+                AccentButton(
+                    accent = accent,
                     onClick = { manager.createRoom() },
                     enabled = !busy,
                     modifier = Modifier.fillMaxWidth()
@@ -96,16 +113,22 @@ fun TogetherScreen(
                         label = { Text("Pega el código o el enlace") },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = accent.value,
+                            focusedLabelColor = accent.value,
+                            cursorColor = accent.value
+                        ),
                         modifier = Modifier.weight(1f)
                     )
-                    Button(
+                    AccentButton(
+                        accent = accent,
                         onClick = { manager.joinRoom(joinInput) },
                         enabled = !busy && joinInput.isNotBlank()
                     ) { Text("Unirse") }
                 }
             }
             item {
-                TextButton(onClick = {
+                TextButton(colors = ButtonDefaults.textButtonColors(contentColor = accent.value), onClick = {
                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
                     if (text.isNotBlank()) joinInput = text
@@ -118,21 +141,24 @@ fun TogetherScreen(
         } else {
             // ---- Sala actual ----
             item {
-                Card(modifier = Modifier.fillMaxWidth()) {
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = accent.value.copy(alpha = 0.14f))
+                ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
                         Text(if (manager.isHost) "Tu sala (anfitrión)" else "Sala", fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(manager.roomCode ?: "", fontSize = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp)
+                        Text(manager.roomCode ?: "", fontSize = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = accent.value)
                         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            OutlinedButton(onClick = { copy(context, "Código", manager.roomCode.orEmpty()) }) {
+                            AccentOutlinedButton(accent, onClick = { copy(context, "Código", manager.roomCode.orEmpty()) }) {
                                 Icon(Icons.Filled.ContentCopy, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp)); Text("Código")
                             }
-                            OutlinedButton(onClick = { copy(context, "Enlace", manager.roomLink.orEmpty()) }) {
+                            AccentOutlinedButton(accent, onClick = { copy(context, "Enlace", manager.roomLink.orEmpty()) }) {
                                 Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp)); Text("Enlace")
                             }
-                            OutlinedButton(onClick = { share(context, manager) }) {
+                            AccentOutlinedButton(accent, onClick = { share(context, manager) }) {
                                 Icon(Icons.Filled.Share, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp)); Text("Invitar")
                             }
@@ -178,7 +204,7 @@ fun TogetherScreen(
                     }
                     manager.transferText?.let {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp)
+                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = accent.value)
                             Spacer(Modifier.width(8.dp))
                             Text(it, fontSize = 12.sp)
                         }
@@ -194,17 +220,17 @@ fun TogetherScreen(
             item {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                     if (connected) {
-                        OutlinedButton(onClick = { manager.disconnect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
+                        AccentOutlinedButton(accent, onClick = { manager.disconnect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Filled.LinkOff, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp)); Text("Desconectar")
                         }
                     } else {
-                        Button(onClick = { manager.connect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
+                        AccentButton(accent, onClick = { manager.connect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp)); Text("Conectar")
                         }
                     }
-                    OutlinedButton(onClick = { manager.reconnect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
+                    AccentOutlinedButton(accent, onClick = { manager.reconnect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp)); Text("Reconectar")
                     }
@@ -231,6 +257,67 @@ fun TogetherScreen(
             }
         }
     }
+}
+
+/**
+ * Color de acento de "En compañía". Devuelve un State: en Arcoíris cambia con el tiempo, así que
+ * quien lo use debe leer `.value` lo más adentro posible (botón/item) para no recomponer todo.
+ * "Adaptativo" = color primario del tema (idéntico al aspecto anterior).
+ */
+@Composable
+private fun rememberTogetherAccent(mode: String, hex: String): State<Color> {
+    val adaptive = MaterialTheme.colorScheme.primary
+    val phase = if (mode == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW)
+        com.music.musicflame.ui.theme.rememberRainbowPhase() else null
+    return remember(mode, hex, adaptive, phase) {
+        derivedStateOf {
+            when {
+                phase != null -> com.music.musicflame.ui.theme.rainbowColorAt(phase.value)
+                mode == "Personalizado" -> com.music.musicflame.ui.theme.parseCustomTextColor(hex)
+                else -> adaptive
+            }
+        }
+    }
+}
+
+/** Texto/ícono legible sobre el color de acento (negro sobre claros, blanco sobre oscuros). */
+private fun onAccent(c: Color): Color = if (c.luminance() > 0.5f) Color.Black else Color.White
+
+@Composable
+private fun AccentButton(
+    accent: State<Color>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit
+) {
+    val c = accent.value
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        colors = ButtonDefaults.buttonColors(containerColor = c, contentColor = onAccent(c)),
+        content = content
+    )
+}
+
+@Composable
+private fun AccentOutlinedButton(
+    accent: State<Color>,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable RowScope.() -> Unit
+) {
+    val c = accent.value
+    OutlinedButton(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = modifier,
+        colors = ButtonDefaults.outlinedButtonColors(contentColor = c),
+        border = BorderStroke(1.dp, c.copy(alpha = 0.6f)),
+        content = content
+    )
 }
 
 /**

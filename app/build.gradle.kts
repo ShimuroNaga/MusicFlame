@@ -4,6 +4,7 @@ import java.io.FileInputStream
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
+    id("com.google.gms.google-services")
 }
 
 // Cargamos local.properties una sola vez para reutilizarlo en varios lugares
@@ -45,23 +46,25 @@ android {
                 keyPassword = localProperties.getProperty("RELEASE_KEY_PASSWORD", "")
             }
         }
-        packaging {
-            resources {
-                excludes += "META-INF/DEPENDENCIES"
-                excludes += "META-INF/LICENSE"
-                excludes += "META-INF/LICENSE.txt"
-                excludes += "META-INF/LICENSE.md"
-                excludes += "META-INF/LICENSE-notice.md"
-                excludes += "META-INF/NOTICE"
-                excludes += "META-INF/NOTICE.txt"
-                excludes += "META-INF/NOTICE.md"
-                excludes += "META-INF/ASL2.0"
-                excludes += "META-INF/LGPL2.1"
+    }
 
-                // Si después de esto te marca error por algún archivo de versión de Kotlin
-                // puedes descomentar esta línea:
-                // pickFirst += "META-INF/kotlinx_coroutines_core.version"
-            }
+    // Movido fuera de signingConfigs: aquí es su lugar correcto
+    packaging {
+        resources {
+            excludes += "META-INF/DEPENDENCIES"
+            excludes += "META-INF/LICENSE"
+            excludes += "META-INF/LICENSE.txt"
+            excludes += "META-INF/LICENSE.md"
+            excludes += "META-INF/LICENSE-notice.md"
+            excludes += "META-INF/NOTICE"
+            excludes += "META-INF/NOTICE.txt"
+            excludes += "META-INF/NOTICE.md"
+            excludes += "META-INF/ASL2.0"
+            excludes += "META-INF/LGPL2.1"
+
+            // Si después de esto te marca error por algún archivo de versión de Kotlin
+            // puedes descomentar esta línea:
+            // pickFirst += "META-INF/kotlinx_coroutines_core.version"
         }
     }
 
@@ -154,4 +157,11 @@ dependencies {
     // 1.7.2 (no la 2.0-alpha) por rendimiento/estabilidad.
     implementation("dev.chrisbanes.haze:haze:1.7.2")
     implementation("dev.chrisbanes.haze:haze-materials:1.7.2")
+
+    // --- FIREBASE (modo "En compañía") ---
+    // Con el BoM 34+ ya no existen los módulos -ktx
+    implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
+    implementation("com.google.firebase:firebase-analytics")
+    implementation("com.google.firebase:firebase-database")
+    implementation("com.google.firebase:firebase-auth")
 }

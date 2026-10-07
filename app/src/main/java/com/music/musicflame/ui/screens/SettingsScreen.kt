@@ -134,6 +134,7 @@ import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.LicenseRepository
 import com.music.musicflame.data.LicenseStatus
 import com.music.musicflame.data.SavingsGoalRepository
+import com.music.musicflame.together.SupabaseSalas
 import com.music.musicflame.data.LicenseValidationResult
 import com.music.musicflame.data.DeviceInfoProvider
 import com.music.musicflame.ui.theme.LocalAppTextColor
@@ -354,6 +355,30 @@ fun SettingsScreen(
     var showSavingsGoalTokenDialog by remember { mutableStateOf(false) }
     var savingsGoalTokenInput by remember { mutableStateOf("") }
     val savingsGoalScope = rememberCoroutineScope()
+
+    // --- Almacenamiento de Supabase ("En compañía"): SOLO cuenta dueña, debajo de la Meta ---
+    var supaUsage by remember { mutableStateOf<SupabaseSalas.Usage?>(null) }
+    var supaLoading by remember { mutableStateOf(false) }
+    var supaError by remember { mutableStateOf<String?>(null) }
+    val supaScope = rememberCoroutineScope()
+    val refreshSupaUsage: () -> Unit = {
+        if (!supaLoading) {
+            supaLoading = true
+            supaError = null
+            supaScope.launch {
+                try {
+                    supaUsage = SupabaseSalas.usage()
+                } catch (t: Throwable) {
+                    supaError = t.message ?: t.javaClass.simpleName
+                } finally {
+                    supaLoading = false
+                }
+            }
+        }
+    }
+    LaunchedEffect(Unit) {
+        if (licenseRepo.isOwnerAccount()) refreshSupaUsage()
+    }
 
     LaunchedEffect(Unit) {
         val fetched = savingsGoalRepo.fetchActual()
@@ -669,6 +694,73 @@ fun SettingsScreen(
                                         TextButton(onClick = { showSavingsGoalTokenDialog = false }) { Text("Cancelar") }
                                     }
                                 )
+                            }
+                        }
+                        // Almacenamiento de Supabase (solo dueño): cuánto se ha usado y cuánto queda.
+                        if (licenseRepo.isOwnerAccount()) {
+                            item {
+                                Card(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                                ) {
+                                    Column(modifier = Modifier.padding(16.dp)) {
+                                        val usage = supaUsage
+                                        val pct = ((usage?.fraction ?: 0f) * 100).toInt()
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text("Almacenamiento (Supabase)", fontWeight = FontWeight.Black, fontSize = 16.sp, color = highEmphasis)
+                                            Text(if (usage == null) "—" else "$pct%", fontSize = 14.sp, color = mediumEmphasis)
+                                        }
+                                        Spacer(Modifier.height(10.dp))
+                                        androidx.compose.material3.LinearProgressIndicator(
+                                            progress = { usage?.fraction ?: 0f },
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .height(6.dp)
+                                                .clip(RoundedCornerShape(3.dp)),
+                                            // Rojo cuando ya se usó el 80% o más.
+                                            color = if (pct >= 80) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                                            trackColor = MaterialTheme.colorScheme.surfaceContainerHighest
+                                        )
+                                        Spacer(Modifier.height(10.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                if (usage == null) "Calculando…" else "${SupabaseSalas.formatSize(usage.usedBytes)} de 1 GB",
+                                                fontSize = 18.sp,
+                                                fontWeight = FontWeight.Black,
+                                                color = highEmphasis
+                                            )
+                                            TextButton(onClick = refreshSupaUsage, enabled = !supaLoading) {
+                                                Text(if (supaLoading) "..." else "Actualizar")
+                                            }
+                                        }
+                                        if (usage != null) {
+                                            Text(
+                                                "Te quedan ${SupabaseSalas.formatSize(usage.remainingBytes)} · ${usage.files} archivo(s) en salas",
+                                                fontSize = 12.sp,
+                                                color = mediumEmphasis
+                                            )
+                                        }
+                                        Text(
+                                            "Solo cuenta lo que hay en el bucket \"salas\". El tráfico de descargas se ve en el panel de Supabase (Usage).",
+                                            fontSize = 11.sp,
+                                            color = mediumEmphasis
+                                        )
+                                        supaError?.let {
+                                            Spacer(Modifier.height(6.dp))
+                                            Text(it, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                        }
+                                    }
+                                }
                             }
                         }
                         item {

@@ -5,11 +5,23 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -18,12 +30,20 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -35,13 +55,14 @@ fun TogetherScreen(
 ) {
     val context = LocalContext.current
     var joinInput by remember { mutableStateOf("") }
+    var showInfo by remember { mutableStateOf(false) }
     val inRoom = manager.roomCode != null
     val connected = manager.status == TogetherManager.Status.CONNECTED
     val busy by manager.busy
 
     // Color de acento elegido en Ajustes > Apariencia > "Color de En compañía".
-    // Se guarda como State y se LEE dentro de cada item/botón (no acá arriba) para que, en
-    // modo Arcoíris, solo se recomponga lo que usa el color y no toda la pantalla.
+    // Se guarda como State y se LEE dentro de cada item/botón (o en la fase de dibujo con
+    // drawBehind) para que, en modo Arcoíris, solo se recomponga lo mínimo y no toda la pantalla.
     val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
     val accent = rememberTogetherAccent(
         mode = remember { settingsRepo.getTogetherColorMode() },
@@ -58,18 +79,19 @@ fun TogetherScreen(
 
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp),
         contentPadding = PaddingValues(vertical = 12.dp)
     ) {
+        // ---- Cabecera con anillos que laten + explicación desplegable ----
         item {
-            Text(
-                "Escucha música a la vez con otras personas, juntas o a distancia. " +
-                        "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame sincroniza " +
+            TogetherHero(
+                accent = accent,
+                showInfo = showInfo,
+                onToggleInfo = { showInfo = !showInfo },
+                infoText = "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame sincroniza " +
                         "qué suena, play/pausa y el momento exacto. Si a alguien le falta una canción, el anfitrión " +
                         "puede subirla (máx. 25 MB) y se descarga sola; se borra al cerrar la sala. " +
-                        "De 2 a ${TogetherManager.MAX_MEMBERS} personas.",
-                fontSize = 13.sp,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                        "De 2 a ${TogetherManager.MAX_MEMBERS} personas."
             )
         }
 
@@ -81,6 +103,7 @@ fun TogetherScreen(
                 label = { Text("Tu nombre en la sala") },
                 leadingIcon = { Icon(Icons.Filled.Person, null) },
                 singleLine = true,
+                shape = RoundedCornerShape(16.dp),
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedBorderColor = accent.value,
                     focusedLabelColor = accent.value,
@@ -97,72 +120,96 @@ fun TogetherScreen(
                     accent = accent,
                     onClick = { manager.createRoom() },
                     enabled = !busy,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
                 ) {
                     Icon(Icons.Filled.Add, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Crear sala")
+                    Text("Crear sala", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+            item {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    HorizontalDivider(modifier = Modifier.weight(1f))
+                    Text("o únete a una", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    HorizontalDivider(modifier = Modifier.weight(1f))
                 }
             }
             // ---- Unirse ----
             item {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedTextField(
-                        value = joinInput,
-                        onValueChange = { joinInput = it },
-                        label = { Text("Pega el código o el enlace") },
-                        singleLine = true,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedBorderColor = accent.value,
-                            focusedLabelColor = accent.value,
-                            cursorColor = accent.value
-                        ),
-                        modifier = Modifier.weight(1f)
-                    )
-                    AccentButton(
-                        accent = accent,
-                        onClick = { manager.joinRoom(joinInput) },
-                        enabled = !busy && joinInput.isNotBlank()
-                    ) { Text("Unirse") }
-                }
-            }
-            item {
-                TextButton(colors = ButtonDefaults.textButtonColors(contentColor = accent.value), onClick = {
-                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-                    if (text.isNotBlank()) joinInput = text
-                }) {
-                    Icon(Icons.Filled.ContentPaste, null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text("Pegar del portapapeles")
+                Card(
+                    shape = RoundedCornerShape(24.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        OutlinedTextField(
+                            value = joinInput,
+                            onValueChange = { joinInput = it },
+                            label = { Text("Pega el código o el enlace") },
+                            singleLine = true,
+                            shape = RoundedCornerShape(16.dp),
+                            keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
+                            trailingIcon = {
+                                IconButton(onClick = {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+                                    if (text.isNotBlank()) joinInput = text
+                                }) {
+                                    Icon(Icons.Filled.ContentPaste, "Pegar del portapapeles", tint = accent.value)
+                                }
+                            },
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = accent.value,
+                                focusedLabelColor = accent.value,
+                                cursorColor = accent.value
+                            ),
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        AccentButton(
+                            accent = accent,
+                            onClick = { manager.joinRoom(joinInput) },
+                            enabled = !busy && joinInput.isNotBlank(),
+                            modifier = Modifier.fillMaxWidth().height(48.dp)
+                        ) {
+                            Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(8.dp))
+                            Text("Unirse", fontWeight = FontWeight.Bold)
+                        }
+                    }
                 }
             }
         } else {
-            // ---- Sala actual ----
+            // ---- Sala actual: código en casillas + acciones rápidas ----
             item {
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(containerColor = accent.value.copy(alpha = 0.14f))
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Text(if (manager.isHost) "Tu sala (anfitrión)" else "Sala", fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        Text(manager.roomCode ?: "", fontSize = 32.sp, fontWeight = FontWeight.Bold, letterSpacing = 4.sp, color = accent.value)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            AccentOutlinedButton(accent, onClick = { copy(context, "Código", manager.roomCode.orEmpty()) }) {
-                                Icon(Icons.Filled.ContentCopy, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp)); Text("Código")
-                            }
-                            AccentOutlinedButton(accent, onClick = { copy(context, "Enlace", manager.roomLink.orEmpty()) }) {
-                                Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp)); Text("Enlace")
-                            }
+                val shape = RoundedCornerShape(28.dp)
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(shape)
+                        .drawBehind {
+                            val c = accent.value
+                            drawRect(Brush.verticalGradient(listOf(c.copy(alpha = 0.30f), c.copy(alpha = 0.07f))))
                         }
-                        // "Invitar" va solo, en su propia fila debajo de Código y Enlace.
-                        AccentOutlinedButton(accent, onClick = { share(context, manager) }, modifier = Modifier.fillMaxWidth()) {
-                            Icon(Icons.Filled.Share, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp)); Text("Invitar")
+                        .border(1.dp, accent.value.copy(alpha = 0.35f), shape)
+                        .padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(14.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        if (manager.isHost) "Tu sala · eres el anfitrión 👑" else "Sala",
+                        fontSize = 12.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    RoomCodeChips(accent = accent, code = manager.roomCode ?: "")
+                    Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                        QuickAction(accent, Icons.Filled.ContentCopy, "Código", Modifier.weight(1f)) {
+                            copy(context, "Código", manager.roomCode.orEmpty())
+                        }
+                        QuickAction(accent, Icons.Filled.Link, "Enlace", Modifier.weight(1f)) {
+                            copy(context, "Enlace", manager.roomLink.orEmpty())
+                        }
+                        QuickAction(accent, Icons.Filled.Share, "Invitar", Modifier.weight(1f)) {
+                            share(context, manager)
                         }
                     }
                 }
@@ -170,18 +217,15 @@ fun TogetherScreen(
 
             // ---- Estado ----
             item {
-                val (label, color) = when (manager.status) {
-                    TogetherManager.Status.CONNECTED -> "Conectado" to accent.value
+                val (label, fixedColor) = when (manager.status) {
+                    TogetherManager.Status.CONNECTED -> "Conectado" to null
                     TogetherManager.Status.CONNECTING -> "Conectando…" to Color(0xFFF9A825)
                     TogetherManager.Status.DISCONNECTED -> "Desconectado" to Color(0xFFC62828)
                     else -> "Sin sala" to Color.Gray
                 }
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Box(Modifier.size(10.dp).clip(CircleShape).background(color))
-                        Spacer(Modifier.width(8.dp))
-                        Text(label, fontWeight = FontWeight.SemiBold, color = accent.value)
-                    }
+                val colorProvider: () -> Color = { fixedColor ?: accent.value }
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    StatusPill(label = label, color = colorProvider, pulsing = connected || manager.status == TogetherManager.Status.CONNECTING)
                     if (manager.statusDetail.isNotBlank()) {
                         Text(manager.statusDetail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
@@ -189,12 +233,8 @@ fun TogetherScreen(
                         Text("Esperando a más personas… (se necesitan al menos 2)", fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-                    if (connected && !manager.isHost) {
-                        Text(
-                            manager.nowPlayingText?.let { "Suena: $it" } ?: "Esperando a que el anfitrión ponga música…",
-                            fontSize = 13.sp
-                        )
-                        manager.missingSongText?.let {
+                    manager.missingSongText?.let {
+                        if (connected && !manager.isHost) {
                             Text(
                                 if (manager.transferText != null) "No la tienes en tu biblioteca: $it"
                                 else "No la tienes en tu biblioteca: $it. Se le avisó al anfitrión para que la suba.",
@@ -210,9 +250,43 @@ fun TogetherScreen(
                             Text(it, fontSize = 12.sp)
                         }
                     }
-                    if (connected && manager.isHost) {
-                        Text("Lo que reproduzcas (canciones de tu biblioteca) lo escuchan todos.", fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+
+            // ---- Ahora suena (con ecualizador animado) ----
+            if (connected) {
+                item {
+                    val playingText = if (manager.isHost) null else manager.nowPlayingText
+                    Card(
+                        shape = RoundedCornerShape(22.dp),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                        modifier = Modifier.fillMaxWidth().animateContentSize()
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(14.dp)
+                        ) {
+                            EqualizerBars(color = { accent.value }, active = playingText != null || manager.isHost)
+                            Column(Modifier.weight(1f)) {
+                                if (manager.isHost) {
+                                    Text("Tú eres el DJ", fontWeight = FontWeight.Bold)
+                                    Text(
+                                        "Lo que reproduzcas (canciones de tu biblioteca) lo escuchan todos.",
+                                        fontSize = 12.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                } else {
+                                    Text("Ahora suena", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(
+                                        playingText ?: "Esperando a que el anfitrión ponga música…",
+                                        fontWeight = FontWeight.SemiBold,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -238,25 +312,276 @@ fun TogetherScreen(
                 }
             }
             item {
-                TextButton(onClick = { manager.leave() }, enabled = !busy) {
+                TextButton(onClick = { manager.leave() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
                     Text(if (manager.isHost) "Cerrar sala" else "Salir de la sala", color = MaterialTheme.colorScheme.error)
                 }
             }
 
             // ---- Miembros ----
             item {
-                Text("En la sala (${manager.onlineCount} conectados)", fontWeight = FontWeight.SemiBold, color = accent.value)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Text("En la sala", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = accent.value)
+                    Box(
+                        Modifier
+                            .clip(CircleShape)
+                            .drawBehind { drawRect(accent.value.copy(alpha = 0.2f)) }
+                            .padding(horizontal = 10.dp, vertical = 2.dp)
+                    ) {
+                        Text("${manager.onlineCount} conectados", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent.value)
+                    }
+                }
             }
             items(manager.members, key = { it.uid }) { m ->
-                Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
-                    Box(Modifier.size(10.dp).clip(CircleShape)
-                        .background(if (m.online) accent.value else Color.Gray))
-                    Spacer(Modifier.width(10.dp))
-                    Text(m.name + if (m.isHost) "  👑" else "", modifier = Modifier.weight(1f), color = accent.value)
-                    if (!m.online) Text("desconectado", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Card(
+                    shape = RoundedCornerShape(20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    modifier = Modifier.fillMaxWidth().animateContentSize()
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
+                    ) {
+                        MemberAvatar(accent = accent, name = m.name, online = m.online)
+                        Spacer(Modifier.width(12.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                m.name + if (m.isHost) "  👑" else "",
+                                fontWeight = FontWeight.SemiBold,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                when {
+                                    !m.online -> "desconectado"
+                                    m.isHost -> "anfitrión · en línea"
+                                    else -> "en línea"
+                                },
+                                fontSize = 12.sp,
+                                color = if (m.online) accent.value else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// Piezas visuales
+// ---------------------------------------------------------------------------------------------
+
+/** Cabecera: ícono con anillos que laten, título, frase corta y "¿Cómo funciona?" desplegable. */
+@Composable
+private fun TogetherHero(
+    accent: State<Color>,
+    showInfo: Boolean,
+    onToggleInfo: () -> Unit,
+    infoText: String
+) {
+    val shape = RoundedCornerShape(28.dp)
+    val t = rememberInfiniteTransition(label = "heroRings")
+    val ring1 by t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart),
+        label = "ring1"
+    )
+    val ring2 by t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(2400, easing = LinearEasing), RepeatMode.Restart, initialStartOffset = StartOffset(1200)),
+        label = "ring2"
+    )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(shape)
+            .drawBehind {
+                val c = accent.value
+                drawRect(Brush.horizontalGradient(listOf(c.copy(alpha = 0.32f), c.copy(alpha = 0.06f))))
+            }
+            .padding(horizontal = 20.dp, vertical = 18.dp)
+            .animateContentSize(),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Box(
+            modifier = Modifier
+                .size(120.dp)
+                .drawBehind {
+                    val c = accent.value
+                    val maxR = size.minDimension / 2f
+                    val coreR = 34.dp.toPx()
+                    listOf(ring1, ring2).forEach { p ->
+                        drawCircle(
+                            color = c.copy(alpha = 0.35f * (1f - p)),
+                            radius = coreR + (maxR - coreR) * p
+                        )
+                    }
+                },
+            contentAlignment = Alignment.Center
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(68.dp)
+                    .clip(CircleShape)
+                    .drawBehind { drawRect(accent.value) },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Groups, null, tint = onAccent(accent.value), modifier = Modifier.size(34.dp))
+            }
+        }
+        Spacer(Modifier.height(8.dp))
+        Text("Escucha juntos", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+        Text(
+            "La misma música, al mismo tiempo. Juntos o a distancia.",
+            fontSize = 13.sp,
+            textAlign = TextAlign.Center,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        TextButton(onClick = onToggleInfo, colors = ButtonDefaults.textButtonColors(contentColor = accent.value)) {
+            Text("¿Cómo funciona?", fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.width(4.dp))
+            Icon(if (showInfo) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null, modifier = Modifier.size(18.dp))
+        }
+        if (showInfo) {
+            Text(
+                infoText,
+                fontSize = 13.sp,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+/** Código de la sala: una casilla por carácter, todas del mismo ancho para que quepan siempre. */
+@Composable
+private fun RoomCodeChips(accent: State<Color>, code: String) {
+    val shape = RoundedCornerShape(14.dp)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+        code.forEach { ch ->
+            Box(
+                modifier = Modifier
+                    .weight(1f)
+                    .height(56.dp)
+                    .clip(shape)
+                    .drawBehind { drawRect(accent.value.copy(alpha = 0.18f)) }
+                    .border(1.dp, accent.value.copy(alpha = 0.5f), shape),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(ch.toString(), fontSize = 26.sp, fontWeight = FontWeight.ExtraBold, color = accent.value)
+            }
+        }
+    }
+}
+
+/** Acción rápida: ícono arriba y texto abajo, en una casilla redondeada con el color de acento. */
+@Composable
+private fun QuickAction(
+    accent: State<Color>,
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val shape = RoundedCornerShape(18.dp)
+    Column(
+        modifier = modifier
+            .clip(shape)
+            .drawBehind { drawRect(accent.value.copy(alpha = 0.14f)) }
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Icon(icon, null, tint = accent.value, modifier = Modifier.size(22.dp))
+        Text(label, fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent.value)
+    }
+}
+
+/** Píldora de estado con punto que late mientras está conectado/conectando. */
+@Composable
+private fun StatusPill(label: String, color: () -> Color, pulsing: Boolean) {
+    val t = rememberInfiniteTransition(label = "pill")
+    val p by t.animateFloat(
+        initialValue = 0f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1400, easing = LinearEasing), RepeatMode.Restart),
+        label = "pillPulse"
+    )
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        modifier = Modifier
+            .clip(CircleShape)
+            .drawBehind { drawRect(color().copy(alpha = 0.16f)) }
+            .padding(start = 8.dp, end = 14.dp, top = 6.dp, bottom = 6.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(20.dp)
+                .drawBehind {
+                    if (pulsing) {
+                        drawCircle(color().copy(alpha = 0.4f * (1f - p)), radius = (size.minDimension / 2f) * (0.45f + 0.55f * p))
+                    }
+                    drawCircle(color(), radius = 5.dp.toPx())
+                }
+        )
+        Spacer(Modifier.width(4.dp))
+        Text(label, fontWeight = FontWeight.SemiBold, color = color())
+    }
+}
+
+/** Ecualizador de 4 barras que se mueven (solo se anima la capa gráfica, no recompone). */
+@Composable
+private fun EqualizerBars(color: () -> Color, active: Boolean, modifier: Modifier = Modifier) {
+    val t = rememberInfiniteTransition(label = "eq")
+    val durations = listOf(520, 740, 610, 880)
+    val heights = durations.mapIndexed { i, d ->
+        t.animateFloat(
+            initialValue = 0.25f, targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(d, easing = FastOutSlowInEasing), RepeatMode.Reverse),
+            label = "bar$i"
+        )
+    }
+    Row(
+        modifier = modifier.height(28.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        verticalAlignment = Alignment.Bottom
+    ) {
+        heights.forEach { h ->
+            Box(
+                Modifier
+                    .width(5.dp)
+                    .fillMaxHeight()
+                    .graphicsLayer {
+                        scaleY = if (active) h.value else 0.2f
+                        transformOrigin = TransformOrigin(0.5f, 1f)
+                    }
+                    .clip(RoundedCornerShape(3.dp))
+                    .drawBehind { drawRect(color()) }
+            )
+        }
+    }
+}
+
+/** Avatar circular con la inicial del nombre; apagado (gris) si la persona está desconectada. */
+@Composable
+private fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatarSize: Dp = 42.dp) {
+    val initial = name.trim().firstOrNull()?.uppercase() ?: "?"
+    Box(
+        modifier = Modifier
+            .size(avatarSize)
+            .clip(CircleShape)
+            .drawBehind {
+                drawRect(if (online) accent.value.copy(alpha = 0.25f) else Color.Gray.copy(alpha = 0.22f))
+            }
+            .border(1.5.dp, if (online) accent.value else Color.Gray.copy(alpha = 0.5f), CircleShape),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            initial,
+            fontWeight = FontWeight.Bold,
+            fontSize = 18.sp,
+            color = if (online) accent.value else Color.Gray
+        )
     }
 }
 
@@ -297,6 +622,7 @@ private fun AccentButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.buttonColors(containerColor = c, contentColor = onAccent(c)),
         content = content
     )
@@ -315,6 +641,7 @@ private fun AccentOutlinedButton(
         onClick = onClick,
         enabled = enabled,
         modifier = modifier,
+        shape = RoundedCornerShape(16.dp),
         colors = ButtonDefaults.outlinedButtonColors(contentColor = c),
         border = BorderStroke(1.dp, c.copy(alpha = 0.6f)),
         content = content

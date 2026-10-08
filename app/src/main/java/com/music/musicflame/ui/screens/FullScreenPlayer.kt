@@ -1000,8 +1000,11 @@ fun FullScreenPlayer(
                                             .alpha(artAlpha)
                                             .shadow(
                                                 // Una carátula transparente no lleva sombra (se vería el
-                                                // contorno detrás de la imagen).
-                                                elevation = if (effectiveHasBg || artAlpha < 1f) 0.dp else 16.dp,
+                                                // contorno detrás de la imagen). Tampoco con diseño
+                                                // personalizado: la sombra de una figura cóncava (engrane,
+                                                // estrella, flor...) la calcula el hilo de render y, sin
+                                                // imagen de fondo, era el único caso donde se dibujaba.
+                                                elevation = if (effectiveHasBg || artAlpha < 1f || useCustomCover) 0.dp else 16.dp,
                                                 shape = artClipShape,
                                                 ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                             )

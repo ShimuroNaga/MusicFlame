@@ -57,6 +57,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import coil.compose.AsyncImage
 import coil.compose.SubcomposeAsyncImage
 import coil.compose.SubcomposeAsyncImageContent
 import coil.request.ImageRequest
@@ -136,7 +137,18 @@ fun FullScreenPlayer(
     }
     val artAlpha = coverAlphaFor(coverShapeType, coverDesign)
 
-    val bgColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.65f) else MaterialTheme.colorScheme.background
+    // --- FONDO PROPIO DEL REPRODUCTOR (Ajustes > Apariencia > "Fondo del reproductor") ---
+    // Independiente del fondo global (backgroundImageUri / playerGifUri / bgBrightness).
+    // Se lee UNA sola vez al abrir el reproductor (remember): no cambia al cambiar de canción.
+    // Si la carga falla en runtime, fullBgFailed lo apaga y todo vuelve a verse como "Sin fondo".
+    val fullBgConfig = remember { com.music.musicflame.data.SettingsRepository(context).loadFullPlayerBg() }
+    var fullBgFailed by remember { mutableStateOf(false) }
+    val customBgActive = fullBgConfig != null && !fullBgFailed
+    // Con fondo propio activo el reproductor se trata como "con imagen de fondo" para que
+    // los colores adaptativos de texto/íconos/ecualizador ya existentes se vean bien.
+    val effectiveHasBg = hasBackgroundImage || customBgActive
+
+    val bgColor = if (effectiveHasBg) Color.Black.copy(alpha = 0.65f) else MaterialTheme.colorScheme.background
 
     // Ahora SIEMPRE respeta el color que el usuario eligió en Ajustes, haya o no
     // imagen/gif de fondo. Antes se forzaba a blanco encima de fondos, ignorando su elección.
@@ -453,7 +465,7 @@ fun FullScreenPlayer(
         if (requiredId != null && !unlockedIds.contains(requiredId)) "" else saved
     }
     val equalizerCustomColorHex = remember { settingsRepo.getEqualizerCustomColorHex() }
-    val equalizerAdaptiveColor = if (hasBackgroundImage) {
+    val equalizerAdaptiveColor = if (effectiveHasBg) {
         Color.White
     } else {
         if (MaterialTheme.colorScheme.background.luminance() > 0.5f) Color.Black else Color.White
@@ -526,6 +538,16 @@ fun FullScreenPlayer(
             .fillMaxSize()
             .background(bgColor)
     ) {
+
+        // --- FONDO PROPIO (primera capa: queda DETRÁS de carátula, letra, ecualizador,
+        // controles, cola y gestos). Solo existe si hay fondo propio activo; con "Sin fondo"
+        // no se agrega nada al árbol y el reproductor queda exactamente como antes.
+        if (fullBgConfig != null && !fullBgFailed) {
+            FullPlayerCustomBackground(
+                config = fullBgConfig,
+                onLoadFailed = { fullBgFailed = true }
+            )
+        }
 
         // --- DOBLE ESPEJADO: fila de ARRIBA, pegada al borde REAL de la pantalla ---
         // Se declara ACÁ (primer hijo del Box exterior, justo después del
@@ -975,7 +997,7 @@ fun FullScreenPlayer(
                                             .shadow(
                                                 // Una carátula transparente no lleva sombra (se vería el
                                                 // contorno detrás de la imagen).
-                                                elevation = if (hasBackgroundImage || artAlpha < 1f) 0.dp else 16.dp,
+                                                elevation = if (effectiveHasBg || artAlpha < 1f) 0.dp else 16.dp,
                                                 shape = artClipShape,
                                                 ambientColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.3f)
                                             )
@@ -1345,7 +1367,7 @@ fun FullScreenPlayer(
                         playerManager = playerManager,
                         currentSong = song,
                         adaptiveContentColor = adaptiveContentColor,
-                        hasBackgroundImage = hasBackgroundImage,
+                        hasBackgroundImage = effectiveHasBg,
                         onClose = { showQueueScreen = false },
                         onSongClick = { clickedSong ->
                             playerManager.playSong(clickedSong, playerManager.queue)
@@ -1732,4 +1754,55 @@ private fun AllMomentsDialog(
             }
         }
     )
+}
+
+// --- FONDO PROPIO DEL REPRODUCTOR: capas (imagen/GIF + brillo + scrim) ---
+// Composable aparte con parámetros estables (config inmutable + lambda recordada): al
+// cambiar de canción o recomponer el reproductor, Compose se salta esta capa por completo.
+@Composable
+private fun FullPlayerCustomBackground(
+    config: com.music.musicflame.data.FullPlayerBgConfig,
+    onLoadFailed: () -> Unit
+) {
+    val context = LocalContext.current
+    // El ImageRequest solo depende de la Uri: NO se reconstruye al cambiar de canción.
+    val request = remember(config.uri) {
+        ImageRequest.Builder(context)
+            .data(config.uri)
+            .decoderFactory(
+                if (android.os.Build.VERSION.SDK_INT >= 28) coil.decode.ImageDecoderDecoder.Factory()
+                else coil.decode.GifDecoder.Factory()
+            )
+            .build()
+    }
+    Box(modifier = Modifier.fillMaxSize()) {
+        AsyncImage(
+            model = request,
+            contentDescription = null,
+            modifier = Modifier.fillMaxSize(),
+            contentScale = ContentScale.Crop,
+            onError = { onLoadFailed() }
+        )
+        FullPlayerBgBrightnessLayer(brightness = config.brightness)
+        // Scrim negro suave fijo para no perder legibilidad (igual que el fondo global).
+        Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+    }
+}
+
+// La lectura del brillo vive aislada en este composable chico, así que si el valor llegara
+// a cambiar solo se recompone esta capa y no el reproductor completo.
+// Misma convención que el brillo global: 0f = sin cambio, negativo = capa negra con
+// alpha abs(valor), positivo = capa blanca con alpha = valor.
+@Composable
+private fun FullPlayerBgBrightnessLayer(brightness: Float) {
+    if (brightness != 0f) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(
+                    if (brightness < 0f) Color.Black.copy(alpha = kotlin.math.abs(brightness).coerceIn(0f, 1f))
+                    else Color.White.copy(alpha = brightness.coerceIn(0f, 1f))
+                )
+        )
+    }
 }

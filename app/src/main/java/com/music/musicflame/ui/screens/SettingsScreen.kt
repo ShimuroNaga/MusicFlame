@@ -213,6 +213,10 @@ fun SettingsScreen(
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
     val showMomentsColorDialog = remember { mutableStateOf(false) }
+    // --- Fondo propio del reproductor expandido (independiente del fondo global) ---
+    val showFullPlayerBgDialog = remember { mutableStateOf(false) }
+    val fullPlayerBgModePref = remember { mutableStateOf(settingsRepo.getFullPlayerBgMode()) }
+    val fullPlayerBgIsGifPref = remember { mutableStateOf(settingsRepo.isFullPlayerBgGif()) }
     val showTogetherColorDialog = remember { mutableStateOf(false) }
     val showLyricsColorDialog = remember { mutableStateOf(false) }
     val showNowPlayingColorDialog = remember { mutableStateOf(false) }
@@ -1084,6 +1088,30 @@ fun SettingsScreen(
                                 }
                                 HorizontalDivider(color = dividerColor)
                             }
+                        }
+
+                        item {
+                            // NUEVO: fondo propio SOLO del reproductor expandido (no toca el fondo global).
+                            ListItem(
+                                headlineContent = { Text("Fondo del reproductor") },
+                                supportingContent = {
+                                    Text(
+                                        if (fullPlayerBgModePref.value == "custom") {
+                                            if (fullPlayerBgIsGifPref.value) "GIF propio activado" else "Imagen propia activada"
+                                        } else {
+                                            "Sin fondo"
+                                        }
+                                    )
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showFullPlayerBgDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showFullPlayerBgDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
                         }
 
                         item {
@@ -3366,6 +3394,233 @@ fun SettingsScreen(
                     }) { Text("Guardar", fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = { TextButton(onClick = { showEqualizerColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+            )
+        }
+
+        if (showFullPlayerBgDialog.value) {
+            // Estados TEMPORALES: nada se guarda hasta pulsar "Guardar".
+            val savedFpUri = remember { settingsRepo.getFullPlayerBgUri() }
+            val savedFpConfig = remember { settingsRepo.loadFullPlayerBg() }
+            // Si el archivo guardado ya no existe, se arranca como "sin imagen".
+            val tempFpMode = remember { mutableStateOf(if (savedFpConfig != null) "custom" else "none") }
+            val tempFpUri = remember { mutableStateOf(savedFpConfig?.uri) }
+            val tempFpIsGif = remember { mutableStateOf(savedFpConfig?.isGif ?: false) }
+            val tempFpBrightness = remember { mutableStateOf(settingsRepo.getFullPlayerBgBrightness().coerceIn(-1f, 1f)) }
+            // Copias creadas durante ESTE diálogo (se borran si se reemplazan o se cancela).
+            val createdFpFiles = remember { mutableListOf<String>() }
+            val isCopyingFp = remember { mutableStateOf(false) }
+
+            fun discardCreatedFpFiles(except: String?) {
+                createdFpFiles.toList().forEach { created ->
+                    if (created != except) {
+                        settingsRepo.deleteFullPlayerBgFile(created)
+                        createdFpFiles.remove(created)
+                    }
+                }
+            }
+
+            val pickFullPlayerBgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { pickedUri ->
+                if (pickedUri != null) {
+                    isCopyingFp.value = true
+                    refreshScope.launch {
+                        val result = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                            settingsRepo.importFullPlayerBgFile(pickedUri)
+                        }
+                        isCopyingFp.value = false
+                        if (result != null && !showFullPlayerBgDialog.value) {
+                            // El diálogo se cerró mientras se copiaba: no queda archivo huérfano.
+                            settingsRepo.deleteFullPlayerBgFile(result.first)
+                        } else if (result != null) {
+                            // Reemplazo: si la copia anterior se creó en este diálogo, se borra ya.
+                            val previous = tempFpUri.value
+                            if (previous != null && createdFpFiles.contains(previous)) {
+                                settingsRepo.deleteFullPlayerBgFile(previous)
+                                createdFpFiles.remove(previous)
+                            }
+                            createdFpFiles.add(result.first)
+                            tempFpUri.value = result.first
+                            tempFpIsGif.value = result.second
+                            tempFpMode.value = "custom"
+                        } else {
+                            Toast.makeText(context, "No se pudo cargar el archivo", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                }
+            }
+
+            AlertDialog(
+                onDismissRequest = {
+                    discardCreatedFpFiles(except = null)
+                    showFullPlayerBgDialog.value = false
+                },
+                title = { Text("Fondo del reproductor", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(
+                            "Fondo propio solo para el reproductor expandido. No afecta al fondo general de la app.",
+                            fontSize = 12.sp,
+                            color = mediumEmphasis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        listOf("none", "custom").forEach { modeOption ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempFpMode.value = modeOption }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = tempFpMode.value == modeOption,
+                                    onClick = { tempFpMode.value = modeOption }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(if (modeOption == "none") "Sin fondo" else "Imagen / GIF", fontSize = 14.sp)
+                                    Text(
+                                        if (modeOption == "none") "El reproductor se ve como siempre" else "Usa tu propia imagen o GIF animado",
+                                        fontSize = 11.sp,
+                                        color = mediumEmphasis
+                                    )
+                                }
+                            }
+                        }
+
+                        if (tempFpMode.value == "custom") {
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(
+                                onClick = { pickFullPlayerBgLauncher.launch("image/*") },
+                                enabled = !isCopyingFp.value,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    if (isCopyingFp.value) "Copiando..." else "Elegir imagen o GIF",
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+
+                            val previewUri = tempFpUri.value
+                            if (previewUri == null) {
+                                Text(
+                                    "Elige una imagen o GIF para activar el fondo.",
+                                    fontSize = 11.sp,
+                                    color = mediumEmphasis,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            } else {
+                                Spacer(Modifier.height(12.dp))
+                                Text("Vista previa", fontSize = 12.sp, color = mediumEmphasis)
+                                Spacer(Modifier.height(4.dp))
+                                val previewRequest = remember(previewUri) {
+                                    ImageRequest.Builder(context)
+                                        .data(previewUri)
+                                        .decoderFactory(
+                                            if (android.os.Build.VERSION.SDK_INT >= 28) coil.decode.ImageDecoderDecoder.Factory()
+                                            else coil.decode.GifDecoder.Factory()
+                                        )
+                                        .build()
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(160.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.Black)
+                                ) {
+                                    AsyncImage(
+                                        model = previewRequest,
+                                        contentDescription = "Vista previa del fondo",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    // Brillo en vivo: misma convención que el brillo global.
+                                    val previewBrightness = tempFpBrightness.value
+                                    if (previewBrightness != 0f) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    if (previewBrightness < 0f) Color.Black.copy(alpha = kotlin.math.abs(previewBrightness))
+                                                    else Color.White.copy(alpha = previewBrightness)
+                                                )
+                                        )
+                                    }
+                                    // Mismo scrim suave que usa el reproductor.
+                                    Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.2f)))
+                                }
+
+                                Spacer(Modifier.height(12.dp))
+                                Text("Brillo del fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Slider(
+                                    value = tempFpBrightness.value,
+                                    onValueChange = { tempFpBrightness.value = it },
+                                    valueRange = -1f..1f,
+                                    steps = 20,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = trailingColor,
+                                        activeTrackColor = trailingColor
+                                    )
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Original", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                                TextButton(
+                                    onClick = { tempFpBrightness.value = 0f },
+                                    enabled = tempFpBrightness.value != 0f
+                                ) { Text("Volver a 0", fontWeight = FontWeight.Bold) }
+
+                                Spacer(Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        // Si la copia se creó en este diálogo se borra ya; la guardada
+                                        // anteriormente se borra recién al pulsar "Guardar".
+                                        val current = tempFpUri.value
+                                        if (current != null && createdFpFiles.contains(current)) {
+                                            settingsRepo.deleteFullPlayerBgFile(current)
+                                            createdFpFiles.remove(current)
+                                        }
+                                        tempFpUri.value = null
+                                        tempFpIsGif.value = false
+                                        tempFpBrightness.value = 0f
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                ) { Text("Quitar", fontWeight = FontWeight.Bold) }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        enabled = !isCopyingFp.value,
+                        onClick = {
+                            val finalUri = tempFpUri.value
+                            val finalMode = if (tempFpMode.value == "custom" && finalUri != null) "custom" else "none"
+                            // Al quitar o reemplazar, se borra el archivo anterior guardado.
+                            if (savedFpUri != null && savedFpUri != finalUri) {
+                                settingsRepo.deleteFullPlayerBgFile(savedFpUri)
+                            }
+                            discardCreatedFpFiles(except = finalUri)
+                            settingsRepo.saveFullPlayerBgAll(
+                                mode = finalMode,
+                                uri = finalUri,
+                                isGif = tempFpIsGif.value,
+                                brightness = tempFpBrightness.value
+                            )
+                            fullPlayerBgModePref.value = finalMode
+                            fullPlayerBgIsGifPref.value = tempFpIsGif.value
+                            showFullPlayerBgDialog.value = false
+                        }
+                    ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        discardCreatedFpFiles(except = null)
+                        showFullPlayerBgDialog.value = false
+                    }) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+                }
             )
         }
 

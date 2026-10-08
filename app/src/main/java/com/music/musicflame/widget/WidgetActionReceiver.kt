@@ -17,6 +17,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 
 /**
  * Resuelve los toques de los botones del widget de home screen.
@@ -46,7 +47,13 @@ class WidgetActionReceiver : BroadcastReceiver() {
             return suspendCancellableCoroutine { continuation ->
                 controllerFuture.addListener(
                     {
-                        continuation.resume(controllerFuture.get())
+                        // Si el servicio no pudo arrancar, get() lanza excepción: se propaga a
+                        // quien llamó (que ya la maneja) en vez de tumbar la app desde aquí.
+                        try {
+                            continuation.resume(controllerFuture.get())
+                        } catch (e: Exception) {
+                            continuation.resumeWithException(e)
+                        }
                     },
                     { runnable -> mainHandler.post(runnable) }
                 )
@@ -83,7 +90,10 @@ class WidgetActionReceiver : BroadcastReceiver() {
         val appContext = context.applicationContext
         val pendingResult = goAsync()
         scope.launch {
-            val controller = connectController(appContext)
+            val controller = try { connectController(appContext) } catch (e: Exception) {
+                pendingResult.finish()
+                return@launch
+            }
             try {
                 if (goToNext) controller.seekToNext() else controller.seekToPrevious()
                 persistStateAfterAction(appContext, controller)
@@ -97,7 +107,10 @@ class WidgetActionReceiver : BroadcastReceiver() {
     private fun handlePlayPause(context: Context) {
         val pendingResult = goAsync()
         scope.launch {
-            val controller = connectController(context)
+            val controller = try { connectController(context) } catch (e: Exception) {
+                pendingResult.finish()
+                return@launch
+            }
             try {
                 if (controller.isPlaying) controller.pause() else controller.play()
 

@@ -532,30 +532,13 @@ fun SongsScreen(
                                         }
                                     ),
                                 colors = CardDefaults.cardColors(containerColor = containerColor),
-                                elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage || isSelected) 0.dp else 4.dp),
+                                elevation = CardDefaults.cardElevation(defaultElevation = if (hasBackgroundImage || isSelected || npColors != null) 0.dp else 4.dp),
                                 shape = RoundedCornerShape(cardRadius)
                             ) {
                                 Row(modifier = Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    // Carátula siempre visible; al seleccionar se superpone un overlay + check
-                                    // (mismo estilo unificado que usan Tu Mix, Playlists, Papelera, etc.)
+                                    // Carátula siempre visible; la selección se nota por el color de la card.
                                     Box(contentAlignment = Alignment.Center) {
                                         AlbumArt(song.albumArtUri, 50.dp, albumRadius, albumArtShape, filePath = song.path, isCustomCover = song.hasCustomCover)
-                                        if (isSelected) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .size(50.dp)
-                                                    .clip(RoundedCornerShape(albumRadius))
-                                                    .background(Color.Black.copy(alpha = 0.4f)),
-                                                contentAlignment = Alignment.Center
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Filled.CheckCircle,
-                                                    contentDescription = "Seleccionada",
-                                                    tint = Color.White,
-                                                    modifier = Modifier.size(24.dp)
-                                                )
-                                            }
-                                        }
                                     }
 
                                     // --- COLUMNA ACTUALIZADA CON ÍCONO DE DRIVE ---

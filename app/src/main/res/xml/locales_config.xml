@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Idiomas que MusicFlame ofrece. Android 13+ los muestra también en
+     Ajustes del sistema > Apps > MusicFlame > Idioma. -->
+<locale-config xmlns:android="http://schemas.android.com/apk/res/android">
+    <locale android:name="es" />
+    <locale android:name="en" />
+</locale-config>

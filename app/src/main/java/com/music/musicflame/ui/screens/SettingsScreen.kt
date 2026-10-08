@@ -215,6 +215,8 @@ fun SettingsScreen(
     val showMomentsColorDialog = remember { mutableStateOf(false) }
     // --- Fondo propio del reproductor expandido (independiente del fondo global) ---
     val showFullPlayerBgDialog = remember { mutableStateOf(false) }
+    // --- Fondo general de la app (imagen / GIF + brillo) en un solo diálogo ---
+    val showAppBgDialog = remember { mutableStateOf(false) }
     val fullPlayerBgModePref = remember { mutableStateOf(settingsRepo.getFullPlayerBgMode()) }
     val fullPlayerBgIsGifPref = remember { mutableStateOf(settingsRepo.isFullPlayerBgGif()) }
     val showTogetherColorDialog = remember { mutableStateOf(false) }
@@ -476,32 +478,6 @@ fun SettingsScreen(
     val refreshScope = rememberCoroutineScope()
     val pullState = rememberPullToRefreshState()
 
-    val pickImageLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            try {
-                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: Exception) {}
-            settingsRepo.saveBackgroundImageUri(it.toString())
-            backgroundImageUri.value = it.toString()
-            settingsRepo.removePlayerGifUri()
-            playerGifUri.value = null
-            onBackgroundImageChanged()
-        }
-    }
-
-    val pickGifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            try {
-                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            } catch (e: Exception) {}
-            settingsRepo.savePlayerGifUri(it.toString())
-            playerGifUri.value = it.toString()
-            settingsRepo.removeBackgroundImage()
-            backgroundImageUri.value = null
-            onBackgroundImageChanged()
-        }
-    }
-
     // --- EXPORTAR / IMPORTAR CONFIGURACIÓN (copia de seguridad entre dispositivos) ---
     val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let {
@@ -534,8 +510,15 @@ fun SettingsScreen(
         modifier = modifier
             .fillMaxSize()
             .background(
-                if (hasAnyBackground) MaterialTheme.colorScheme.background.copy(alpha = 0.80f)
-                else MaterialTheme.colorScheme.background
+                // Degradado en el borde superior: evita la línea oscura bajo la barra superior.
+                if (hasAnyBackground) androidx.compose.ui.graphics.Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.background.copy(alpha = 0f),
+                        MaterialTheme.colorScheme.background.copy(alpha = 0.80f)
+                    ),
+                    startY = 0f,
+                    endY = with(androidx.compose.ui.platform.LocalDensity.current) { 40.dp.toPx() }
+                ) else androidx.compose.ui.graphics.SolidColor(MaterialTheme.colorScheme.background)
             )
     ) {
         CompositionLocalProvider(LocalContentColor provides highEmphasis) {
@@ -1004,90 +987,27 @@ fun SettingsScreen(
                         item { sectionHeader("Apariencia") }
 
                         item {
+                            // Fondo general de la app: mismo formato que "Fondo del reproductor".
                             ListItem(
-                                headlineContent = { Text("Imagen de Fondo") },
-                                supportingContent = { Text(if (isBgPresent) "✓ Imagen seleccionada" else "Selecciona una imagen estática") },
-                                trailingContent = { Icon(Icons.Filled.Image, contentDescription = null, tint = trailingColor) },
-                                colors = listItemColors,
-                                modifier = Modifier.clickable { pickImageLauncher.launch("image/*") }
-                            )
-                            HorizontalDivider(color = dividerColor)
-                        }
-
-                        if (isBgPresent) {
-                            item {
-                                Button(
-                                    onClick = {
-                                        settingsRepo.removeBackgroundImage()
-                                        backgroundImageUri.value = null
-                                        onBackgroundImageChanged()
-                                    },
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
+                                headlineContent = { Text("Fondo de la app") },
+                                supportingContent = {
+                                    Text(
+                                        when {
+                                            isGifPresent -> "GIF propio activado"
+                                            isBgPresent -> "Imagen propia activada"
+                                            else -> "Sin fondo"
+                                        }
                                     )
-                                ) { Text("Quitar Imagen de Fondo", fontWeight = FontWeight.Bold) }
-                                HorizontalDivider(color = dividerColor)
-                            }
-                        }
-
-                        item {
-                            ListItem(
-                                headlineContent = { Text("Fondo Animado (GIF)") },
-                                supportingContent = { Text(if (isGifPresent) "✓ GIF activado" else "Añade un GIF animado como fondo") },
-                                trailingContent = { Icon(Icons.Filled.Movie, contentDescription = null, modifier = Modifier.size(24.dp), tint = trailingColor) },
-                                colors = listItemColors,
-                                modifier = Modifier.clickable { pickGifLauncher.launch("image/gif") }
-                            )
-                            HorizontalDivider(color = dividerColor)
-                        }
-
-                        if (isGifPresent) {
-                            item {
-                                Button(
-                                    onClick = {
-                                        settingsRepo.removePlayerGifUri()
-                                        playerGifUri.value = null
-                                        onBackgroundImageChanged()
-                                    },
-                                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                                    colors = ButtonDefaults.buttonColors(
-                                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.85f),
-                                        contentColor = MaterialTheme.colorScheme.onErrorContainer
-                                    )
-                                ) { Text("Quitar Fondo GIF", fontWeight = FontWeight.Bold) }
-                                HorizontalDivider(color = dividerColor)
-                            }
-                        }
-
-                        if (hasAnyBackground) {
-                            item {
-                                Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                    Text("Brillo del fondo", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
-                                    Spacer(Modifier.height(4.dp))
-                                    Slider(
-                                        value = backgroundBrightness.value,
-                                        onValueChange = {
-                                            backgroundBrightness.value = it
-                                            settingsRepo.saveBackgroundBrightness(it)
-                                            onBackgroundImageChanged()
-                                        },
-                                        valueRange = -1f..1f,
-                                        steps = 20,
-                                        colors = SliderDefaults.colors(
-                                            thumbColor = trailingColor,
-                                            activeTrackColor = trailingColor
-                                        )
-                                    )
-                                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
-                                        Text("Original", fontSize = 12.sp, color = mediumEmphasis)
-                                        Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showAppBgDialog.value = true }) {
+                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
-                                }
-                                HorizontalDivider(color = dividerColor)
-                            }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showAppBgDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
                         }
 
                         item {
@@ -3620,6 +3540,183 @@ fun SettingsScreen(
                         discardCreatedFpFiles(except = null)
                         showFullPlayerBgDialog.value = false
                     }) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+                }
+            )
+        }
+
+        if (showAppBgDialog.value) {
+            // Estados TEMPORALES: nada se guarda hasta pulsar "Guardar".
+            val tempAppUri = remember { mutableStateOf(backgroundImageUri.value ?: playerGifUri.value) }
+            val tempAppIsGif = remember { mutableStateOf(backgroundImageUri.value == null && playerGifUri.value != null) }
+            val tempAppMode = remember { mutableStateOf(if (backgroundImageUri.value != null || playerGifUri.value != null) "custom" else "none") }
+            val tempAppBrightness = remember { mutableStateOf(backgroundBrightness.value.coerceIn(-1f, 1f)) }
+
+            val pickAppBgLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { picked ->
+                picked?.let {
+                    try {
+                        context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                    } catch (e: Exception) {}
+                    tempAppUri.value = it.toString()
+                    tempAppIsGif.value = context.contentResolver.getType(it) == "image/gif" ||
+                            it.toString().lowercase().endsWith(".gif")
+                    tempAppMode.value = "custom"
+                }
+            }
+
+            AlertDialog(
+                onDismissRequest = { showAppBgDialog.value = false },
+                title = { Text("Fondo de la app", fontWeight = FontWeight.Bold) },
+                text = {
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        Text(
+                            "Imagen o GIF de fondo general de la app. No afecta al fondo propio del reproductor.",
+                            fontSize = 12.sp,
+                            color = mediumEmphasis,
+                            modifier = Modifier.padding(bottom = 8.dp)
+                        )
+                        listOf("none", "custom").forEach { modeOption ->
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { tempAppMode.value = modeOption }
+                                    .padding(vertical = 8.dp)
+                            ) {
+                                RadioButton(
+                                    selected = tempAppMode.value == modeOption,
+                                    onClick = { tempAppMode.value = modeOption }
+                                )
+                                Spacer(Modifier.width(8.dp))
+                                Column {
+                                    Text(if (modeOption == "none") "Sin fondo" else "Imagen / GIF", fontSize = 14.sp)
+                                    Text(
+                                        if (modeOption == "none") "La app se ve como siempre" else "Usa tu propia imagen o GIF animado",
+                                        fontSize = 11.sp,
+                                        color = mediumEmphasis
+                                    )
+                                }
+                            }
+                        }
+
+                        if (tempAppMode.value == "custom") {
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(
+                                onClick = { pickAppBgLauncher.launch("image/*") },
+                                modifier = Modifier.fillMaxWidth()
+                            ) { Text("Elegir imagen o GIF", fontWeight = FontWeight.Bold) }
+
+                            val previewUri = tempAppUri.value
+                            if (previewUri == null) {
+                                Text(
+                                    "Elige una imagen o GIF para activar el fondo.",
+                                    fontSize = 11.sp,
+                                    color = mediumEmphasis,
+                                    modifier = Modifier.padding(top = 8.dp)
+                                )
+                            } else {
+                                Spacer(Modifier.height(12.dp))
+                                Text("Vista previa", fontSize = 12.sp, color = mediumEmphasis)
+                                Spacer(Modifier.height(4.dp))
+                                val previewRequest = remember(previewUri) {
+                                    ImageRequest.Builder(context)
+                                        .data(previewUri)
+                                        .decoderFactory(
+                                            if (android.os.Build.VERSION.SDK_INT >= 28) coil.decode.ImageDecoderDecoder.Factory()
+                                            else coil.decode.GifDecoder.Factory()
+                                        )
+                                        .build()
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(160.dp)
+                                        .clip(RoundedCornerShape(12.dp))
+                                        .background(Color.Black)
+                                ) {
+                                    AsyncImage(
+                                        model = previewRequest,
+                                        contentDescription = "Vista previa del fondo",
+                                        modifier = Modifier.fillMaxSize(),
+                                        contentScale = ContentScale.Crop
+                                    )
+                                    val previewBrightness = tempAppBrightness.value
+                                    if (previewBrightness != 0f) {
+                                        Box(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .background(
+                                                    if (previewBrightness < 0f) Color.Black.copy(alpha = kotlin.math.abs(previewBrightness))
+                                                    else Color.White.copy(alpha = previewBrightness)
+                                                )
+                                        )
+                                    }
+                                }
+
+                                Spacer(Modifier.height(12.dp))
+                                Text("Brillo del fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Slider(
+                                    value = tempAppBrightness.value,
+                                    onValueChange = { tempAppBrightness.value = it },
+                                    valueRange = -1f..1f,
+                                    steps = 20,
+                                    colors = SliderDefaults.colors(
+                                        thumbColor = trailingColor,
+                                        activeTrackColor = trailingColor
+                                    )
+                                )
+                                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                                    Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Original", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                }
+                                TextButton(
+                                    onClick = { tempAppBrightness.value = 0f },
+                                    enabled = tempAppBrightness.value != 0f
+                                ) { Text("Volver a 0", fontWeight = FontWeight.Bold) }
+
+                                Spacer(Modifier.height(4.dp))
+                                OutlinedButton(
+                                    onClick = {
+                                        tempAppUri.value = null
+                                        tempAppIsGif.value = false
+                                        tempAppBrightness.value = 0f
+                                    },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                                ) { Text("Quitar", fontWeight = FontWeight.Bold) }
+                            }
+                        }
+                    }
+                },
+                confirmButton = {
+                    Button(
+                        onClick = {
+                            val finalUri = if (tempAppMode.value == "custom") tempAppUri.value else null
+                            if (finalUri == null) {
+                                settingsRepo.removeBackgroundImage()
+                                backgroundImageUri.value = null
+                                settingsRepo.removePlayerGifUri()
+                                playerGifUri.value = null
+                            } else if (tempAppIsGif.value) {
+                                settingsRepo.savePlayerGifUri(finalUri)
+                                playerGifUri.value = finalUri
+                                settingsRepo.removeBackgroundImage()
+                                backgroundImageUri.value = null
+                            } else {
+                                settingsRepo.saveBackgroundImageUri(finalUri)
+                                backgroundImageUri.value = finalUri
+                                settingsRepo.removePlayerGifUri()
+                                playerGifUri.value = null
+                            }
+                            settingsRepo.saveBackgroundBrightness(tempAppBrightness.value)
+                            backgroundBrightness.value = tempAppBrightness.value
+                            onBackgroundImageChanged()
+                            showAppBgDialog.value = false
+                        }
+                    ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showAppBgDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) }
                 }
             )
         }

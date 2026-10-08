@@ -407,7 +407,7 @@ fun FullScreenPlayer(
     val lyricsColorMode = remember(unlockedIds) {
         val saved = settingsRepo.getLyricsTextColorMode()
         val locked = (saved == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
-            (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
+                (saved == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
         if (locked) "Adaptativo" else saved
     }
     // Hex del color personalizado (catálogo, punto 2). Antes se pasaba "" a
@@ -818,7 +818,14 @@ fun FullScreenPlayer(
                         .fillMaxWidth()
                         .fillMaxHeight(0.26f)
                         .background(
-                            Brush.verticalGradient(
+                            // Con imagen/GIF de fondo, el borde de arriba de esta franja se veía
+                            // como una banda oscura con corte marcado: ahora entra en degradado
+                            // (transparente -> oscuro -> transparente). Sin fondo no cambia nada.
+                            if (effectiveHasBg) Brush.verticalGradient(
+                                0f to Color.Transparent,
+                                0.4f to bgColor,
+                                1f to Color.Transparent
+                            ) else Brush.verticalGradient(
                                 colors = listOf(bgColor, Color.Transparent),
                                 startY = 0f,
                                 endY = Float.POSITIVE_INFINITY
@@ -1442,52 +1449,52 @@ private fun PlaybackSeekBar(
 
     Column(modifier = Modifier.fillMaxWidth()) {
         Box(modifier = Modifier.fillMaxWidth().height(24.dp), contentAlignment = Alignment.Center) {
-        Slider(
-            value = progress,
-            onValueChange = { newValue ->
-                onDragStart()
-                onDragChange((newValue * totalDuration).toLong())
-            },
-            onValueChangeFinished = {
-                onDragEnd(positionState.value)
-            },
-            // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
-            // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
-            // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
-            // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
-            // relación con la paleta dinámica.
-            colors = SliderDefaults.colors(
-                thumbColor = MaterialTheme.colorScheme.primary,
-                activeTrackColor = MaterialTheme.colorScheme.primary,
-                inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
-            ),
-            modifier = Modifier.fillMaxWidth().height(24.dp)
-        )
-
-        // Franjas de los Momentos sobre la pista. El Canvas no captura toques, así que el
-        // Slider sigue funcionando igual. El Slider de M3 deja ~10dp (mitad del thumb) a cada lado.
-        if (moments.isNotEmpty() && totalDuration > 0) {
-            // Se resuelve ACÁ (composable chico) para que, en modo Arcoíris, solo la barra se
-            // recomponga en cada tick de color y no todo el reproductor.
-            val markerColor = com.music.musicflame.ui.components.resolveEqualizerColor(
-                momentsColorMode, momentsCustomColorHex, MaterialTheme.colorScheme.tertiary
+            Slider(
+                value = progress,
+                onValueChange = { newValue ->
+                    onDragStart()
+                    onDragChange((newValue * totalDuration).toLong())
+                },
+                onValueChangeFinished = {
+                    onDragEnd(positionState.value)
+                },
+                // Material You: los 3 colores salen de MaterialTheme.colorScheme.primary, que en
+                // Android 12+ ya se genera dinámicamente desde el fondo de pantalla del sistema
+                // (ver Theme.kt: dynamicLightColorScheme / dynamicDarkColorScheme). Antes el thumb
+                // y el track inactivo usaban el color de texto elegido en Ajustes, fijo y sin
+                // relación con la paleta dinámica.
+                colors = SliderDefaults.colors(
+                    thumbColor = MaterialTheme.colorScheme.primary,
+                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                    inactiveTrackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.24f)
+                ),
+                modifier = Modifier.fillMaxWidth().height(24.dp)
             )
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val inset = 10.dp.toPx()
-                val trackWidth = size.width - inset * 2
-                val barHeight = 8.dp.toPx()
-                moments.forEach { m ->
-                    val x0 = inset + trackWidth * (m.startMs.toFloat() / totalDuration).coerceIn(0f, 1f)
-                    val x1 = inset + trackWidth * (m.endMs.toFloat() / totalDuration).coerceIn(0f, 1f)
-                    drawRoundRect(
-                        color = markerColor.copy(alpha = 0.85f),
-                        topLeft = Offset(x0, (size.height - barHeight) / 2f),
-                        size = Size((x1 - x0).coerceAtLeast(4.dp.toPx()), barHeight),
-                        cornerRadius = CornerRadius(barHeight / 2f)
-                    )
+
+            // Franjas de los Momentos sobre la pista. El Canvas no captura toques, así que el
+            // Slider sigue funcionando igual. El Slider de M3 deja ~10dp (mitad del thumb) a cada lado.
+            if (moments.isNotEmpty() && totalDuration > 0) {
+                // Se resuelve ACÁ (composable chico) para que, en modo Arcoíris, solo la barra se
+                // recomponga en cada tick de color y no todo el reproductor.
+                val markerColor = com.music.musicflame.ui.components.resolveEqualizerColor(
+                    momentsColorMode, momentsCustomColorHex, MaterialTheme.colorScheme.tertiary
+                )
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val inset = 10.dp.toPx()
+                    val trackWidth = size.width - inset * 2
+                    val barHeight = 8.dp.toPx()
+                    moments.forEach { m ->
+                        val x0 = inset + trackWidth * (m.startMs.toFloat() / totalDuration).coerceIn(0f, 1f)
+                        val x1 = inset + trackWidth * (m.endMs.toFloat() / totalDuration).coerceIn(0f, 1f)
+                        drawRoundRect(
+                            color = markerColor.copy(alpha = 0.85f),
+                            topLeft = Offset(x0, (size.height - barHeight) / 2f),
+                            size = Size((x1 - x0).coerceAtLeast(4.dp.toPx()), barHeight),
+                            cornerRadius = CornerRadius(barHeight / 2f)
+                        )
+                    }
                 }
             }
-        }
         }
 
         Row(

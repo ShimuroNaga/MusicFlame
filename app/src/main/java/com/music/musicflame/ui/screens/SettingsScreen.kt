@@ -127,6 +127,7 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import com.music.musicflame.audio.EqPresets
 import com.music.musicflame.R
 import com.music.musicflame.data.AppIconManager
@@ -210,6 +211,8 @@ fun SettingsScreen(
     val showEqualizerStyleDialog = remember { mutableStateOf(false) }
     val showFontDialog = remember { mutableStateOf(false) }
     val showFontSizeDialog = remember { mutableStateOf(false) }
+    val showLanguageDialog = remember { mutableStateOf(false) }
+    val appLanguagePref = remember { mutableStateOf(com.music.musicflame.data.LanguageManager.current(context)) }
     val showTextColorDialog = remember { mutableStateOf(false) }
     val showEqualizerColorDialog = remember { mutableStateOf(false) }
     val showMomentsColorDialog = remember { mutableStateOf(false) }
@@ -292,11 +295,11 @@ fun SettingsScreen(
     val appIconOptions = remember {
         listOf(
             Triple("default", "MusicFlame", R.mipmap.ic_launcher_musicflameupgrade),
-            Triple("classic", "Original (versión anterior)", R.mipmap.ic_launcher),
-            Triple("brilliant", "Brillante", R.mipmap.ic_launcher_brilliant),
+            Triple("classic", context.getString(R.string.settings_original_version_anterior), R.mipmap.ic_launcher),
+            Triple("brilliant", context.getString(R.string.settings_brillante), R.mipmap.ic_launcher_brilliant),
             Triple("pixel", "Pixelart", R.mipmap.ic_launcher_pixel),
             Triple("cookies", "Cookies N Cream", R.mipmap.ic_launcher_cookies),
-            Triple("gray", "Escala de grises", R.mipmap.ic_launcher_gray),
+            Triple("gray", context.getString(R.string.settings_escala_de_grises), R.mipmap.ic_launcher_gray),
             Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
             Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic),
             Triple("musicpika", "MusicPika", R.mipmap.ic_launcher_musicpika),
@@ -340,14 +343,14 @@ fun SettingsScreen(
     fun showLockedFeatureToast() {
         Toast.makeText(
             context,
-            "Esto es de pago. Actívalo en Ajustes > Pagos (opcional).",
+            context.getString(R.string.settings_locked_toast),
             Toast.LENGTH_SHORT
         ).show()
     }
     fun showLockedLyricsColorToast() {
         Toast.makeText(
             context,
-            "Personalizado y Arcoíris se venden juntos por $10 MXN (un solo producto). Actívalo en Ajustes > Pagos (opcional).",
+            context.getString(R.string.settings_locked_lyrics_toast),
             Toast.LENGTH_SHORT
         ).show()
     }
@@ -485,9 +488,9 @@ fun SettingsScreen(
                 context.contentResolver.openOutputStream(it)?.use { out ->
                     out.write(com.music.musicflame.data.ConfigExportRepository.exportToJson(context).toByteArray())
                 }
-                Toast.makeText(context, "Configuración exportada", Toast.LENGTH_SHORT).show()
+                Toast.makeText(context, context.getString(R.string.settings_configuracion_exportada), Toast.LENGTH_SHORT).show()
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo exportar: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_exportar_1_s, e.message), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -497,11 +500,11 @@ fun SettingsScreen(
             try {
                 val text = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
                 val applied = com.music.musicflame.data.ConfigExportRepository.importFromJson(context, text)
-                Toast.makeText(context, "Se aplicaron $applied ajustes. Reinicia MusicFlame para verlos todos.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.settings_se_aplicaron_1_s_ajustes_reinicia, applied), Toast.LENGTH_LONG).show()
             } catch (e: IllegalArgumentException) {
-                Toast.makeText(context, e.message ?: "Archivo inválido", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, e.message ?: context.getString(R.string.settings_archivo_invalido), Toast.LENGTH_LONG).show()
             } catch (e: Exception) {
-                Toast.makeText(context, "No se pudo importar: ${e.message}", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_importar_1_s, e.message), Toast.LENGTH_LONG).show()
             }
         }
     }
@@ -563,7 +566,7 @@ fun SettingsScreen(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text("Meta de ahorro", fontWeight = FontWeight.Black, fontSize = 16.sp, color = highEmphasis)
+                                        Text(stringResource(R.string.settings_meta_de_ahorro), fontWeight = FontWeight.Black, fontSize = 16.sp, color = highEmphasis)
                                         val pct = ((savingsGoalActual.toFloat() / SavingsGoalRepository.META_MAX) * 100).toInt().coerceIn(0, 100)
                                         Text("$pct%", fontSize = 14.sp, color = mediumEmphasis)
                                     }
@@ -613,7 +616,7 @@ fun SettingsScreen(
                                                             // en pantalla (antes esto cerraba la app).
                                                             val storageError = savingsGoalRepo.secureStorageError()
                                                             if (storageError != null) {
-                                                                savingsGoalError = "No se pudo abrir el almacén cifrado: $storageError"
+                                                                savingsGoalError = context.getString(R.string.settings_no_se_pudo_abrir_el_almacen_cifrad, storageError)
                                                             } else {
                                                                 showSavingsGoalTokenDialog = true
                                                             }
@@ -635,13 +638,13 @@ fun SettingsScreen(
                                                                     }
                                                                 }
                                                             } catch (t: Throwable) {
-                                                                savingsGoalError = "Error inesperado: ${t.javaClass.simpleName}: ${t.message ?: ""}"
+                                                                savingsGoalError = context.getString(R.string.settings_unexpected_error, t.javaClass.simpleName, t.message ?: "")
                                                             } finally {
                                                                 savingsGoalSaving = false
                                                             }
                                                         }
                                                     }
-                                                ) { Text(if (savingsGoalSaving) "..." else "Guardar") }
+                                                ) { Text(if (savingsGoalSaving) "..." else stringResource(R.string.action_save)) }
                                             }
                                         }
                                     }
@@ -655,10 +658,10 @@ fun SettingsScreen(
                             if (showSavingsGoalTokenDialog) {
                                 AlertDialog(
                                     onDismissRequest = { showSavingsGoalTokenDialog = false },
-                                    title = { Text("Conectar con GitHub") },
+                                    title = { Text(stringResource(R.string.settings_conectar_con_github)) },
                                     text = {
                                         Column {
-                                            Text("Pegá tu Personal Access Token de GitHub (fine-grained, permiso \"Contents: Read and write\" solo sobre este repo). Se guarda cifrado, solo en este dispositivo.")
+                                            Text(stringResource(R.string.settings_pega_tu_personal_access_token_de_g))
                                             Spacer(Modifier.height(8.dp))
                                             OutlinedTextField(
                                                 value = savingsGoalTokenInput,
@@ -675,14 +678,16 @@ fun SettingsScreen(
                                                 savingsGoalTokenInput = ""
                                                 showSavingsGoalTokenDialog = false
                                                 if (!saved) {
-                                                    savingsGoalError = "No se pudo guardar el token: " +
-                                                            (savingsGoalRepo.secureStorageError() ?: "error desconocido")
+                                                    savingsGoalError = context.getString(
+                                                        R.string.settings_token_save_failed,
+                                                        savingsGoalRepo.secureStorageError() ?: context.getString(R.string.settings_error_desconocido)
+                                                    )
                                                 }
                                             }
-                                        }) { Text("Guardar") }
+                                        }) { Text(stringResource(R.string.action_save)) }
                                     },
                                     dismissButton = {
-                                        TextButton(onClick = { showSavingsGoalTokenDialog = false }) { Text("Cancelar") }
+                                        TextButton(onClick = { showSavingsGoalTokenDialog = false }) { Text(stringResource(R.string.action_cancel)) }
                                     }
                                 )
                             }
@@ -704,7 +709,7 @@ fun SettingsScreen(
                                             horizontalArrangement = Arrangement.SpaceBetween,
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
-                                            Text("Almacenamiento (Supabase)", fontWeight = FontWeight.Black, fontSize = 16.sp, color = highEmphasis)
+                                            Text(stringResource(R.string.settings_almacenamiento_supabase), fontWeight = FontWeight.Black, fontSize = 16.sp, color = highEmphasis)
                                             Text(if (usage == null) "—" else "$pct%", fontSize = 14.sp, color = mediumEmphasis)
                                         }
                                         Spacer(Modifier.height(10.dp))
@@ -725,24 +730,24 @@ fun SettingsScreen(
                                             verticalAlignment = Alignment.CenterVertically
                                         ) {
                                             Text(
-                                                if (usage == null) "Calculando…" else "${SupabaseSalas.formatSize(usage.usedBytes)} de 1 GB",
+                                                if (usage == null) stringResource(R.string.settings_calculando) else stringResource(R.string.settings_1_s_de_1_gb, SupabaseSalas.formatSize(usage.usedBytes)),
                                                 fontSize = 18.sp,
                                                 fontWeight = FontWeight.Black,
                                                 color = highEmphasis
                                             )
                                             TextButton(onClick = refreshSupaUsage, enabled = !supaLoading) {
-                                                Text(if (supaLoading) "..." else "Actualizar")
+                                                Text(if (supaLoading) "..." else stringResource(R.string.settings_actualizar))
                                             }
                                         }
                                         if (usage != null) {
                                             Text(
-                                                "Te quedan ${SupabaseSalas.formatSize(usage.remainingBytes)} · ${usage.files} archivo(s) en salas",
+                                                stringResource(R.string.settings_te_quedan_1_s_2_s_archivo_s_en_sal, SupabaseSalas.formatSize(usage.remainingBytes), usage.files),
                                                 fontSize = 12.sp,
                                                 color = mediumEmphasis
                                             )
                                         }
                                         Text(
-                                            "Solo cuenta lo que hay en el bucket \"salas\". El tráfico de descargas se ve en el panel de Supabase (Usage).",
+                                            stringResource(R.string.settings_solo_cuenta_lo_que_hay_en_el_bucke),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
@@ -756,15 +761,15 @@ fun SettingsScreen(
                         }
                         item {
                             listOf(
-                                Triple("Hogar de Shimuro", "Tu mascota interactiva", Icons.Filled.Home),
-                                Triple("Cuenta", "Cuenta de Google y sesión", Icons.Filled.AccountCircle),
-                                Triple("Apariencia", "Fondo, colores, carátula, ícono", Icons.Filled.Palette),
-                                Triple("Canciones", "Manejo de canciones y reproducción", Icons.Filled.MusicNote),
-                                Triple("Copia de seguridad", "Exportar/importar tu configuración", Icons.Filled.Save),
-                                Triple("Especificaciones", "Versión, comunidad", Icons.Filled.Info),
-                                Triple("Lyrics", "Velocidad, animación y color de la letra", Icons.Filled.MusicNote),
-                                Triple("Pagos (opcional)", "Licencia de apoyo y donación opcional", Icons.Filled.Favorite),
-                                Triple("Aviso de Uso", "Redistribución, promoción y términos", Icons.Filled.Warning)
+                                Triple("Hogar de Shimuro", stringResource(R.string.settings_tu_mascota_interactiva), Icons.Filled.Home),
+                                Triple("Cuenta", stringResource(R.string.settings_cuenta_de_google_y_sesion), Icons.Filled.AccountCircle),
+                                Triple("Apariencia", stringResource(R.string.settings_fondo_colores_caratula_icono), Icons.Filled.Palette),
+                                Triple("Canciones", stringResource(R.string.settings_manejo_de_canciones_y_reproduccion), Icons.Filled.MusicNote),
+                                Triple("Copia de seguridad", stringResource(R.string.settings_exportar_importar_tu_configuracion), Icons.Filled.Save),
+                                Triple("Especificaciones", stringResource(R.string.settings_version_comunidad), Icons.Filled.Info),
+                                Triple("Lyrics", stringResource(R.string.settings_velocidad_animacion_y_color_de_la), Icons.Filled.MusicNote),
+                                Triple("Pagos (opcional)", stringResource(R.string.settings_licencia_de_apoyo_y_donacion_opcio), Icons.Filled.Favorite),
+                                Triple("Aviso de Uso", stringResource(R.string.settings_redistribucion_promocion_y_termino), Icons.Filled.Warning)
                             ).forEach { (catKey, subtitle, icon) ->
                                 val isLyricsCard = catKey == "Lyrics"
                                 Card(
@@ -790,7 +795,7 @@ fun SettingsScreen(
                                         Spacer(Modifier.width(16.dp))
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                catKey, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                                                settingsSectionTitle(catKey), fontWeight = FontWeight.Bold, fontSize = 16.sp,
                                                 color = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else highEmphasis
                                             )
                                             Text(
@@ -819,9 +824,9 @@ fun SettingsScreen(
                                         .padding(horizontal = 16.dp, vertical = 12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Volver", tint = highEmphasis)
+                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_volver), tint = highEmphasis)
                                     Spacer(Modifier.width(12.dp))
-                                    Text(activeSection.value ?: "", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
+                                    Text(settingsSectionTitle(activeSection.value ?: ""), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
                                 }
                                 HorizontalDivider(color = dividerColor)
                             }
@@ -841,11 +846,11 @@ fun SettingsScreen(
 
                     // COPIA DE SEGURIDAD (exportar/importar configuración)
                     if (activeSection.value == "Copia de seguridad") {
-                        item { sectionHeader("Copia de seguridad") }
+                        item { sectionHeader(stringResource(R.string.section_backup)) }
 
                         item {
                             Text(
-                                text = "Guarda tus ajustes de apariencia, ecualizador, letra y reproducción en un archivo, para restaurarlos o pasarlos a otro celular con MusicFlame. No incluye tu imagen de fondo, GIF del reproductor ni carátulas personalizadas (esas Uris son de este dispositivo, hay que volver a elegirlas a mano).",
+                                text = stringResource(R.string.settings_guarda_tus_ajustes_de_apariencia_e),
                                 fontSize = 13.sp,
                                 color = mediumEmphasis,
                                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
@@ -854,8 +859,8 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Exportar configuración") },
-                                supportingContent = { Text("Guardar como archivo .json") },
+                                headlineContent = { Text(stringResource(R.string.settings_exportar_configuracion)) },
+                                supportingContent = { Text(stringResource(R.string.settings_guardar_como_archivo_json)) },
                                 trailingContent = { Icon(Icons.Filled.Save, contentDescription = null, tint = trailingColor) },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { exportConfigLauncher.launch("musicflame_config.json") }
@@ -865,8 +870,8 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Importar configuración") },
-                                supportingContent = { Text("Elegir un archivo .json exportado antes") },
+                                headlineContent = { Text(stringResource(R.string.settings_importar_configuracion)) },
+                                supportingContent = { Text(stringResource(R.string.settings_elegir_un_archivo_json_exportado_a)) },
                                 trailingContent = { Icon(Icons.Filled.FileOpen, contentDescription = null, tint = trailingColor) },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { importConfigLauncher.launch("application/json") }
@@ -877,7 +882,7 @@ fun SettingsScreen(
 
                     // CUENTA
                     if (activeSection.value == "Cuenta") {
-                        item { sectionHeader("Cuenta") }
+                        item { sectionHeader(stringResource(R.string.section_account)) }
 
                         item {
                             Row(
@@ -904,7 +909,7 @@ fun SettingsScreen(
                                                 .memoryCacheKey("$userPhotoUrl-$avatarRefreshKey")
                                                 .diskCacheKey("$userPhotoUrl-$avatarRefreshKey")
                                                 .build(),
-                                            contentDescription = "Foto de perfil",
+                                            contentDescription = stringResource(R.string.settings_foto_de_perfil),
                                             contentScale = ContentScale.Crop,
                                             modifier = Modifier
                                                 .fillMaxSize()
@@ -913,7 +918,7 @@ fun SettingsScreen(
                                     } else {
                                         Icon(
                                             imageVector = Icons.Filled.AccountCircle,
-                                            contentDescription = "Sin foto de perfil",
+                                            contentDescription = stringResource(R.string.settings_sin_foto_de_perfil),
                                             modifier = Modifier.size(64.dp),
                                             tint = if (isUserSignedIn) trailingColor
                                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
@@ -926,16 +931,16 @@ fun SettingsScreen(
                                 Column {
                                     if (isUserSignedIn && !userName.isNullOrEmpty()) {
                                         Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
-                                        Text("Toca para ver tu cuenta", fontSize = 13.sp, color = mediumEmphasis)
+                                        Text(stringResource(R.string.settings_toca_para_ver_tu_cuenta), fontSize = 13.sp, color = mediumEmphasis)
                                     } else {
                                         Text(
-                                            "Sin usuario, por favor regístrese",
+                                            stringResource(R.string.settings_sin_usuario_por_favor_registrese),
                                             fontSize = 15.sp,
                                             fontWeight = FontWeight.SemiBold,
                                             color = mediumEmphasis
                                         )
                                         Text(
-                                            "Inicia sesión con Google",
+                                            stringResource(R.string.settings_inicia_sesion_con_google),
                                             fontSize = 13.sp,
                                             fontWeight = FontWeight.Bold,
                                             color = trailingColor
@@ -949,11 +954,11 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Vincular Google Drive") },
+                                headlineContent = { Text(stringResource(R.string.settings_vincular_google_drive)) },
                                 supportingContent = {
                                     Text(
-                                        if (isDriveLinked) "✓ Google Drive vinculado con tu cuenta"
-                                        else "Vincula tu cuenta para respaldar tus playlists y ajustes"
+                                        if (isDriveLinked) stringResource(R.string.settings_google_drive_vinculado_con_tu_cuen)
+                                        else stringResource(R.string.settings_vincula_tu_cuenta_para_respaldar_t)
                                     )
                                 },
                                 trailingContent = {
@@ -984,24 +989,24 @@ fun SettingsScreen(
                         // APARIENCIA
                     }
                     if (activeSection.value == "Apariencia") {
-                        item { sectionHeader("Apariencia") }
+                        item { sectionHeader(stringResource(R.string.section_appearance)) }
 
                         item {
                             // Fondo general de la app: mismo formato que "Fondo del reproductor".
                             ListItem(
-                                headlineContent = { Text("Fondo de la app") },
+                                headlineContent = { Text(stringResource(R.string.settings_fondo_de_la_app)) },
                                 supportingContent = {
                                     Text(
                                         when {
-                                            isGifPresent -> "GIF propio activado"
-                                            isBgPresent -> "Imagen propia activada"
-                                            else -> "Sin fondo"
+                                            isGifPresent -> stringResource(R.string.settings_gif_propio_activado)
+                                            isBgPresent -> stringResource(R.string.settings_imagen_propia_activada)
+                                            else -> stringResource(R.string.settings_sin_fondo)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showAppBgDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1013,19 +1018,19 @@ fun SettingsScreen(
                         item {
                             // NUEVO: fondo propio SOLO del reproductor expandido (no toca el fondo global).
                             ListItem(
-                                headlineContent = { Text("Fondo del reproductor") },
+                                headlineContent = { Text(stringResource(R.string.settings_fondo_del_reproductor)) },
                                 supportingContent = {
                                     Text(
                                         if (fullPlayerBgModePref.value == "custom") {
-                                            if (fullPlayerBgIsGifPref.value) "GIF propio activado" else "Imagen propia activada"
+                                            if (fullPlayerBgIsGifPref.value) stringResource(R.string.settings_gif_propio_activado) else stringResource(R.string.settings_imagen_propia_activada)
                                         } else {
-                                            "Sin fondo"
+                                            stringResource(R.string.settings_sin_fondo)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showFullPlayerBgDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1036,9 +1041,9 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Apariencia de la aplicación") },
-                                supportingContent = { Text("Tema actual: ${appTheme.value}") },
-                                trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                headlineContent = { Text(stringResource(R.string.settings_apariencia_de_la_aplicacion)) },
+                                supportingContent = { Text(stringResource(R.string.settings_tema_actual_1_s, settingsOptionLabel(appTheme.value))) },
+                                trailingContent = { TextButton(onClick = { showThemeDialog.value = true }) { Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -1046,7 +1051,7 @@ fun SettingsScreen(
 
                         item {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Text("Tamaño de carátulas de álbumes", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Text(stringResource(R.string.settings_tamano_de_caratulas_de_albumes), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
                                 Spacer(Modifier.height(4.dp))
                                 Slider(
                                     value = albumGridColumns.value.toFloat(),
@@ -1064,8 +1069,8 @@ fun SettingsScreen(
                                     )
                                 )
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Grande", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Chico", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_grande), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_chico), fontSize = 12.sp, color = mediumEmphasis)
                                 }
                             }
                             HorizontalDivider(color = dividerColor)
@@ -1076,7 +1081,7 @@ fun SettingsScreen(
                             // ve en el reproductor a pantalla completa. 6 = mínimo, 32 =
                             // estándar (default), 64 = máximo.
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Text("Barras del ecualizador gráfico", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Text(stringResource(R.string.settings_barras_del_ecualizador_grafico), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
                                 Spacer(Modifier.height(4.dp))
                                 Slider(
                                     value = equalizerBarCount.value.toFloat(),
@@ -1093,12 +1098,12 @@ fun SettingsScreen(
                                     )
                                 )
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("6 (mínimo)", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("${equalizerBarCount.value} barras", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = trailingColor)
-                                    Text("64 (máximo)", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_6_minimo), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_1_s_barras, equalizerBarCount.value), fontSize = 12.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                    Text(stringResource(R.string.settings_64_maximo), fontSize = 12.sp, color = mediumEmphasis)
                                 }
                                 Text(
-                                    "Se aplica la próxima vez que abras el reproductor a pantalla completa.",
+                                    stringResource(R.string.settings_se_aplica_la_proxima_vez_que_abras),
                                     fontSize = 11.sp,
                                     color = mediumEmphasis,
                                     modifier = Modifier.padding(top = 4.dp)
@@ -1115,11 +1120,11 @@ fun SettingsScreen(
                             // ahora libre para probar (ver
                             // SettingsRepository.EQUALIZER_STYLES_UNLOCKED_FOR_TESTING).
                             ListItem(
-                                headlineContent = { Text("Estilo de ecualizador gráfico") },
+                                headlineContent = { Text(stringResource(R.string.settings_estilo_de_ecualizador_grafico)) },
                                 supportingContent = { Text(equalizerStyle.value.displayName) },
                                 trailingContent = {
                                     TextButton(onClick = { showEqualizerStyleDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1132,13 +1137,13 @@ fun SettingsScreen(
                             // NUEVO: tipo de letra global (catálogo, ideas de fuentes).
                             // Se aplica a TODA la app, no solo al título de la canción.
                             ListItem(
-                                headlineContent = { Text("Tipo de letra") },
+                                headlineContent = { Text(stringResource(R.string.settings_tipo_de_letra)) },
                                 supportingContent = {
                                     Text(appFontPref.value.displayName, fontFamily = appFontPref.value.fontFamily)
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showFontDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1151,15 +1156,33 @@ fun SettingsScreen(
                             // NUEVO: tamaño de letra global. Gratis (usabilidad, no
                             // cosmético puro) — afecta a toda la app vía appTypographyFor().
                             ListItem(
-                                headlineContent = { Text("Tamaño de letra") },
+                                headlineContent = { Text(stringResource(R.string.settings_tamano_de_letra)) },
                                 supportingContent = { Text("${appFontSizePref.value.toInt()} sp") },
                                 trailingContent = {
                                     TextButton(onClick = { showFontSizeDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
                                 modifier = Modifier.clickable { showFontSizeDialog.value = true }
+                            )
+                            HorizontalDivider(color = dividerColor)
+                        }
+
+                        item {
+                            // Idioma de la app (es / en / sistema). Ver LanguageManager.kt
+                            ListItem(
+                                headlineContent = { Text(stringResource(R.string.language_title)) },
+                                supportingContent = {
+                                    Text(com.music.musicflame.ui.components.appLanguageLabel(appLanguagePref.value))
+                                },
+                                trailingContent = {
+                                    TextButton(onClick = { showLanguageDialog.value = true }) {
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                    }
+                                },
+                                colors = listItemColors,
+                                modifier = Modifier.clickable { showLanguageDialog.value = true }
                             )
                             HorizontalDivider(color = dividerColor)
                         }
@@ -1170,19 +1193,19 @@ fun SettingsScreen(
                             // cual sea el estilo elegido. Mismo patrón de diálogo
                             // que "Color de texto" (presets + hex/RGBA manual).
                             ListItem(
-                                headlineContent = { Text("Color del ecualizador") },
+                                headlineContent = { Text(stringResource(R.string.settings_color_del_ecualizador)) },
                                 supportingContent = {
                                     Text(
                                         when (equalizerColorModePref.value) {
-                                            "Personalizado" -> "Personalizado: ${equalizerCustomColorHexPref.value}"
-                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
-                                            else -> "Adaptativo (según el fondo)"
+                                            "Personalizado" -> stringResource(R.string.settings_personalizado_1_s, equalizerCustomColorHexPref.value)
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.settings_arcoiris_en_movimiento)
+                                            else -> stringResource(R.string.settings_adaptativo_segun_el_fondo)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showEqualizerColorDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1194,19 +1217,19 @@ fun SettingsScreen(
                         item {
                             // NUEVO: color de las franjas de Momentos en la barra de progreso.
                             ListItem(
-                                headlineContent = { Text("Color de momentos") },
+                                headlineContent = { Text(stringResource(R.string.settings_color_de_momentos)) },
                                 supportingContent = {
                                     Text(
                                         when (momentsColorModePref.value) {
-                                            "Personalizado" -> "Personalizado: ${momentsCustomColorHexPref.value}"
-                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
-                                            else -> "Adaptativo (color del tema)"
+                                            "Personalizado" -> stringResource(R.string.settings_personalizado_1_s, momentsCustomColorHexPref.value)
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.settings_arcoiris_en_movimiento)
+                                            else -> stringResource(R.string.settings_adaptativo_color_del_tema)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showMomentsColorDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1218,19 +1241,19 @@ fun SettingsScreen(
                         item {
                             // NUEVO: color de acento de la pantalla "En compañía".
                             ListItem(
-                                headlineContent = { Text("Color de En compañía") },
+                                headlineContent = { Text(stringResource(R.string.settings_color_de_en_compania)) },
                                 supportingContent = {
                                     Text(
                                         when (togetherColorModePref.value) {
-                                            "Personalizado" -> "Personalizado: ${togetherCustomColorHexPref.value}"
-                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
-                                            else -> "Adaptativo (color del tema)"
+                                            "Personalizado" -> stringResource(R.string.settings_personalizado_1_s, togetherCustomColorHexPref.value)
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.settings_arcoiris_en_movimiento)
+                                            else -> stringResource(R.string.settings_adaptativo_color_del_tema)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showTogetherColorDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1241,7 +1264,7 @@ fun SettingsScreen(
 
                         item {
                             Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
-                                Text("Opacidad del fondo del widget", fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
+                                Text(stringResource(R.string.settings_opacidad_del_fondo_del_widget), fontSize = 15.sp, fontWeight = FontWeight.Bold, color = trailingColor)
                                 Spacer(Modifier.height(4.dp))
                                 Slider(
                                     value = widgetBackgroundOpacity.value,
@@ -1258,11 +1281,11 @@ fun SettingsScreen(
                                     )
                                 )
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Transparente", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Opaco", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_transparente), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_opaco), fontSize = 12.sp, color = mediumEmphasis)
                                 }
                                 Text(
-                                    "El texto del widget siempre lleva una sombra para seguir viéndose claro aunque el fondo quede casi transparente.",
+                                    stringResource(R.string.settings_el_texto_del_widget_siempre_lleva),
                                     fontSize = 11.sp,
                                     color = mediumEmphasis,
                                     modifier = Modifier.padding(top = 4.dp)
@@ -1273,13 +1296,13 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Color de texto") },
+                                headlineContent = { Text(stringResource(R.string.settings_color_de_texto)) },
                                 supportingContent = {
                                     Text(
-                                        "Color actual: " + if (appTextColorPref.value == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris (en movimiento)" else appTextColorPref.value
+                                        stringResource(R.string.settings_current_color, if (appTextColorPref.value == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) stringResource(R.string.settings_arcoiris_en_movimiento) else settingsOptionLabel(appTextColorPref.value))
                                     )
                                 },
-                                trailingContent = { TextButton(onClick = { showTextColorDialog.value = true }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                trailingContent = { TextButton(onClick = { showTextColorDialog.value = true }) { Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -1291,19 +1314,19 @@ fun SettingsScreen(
                             // ecualizador": Adaptativo (blanco/negro según el fondo,
                             // como hasta ahora) o Personalizado (presets + hex/RGBA).
                             ListItem(
-                                headlineContent = { Text("Color del \"Now Playing\"") },
+                                headlineContent = { Text(stringResource(R.string.settings_color_del_now_playing)) },
                                 supportingContent = {
                                     Text(
                                         when (nowPlayingColorModePref.value) {
-                                            "Personalizado" -> "Personalizado: ${nowPlayingCustomColorHexPref.value}"
-                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> "Arcoíris (en movimiento)"
-                                            else -> "Adaptativo (según el fondo)"
+                                            "Personalizado" -> stringResource(R.string.settings_personalizado_1_s, nowPlayingCustomColorHexPref.value)
+                                            com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.settings_arcoiris_en_movimiento)
+                                            else -> stringResource(R.string.settings_adaptativo_segun_el_fondo)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     TextButton(onClick = { showNowPlayingColorDialog.value = true }) {
-                                        Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors,
@@ -1314,8 +1337,8 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Modo AMOLED (Negro Puro)") },
-                                supportingContent = { Text("Apaga píxeles para ahorro extremo y contraste infinito") },
+                                headlineContent = { Text(stringResource(R.string.settings_modo_amoled_negro_puro)) },
+                                supportingContent = { Text(stringResource(R.string.settings_apaga_pixeles_para_ahorro_extremo)) },
                                 trailingContent = {
                                     Switch(
                                         checked = amoledMode.value,
@@ -1332,8 +1355,8 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Usar redondeado de cuadros") },
-                                supportingContent = { Text("Aplica bordes curvos a las secciones y tarjetas") },
+                                headlineContent = { Text(stringResource(R.string.settings_usar_redondeado_de_cuadros)) },
+                                supportingContent = { Text(stringResource(R.string.settings_aplica_bordes_curvos_a_las_seccion)) },
                                 trailingContent = {
                                     Switch(
                                         checked = useRoundCorners.value,
@@ -1351,18 +1374,18 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Forma de la carátula") },
+                                headlineContent = { Text(stringResource(R.string.settings_forma_de_la_caratula)) },
                                 supportingContent = {
                                     Text(
-                                        "Actual: " + when (albumArtShapePref.value) {
-                                            com.music.musicflame.AlbumArtShapeType.SQUARE -> "Cuadrado"
-                                            com.music.musicflame.AlbumArtShapeType.CIRCLE -> "Círculo"
-                                            com.music.musicflame.AlbumArtShapeType.HEXAGON -> "Hexágono"
-                                            com.music.musicflame.AlbumArtShapeType.VINYL -> "Vinilo"
-                                            com.music.musicflame.AlbumArtShapeType.SQUIRCLE -> "Squircle"
+                                        stringResource(R.string.settings_current_shape, when (albumArtShapePref.value) {
+                                            com.music.musicflame.AlbumArtShapeType.SQUARE -> stringResource(R.string.settings_cuadrado)
+                                            com.music.musicflame.AlbumArtShapeType.CIRCLE -> stringResource(R.string.settings_circulo)
+                                            com.music.musicflame.AlbumArtShapeType.HEXAGON -> stringResource(R.string.settings_hexagono)
+                                            com.music.musicflame.AlbumArtShapeType.VINYL -> stringResource(R.string.settings_vinilo)
+                                            com.music.musicflame.AlbumArtShapeType.SQUIRCLE -> stringResource(R.string.settings_squircle)
                                             com.music.musicflame.AlbumArtShapeType.CUSTOM ->
-                                                coverDesigns.value.firstOrNull { it.id == activeCoverDesignId.value }?.name ?: "Personalizado"
-                                        }
+                                                coverDesigns.value.firstOrNull { it.id == activeCoverDesignId.value }?.name ?: stringResource(R.string.option_custom)
+                                        })
                                     )
                                 },
                                 trailingContent = { TextButton(onClick = {
@@ -1370,7 +1393,7 @@ fun SettingsScreen(
                                     shapeDialogShape.value = albumArtShapePref.value
                                     shapeDialogDesignId.value = activeCoverDesignId.value
                                     showAlbumArtShapeDialog.value = true
-                                }) { Text("Cambiar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                }) { Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -1378,8 +1401,8 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Icono de la app") },
-                                supportingContent = { Text("Elige entre los iconos predeterminados") },
+                                headlineContent = { Text(stringResource(R.string.settings_icono_de_la_app)) },
+                                supportingContent = { Text(stringResource(R.string.settings_elige_entre_los_iconos_predetermin)) },
                                 trailingContent = {
                                     Icon(
                                         imageVector = if (iconPickerExpanded.value) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
@@ -1408,7 +1431,7 @@ fun SettingsScreen(
                                                 selectedAppIcon.value = key
                                                 settingsRepo.saveSelectedAppIcon(key)
                                                 AppIconManager.setIcon(context, key)
-                                                Toast.makeText(context, "Icono cambiado a $label", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.settings_icono_cambiado_a_1_s, label), Toast.LENGTH_SHORT).show()
                                             }
                                         ) {
                                             Box(
@@ -1445,13 +1468,13 @@ fun SettingsScreen(
 
                     }
                     if (activeSection.value == "Canciones") {
-                        item { sectionHeader("Manejo de Canciones") }
+                        item { sectionHeader(stringResource(R.string.settings_manejo_de_canciones)) }
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Filtrar por duración") },
-                                supportingContent = { Text("Excluir o mostrar solo canciones de cierta duración") },
-                                trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                headlineContent = { Text(stringResource(R.string.settings_filtrar_por_duracion)) },
+                                supportingContent = { Text(stringResource(R.string.settings_excluir_o_mostrar_solo_canciones_d)) },
+                                trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text(stringResource(R.string.settings_configurar), fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -1459,9 +1482,9 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Formatos de audio a escuchar") },
-                                supportingContent = { Text("Elige qué formatos de tu biblioteca mostrar y reproducir") },
-                                trailingContent = { TextButton(onClick = { showAudioFormatsDialog.value = true }) { Text("Ver formatos", fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
+                                headlineContent = { Text(stringResource(R.string.settings_formatos_de_audio_a_escuchar)) },
+                                supportingContent = { Text(stringResource(R.string.settings_elige_que_formatos_de_tu_bibliotec)) },
+                                trailingContent = { TextButton(onClick = { showAudioFormatsDialog.value = true }) { Text(stringResource(R.string.settings_ver_formatos), fontWeight = FontWeight.ExtraBold, color = trailingColor) } },
                                 colors = listItemColors
                             )
                             HorizontalDivider(color = dividerColor)
@@ -1469,11 +1492,11 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Búsqueda de anomalías") },
-                                supportingContent = { Text("Detecta carátulas corruptas, metadata sospechosa, formatos sin soporte, canciones truncadas y posibles duplicados") },
+                                headlineContent = { Text(stringResource(R.string.settings_busqueda_de_anomalias)) },
+                                supportingContent = { Text(stringResource(R.string.settings_detecta_caratulas_corruptas_metada)) },
                                 trailingContent = {
                                     TextButton(onClick = { showAnomalyScanDialog.value = true }) {
-                                        Text("Analizar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                        Text(stringResource(R.string.settings_analizar), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                     }
                                 },
                                 colors = listItemColors
@@ -1483,13 +1506,13 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Guardar etiquetas reales en el archivo") },
+                                headlineContent = { Text(stringResource(R.string.settings_guardar_etiquetas_reales_en_el_arc)) },
                                 supportingContent = {
                                     Text(
                                         text = when {
-                                            !hasFileAccessPermission -> "Requiere el permiso \"Acceso a todos los archivos\" de Android"
-                                            realTagWritingEnabled -> "Activado: carátula, título, artista y álbum se escriben de verdad en el archivo"
-                                            else -> "Desactivado: los cambios solo se ven dentro de la app, como ahora"
+                                            !hasFileAccessPermission -> stringResource(R.string.settings_requiere_el_permiso_acceso_a_todos)
+                                            realTagWritingEnabled -> stringResource(R.string.settings_activado_caratula_titulo_artista_y)
+                                            else -> stringResource(R.string.settings_desactivado_los_cambios_solo_se_ve)
                                         },
                                         color = if (!hasFileAccessPermission) MaterialTheme.colorScheme.error else trailingColor
                                     )
@@ -1506,7 +1529,7 @@ fun SettingsScreen(
                                                     com.music.musicflame.data.RealTagWriter.requestFileAccessPermission(context)
                                                     Toast.makeText(
                                                         context,
-                                                        "Concede \"Acceso a todos los archivos\" y vuelve a activar el interruptor",
+                                                        context.getString(R.string.settings_concede_acceso_a_todos_los_archivo),
                                                         Toast.LENGTH_LONG
                                                     ).show()
                                                 }
@@ -1528,29 +1551,29 @@ fun SettingsScreen(
                             val sleepRemainingMs by playerManager.sleepTimerRemainingMs
 
                             ListItem(
-                                headlineContent = { Text("Temporizador de apagado") },
+                                headlineContent = { Text(stringResource(R.string.settings_temporizador_de_apagado)) },
                                 supportingContent = {
                                     Text(
                                         when {
-                                            sleepEndOfSong -> "Se pausará al terminar la canción actual"
+                                            sleepEndOfSong -> stringResource(R.string.settings_se_pausara_al_terminar_la_cancion)
                                             sleepActive -> {
                                                 val totalSeconds = (sleepRemainingMs / 1000L).coerceAtLeast(0L)
                                                 val mm = totalSeconds / 60
                                                 val ss = totalSeconds % 60
-                                                "Pausando en %02d:%02d".format(mm, ss)
+                                                stringResource(R.string.settings_pausando_en_02d_02d).format(mm, ss)
                                             }
-                                            else -> "Pausa la reproducción automáticamente"
+                                            else -> stringResource(R.string.settings_pausa_la_reproduccion_automaticame)
                                         }
                                     )
                                 },
                                 trailingContent = {
                                     if (sleepActive) {
                                         TextButton(onClick = { playerManager.cancelSleepTimer() }) {
-                                            Text("Cancelar", fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.error)
+                                            Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.error)
                                         }
                                     } else {
                                         TextButton(onClick = { showSleepTimerDialog.value = true }) {
-                                            Text("Configurar", fontWeight = FontWeight.ExtraBold, color = trailingColor)
+                                            Text(stringResource(R.string.settings_configurar), fontWeight = FontWeight.ExtraBold, color = trailingColor)
                                         }
                                     }
                                 },
@@ -1559,19 +1582,19 @@ fun SettingsScreen(
                             HorizontalDivider(color = dividerColor)
                         }
 
-                        item { sectionHeader("Reproducción") }
+                        item { sectionHeader(stringResource(R.string.settings_reproduccion)) }
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Reproducir en segundo plano") },
-                                supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
+                                headlineContent = { Text(stringResource(R.string.settings_reproducir_en_segundo_plano)) },
+                                supportingContent = { Text(stringResource(R.string.settings_mantiene_el_reproductor_activo_fue)) },
                                 trailingContent = {
                                     Switch(
                                         checked = playInBackground.value,
                                         onCheckedChange = {
                                             playInBackground.value = it
                                             settingsRepo.savePlayInBackground(it)
-                                            Toast.makeText(context, if (it) "Segundo plano activado" else "Segundo plano desactivado", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, if (it) context.getString(R.string.settings_segundo_plano_activado) else context.getString(R.string.settings_segundo_plano_desactivado), Toast.LENGTH_SHORT).show()
                                         }
                                     )
                                 },
@@ -1581,15 +1604,15 @@ fun SettingsScreen(
                         }
                         item {
                             ListItem(
-                                headlineContent = { Text("Pausar al desconectar audífonos") },
-                                supportingContent = { Text("Detiene la canción si te quitas los audífonos o se desconecta el Bluetooth") },
+                                headlineContent = { Text(stringResource(R.string.settings_pausar_al_desconectar_audifonos)) },
+                                supportingContent = { Text(stringResource(R.string.settings_detiene_la_cancion_si_te_quitas_lo)) },
                                 trailingContent = {
                                     Switch(
                                         checked = pauseOnDisconnect.value,
                                         onCheckedChange = {
                                             pauseOnDisconnect.value = it
                                             settingsRepo.savePauseOnDisconnect(it)
-                                            Toast.makeText(context, if (it) "Pausa automática activada" else "Pausa automática desactivada", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, if (it) context.getString(R.string.settings_pausa_automatica_activada) else context.getString(R.string.settings_pausa_automatica_desactivada), Toast.LENGTH_SHORT).show()
                                         }
                                     )
                                 },
@@ -1600,13 +1623,13 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Optimización de batería") },
+                                headlineContent = { Text(stringResource(R.string.settings_optimizacion_de_bateria)) },
                                 supportingContent = {
                                     Text(
                                         text = if (isIgnoringBattery)
-                                            "Optimizado para música continua (Recomendado)"
+                                            stringResource(R.string.settings_optimizado_para_musica_continua_re)
                                         else
-                                            "Restringido — Android podría pausar la música al apagar la pantalla",
+                                            stringResource(R.string.settings_restringido_android_podria_pausar),
                                         color = if (isIgnoringBattery) trailingColor else MaterialTheme.colorScheme.error
                                     )
                                 },
@@ -1621,7 +1644,7 @@ fun SettingsScreen(
                                                     }
                                                     context.startActivity(intent)
                                                 } catch (e: Exception) {
-                                                    Toast.makeText(context, "No se pudo abrir la configuración de batería", Toast.LENGTH_SHORT).show()
+                                                    Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_abrir_la_configuracion), Toast.LENGTH_SHORT).show()
                                                 }
                                             } else {
                                                 val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
@@ -1635,12 +1658,12 @@ fun SettingsScreen(
                             HorizontalDivider(color = dividerColor)
                         }
 
-                        item { sectionHeader("Ecualizador") }
+                        item { sectionHeader(stringResource(R.string.settings_ecualizador)) }
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Studio Pro EQ") },
-                                supportingContent = { Text("Preset activo: ${eqPresetSelected.value}") },
+                                headlineContent = { Text(stringResource(R.string.settings_studio_pro_eq)) },
+                                supportingContent = { Text(stringResource(R.string.settings_preset_activo_1_s, eqPresetSelected.value)) },
                                 trailingContent = {
                                     Button(
                                         onClick = { showEqualizerDialog.value = true },
@@ -1648,7 +1671,7 @@ fun SettingsScreen(
                                             containerColor = MaterialTheme.colorScheme.primary,
                                             contentColor = MaterialTheme.colorScheme.onPrimary
                                         )
-                                    ) { Text("Abrir Consola", fontWeight = FontWeight.ExtraBold) }
+                                    ) { Text(stringResource(R.string.settings_abrir_consola), fontWeight = FontWeight.ExtraBold) }
                                 },
                                 colors = listItemColors
                             )
@@ -1660,10 +1683,10 @@ fun SettingsScreen(
                             ListItem(
                                 headlineContent = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text("EQ PRO — 10 Bandas")
+                                        Text(stringResource(R.string.settings_eq_pro_10_bandas))
                                         if (!isProEqUnlocked) {
                                             Spacer(Modifier.width(6.dp))
-                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                                             Spacer(Modifier.width(2.dp))
                                             Text("$15 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                         }
@@ -1671,8 +1694,8 @@ fun SettingsScreen(
                                 },
                                 supportingContent = {
                                     Text(
-                                        if (isProEqUnlocked) "Motor propio, pre-amp, presets y normalización de volumen"
-                                        else "Función de pago — toca para ver más"
+                                        if (isProEqUnlocked) stringResource(R.string.settings_motor_propio_pre_amp_presets_y_nor)
+                                        else stringResource(R.string.settings_funcion_de_pago_toca_para_ver_mas)
                                     )
                                 },
                                 trailingContent = {
@@ -1682,7 +1705,7 @@ fun SettingsScreen(
                                             containerColor = MaterialTheme.colorScheme.primary,
                                             contentColor = MaterialTheme.colorScheme.onPrimary
                                         )
-                                    ) { Text(if (isProEqUnlocked) "Abrir" else "Ver", fontWeight = FontWeight.ExtraBold) }
+                                    ) { Text(if (isProEqUnlocked) stringResource(R.string.settings_abrir) else stringResource(R.string.settings_ver), fontWeight = FontWeight.ExtraBold) }
                                 },
                                 colors = listItemColors
                             )
@@ -1691,8 +1714,8 @@ fun SettingsScreen(
 
                     }
                     if (activeSection.value == "Especificaciones") {
-                        item { sectionHeader("Sobre") }
-                        item { ListItem(headlineContent = { Text("Versión") }, supportingContent = { Text("3.13") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
+                        item { sectionHeader(stringResource(R.string.settings_sobre)) }
+                        item { ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.13") }, colors = listItemColors); HorizontalDivider(color = dividerColor) }
 
                         // BOTÓN DE ACTUALIZACIONES (CARD)
                         item {
@@ -1714,18 +1737,18 @@ fun SettingsScreen(
                                     )
                                     Spacer(Modifier.width(16.dp))
                                     Column {
-                                        Text("Actualizaciones", fontWeight = FontWeight.Bold)
-                                        Text("Buscar nueva versión", style = MaterialTheme.typography.bodySmall)
+                                        Text(stringResource(R.string.settings_actualizaciones), fontWeight = FontWeight.Bold)
+                                        Text(stringResource(R.string.settings_buscar_nueva_version), style = MaterialTheme.typography.bodySmall)
                                     }
                                 }
                             }
                         }
 
-                        item { sectionHeader("Especificaciones Técnicas") }
+                        item { sectionHeader(stringResource(R.string.settings_especificaciones_tecnicas)) }
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Framework UI") },
+                                headlineContent = { Text(stringResource(R.string.settings_framework_ui)) },
                                 supportingContent = { Text("Jetpack Compose") },
                                 colors = listItemColors
                             ); HorizontalDivider(color = dividerColor)
@@ -1733,7 +1756,7 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Lenguaje de Diseño") },
+                                headlineContent = { Text(stringResource(R.string.settings_lenguaje_de_diseno)) },
                                 supportingContent = { Text("Material Design 3") },
                                 colors = listItemColors
                             ); HorizontalDivider(color = dividerColor)
@@ -1741,7 +1764,7 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Paleta de Colores") },
+                                headlineContent = { Text(stringResource(R.string.settings_paleta_de_colores)) },
                                 supportingContent = { Text("Material You (Dinámico)") },
                                 colors = listItemColors
                             ); HorizontalDivider(color = dividerColor)
@@ -1749,14 +1772,14 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Arquitectura") },
-                                supportingContent = { Text("Declarativa y Modular") },
+                                headlineContent = { Text(stringResource(R.string.settings_arquitectura)) },
+                                supportingContent = { Text(stringResource(R.string.settings_declarativa_y_modular)) },
                                 colors = listItemColors
                             )
                         }
                         item {
                             ListItem(
-                                headlineContent = { Text("Creador de código") },
+                                headlineContent = { Text(stringResource(R.string.settings_creador_de_codigo)) },
                                 supportingContent = { Text("ShimuroNaga") },
                                 leadingContent = {
                                     AsyncImage(
@@ -1764,7 +1787,7 @@ fun SettingsScreen(
                                             .data("https://github.com/ShimuroNaga.png")
                                             .crossfade(true)
                                             .build(),
-                                        contentDescription = "Avatar de ShimuroNaga",
+                                        contentDescription = stringResource(R.string.settings_avatar_de_shimuronaga),
                                         contentScale = ContentScale.Crop,
                                         placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                                         error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
@@ -1790,7 +1813,7 @@ fun SettingsScreen(
                                             .data("https://github.com/Naofresita18.png")
                                             .crossfade(true)
                                             .build(),
-                                        contentDescription = "Avatar de Naofresita18",
+                                        contentDescription = stringResource(R.string.settings_avatar_de_naofresita18),
                                         contentScale = ContentScale.Crop,
                                         placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                                         error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
@@ -1812,7 +1835,7 @@ fun SettingsScreen(
                                             .data("https://github.com/deivid-boop.png")
                                             .crossfade(true)
                                             .build(),
-                                        contentDescription = "Avatar de deivid-boop",
+                                        contentDescription = stringResource(R.string.settings_avatar_de_deivid_boop),
                                         contentScale = ContentScale.Crop,
                                         placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                                         error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
@@ -1825,12 +1848,12 @@ fun SettingsScreen(
                             )
                         }
 
-                        item { sectionHeader("Comunidad") }
+                        item { sectionHeader(stringResource(R.string.settings_comunidad)) }
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Repositorio en GitHub") },
-                                supportingContent = { Text("Código fuente y changelog de MusicFlame") },
+                                headlineContent = { Text(stringResource(R.string.settings_repositorio_en_github)) },
+                                supportingContent = { Text(stringResource(R.string.settings_codigo_fuente_y_changelog_de_music)) },
                                 leadingContent = {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_github),
@@ -1850,8 +1873,8 @@ fun SettingsScreen(
 
                         item {
                             ListItem(
-                                headlineContent = { Text("Únete al Discord") },
-                                supportingContent = { Text("Comunidad, soporte y novedades de la app") },
+                                headlineContent = { Text(stringResource(R.string.settings_unete_al_discord)) },
+                                supportingContent = { Text(stringResource(R.string.settings_comunidad_soporte_y_novedades_de_l)) },
                                 leadingContent = {
                                     Icon(
                                         painter = painterResource(id = R.drawable.ic_discord),
@@ -1868,12 +1891,12 @@ fun SettingsScreen(
                             )
                         }
 
-                        item { sectionHeader("Colaboraciones") }
+                        item { sectionHeader(stringResource(R.string.settings_colaboraciones)) }
 
                         item {
                             ListItem(
                                 headlineContent = { Text("GreenyPika") },
-                                supportingContent = { Text("Artista") },
+                                supportingContent = { Text(stringResource(R.string.settings_artista)) },
                                 leadingContent = {
                                     Image(
                                         painter = painterResource(id = R.drawable.ic_artist_greenypika),
@@ -1896,7 +1919,7 @@ fun SettingsScreen(
                         item {
                             ListItem(
                                 headlineContent = { Text("Bear Spring") },
-                                supportingContent = { Text("Artista") },
+                                supportingContent = { Text(stringResource(R.string.settings_artista)) },
                                 leadingContent = {
                                     Image(
                                         painter = painterResource(id = R.drawable.ic_artist_bearspring),
@@ -1937,14 +1960,14 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.onTertiaryContainer
                                     )
                                     Text(
-                                        "Controla cómo se anima y se ve la letra sincronizada al deslizar dentro de una lista de reproducción.",
+                                        stringResource(R.string.settings_controla_como_se_anima_y_se_ve_la),
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                                     )
 
                                     Spacer(Modifier.height(20.dp))
                                     Text(
-                                        "Velocidad de animación: ${"%.1f".format(speed)}x",
+                                        stringResource(R.string.settings_anim_speed, "%.1f".format(speed)),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -1962,13 +1985,13 @@ fun SettingsScreen(
                                         )
                                     )
                                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Lenta", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
-                                        Text("Rápida", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                                        Text(stringResource(R.string.settings_lenta), fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                                        Text(stringResource(R.string.settings_rapida), fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
                                     }
 
                                     Spacer(Modifier.height(20.dp))
                                     Text(
-                                        "Tipo de animación",
+                                        stringResource(R.string.settings_tipo_de_animacion),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -1983,7 +2006,7 @@ fun SettingsScreen(
                                                     animType = opt
                                                     settingsRepo.saveLyricsAnimationType(opt)
                                                 },
-                                                label = { Text(opt, fontSize = 12.sp) },
+                                                label = { Text(settingsOptionLabel(opt), fontSize = 12.sp) },
                                                 colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                                                     selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
                                                     selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -1994,7 +2017,7 @@ fun SettingsScreen(
 
                                     Spacer(Modifier.height(20.dp))
                                     Text(
-                                        "Color del texto",
+                                        stringResource(R.string.settings_color_del_texto),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -2025,9 +2048,9 @@ fun SettingsScreen(
                                                 }
                                             },
                                             leadingIcon = if (locked) {
-                                                { Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(14.dp)) }
+                                                { Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(14.dp)) }
                                             } else null,
-                                            label = { Text(if (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else opt, fontSize = 12.sp) },
+                                            label = { Text(settingsOptionLabel(opt), fontSize = 12.sp) },
                                             colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
                                                 selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
                                                 selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
@@ -2055,7 +2078,7 @@ fun SettingsScreen(
                                             )
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                "${lyricsCustomColorHexPref.value} · Cambiar",
+                                                stringResource(R.string.settings_1_s_cambiar, lyricsCustomColorHexPref.value),
                                                 fontSize = 12.sp,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
                                             )
@@ -2063,7 +2086,7 @@ fun SettingsScreen(
                                     }
                                     Spacer(Modifier.height(6.dp))
                                     Text(
-                                        "Este color también se aplica a la letra que se muestra en el widget de home screen.",
+                                        stringResource(R.string.settings_este_color_tambien_se_aplica_a_la),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.65f)
                                     )
@@ -2078,13 +2101,13 @@ fun SettingsScreen(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                "Letra en vivo en el widget",
+                                                stringResource(R.string.settings_letra_en_vivo_en_el_widget),
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                                             )
                                             Text(
-                                                "Muestra la línea activa de la letra sincronizada en el widget de home screen, en vez del nombre del artista.",
+                                                stringResource(R.string.settings_muestra_la_linea_activa_de_la_letr),
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                             )
@@ -2112,13 +2135,13 @@ fun SettingsScreen(
                                     ) {
                                         Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                "Widget cuadrado de letra completa",
+                                                stringResource(R.string.settings_widget_cuadrado_de_letra_completa),
                                                 fontWeight = FontWeight.Bold,
                                                 fontSize = 13.sp,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                                             )
                                             Text(
-                                                "Cambia el widget del home screen a una variante con letra completa (mínimo 3 líneas) y controles en grid. Se aplica al instante, sin tener que agrandar el widget a mano.",
+                                                stringResource(R.string.settings_cambia_el_widget_del_home_screen_a),
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                             )
@@ -2140,19 +2163,19 @@ fun SettingsScreen(
 
                                     Spacer(Modifier.height(16.dp))
                                     Text(
-                                        "Para ver la letra: abre el reproductor a pantalla completa y desliza la pantalla (no la carátula) hacia la derecha.",
+                                        stringResource(R.string.settings_para_ver_la_letra_abre_el_reproduc),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                     )
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        "Nota: la letra encontrada mediante \"Verificar en YouTube\" no trae marcas de tiempo, así que se muestra estática, sin la animación de línea activa. Si la insertas tú manualmente en formato LRC, sí tendrá animación.",
+                                        stringResource(R.string.settings_nota_la_letra_encontrada_mediante),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f)
                                     )
                                     Spacer(Modifier.height(4.dp))
                                     Text(
-                                        "Obtener letra sincronizada (LRC) manualmente: lrclib.net",
+                                        stringResource(R.string.settings_obtener_letra_sincronizada_lrc_man),
                                         fontSize = 11.sp,
                                         fontWeight = FontWeight.Bold,
                                         color = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -2174,7 +2197,7 @@ fun SettingsScreen(
                     // usuario puede comprar solo lo que le interesa, o "TODO" de una vez.
                     // Puede terminar con VARIAS keys guardadas — ver savedLicenses arriba.
                     if (activeSection.value == "Pagos (opcional)") {
-                        item { sectionHeader("Licencia de apoyo (opcional)") }
+                        item { sectionHeader(stringResource(R.string.settings_licencia_de_apoyo_opcional)) }
 
                         // --- PASO A PASO: cómo comprar y activar ---
                         item {
@@ -2188,23 +2211,23 @@ fun SettingsScreen(
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                                     Text(
-                                        "¿Cómo funciona?",
+                                        stringResource(R.string.settings_como_funciona),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
                                     )
                                     Text(
-                                        "Es pago único (no es suscripción): pagás una sola vez y lo comprado es tuyo para siempre.",
+                                        stringResource(R.string.settings_es_pago_unico_no_es_suscripcion_pa),
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                                     )
 
                                     val steps = listOf(
-                                        "Elegí qué comprar: un producto suelto de la tabla de abajo, o \"Comprar TODO\" para desbloquear las ${com.music.musicflame.data.PaymentCatalog.ITEMS.size} personalizaciones de una vez.",
-                                        "Tocá \"Comprar\": se abre el checkout de Lemon Squeezy fuera de la app (en el navegador).",
-                                        "Pagá ahí con tarjeta o el método que te muestre Lemon Squeezy.",
-                                        "Te llega un correo con tu license key de esa compra.",
-                                        "Volvé a la app, pegá esa key en \"Tus licencias\" (más abajo) y tocá \"Activar\": se desbloquea al instante, sin reiniciar la app."
+                                        stringResource(R.string.settings_elegi_que_comprar_un_producto_suel, com.music.musicflame.data.PaymentCatalog.ITEMS.size),
+                                        stringResource(R.string.settings_toca_comprar_se_abre_el_checkout_d),
+                                        stringResource(R.string.settings_paga_ahi_con_tarjeta_o_el_metodo_q),
+                                        stringResource(R.string.settings_te_llega_un_correo_con_tu_license),
+                                        stringResource(R.string.settings_volve_a_la_app_pega_esa_key_en_tus)
                                     )
                                     steps.forEachIndexed { index, step ->
                                         Row(
@@ -2232,7 +2255,7 @@ fun SettingsScreen(
 
                                     Spacer(Modifier.height(8.dp))
                                     Text(
-                                        "¿Compraste varios productos sueltos? Te llega una key distinta por cada uno — repetí el paso 5 con cada key. Todas quedan guardadas juntas y podés \"Quitar\" cualquiera sin afectar a las demás.",
+                                        stringResource(R.string.settings_compraste_varios_productos_sueltos),
                                         fontSize = 11.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp)
@@ -2243,7 +2266,7 @@ fun SettingsScreen(
 
                         item {
                             Text(
-                                "Compra solo lo que te interesa, o todo junto por $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN",
+                                stringResource(R.string.settings_compra_solo_lo_que_te_interesa_o_t, com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2271,7 +2294,7 @@ fun SettingsScreen(
                                         )
                                         Spacer(Modifier.width(12.dp))
                                         Text(
-                                            "Una sola compra de \"TODO\" desbloquea las ${com.music.musicflame.data.PaymentCatalog.ITEMS.size} personalizaciones de una vez. MusicFlame en sí es y seguirá siendo gratis.",
+                                            stringResource(R.string.settings_una_sola_compra_de_todo_desbloquea, com.music.musicflame.data.PaymentCatalog.ITEMS.size),
                                             fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onTertiaryContainer
                                         )
@@ -2288,7 +2311,7 @@ fun SettingsScreen(
                                             )
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                "Disponible próximamente. Esta sección todavía no está activa.",
+                                                stringResource(R.string.settings_disponible_proximamente_esta_secci),
                                                 fontSize = 12.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
@@ -2308,7 +2331,7 @@ fun SettingsScreen(
                                             )
                                             Spacer(Modifier.width(8.dp))
                                             Text(
-                                                "Ya tenés todo desbloqueado",
+                                                stringResource(R.string.settings_ya_tenes_todo_desbloqueado),
                                                 fontWeight = FontWeight.Bold,
                                                 color = MaterialTheme.colorScheme.onTertiaryContainer
                                             )
@@ -2322,7 +2345,7 @@ fun SettingsScreen(
                                             enabled = !paymentsSectionLocked,
                                             modifier = Modifier.fillMaxWidth()
                                         ) {
-                                            Text("Comprar TODO por $${com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN} MXN", fontWeight = FontWeight.Bold)
+                                            Text(stringResource(R.string.settings_comprar_todo_por_1_s_mxn, com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN), fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -2341,12 +2364,12 @@ fun SettingsScreen(
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                                     Text(
-                                        "O comprá por separado",
+                                        stringResource(R.string.settings_o_compra_por_separado),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
                                     )
                                     Text(
-                                        "Cada fila es un producto real de Lemon Squeezy (algunos agrupan 2 ítems solo por el precio mínimo de la plataforma). El check indica si ya lo tenés.",
+                                        stringResource(R.string.settings_cada_fila_es_un_producto_real_de_l),
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
@@ -2380,7 +2403,7 @@ fun SettingsScreen(
                                                 Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
                                                 if (owned) {
                                                     Text(
-                                                        "Ya la tenés",
+                                                        stringResource(R.string.settings_ya_la_tenes),
                                                         fontSize = 12.sp,
                                                         fontWeight = FontWeight.Bold,
                                                         color = MaterialTheme.colorScheme.primary
@@ -2417,12 +2440,12 @@ fun SettingsScreen(
                             ) {
                                 Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                                     Text(
-                                        "Tus licencias",
+                                        stringResource(R.string.settings_tus_licencias),
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 15.sp
                                     )
                                     Text(
-                                        "Cada compra te llega por correo como una license key distinta. Pegá cada una acá para activarla.",
+                                        stringResource(R.string.settings_cada_compra_te_llega_por_correo_co),
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
@@ -2430,7 +2453,7 @@ fun SettingsScreen(
 
                                     if (savedLicenses.isEmpty()) {
                                         Text(
-                                            "Todavía no activaste ninguna licencia.",
+                                            stringResource(R.string.settings_todavia_no_activaste_ninguna_licen),
                                             fontSize = 13.sp,
                                             color = MaterialTheme.colorScheme.onSurfaceVariant
                                         )
@@ -2467,7 +2490,7 @@ fun SettingsScreen(
                                                     },
                                                     enabled = !paymentsSectionLocked
                                                 ) {
-                                                    Text("Quitar", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                                    Text(stringResource(R.string.settings_quitar), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                                                 }
                                             }
                                         }
@@ -2489,7 +2512,7 @@ fun SettingsScreen(
                                         value = licenseInput,
                                         onValueChange = { licenseInput = it },
                                         label = { Text("License key") },
-                                        placeholder = { Text("Pega aquí la key que te llegó por correo") },
+                                        placeholder = { Text(stringResource(R.string.settings_pega_aqui_la_key_que_te_llego_por)) },
                                         singleLine = true,
                                         enabled = !isValidating && !paymentsSectionLocked,
                                         modifier = Modifier.fillMaxWidth()
@@ -2513,7 +2536,7 @@ fun SettingsScreen(
                                                         com.music.musicflame.data.ProStatusHolder.refresh(context)
                                                         Toast.makeText(
                                                             context,
-                                                            "¡Activado! ${result.unlockedLabel}. Gracias por tu apoyo.",
+                                                            context.getString(R.string.settings_activado_1_s_gracias_por_tu_apoyo, result.unlockedLabel),
                                                             Toast.LENGTH_LONG
                                                         ).show()
                                                     }
@@ -2522,10 +2545,10 @@ fun SettingsScreen(
                                                         errorMessage = result.reason
                                                     }
                                                     LicenseValidationResult.AlreadyAdded -> {
-                                                        errorMessage = "Esa key ya está activada."
+                                                        errorMessage = context.getString(R.string.settings_esa_key_ya_esta_activada)
                                                     }
                                                     LicenseValidationResult.NetworkError -> {
-                                                        errorMessage = "Sin conexión. Revisa tu internet e intenta de nuevo."
+                                                        errorMessage = context.getString(R.string.settings_sin_conexion_revisa_tu_internet_e)
                                                     }
                                                 }
                                                 isValidating = false
@@ -2541,7 +2564,7 @@ fun SettingsScreen(
                                                 color = MaterialTheme.colorScheme.onPrimary
                                             )
                                         } else {
-                                            Text("Activar")
+                                            Text(stringResource(R.string.settings_activar))
                                         }
                                     }
                                 }
@@ -2568,7 +2591,7 @@ fun SettingsScreen(
                                         )
                                         Spacer(Modifier.width(12.dp))
                                         Text(
-                                            "Aviso de Uso y Redistribución",
+                                            stringResource(R.string.settings_aviso_de_uso_y_redistribucion),
                                             fontWeight = FontWeight.Black,
                                             fontSize = 16.sp,
                                             color = MaterialTheme.colorScheme.onErrorContainer
@@ -2576,18 +2599,18 @@ fun SettingsScreen(
                                     }
                                     Spacer(Modifier.height(12.dp))
                                     Text(
-                                        "MusicFlame es un proyecto personal e independiente. Antes de redistribuir, republicar o promocionar esta aplicación en otra tienda, canal, página o red social, deben respetarse las siguientes condiciones:",
+                                        stringResource(R.string.settings_musicflame_es_un_proyecto_personal),
                                         fontSize = 13.sp,
                                         color = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                     Spacer(Modifier.height(10.dp))
 
                                     val avisoReglas = listOf(
-                                        "Contacto previo obligatorio: cualquier redistribución o promoción (subida a otras tiendas, sitios web, canales o redes sociales) requiere autorización previa por parte del desarrollador.",
-                                        "Reparto de ingresos: si dicha redistribución genera ingresos de cualquier tipo (anuncios, donaciones, suscripciones, etc.), el 50% de los mismos deberá entregarse al desarrollador original, previo acuerdo.",
-                                        "Créditos intactos: no está permitido eliminar, ocultar ni modificar el nombre del desarrollador, la identidad de la app ni su firma digital.",
-                                        "Sin venta no autorizada: MusicFlame no puede venderse ni ofrecerse como producto de pago sin consentimiento explícito y por escrito.",
-                                        "Incumplimiento: toda redistribución no autorizada será reportada y removida de la plataforma correspondiente, y el responsable quedará vetado de futuras versiones, actualizaciones y soporte."
+                                        stringResource(R.string.settings_contacto_previo_obligatorio_cualqu),
+                                        stringResource(R.string.settings_reparto_de_ingresos_si_dicha_redis),
+                                        stringResource(R.string.settings_creditos_intactos_no_esta_permitid),
+                                        stringResource(R.string.settings_sin_venta_no_autorizada_musicflame),
+                                        stringResource(R.string.settings_incumplimiento_toda_redistribucion)
                                     )
 
                                     avisoReglas.forEach { regla ->
@@ -2599,7 +2622,7 @@ fun SettingsScreen(
 
                                     Spacer(Modifier.height(10.dp))
                                     Text(
-                                        "Para solicitar autorización o coordinar una colaboración, contacta al desarrollador a través del repositorio de GitHub o el servidor de Discord de la comunidad (sección \"Especificaciones\" > \"Comunidad\").",
+                                        stringResource(R.string.settings_para_solicitar_autorizacion_o_coor),
                                         fontSize = 12.sp,
                                         fontWeight = FontWeight.Medium,
                                         color = MaterialTheme.colorScheme.onErrorContainer
@@ -2611,7 +2634,7 @@ fun SettingsScreen(
 
                     // HOGAR DE SHIMURO
                     if (activeSection.value == "Hogar de Shimuro") {
-                        item { sectionHeader("Hogar de Shimuro") }
+                        item { sectionHeader(stringResource(R.string.section_shimuro_home)) }
                         item {
                             ShimuroHomeCard()
                         }
@@ -2628,16 +2651,16 @@ fun SettingsScreen(
             val tempMode = remember { mutableStateOf(filterMode.value) }
             AlertDialog(
                 onDismissRequest = { showDurationFilterDialog.value = false },
-                title = { Text("Filtrar por duración", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_filtrar_por_duracion), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
-                        OutlinedTextField(value = tempMin.value, onValueChange = { tempMin.value = it }, label = { Text("Duración mínima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = tempMin.value, onValueChange = { tempMin.value = it }, label = { Text(stringResource(R.string.settings_duracion_minima_segundos)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        OutlinedTextField(value = tempMax.value, onValueChange = { tempMax.value = it }, label = { Text("Duración máxima (segundos)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
+                        OutlinedTextField(value = tempMax.value, onValueChange = { tempMax.value = it }, label = { Text(stringResource(R.string.settings_duracion_maxima_segundos)) }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), modifier = Modifier.fillMaxWidth())
                         Spacer(Modifier.height(8.dp))
-                        Text("Modo:", fontWeight = FontWeight.Bold)
-                        TextButton(onClick = { tempMode.value = "exclude" }) { Text("Excluir", fontWeight = FontWeight.Bold, color = if (tempMode.value == "exclude") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
-                        TextButton(onClick = { tempMode.value = "only" }) { Text("Solo mostrar", fontWeight = FontWeight.Bold, color = if (tempMode.value == "only") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                        Text(stringResource(R.string.settings_modo), fontWeight = FontWeight.Bold)
+                        TextButton(onClick = { tempMode.value = "exclude" }) { Text(stringResource(R.string.settings_excluir), fontWeight = FontWeight.Bold, color = if (tempMode.value == "exclude") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
+                        TextButton(onClick = { tempMode.value = "only" }) { Text(stringResource(R.string.settings_solo_mostrar), fontWeight = FontWeight.Bold, color = if (tempMode.value == "only") MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface) }
                     }
                 },
                 confirmButton = {
@@ -2654,9 +2677,9 @@ fun SettingsScreen(
                         durationMax.value = tempMax.value
                         filterMode.value = tempMode.value
                         showDurationFilterDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showDurationFilterDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -2675,11 +2698,11 @@ fun SettingsScreen(
 
             AlertDialog(
                 onDismissRequest = { showAudioFormatsDialog.value = false },
-                title = { Text("Formatos de audio a escuchar", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_formatos_de_audio_a_escuchar), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "Los que ya tienes en tu biblioteca dicen \"detectado\".",
+                            stringResource(R.string.settings_los_que_ya_tienes_en_tu_biblioteca),
                             color = trailingColor,
                             modifier = Modifier.padding(bottom = 8.dp)
                         )
@@ -2715,9 +2738,9 @@ fun SettingsScreen(
                                             Spacer(Modifier.width(8.dp))
                                             Text(
                                                 text = when {
-                                                    format.isPlaylistFormat -> "Solo Playlists"
-                                                    format.usable -> "Usable"
-                                                    else -> "No usable"
+                                                    format.isPlaylistFormat -> stringResource(R.string.settings_solo_playlists)
+                                                    format.usable -> stringResource(R.string.settings_usable)
+                                                    else -> stringResource(R.string.settings_no_usable)
                                                 },
                                                 fontWeight = FontWeight.Bold,
                                                 color = when {
@@ -2729,7 +2752,7 @@ fun SettingsScreen(
                                             if (!format.isPlaylistFormat && detectedExtensions.contains(format.extension)) {
                                                 Spacer(Modifier.width(8.dp))
                                                 Text(
-                                                    text = "· detectado",
+                                                    text = stringResource(R.string.settings_detectado),
                                                     color = trailingColor
                                                 )
                                             }
@@ -2752,9 +2775,9 @@ fun SettingsScreen(
                         // (mismo patrón que el filtro de duración de arriba).
                         refreshScope.launch { com.music.musicflame.data.SongLibraryHolder.refresh(context) }
                         showAudioFormatsDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showAudioFormatsDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showAudioFormatsDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -2762,7 +2785,7 @@ fun SettingsScreen(
             val customMinutes = remember { mutableStateOf("") }
             AlertDialog(
                 onDismissRequest = { showSleepTimerDialog.value = false },
-                title = { Text("Temporizador de apagado", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_temporizador_de_apagado), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         listOf(15, 30, 45, 60, 90).forEach { minutes ->
@@ -2773,7 +2796,7 @@ fun SettingsScreen(
                                 },
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Text("$minutes minutos", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.settings_1_s_minutos, minutes), modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
                             }
                         }
                         TextButton(
@@ -2783,13 +2806,13 @@ fun SettingsScreen(
                             },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("Al terminar la canción actual", modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.settings_al_terminar_la_cancion_actual), modifier = Modifier.fillMaxWidth(), fontWeight = FontWeight.Bold)
                         }
                         Spacer(Modifier.height(8.dp))
                         OutlinedTextField(
                             value = customMinutes.value,
                             onValueChange = { customMinutes.value = it.filter { c -> c.isDigit() } },
-                            label = { Text("Minutos personalizados") },
+                            label = { Text(stringResource(R.string.settings_minutos_personalizados)) },
                             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -2802,9 +2825,9 @@ fun SettingsScreen(
                             playerManager.startSleepTimer(minutes)
                         }
                         showSleepTimerDialog.value = false
-                    }) { Text("Iniciar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.settings_iniciar), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showSleepTimerDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showSleepTimerDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -2812,14 +2835,14 @@ fun SettingsScreen(
             val tempTheme = remember { mutableStateOf(appTheme.value) }
             AlertDialog(
                 onDismissRequest = { showThemeDialog.value = false },
-                title = { Text("Elegir Tema", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_elegir_tema), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         listOf("Siguiendo al sistema", "Fondo blanco", "Fondo oscuro").forEach { theme ->
                             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth().clickable { tempTheme.value = theme }.padding(vertical = 8.dp)) {
                                 RadioButton(selected = tempTheme.value == theme, onClick = { tempTheme.value = theme })
                                 Spacer(Modifier.width(8.dp))
-                                Text(theme, fontSize = 14.sp)
+                                Text(settingsOptionLabel(theme), fontSize = 14.sp)
                             }
                         }
                     }
@@ -2829,9 +2852,9 @@ fun SettingsScreen(
                         settingsRepo.saveAppTheme(tempTheme.value)
                         appTheme.value = tempTheme.value
                         showThemeDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showThemeDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -2879,18 +2902,35 @@ fun SettingsScreen(
             )
         }
 
+        if (showLanguageDialog.value) {
+            com.music.musicflame.ui.components.LanguagePickerDialog(
+                currentLanguage = appLanguagePref.value,
+                onDismiss = { showLanguageDialog.value = false },
+                onConfirm = { newLanguage ->
+                    showLanguageDialog.value = false
+                    if (newLanguage != appLanguagePref.value) {
+                        appLanguagePref.value = newLanguage
+                        // Android 13+: el sistema recrea la Activity solo. Android 12/12L: recreate().
+                        with(com.music.musicflame.data.LanguageManager) {
+                            context.findActivity()?.let { apply(it, newLanguage) }
+                        }
+                    }
+                }
+            )
+        }
+
         if (showAlbumArtShapeDialog.value) {
             AlertDialog(
                 onDismissRequest = { showAlbumArtShapeDialog.value = false },
-                title = { Text("Forma de la carátula", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_forma_de_la_caratula), fontWeight = FontWeight.Bold) },
                 text = {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         listOf(
-                            com.music.musicflame.AlbumArtShapeType.SQUARE to "Cuadrado",
-                            com.music.musicflame.AlbumArtShapeType.CIRCLE to "Círculo",
-                            com.music.musicflame.AlbumArtShapeType.HEXAGON to "Hexágono",
-                            com.music.musicflame.AlbumArtShapeType.VINYL to "Vinilo",
-                            com.music.musicflame.AlbumArtShapeType.SQUIRCLE to "Squircle"
+                            com.music.musicflame.AlbumArtShapeType.SQUARE to stringResource(R.string.settings_cuadrado),
+                            com.music.musicflame.AlbumArtShapeType.CIRCLE to stringResource(R.string.settings_circulo),
+                            com.music.musicflame.AlbumArtShapeType.HEXAGON to stringResource(R.string.settings_hexagono),
+                            com.music.musicflame.AlbumArtShapeType.VINYL to stringResource(R.string.settings_vinilo),
+                            com.music.musicflame.AlbumArtShapeType.SQUIRCLE to stringResource(R.string.settings_squircle)
                         ).forEach { (shape, label) ->
                             val isSelected = shapeDialogShape.value == shape
                             Row(
@@ -2919,7 +2959,7 @@ fun SettingsScreen(
                         // --- Diseños propios ---
                         HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
                         Text(
-                            "Mis diseños",
+                            stringResource(R.string.settings_mis_disenos),
                             fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -2954,9 +2994,9 @@ fun SettingsScreen(
                                 IconButton(onClick = {
                                     editingCoverDesign.value = design
                                     showCoverEditor.value = true
-                                }) { Icon(Icons.Filled.Edit, contentDescription = "Editar diseño") }
+                                }) { Icon(Icons.Filled.Edit, contentDescription = stringResource(R.string.settings_editar_diseno)) }
                                 IconButton(onClick = { coverDesignToDelete.value = design }) {
-                                    Icon(Icons.Filled.Delete, contentDescription = "Borrar diseño")
+                                    Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.settings_borrar_diseno))
                                 }
                                 RadioButton(selected = isSelected, onClick = {
                                     shapeDialogShape.value = com.music.musicflame.AlbumArtShapeType.CUSTOM
@@ -2973,7 +3013,7 @@ fun SettingsScreen(
                         ) {
                             Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Crear diseño", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.settings_crear_diseno), fontWeight = FontWeight.Bold)
                         }
                     }
                 },
@@ -2997,9 +3037,9 @@ fun SettingsScreen(
                         // Los widgets leen la forma al dibujarse: refrescarlos para que la tomen ya.
                         MusicFlameWidgetProvider.refreshAllWidgets(context)
                         showAlbumArtShapeDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showAlbumArtShapeDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showAlbumArtShapeDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -3031,8 +3071,8 @@ fun SettingsScreen(
         coverDesignToDelete.value?.let { design ->
             AlertDialog(
                 onDismissRequest = { coverDesignToDelete.value = null },
-                title = { Text("Borrar diseño", fontWeight = FontWeight.Bold) },
-                text = { Text("¿Borrar \"${design.name}\"? Esta acción no se puede deshacer.") },
+                title = { Text(stringResource(R.string.settings_borrar_diseno), fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.settings_borrar_1_s_esta_accion_no_se_puede, design.name)) },
                 confirmButton = {
                     TextButton(onClick = {
                         val remaining = coverDesigns.value.filter { it.id != design.id }
@@ -3055,9 +3095,9 @@ fun SettingsScreen(
                             MusicFlameWidgetProvider.refreshAllWidgets(context)
                         }
                         coverDesignToDelete.value = null
-                    }) { Text("Borrar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_clear), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { coverDesignToDelete.value = null }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { coverDesignToDelete.value = null }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -3066,7 +3106,7 @@ fun SettingsScreen(
             val tempCustomHex = remember { mutableStateOf(customTextColorHex.value) }
             AlertDialog(
                 onDismissRequest = { showTextColorDialog.value = false },
-                title = { Text("Color de texto", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_color_de_texto), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
@@ -3090,23 +3130,23 @@ fun SettingsScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                        Text(settingsOptionLabel(colorOption), fontSize = 14.sp)
                                         if (locked) {
                                             Spacer(Modifier.width(6.dp))
-                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                                             Spacer(Modifier.width(2.dp))
                                             Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                     if (colorOption == "Adaptativo") {
                                         Text(
-                                            "Blanco o negro según el fondo, como hasta ahora",
+                                            stringResource(R.string.settings_blanco_o_negro_segun_el_fondo_como),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
                                     } else if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) {
                                         Text(
-                                            "Colores del espectro en movimiento continuo",
+                                            stringResource(R.string.settings_colores_del_espectro_en_movimiento),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
@@ -3152,7 +3192,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = tempCustomHex.value,
                                 onValueChange = { tempCustomHex.value = it },
-                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -3166,7 +3206,7 @@ fun SettingsScreen(
                                         .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Vista previa", fontSize = 12.sp)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
                             }
                         }
                     }
@@ -3180,9 +3220,9 @@ fun SettingsScreen(
                             customTextColorHex.value = tempCustomHex.value
                         }
                         showTextColorDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showTextColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showTextColorDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -3191,11 +3231,11 @@ fun SettingsScreen(
             val tempEqCustomHex = remember { mutableStateOf(equalizerCustomColorHexPref.value) }
             AlertDialog(
                 onDismissRequest = { showEqualizerColorDialog.value = false },
-                title = { Text("Color del ecualizador", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_color_del_ecualizador), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "Aplica al ecualizador gráfico animado del reproductor a pantalla completa, sea cual sea el estilo elegido arriba.",
+                            stringResource(R.string.settings_aplica_al_ecualizador_grafico_anim),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -3227,23 +3267,23 @@ fun SettingsScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                        Text(settingsOptionLabel(colorOption), fontSize = 14.sp)
                                         if (locked) {
                                             Spacer(Modifier.width(6.dp))
-                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                                             Spacer(Modifier.width(2.dp))
                                             Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                     if (colorOption == "Adaptativo") {
                                         Text(
-                                            "Blanco o negro según el fondo, como hasta ahora",
+                                            stringResource(R.string.settings_blanco_o_negro_segun_el_fondo_como),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
                                     } else if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) {
                                         Text(
-                                            "Colores del espectro en movimiento continuo",
+                                            stringResource(R.string.settings_colores_del_espectro_en_movimiento),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
@@ -3289,7 +3329,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = tempEqCustomHex.value,
                                 onValueChange = { tempEqCustomHex.value = it },
-                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -3303,7 +3343,7 @@ fun SettingsScreen(
                                         .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Vista previa", fontSize = 12.sp)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
                             }
                         }
                     }
@@ -3317,9 +3357,9 @@ fun SettingsScreen(
                             equalizerCustomColorHexPref.value = tempEqCustomHex.value
                         }
                         showEqualizerColorDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showEqualizerColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showEqualizerColorDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -3368,7 +3408,7 @@ fun SettingsScreen(
                             tempFpIsGif.value = result.second
                             tempFpMode.value = "custom"
                         } else {
-                            Toast.makeText(context, "No se pudo cargar el archivo", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_cargar_el_archivo), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }
@@ -3379,11 +3419,11 @@ fun SettingsScreen(
                     discardCreatedFpFiles(except = null)
                     showFullPlayerBgDialog.value = false
                 },
-                title = { Text("Fondo del reproductor", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_fondo_del_reproductor), fontWeight = FontWeight.Bold) },
                 text = {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         Text(
-                            "Fondo propio solo para el reproductor expandido. No afecta al fondo general de la app.",
+                            stringResource(R.string.settings_fondo_propio_solo_para_el_reproduc),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -3402,9 +3442,9 @@ fun SettingsScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (modeOption == "none") "Sin fondo" else "Imagen / GIF", fontSize = 14.sp)
+                                    Text(if (modeOption == "none") stringResource(R.string.settings_sin_fondo) else stringResource(R.string.settings_imagen_gif), fontSize = 14.sp)
                                     Text(
-                                        if (modeOption == "none") "El reproductor se ve como siempre" else "Usa tu propia imagen o GIF animado",
+                                        if (modeOption == "none") stringResource(R.string.settings_el_reproductor_se_ve_como_siempre) else stringResource(R.string.settings_usa_tu_propia_imagen_o_gif_animado),
                                         fontSize = 11.sp,
                                         color = mediumEmphasis
                                     )
@@ -3420,7 +3460,7 @@ fun SettingsScreen(
                                 modifier = Modifier.fillMaxWidth()
                             ) {
                                 Text(
-                                    if (isCopyingFp.value) "Copiando..." else "Elegir imagen o GIF",
+                                    if (isCopyingFp.value) stringResource(R.string.settings_copying) else stringResource(R.string.settings_elegir_imagen_o_gif),
                                     fontWeight = FontWeight.Bold
                                 )
                             }
@@ -3428,14 +3468,14 @@ fun SettingsScreen(
                             val previewUri = tempFpUri.value
                             if (previewUri == null) {
                                 Text(
-                                    "Elige una imagen o GIF para activar el fondo.",
+                                    stringResource(R.string.settings_elige_una_imagen_o_gif_para_activa),
                                     fontSize = 11.sp,
                                     color = mediumEmphasis,
                                     modifier = Modifier.padding(top = 8.dp)
                                 )
                             } else {
                                 Spacer(Modifier.height(12.dp))
-                                Text("Vista previa", fontSize = 12.sp, color = mediumEmphasis)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp, color = mediumEmphasis)
                                 Spacer(Modifier.height(4.dp))
                                 val previewRequest = remember(previewUri) {
                                     ImageRequest.Builder(context)
@@ -3455,7 +3495,7 @@ fun SettingsScreen(
                                 ) {
                                     AsyncImage(
                                         model = previewRequest,
-                                        contentDescription = "Vista previa del fondo",
+                                        contentDescription = stringResource(R.string.settings_vista_previa_del_fondo),
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
@@ -3476,7 +3516,7 @@ fun SettingsScreen(
                                 }
 
                                 Spacer(Modifier.height(12.dp))
-                                Text("Brillo del fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.settings_brillo_del_fondo), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Slider(
                                     value = tempFpBrightness.value,
                                     onValueChange = { tempFpBrightness.value = it },
@@ -3488,14 +3528,14 @@ fun SettingsScreen(
                                     )
                                 )
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Original", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_oscuro), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_original), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_brillante), fontSize = 12.sp, color = mediumEmphasis)
                                 }
                                 TextButton(
                                     onClick = { tempFpBrightness.value = 0f },
                                     enabled = tempFpBrightness.value != 0f
-                                ) { Text("Volver a 0", fontWeight = FontWeight.Bold) }
+                                ) { Text(stringResource(R.string.settings_volver_a_0), fontWeight = FontWeight.Bold) }
 
                                 Spacer(Modifier.height(4.dp))
                                 OutlinedButton(
@@ -3513,7 +3553,7 @@ fun SettingsScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                                ) { Text("Quitar", fontWeight = FontWeight.Bold) }
+                                ) { Text(stringResource(R.string.settings_quitar), fontWeight = FontWeight.Bold) }
                             }
                         }
                     }
@@ -3539,13 +3579,13 @@ fun SettingsScreen(
                             fullPlayerBgIsGifPref.value = tempFpIsGif.value
                             showFullPlayerBgDialog.value = false
                         }
-                    ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    ) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = {
                     TextButton(onClick = {
                         discardCreatedFpFiles(except = null)
                         showFullPlayerBgDialog.value = false
-                    }) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) }
                 }
             )
         }
@@ -3571,11 +3611,11 @@ fun SettingsScreen(
 
             AlertDialog(
                 onDismissRequest = { showAppBgDialog.value = false },
-                title = { Text("Fondo de la app", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_fondo_de_la_app), fontWeight = FontWeight.Bold) },
                 text = {
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
                         Text(
-                            "Imagen o GIF de fondo general de la app. No afecta al fondo propio del reproductor.",
+                            stringResource(R.string.settings_imagen_o_gif_de_fondo_general_de_l),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -3594,9 +3634,9 @@ fun SettingsScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (modeOption == "none") "Sin fondo" else "Imagen / GIF", fontSize = 14.sp)
+                                    Text(if (modeOption == "none") stringResource(R.string.settings_sin_fondo) else stringResource(R.string.settings_imagen_gif), fontSize = 14.sp)
                                     Text(
-                                        if (modeOption == "none") "La app se ve como siempre" else "Usa tu propia imagen o GIF animado",
+                                        if (modeOption == "none") stringResource(R.string.settings_la_app_se_ve_como_siempre) else stringResource(R.string.settings_usa_tu_propia_imagen_o_gif_animado),
                                         fontSize = 11.sp,
                                         color = mediumEmphasis
                                     )
@@ -3609,19 +3649,19 @@ fun SettingsScreen(
                             OutlinedButton(
                                 onClick = { pickAppBgLauncher.launch("image/*") },
                                 modifier = Modifier.fillMaxWidth()
-                            ) { Text("Elegir imagen o GIF", fontWeight = FontWeight.Bold) }
+                            ) { Text(stringResource(R.string.settings_elegir_imagen_o_gif), fontWeight = FontWeight.Bold) }
 
                             val previewUri = tempAppUri.value
                             if (previewUri == null) {
                                 Text(
-                                    "Elige una imagen o GIF para activar el fondo.",
+                                    stringResource(R.string.settings_elige_una_imagen_o_gif_para_activa),
                                     fontSize = 11.sp,
                                     color = mediumEmphasis,
                                     modifier = Modifier.padding(top = 8.dp)
                                 )
                             } else {
                                 Spacer(Modifier.height(12.dp))
-                                Text("Vista previa", fontSize = 12.sp, color = mediumEmphasis)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp, color = mediumEmphasis)
                                 Spacer(Modifier.height(4.dp))
                                 val previewRequest = remember(previewUri) {
                                     ImageRequest.Builder(context)
@@ -3641,7 +3681,7 @@ fun SettingsScreen(
                                 ) {
                                     AsyncImage(
                                         model = previewRequest,
-                                        contentDescription = "Vista previa del fondo",
+                                        contentDescription = stringResource(R.string.settings_vista_previa_del_fondo),
                                         modifier = Modifier.fillMaxSize(),
                                         contentScale = ContentScale.Crop
                                     )
@@ -3659,7 +3699,7 @@ fun SettingsScreen(
                                 }
 
                                 Spacer(Modifier.height(12.dp))
-                                Text("Brillo del fondo", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                                Text(stringResource(R.string.settings_brillo_del_fondo), fontSize = 14.sp, fontWeight = FontWeight.Bold)
                                 Slider(
                                     value = tempAppBrightness.value,
                                     onValueChange = { tempAppBrightness.value = it },
@@ -3671,14 +3711,14 @@ fun SettingsScreen(
                                     )
                                 )
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                    Text("Oscuro", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Original", fontSize = 12.sp, color = mediumEmphasis)
-                                    Text("Brillante", fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_oscuro), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_original), fontSize = 12.sp, color = mediumEmphasis)
+                                    Text(stringResource(R.string.settings_brillante), fontSize = 12.sp, color = mediumEmphasis)
                                 }
                                 TextButton(
                                     onClick = { tempAppBrightness.value = 0f },
                                     enabled = tempAppBrightness.value != 0f
-                                ) { Text("Volver a 0", fontWeight = FontWeight.Bold) }
+                                ) { Text(stringResource(R.string.settings_volver_a_0), fontWeight = FontWeight.Bold) }
 
                                 Spacer(Modifier.height(4.dp))
                                 OutlinedButton(
@@ -3689,7 +3729,7 @@ fun SettingsScreen(
                                     },
                                     modifier = Modifier.fillMaxWidth(),
                                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                                ) { Text("Quitar", fontWeight = FontWeight.Bold) }
+                                ) { Text(stringResource(R.string.settings_quitar), fontWeight = FontWeight.Bold) }
                             }
                         }
                     }
@@ -3719,10 +3759,10 @@ fun SettingsScreen(
                             onBackgroundImageChanged()
                             showAppBgDialog.value = false
                         }
-                    ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    ) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
                 dismissButton = {
-                    TextButton(onClick = { showAppBgDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+                    TextButton(onClick = { showAppBgDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) }
                 }
             )
         }
@@ -3732,11 +3772,11 @@ fun SettingsScreen(
             val tempMomentsHex = remember { mutableStateOf(momentsCustomColorHexPref.value) }
             AlertDialog(
                 onDismissRequest = { showMomentsColorDialog.value = false },
-                title = { Text("Color de momentos", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_color_de_momentos), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "Color de las franjas que marcan tus momentos sobre la barra de progreso del reproductor.",
+                            stringResource(R.string.settings_color_de_las_franjas_que_marcan_tu),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -3755,12 +3795,12 @@ fun SettingsScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                    Text(settingsOptionLabel(colorOption), fontSize = 14.sp)
                                     Text(
                                         when (colorOption) {
-                                            "Adaptativo" -> "Usa el color del tema (Material You), como hasta ahora"
-                                            "Personalizado" -> "Elige tu propio color"
-                                            else -> "Colores del espectro en movimiento continuo"
+                                            "Adaptativo" -> stringResource(R.string.settings_usa_el_color_del_tema_material_you)
+                                            "Personalizado" -> stringResource(R.string.settings_elige_tu_propio_color)
+                                            else -> stringResource(R.string.settings_colores_del_espectro_en_movimiento)
                                         },
                                         fontSize = 11.sp,
                                         color = mediumEmphasis
@@ -3803,7 +3843,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = tempMomentsHex.value,
                                 onValueChange = { tempMomentsHex.value = it },
-                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -3817,7 +3857,7 @@ fun SettingsScreen(
                                         .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Vista previa", fontSize = 12.sp)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
                             }
                         }
                     }
@@ -3831,9 +3871,9 @@ fun SettingsScreen(
                             momentsCustomColorHexPref.value = tempMomentsHex.value
                         }
                         showMomentsColorDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showMomentsColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showMomentsColorDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -3842,11 +3882,11 @@ fun SettingsScreen(
             val tempTogetherHex = remember { mutableStateOf(togetherCustomColorHexPref.value) }
             AlertDialog(
                 onDismissRequest = { showTogetherColorDialog.value = false },
-                title = { Text("Color de En compañía", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_color_de_en_compania), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "Color de acento de la pantalla En compañía: botones, código de la sala y tarjeta.",
+                            stringResource(R.string.settings_color_de_acento_de_la_pantalla_en),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -3865,12 +3905,12 @@ fun SettingsScreen(
                                 )
                                 Spacer(Modifier.width(8.dp))
                                 Column {
-                                    Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                    Text(settingsOptionLabel(colorOption), fontSize = 14.sp)
                                     Text(
                                         when (colorOption) {
-                                            "Adaptativo" -> "Usa el color del tema (Material You), como hasta ahora"
-                                            "Personalizado" -> "Elige tu propio color"
-                                            else -> "Colores del espectro en movimiento continuo"
+                                            "Adaptativo" -> stringResource(R.string.settings_usa_el_color_del_tema_material_you)
+                                            "Personalizado" -> stringResource(R.string.settings_elige_tu_propio_color)
+                                            else -> stringResource(R.string.settings_colores_del_espectro_en_movimiento)
                                         },
                                         fontSize = 11.sp,
                                         color = mediumEmphasis
@@ -3913,7 +3953,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = tempTogetherHex.value,
                                 onValueChange = { tempTogetherHex.value = it },
-                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -3927,7 +3967,7 @@ fun SettingsScreen(
                                         .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Vista previa", fontSize = 12.sp)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
                             }
                         }
                     }
@@ -3941,9 +3981,9 @@ fun SettingsScreen(
                             togetherCustomColorHexPref.value = tempTogetherHex.value
                         }
                         showTogetherColorDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showTogetherColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showTogetherColorDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -3961,11 +4001,11 @@ fun SettingsScreen(
             }
             AlertDialog(
                 onDismissRequest = revertIfNotConfirmed,
-                title = { Text("Color del texto de la letra", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_color_del_texto_de_la_letra), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "Se aplica al texto de la letra sincronizada. La línea activa se ve a máxima intensidad y el resto atenuada, igual que con Blanco/Negro.",
+                            stringResource(R.string.settings_se_aplica_al_texto_de_la_letra_sin),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -4005,7 +4045,7 @@ fun SettingsScreen(
                         OutlinedTextField(
                             value = tempLyricsCustomHex.value,
                             onValueChange = { tempLyricsCustomHex.value = it },
-                            label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                            label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
                             singleLine = true,
                             modifier = Modifier.fillMaxWidth()
                         )
@@ -4019,7 +4059,7 @@ fun SettingsScreen(
                                     .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text("Vista previa", fontSize = 12.sp)
+                            Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
                         }
                     }
                 },
@@ -4030,9 +4070,9 @@ fun SettingsScreen(
                         lyricsColorModePref.value = "Personalizado"
                         lyricsCustomColorHexPref.value = tempLyricsCustomHex.value
                         showLyricsColorDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = revertIfNotConfirmed) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = revertIfNotConfirmed) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -4041,11 +4081,11 @@ fun SettingsScreen(
             val tempNowPlayingCustomHex = remember { mutableStateOf(nowPlayingCustomColorHexPref.value) }
             AlertDialog(
                 onDismissRequest = { showNowPlayingColorDialog.value = false },
-                title = { Text("Color del \"Now Playing\"", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_color_del_now_playing), fontWeight = FontWeight.Bold) },
                 text = {
                     Column {
                         Text(
-                            "Aplica al indicador animado de \"reproduciendo ahora\" en las listas de canciones, la cola y las playlists.",
+                            stringResource(R.string.settings_aplica_al_indicador_animado_de_rep),
                             fontSize = 12.sp,
                             color = mediumEmphasis,
                             modifier = Modifier.padding(bottom = 8.dp)
@@ -4075,23 +4115,23 @@ fun SettingsScreen(
                                 Spacer(Modifier.width(8.dp))
                                 Column {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else colorOption, fontSize = 14.sp)
+                                        Text(settingsOptionLabel(colorOption), fontSize = 14.sp)
                                         if (locked) {
                                             Spacer(Modifier.width(6.dp))
-                                            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                                             Spacer(Modifier.width(2.dp))
                                             Text("$5 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                     if (colorOption == "Adaptativo") {
                                         Text(
-                                            "Blanco o negro según el fondo, como hasta ahora",
+                                            stringResource(R.string.settings_blanco_o_negro_segun_el_fondo_como),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
                                     } else if (colorOption == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) {
                                         Text(
-                                            "Colores del espectro en movimiento continuo",
+                                            stringResource(R.string.settings_colores_del_espectro_en_movimiento),
                                             fontSize = 11.sp,
                                             color = mediumEmphasis
                                         )
@@ -4137,7 +4177,7 @@ fun SettingsScreen(
                             OutlinedTextField(
                                 value = tempNowPlayingCustomHex.value,
                                 onValueChange = { tempNowPlayingCustomHex.value = it },
-                                label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                                label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
                                 singleLine = true,
                                 modifier = Modifier.fillMaxWidth()
                             )
@@ -4151,7 +4191,7 @@ fun SettingsScreen(
                                         .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
                                 )
                                 Spacer(Modifier.width(8.dp))
-                                Text("Vista previa", fontSize = 12.sp)
+                                Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
                             }
                         }
                     }
@@ -4165,9 +4205,9 @@ fun SettingsScreen(
                             nowPlayingCustomColorHexPref.value = tempNowPlayingCustomHex.value
                         }
                         showNowPlayingColorDialog.value = false
-                    }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                    }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                 },
-                dismissButton = { TextButton(onClick = { showNowPlayingColorDialog.value = false }) { Text("Cancelar", fontWeight = FontWeight.Bold) } }
+                dismissButton = { TextButton(onClick = { showNowPlayingColorDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
             )
         }
 
@@ -4257,8 +4297,8 @@ fun SettingsScreen(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
-                            IconButton(onClick = { showEqualizerDialog.value = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onBackground) }
-                            Text("Studio Pro EQ", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+                            IconButton(onClick = { showEqualizerDialog.value = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_close), tint = MaterialTheme.colorScheme.onBackground) }
+                            Text(stringResource(R.string.settings_studio_pro_eq), fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
 
                             Button(onClick = {
                                 settingsRepo.saveEqPresetSelected(tempPreset.value)
@@ -4289,8 +4329,8 @@ fun SettingsScreen(
                                 context.sendBroadcast(intent)
 
                                 showEqualizerDialog.value = false
-                                Toast.makeText(context, "Audio Pro Activado 🎶", Toast.LENGTH_SHORT).show()
-                            }) { Text("Aplicar", fontWeight = FontWeight.Bold) }
+                                Toast.makeText(context, context.getString(R.string.settings_audio_pro_activado), Toast.LENGTH_SHORT).show()
+                            }) { Text(stringResource(R.string.settings_aplicar), fontWeight = FontWeight.Bold) }
                         }
 
                         LazyColumn(modifier = Modifier.padding(horizontal = 16.dp), verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -4306,12 +4346,12 @@ fun SettingsScreen(
                                         Row(modifier = Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
                                             Column(modifier = Modifier.weight(1f)) {
                                                 Text(
-                                                    if (proExclusiveOn.value) "Modo PRO exclusivo activo" else "Modo PRO exclusivo apagado",
+                                                    if (proExclusiveOn.value) stringResource(R.string.settings_modo_pro_exclusivo_activo) else stringResource(R.string.settings_modo_pro_exclusivo_apagado),
                                                     fontWeight = FontWeight.Black, fontSize = 14.sp
                                                 )
                                                 Text(
-                                                    if (proExclusiveOn.value) "Este ecualizador de 5 bandas está silenciado: solo suena el EQ Pro de 10 bandas. Apaga el modo para que estos sliders se escuchen."
-                                                    else "Este ecualizador de 5 bandas suena junto con el EQ Pro. Si el Pro tiene bandas movidas, se suman.",
+                                                    if (proExclusiveOn.value) stringResource(R.string.settings_este_ecualizador_de_5_bandas_esta)
+                                                    else stringResource(R.string.settings_este_ecualizador_de_5_bandas_suena),
                                                     fontSize = 12.sp
                                                 )
                                             }
@@ -4332,9 +4372,9 @@ fun SettingsScreen(
                             }
                             item {
                                 Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                    Text("Ajustes Preestablecidos", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                    Text(stringResource(R.string.settings_ajustes_preestablecidos), fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                                     IconButton(onClick = { showSaveCustomDialog.value = true }, modifier = Modifier.background(MaterialTheme.colorScheme.primary.copy(alpha = 0.1f), RoundedCornerShape(12.dp)).size(36.dp)) {
-                                        Icon(Icons.Filled.Add, "Guardar Preset", tint = MaterialTheme.colorScheme.primary)
+                                        Icon(Icons.Filled.Add, stringResource(R.string.settings_guardar_preset), tint = MaterialTheme.colorScheme.primary)
                                     }
                                 }
                                 Spacer(Modifier.height(8.dp))
@@ -4373,7 +4413,7 @@ fun SettingsScreen(
                                 Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                                     Column(modifier = Modifier.padding(16.dp)) {
                                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                                            Text("Ecualizador $eqBandCount Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                            Text(stringResource(R.string.settings_ecualizador_1_s_bandas, eqBandCount), fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 Text("Hz", fontSize = 12.sp, color = if (!viewKHz.value) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant)
                                                 Switch(checked = viewKHz.value, onCheckedChange = { viewKHz.value = it }, modifier = Modifier.padding(horizontal = 4.dp))
@@ -4419,14 +4459,14 @@ fun SettingsScreen(
                                     val proCardColor = MaterialTheme.colorScheme.surfaceContainerHighest
                                     Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
                                         Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("Graves", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                            Text(stringResource(R.string.settings_graves), fontSize = 12.sp, fontWeight = FontWeight.Black)
                                             Text("${tempBass.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
                                             Slider(value = tempBass.value, onValueChange = { tempBass.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
                                         }
                                     }
                                     Card(modifier = Modifier.weight(1f), colors = CardDefaults.cardColors(containerColor = proCardColor)) {
                                         Column(modifier = Modifier.padding(12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-                                            Text("Virtual 3D", fontSize = 12.sp, fontWeight = FontWeight.Black)
+                                            Text(stringResource(R.string.settings_virtual_3d), fontSize = 12.sp, fontWeight = FontWeight.Black)
                                             Text("${tempVirtualizer.value.toInt()}%", fontSize = 16.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Black)
                                             Slider(value = tempVirtualizer.value, onValueChange = { tempVirtualizer.value = it; tempPreset.value = "Customizar" }, valueRange = 0f..100f)
                                         }
@@ -4439,8 +4479,8 @@ fun SettingsScreen(
                     if (showSaveCustomDialog.value) {
                         AlertDialog(
                             onDismissRequest = { showSaveCustomDialog.value = false },
-                            title = { Text("Guardar Preset") },
-                            text = { OutlinedTextField(value = customPresetName.value, onValueChange = { customPresetName.value = it }, label = { Text("Nombre del Preset") }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
+                            title = { Text(stringResource(R.string.settings_guardar_preset)) },
+                            text = { OutlinedTextField(value = customPresetName.value, onValueChange = { customPresetName.value = it }, label = { Text(stringResource(R.string.settings_nombre_del_preset)) }, singleLine = true, modifier = Modifier.fillMaxWidth()) },
                             confirmButton = {
                                 Button(onClick = {
                                     val name = customPresetName.value.trim()
@@ -4460,11 +4500,11 @@ fun SettingsScreen(
 
                                         tempPreset.value = name
                                         showSaveCustomDialog.value = false
-                                        Toast.makeText(context, "Preset guardado con éxito", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, context.getString(R.string.settings_preset_guardado_con_exito), Toast.LENGTH_SHORT).show()
                                     }
-                                }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                                }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                             },
-                            dismissButton = { TextButton(onClick = { showSaveCustomDialog.value = false }) { Text("Cancelar") } }
+                            dismissButton = { TextButton(onClick = { showSaveCustomDialog.value = false }) { Text(stringResource(R.string.action_cancel)) } }
                         )
                     }
                 }
@@ -4544,7 +4584,7 @@ private fun DeviceInfoCard(
                     Icon(Icons.Filled.Storage, null, tint = trailingColor, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("Almacenamiento", fontSize = 12.sp, color = mediumEmphasis)
+                        Text(stringResource(R.string.settings_almacenamiento), fontSize = 12.sp, color = mediumEmphasis)
                         Text(
                             DeviceInfoProvider.bytesToGbLabel(deviceInfo.storageTotalBytes),
                             fontWeight = FontWeight.Bold,
@@ -4557,7 +4597,7 @@ private fun DeviceInfoCard(
                     Icon(Icons.Filled.Memory, null, tint = trailingColor, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
                     Column {
-                        Text("Memoria", fontSize = 12.sp, color = mediumEmphasis)
+                        Text(stringResource(R.string.settings_memoria), fontSize = 12.sp, color = mediumEmphasis)
                         Text(
                             DeviceInfoProvider.bytesToGbLabel(deviceInfo.ramTotalBytes),
                             fontWeight = FontWeight.Bold,
@@ -4594,7 +4634,7 @@ private fun DeviceInfoCard(
                     color = highEmphasis
                 )
                 Spacer(Modifier.width(8.dp))
-                Text("Batería", fontSize = 14.sp, color = mediumEmphasis, modifier = Modifier.weight(1f))
+                Text(stringResource(R.string.settings_bateria), fontSize = 14.sp, color = mediumEmphasis, modifier = Modifier.weight(1f))
                 Icon(
                     imageVector = if (batteryExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
                     contentDescription = null,
@@ -4604,19 +4644,19 @@ private fun DeviceInfoCard(
 
             AnimatedVisibility(visible = batteryExpanded) {
                 Column(modifier = Modifier.padding(top = 2.dp, bottom = 4.dp)) {
-                    DeviceInfoDetailRow("Estado", deviceInfo.battery.statusLabel, mediumEmphasis, highEmphasis)
-                    DeviceInfoDetailRow("Salud", deviceInfo.battery.healthLabel, mediumEmphasis, highEmphasis)
+                    DeviceInfoDetailRow(stringResource(R.string.settings_estado), deviceInfo.battery.statusLabel, mediumEmphasis, highEmphasis)
+                    DeviceInfoDetailRow(stringResource(R.string.settings_salud), deviceInfo.battery.healthLabel, mediumEmphasis, highEmphasis)
                     deviceInfo.battery.temperatureC?.let {
-                        DeviceInfoDetailRow("Temperatura", "${it}°C", mediumEmphasis, highEmphasis)
+                        DeviceInfoDetailRow(stringResource(R.string.settings_temperatura), "${it}°C", mediumEmphasis, highEmphasis)
                     }
                     deviceInfo.battery.voltageMv?.let {
-                        DeviceInfoDetailRow("Voltaje", "${it} mV", mediumEmphasis, highEmphasis)
+                        DeviceInfoDetailRow(stringResource(R.string.settings_voltaje), "${it} mV", mediumEmphasis, highEmphasis)
                     }
                     deviceInfo.battery.technology?.let {
-                        DeviceInfoDetailRow("Tecnología", it, mediumEmphasis, highEmphasis)
+                        DeviceInfoDetailRow(stringResource(R.string.settings_tecnologia), it, mediumEmphasis, highEmphasis)
                     }
                     deviceInfo.battery.plugLabel?.let {
-                        DeviceInfoDetailRow("Fuente de carga", it, mediumEmphasis, highEmphasis)
+                        DeviceInfoDetailRow(stringResource(R.string.settings_fuente_de_carga), it, mediumEmphasis, highEmphasis)
                     }
                 }
             }
@@ -4635,4 +4675,39 @@ private fun DeviceInfoDetailRow(label: String, value: String, mediumEmphasis: Co
         Text(label, fontSize = 13.sp, color = mediumEmphasis)
         Text(value, fontSize = 13.sp, fontWeight = FontWeight.SemiBold, color = highEmphasis)
     }
+}
+
+/**
+ * Los modos de color (y tipos de animación) se GUARDAN con su nombre en español
+ * ("Adaptativo", "Personalizado", "Blanco"...) para no romper lo que los
+ * usuarios ya tienen guardado; esta función solo traduce lo que se MUESTRA.
+ */
+@Composable
+private fun settingsOptionLabel(option: String): String = when (option) {
+    "Adaptativo" -> stringResource(R.string.option_adaptive)
+    "Siguiendo al sistema" -> stringResource(R.string.settings_siguiendo_al_sistema)
+    "Fondo blanco" -> stringResource(R.string.settings_fondo_blanco)
+    "Fondo oscuro" -> stringResource(R.string.settings_fondo_oscuro)
+    "Personalizado" -> stringResource(R.string.option_custom)
+    "Blanco" -> stringResource(R.string.option_white)
+    "Negro" -> stringResource(R.string.option_black)
+    "Deslizar" -> stringResource(R.string.option_anim_slide)
+    "Desvanecer" -> stringResource(R.string.option_anim_fade)
+    "Rebote" -> stringResource(R.string.option_anim_bounce)
+    com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.option_rainbow)
+    else -> option
+}
+
+/** Mismo criterio: las secciones de Ajustes se identifican por su nombre en español; esto traduce el título visible. */
+@Composable
+private fun settingsSectionTitle(key: String): String = when (key) {
+    "Hogar de Shimuro" -> stringResource(R.string.section_shimuro_home)
+    "Cuenta" -> stringResource(R.string.section_account)
+    "Apariencia" -> stringResource(R.string.section_appearance)
+    "Canciones" -> stringResource(R.string.section_songs)
+    "Copia de seguridad" -> stringResource(R.string.section_backup)
+    "Especificaciones" -> stringResource(R.string.section_specs)
+    "Pagos (opcional)" -> stringResource(R.string.section_payments)
+    "Aviso de Uso" -> stringResource(R.string.section_usage_notice)
+    else -> key
 }

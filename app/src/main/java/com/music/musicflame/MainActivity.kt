@@ -122,6 +122,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    // Idioma elegido en Ajustes > Apariencia > Idioma (Android 12/12L; en 13+ lo aplica el sistema).
+    override fun attachBaseContext(newBase: android.content.Context) {
+        super.attachBaseContext(com.music.musicflame.data.LanguageManager.wrap(newBase))
+    }
+
     @OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

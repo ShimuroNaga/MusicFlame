@@ -809,7 +809,11 @@ fun FullScreenPlayer(
             // Con PULSE_CIRCLE no aplica (ya no hay ninguna franja de fondo ahí abajo
             // que difuminar). Con MIRRORED_BARS sí aplica ahora — ya no tiene su
             // propio bloque aparte, así que usa este mismo degradado como el resto.
-            if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
+            // Con imagen/GIF de fondo NO se dibuja: se veía como una franja negra detrás de
+            // los botones de control. Sin fondo propio sigue igual que antes (el degradado
+            // usa el color de fondo de la pantalla, así que no se nota como banda).
+            if (!effectiveHasBg &&
+                equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
                 equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES
             ) {
                 Box(
@@ -818,14 +822,7 @@ fun FullScreenPlayer(
                         .fillMaxWidth()
                         .fillMaxHeight(0.26f)
                         .background(
-                            // Con imagen/GIF de fondo, el borde de arriba de esta franja se veía
-                            // como una banda oscura con corte marcado: ahora entra en degradado
-                            // (transparente -> oscuro -> transparente). Sin fondo no cambia nada.
-                            if (effectiveHasBg) Brush.verticalGradient(
-                                0f to Color.Transparent,
-                                0.4f to bgColor,
-                                1f to Color.Transparent
-                            ) else Brush.verticalGradient(
+                            Brush.verticalGradient(
                                 colors = listOf(bgColor, Color.Transparent),
                                 startY = 0f,
                                 endY = Float.POSITIVE_INFINITY

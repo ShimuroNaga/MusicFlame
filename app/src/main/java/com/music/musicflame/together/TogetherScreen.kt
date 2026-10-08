@@ -64,10 +64,10 @@ fun TogetherScreen(
         item {
             Text(
                 "Escucha música a la vez con otras personas, juntas o a distancia. " +
-                    "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame sincroniza " +
-                    "qué suena, play/pausa y el momento exacto. Si a alguien le falta una canción, el anfitrión " +
-                    "puede subirla (máx. 25 MB) y se descarga sola; se borra al cerrar la sala. " +
-                    "De 2 a ${TogetherManager.MAX_MEMBERS} personas.",
+                        "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame sincroniza " +
+                        "qué suena, play/pausa y el momento exacto. Si a alguien le falta una canción, el anfitrión " +
+                        "puede subirla (máx. 25 MB) y se descarga sola; se borra al cerrar la sala. " +
+                        "De 2 a ${TogetherManager.MAX_MEMBERS} personas.",
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -158,10 +158,11 @@ fun TogetherScreen(
                                 Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
                                 Spacer(Modifier.width(6.dp)); Text("Enlace")
                             }
-                            AccentOutlinedButton(accent, onClick = { share(context, manager) }) {
-                                Icon(Icons.Filled.Share, null, modifier = Modifier.size(18.dp))
-                                Spacer(Modifier.width(6.dp)); Text("Invitar")
-                            }
+                        }
+                        // "Invitar" va solo, en su propia fila debajo de Código y Enlace.
+                        AccentOutlinedButton(accent, onClick = { share(context, manager) }, modifier = Modifier.fillMaxWidth()) {
+                            Icon(Icons.Filled.Share, null, modifier = Modifier.size(18.dp))
+                            Spacer(Modifier.width(6.dp)); Text("Invitar")
                         }
                     }
                 }
@@ -170,7 +171,7 @@ fun TogetherScreen(
             // ---- Estado ----
             item {
                 val (label, color) = when (manager.status) {
-                    TogetherManager.Status.CONNECTED -> "Conectado" to Color(0xFF2E7D32)
+                    TogetherManager.Status.CONNECTED -> "Conectado" to accent.value
                     TogetherManager.Status.CONNECTING -> "Conectando…" to Color(0xFFF9A825)
                     TogetherManager.Status.DISCONNECTED -> "Desconectado" to Color(0xFFC62828)
                     else -> "Sin sala" to Color.Gray
@@ -179,7 +180,7 @@ fun TogetherScreen(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(Modifier.size(10.dp).clip(CircleShape).background(color))
                         Spacer(Modifier.width(8.dp))
-                        Text(label, fontWeight = FontWeight.SemiBold)
+                        Text(label, fontWeight = FontWeight.SemiBold, color = accent.value)
                     }
                     if (manager.statusDetail.isNotBlank()) {
                         Text(manager.statusDetail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -244,14 +245,14 @@ fun TogetherScreen(
 
             // ---- Miembros ----
             item {
-                Text("En la sala (${manager.onlineCount} conectados)", fontWeight = FontWeight.SemiBold)
+                Text("En la sala (${manager.onlineCount} conectados)", fontWeight = FontWeight.SemiBold, color = accent.value)
             }
             items(manager.members, key = { it.uid }) { m ->
                 Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                     Box(Modifier.size(10.dp).clip(CircleShape)
-                        .background(if (m.online) Color(0xFF2E7D32) else Color.Gray))
+                        .background(if (m.online) accent.value else Color.Gray))
                     Spacer(Modifier.width(10.dp))
-                    Text(m.name + if (m.isHost) "  👑" else "", modifier = Modifier.weight(1f))
+                    Text(m.name + if (m.isHost) "  👑" else "", modifier = Modifier.weight(1f), color = accent.value)
                     if (!m.online) Text("desconectado", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }

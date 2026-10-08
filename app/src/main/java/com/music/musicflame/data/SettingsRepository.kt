@@ -1,9 +1,25 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import android.net.Uri
+import java.io.File
+import java.io.FileOutputStream
+
+/**
+ * Configuración ya resuelta del fondo propio del reproductor expandido
+ * (Ajustes > Apariencia > "Fondo del reproductor"). Solo existe cuando el modo es
+ * "custom" Y el archivo interno sigue existiendo; en cualquier otro caso
+ * [SettingsRepository.loadFullPlayerBg] devuelve null (= "Sin fondo").
+ */
+data class FullPlayerBgConfig(
+    val uri: String,
+    val isGif: Boolean,
+    val brightness: Float
+)
 
 class SettingsRepository(context: Context) {
     private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val appContext: Context = context.applicationContext
 
     fun getSystemPrompt(): String = prefs.getString("system_prompt", "") ?: ""
     fun saveSystemPrompt(prompt: String) = prefs.edit().putString("system_prompt", prompt).apply()
@@ -203,6 +219,119 @@ class SettingsRepository(context: Context) {
     fun getPlayerGifUri(): String? = prefs.getString("player_gif_uri", null)
     fun savePlayerGifUri(uri: String) = prefs.edit().putString("player_gif_uri", uri).apply()
     fun removePlayerGifUri() = prefs.edit().remove("player_gif_uri").apply()
+
+    // --- FONDO PROPIO DEL REPRODUCTOR EXPANDIDO (independiente del fondo global) ---
+    // Ajustes > Apariencia > "Fondo del reproductor". Solo lo usa FullScreenPlayer.
+    // NO comparte claves con background_image_uri / player_gif_uri / bg_brightness.
+    //   fullplayer_bg_mode: "none" (default) | "custom"
+    //   fullplayer_bg_uri: Uri file:// de la COPIA interna (files/fullplayer_bg/)
+    //   fullplayer_bg_is_gif: si el archivo copiado es un GIF
+    //   fullplayer_bg_brightness: -1f..1f, 0f = sin cambio (misma convención que el global)
+    fun getFullPlayerBgMode(): String = prefs.getString("fullplayer_bg_mode", "none") ?: "none"
+    fun saveFullPlayerBgMode(mode: String) = prefs.edit().putString("fullplayer_bg_mode", mode).apply()
+
+    fun getFullPlayerBgUri(): String? = prefs.getString("fullplayer_bg_uri", null)
+    fun saveFullPlayerBgUri(uri: String?) {
+        val editor = prefs.edit()
+        if (uri == null) editor.remove("fullplayer_bg_uri") else editor.putString("fullplayer_bg_uri", uri)
+        editor.apply()
+    }
+
+    fun isFullPlayerBgGif(): Boolean = prefs.getBoolean("fullplayer_bg_is_gif", false)
+    fun saveFullPlayerBgIsGif(isGif: Boolean) = prefs.edit().putBoolean("fullplayer_bg_is_gif", isGif).apply()
+
+    fun getFullPlayerBgBrightness(): Float = prefs.getFloat("fullplayer_bg_brightness", 0f)
+    fun saveFullPlayerBgBrightness(value: Float) = prefs.edit().putFloat("fullplayer_bg_brightness", value).apply()
+
+    /** Guarda las 4 claves juntas en una sola escritura (lo usa el botón "Guardar" del diálogo). */
+    fun saveFullPlayerBgAll(mode: String, uri: String?, isGif: Boolean, brightness: Float) {
+        val editor = prefs.edit()
+        editor.putString("fullplayer_bg_mode", mode)
+        if (uri == null) editor.remove("fullplayer_bg_uri") else editor.putString("fullplayer_bg_uri", uri)
+        editor.putBoolean("fullplayer_bg_is_gif", isGif)
+        editor.putFloat("fullplayer_bg_brightness", brightness)
+        editor.apply()
+    }
+
+    /**
+     * Lee el fondo propio ya validado. Devuelve null ("Sin fondo") si el modo no es
+     * "custom", si no hay Uri o si el archivo interno ya no existe. Pensado para
+     * llamarse UNA vez (dentro de un remember) al abrir el reproductor.
+     */
+    fun loadFullPlayerBg(): FullPlayerBgConfig? {
+        if (getFullPlayerBgMode() != "custom") return null
+        val uriString = getFullPlayerBgUri() ?: return null
+        val file = fullPlayerBgFileFromUri(uriString) ?: return null
+        val exists = try { file.isFile && file.length() > 0L } catch (e: Exception) { false }
+        if (!exists) return null
+        return FullPlayerBgConfig(
+            uri = uriString,
+            isGif = isFullPlayerBgGif(),
+            brightness = getFullPlayerBgBrightness().coerceIn(-1f, 1f)
+        )
+    }
+
+    private fun fullPlayerBgDir(): File = File(appContext.filesDir, "fullplayer_bg")
+
+    /** Convierte un "file://..." a File, SOLO si vive dentro de files/fullplayer_bg/. */
+    private fun fullPlayerBgFileFromUri(uriString: String): File? {
+        return try {
+            val path = Uri.parse(uriString).path ?: return null
+            val file = File(path)
+            val dirPath = fullPlayerBgDir().canonicalPath
+            if (file.canonicalFile.parentFile?.canonicalPath == dirPath) file else null
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /**
+     * Copia el archivo elegido por el usuario (content://) a almacenamiento interno
+     * (files/fullplayer_bg/) para no depender del permiso de la Uri original.
+     * Usa un nombre único en cada copia, así Coil nunca muestra una imagen vieja
+     * cuando se reemplaza. Devuelve (Uri file:// de la copia, esGif) o null si falló.
+     */
+    fun importFullPlayerBgFile(source: Uri): Pair<String, Boolean>? {
+        return try {
+            val dir = fullPlayerBgDir()
+            if (!dir.exists() && !dir.mkdirs()) return null
+            val mime = appContext.contentResolver.getType(source)?.lowercase()
+            val ext = when {
+                mime == "image/gif" -> "gif"
+                mime == "image/png" -> "png"
+                mime == "image/webp" -> "webp"
+                mime == "image/jpeg" || mime == "image/jpg" -> "jpg"
+                else -> "img"
+            }
+            val dest = File(dir, "fullplayer_bg_${System.currentTimeMillis()}.$ext")
+            val input = appContext.contentResolver.openInputStream(source) ?: return null
+            input.use { ins ->
+                FileOutputStream(dest).use { out -> ins.copyTo(out) }
+            }
+            if (!dest.isFile || dest.length() <= 0L) {
+                dest.delete()
+                return null
+            }
+            // Detección real de GIF por los primeros bytes ("GIF87a"/"GIF89a"), no solo por mime.
+            val header = ByteArray(3)
+            val read = dest.inputStream().use { it.read(header) }
+            val gifByMagic = read == 3 && header[0] == 'G'.code.toByte() &&
+                header[1] == 'I'.code.toByte() && header[2] == 'F'.code.toByte()
+            Pair(Uri.fromFile(dest).toString(), gifByMagic || mime == "image/gif")
+        } catch (e: Exception) {
+            null
+        }
+    }
+
+    /** Borra una copia interna del fondo del reproductor (ignora cualquier otra ruta). */
+    fun deleteFullPlayerBgFile(uriString: String?) {
+        if (uriString == null) return
+        try {
+            fullPlayerBgFileFromUri(uriString)?.delete()
+        } catch (e: Exception) {
+            // Si no se puede borrar, no pasa nada: queda un archivo huérfano, nunca un crash.
+        }
+    }
 
     // --- ESTILO DE ECUALIZADOR GRÁFICO (catálogo de personalizaciones estéticas) ---
     // Estilo elegido en Ajustes > Apariencia > "Estilo de ecualizador gráfico":

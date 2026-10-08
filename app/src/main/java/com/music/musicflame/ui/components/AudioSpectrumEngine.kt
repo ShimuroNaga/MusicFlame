@@ -82,11 +82,14 @@ fun rememberAudioSpectrum(
         var visualizer: Visualizer? = null
         var handlerThread: HandlerThread? = null
         val mainHandler = Handler(Looper.getMainLooper())
+        val active = java.util.concurrent.atomic.AtomicBoolean(true)
+        var bgHandlerRef: Handler? = null
 
         if (hasRecordAudioPermission && isPlaying && audioSessionId != 0) {
             try {
                 handlerThread = HandlerThread("AudioVisualizerThread").apply { start() }
                 val bgHandler = Handler(handlerThread.looper)
+                bgHandlerRef = bgHandler
 
                 var bins = 0
                 var magnitudes: FloatArray? = null
@@ -121,7 +124,14 @@ fun rememberAudioSpectrum(
                     barWeight = w
                 }
 
-                visualizer = Visualizer(audioSessionId).apply {
+                // Se crea/configura/libera SIEMPRE en el hilo propio (no en el principal): las
+                // llamadas al Visualizer son binder síncronas y pueden congelar la UI.
+                bgHandler.post {
+                var created: Visualizer? = null
+                try {
+                val v0 = Visualizer(audioSessionId)
+                created = v0
+                v0.apply {
                     val maxCapture = Visualizer.getCaptureSizeRange()[1]
                     captureSize = minOf(CAPTURE_SIZE, maxCapture)
 
@@ -140,7 +150,7 @@ fun rememberAudioSpectrum(
                                 fft: ByteArray?,
                                 samplingRate: Int
                             ) {
-                                if (fft == null || fft.size < 4) return
+                                if (!active.get() || fft == null || fft.size < 4) return
 
                                 val newSampleRateHz = samplingRate / 1000
                                 if (bins != fft.size / 2 || magnitudes == null || sampleRateHz != newSampleRateHz) {
@@ -202,6 +212,7 @@ fun rememberAudioSpectrum(
 
                                 val target = rawLevels.copyOf()
                                 mainHandler.post {
+                                    if (!active.get()) return@post
                                     for (i in 0 until barCount) targetLevels[i] = target[i]
                                 }
                             }
@@ -212,22 +223,43 @@ fun rememberAudioSpectrum(
                     )
                     enabled = true
                 }
+                visualizer = v0
+                } catch (e: Exception) {
+                    e.printStackTrace()
+                    // Si falló a mitad de configurarse, se libera igual (antes se perdía la
+                    // referencia y quedaba un efecto de audio vivo en el sistema).
+                    try { created?.release() } catch (_: Exception) {}
+                    visualizer = null
+                }
+                }
             } catch (e: Exception) {
                 e.printStackTrace()
                 visualizer = null
+                handlerThread?.quitSafely()
+                handlerThread = null
             }
         }
 
         onDispose {
-            visualizer?.let {
-                try {
-                    it.enabled = false
-                    it.release()
-                } catch (e: Exception) {
-                    e.printStackTrace()
+            active.set(false)
+            val thread = handlerThread
+            val bg = bgHandlerRef
+            if (thread != null && bg != null) {
+                // La liberación va en cola DESPUÉS de la creación, en el mismo hilo.
+                val queued = bg.post {
+                    visualizer?.let {
+                        try {
+                            it.enabled = false
+                            it.release()
+                        } catch (e: Exception) {
+                            e.printStackTrace()
+                        }
+                    }
+                    visualizer = null
+                    thread.quitSafely()
                 }
+                if (!queued) thread.quitSafely()
             }
-            handlerThread?.quitSafely()
             for (i in targetLevels.indices) targetLevels[i] = 0f
             for (i in state.displayLevels.indices) state.displayLevels[i] = 0f
             state.tick++

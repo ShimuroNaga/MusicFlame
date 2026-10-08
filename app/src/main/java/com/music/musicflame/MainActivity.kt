@@ -1376,12 +1376,13 @@ class MainActivity : ComponentActivity() {
                             enter = slideInVertically(initialOffsetY = { fullHeight -> fullHeight }),
                             exit = slideOutVertically(targetOffsetY = { fullHeight -> fullHeight })
                         ) {
-                            if (currentSong != null) {
+                            val playerSong = currentSong
+                            if (playerSong != null) {
                                 FullScreenPlayer(
-                                    song = currentSong!!, songList = songList, playerManager = playerManager, isPlaying = isPlaying, isFavorite = favoriteIds.contains(currentSong!!.id),
+                                    song = playerSong, songList = songList, playerManager = playerManager, isPlaying = isPlaying, isFavorite = favoriteIds.contains(playerSong.id),
                                     onCollapse = { showFullScreenPlayer = false }, onPlayPause = { playerManager.togglePlayPause() },
                                     onToggleFavorite = {
-                                        favoritesRepo.toggleFavorite(currentSong!!.id)
+                                        favoritesRepo.toggleFavorite(playerSong.id)
                                         favoriteIds = favoritesRepo.getAllFavoriteIds()
                                         val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
                                         intent.setPackage(packageName)

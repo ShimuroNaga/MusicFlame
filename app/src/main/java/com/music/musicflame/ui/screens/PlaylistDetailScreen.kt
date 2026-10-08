@@ -528,7 +528,7 @@ fun SongItemCard(
         ),
         shape = RoundedCornerShape(radius),
         elevation = CardDefaults.cardElevation(
-            defaultElevation = if (hasBackgroundImage || isSelected) 0.dp else 4.dp
+            defaultElevation = if (hasBackgroundImage || isSelected || npColors != null) 0.dp else 4.dp
         )
     ) {
         Row(

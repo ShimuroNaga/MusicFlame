@@ -141,7 +141,7 @@ fun FullScreenPlayer(
     // Independiente del fondo global (backgroundImageUri / playerGifUri / bgBrightness).
     // Se lee UNA sola vez al abrir el reproductor (remember): no cambia al cambiar de canción.
     // Si la carga falla en runtime, fullBgFailed lo apaga y todo vuelve a verse como "Sin fondo".
-    val fullBgConfig = remember { com.music.musicflame.data.SettingsRepository(context).loadFullPlayerBg() }
+    val fullBgConfig = remember { try { com.music.musicflame.data.SettingsRepository(context).loadFullPlayerBg() } catch (e: Exception) { null } }
     var fullBgFailed by remember { mutableStateOf(false) }
     val customBgActive = fullBgConfig != null && !fullBgFailed
     // Con fondo propio activo el reproductor se trata como "con imagen de fondo" para que
@@ -220,7 +220,7 @@ fun FullScreenPlayer(
     // lista mínima con solo la canción actual. Así el pager SIEMPRE tiene al menos 1 página
     // válida: nunca queda con pageCount=0 (carátula invisible) ni desincronizado al saltar
     // de canción (lo que provocaba el cierre de la app).
-    val effectiveSongList = if (songList.contains(song)) songList else listOf(song)
+    val effectiveSongList = remember(song, songList) { if (songList.contains(song)) songList else listOf(song) }
 
     val initialIndex = effectiveSongList.indexOf(song).coerceAtLeast(0)
     val pagerState = rememberPagerState(initialPage = initialIndex, pageCount = { effectiveSongList.size })

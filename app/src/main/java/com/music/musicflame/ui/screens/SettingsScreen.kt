@@ -2000,39 +2000,45 @@ fun SettingsScreen(
                                         color = MaterialTheme.colorScheme.onTertiaryContainer
                                     )
                                     Spacer(Modifier.height(8.dp))
-                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        listOf("Blanco", "Negro", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { opt ->
-                                            val selected = lyricsColorModePref.value == opt
-                                            // Personalizado y Arcoíris son de pago acá; Blanco y Negro gratis.
-                                            val locked = (opt == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
-                                                    (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
-                                            androidx.compose.material3.FilterChip(
-                                                selected = selected,
-                                                enabled = !locked,
-                                                onClick = {
-                                                    if (locked) {
-                                                        showLockedLyricsColorToast()
-                                                    } else if (opt == "Personalizado") {
-                                                        // Selección visual inmediata; el modo recién se
-                                                        // persiste al confirmar un color en el diálogo
-                                                        // (igual que "Color del ecualizador").
-                                                        lyricsColorModePref.value = "Personalizado"
-                                                        showLyricsColorDialog.value = true
-                                                    } else {
-                                                        lyricsColorModePref.value = opt
-                                                        settingsRepo.saveLyricsTextColorMode(opt)
-                                                    }
-                                                },
-                                                leadingIcon = if (locked) {
-                                                    { Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(14.dp)) }
-                                                } else null,
-                                                label = { Text(if (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else opt, fontSize = 12.sp) },
-                                                colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
-                                                    selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
-                                                    selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
-                                                )
+                                    // Los chips se definen una vez para poder repartirlos en dos filas:
+                                    // Blanco/Negro/Personalizado arriba y Arcoíris solo, abajo.
+                                    val lyricsColorChip: @Composable (String) -> Unit = { opt ->
+                                        val selected = lyricsColorModePref.value == opt
+                                        // Personalizado y Arcoíris son de pago acá; Blanco y Negro gratis.
+                                        val locked = (opt == "Personalizado" && !unlockedIds.contains("lyrics_custom")) ||
+                                                (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
+                                        androidx.compose.material3.FilterChip(
+                                            selected = selected,
+                                            enabled = !locked,
+                                            onClick = {
+                                                if (locked) {
+                                                    showLockedLyricsColorToast()
+                                                } else if (opt == "Personalizado") {
+                                                    // Selección visual inmediata; el modo recién se
+                                                    // persiste al confirmar un color en el diálogo
+                                                    // (igual que "Color del ecualizador").
+                                                    lyricsColorModePref.value = "Personalizado"
+                                                    showLyricsColorDialog.value = true
+                                                } else {
+                                                    lyricsColorModePref.value = opt
+                                                    settingsRepo.saveLyricsTextColorMode(opt)
+                                                }
+                                            },
+                                            leadingIcon = if (locked) {
+                                                { Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(14.dp)) }
+                                            } else null,
+                                            label = { Text(if (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW) "Arcoíris" else opt, fontSize = 12.sp) },
+                                            colors = androidx.compose.material3.FilterChipDefaults.filterChipColors(
+                                                selectedContainerColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                                selectedLabelColor = MaterialTheme.colorScheme.tertiaryContainer
                                             )
-                                        }
+                                        )
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        listOf("Blanco", "Negro", "Personalizado").forEach { lyricsColorChip(it) }
+                                    }
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        lyricsColorChip(com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW)
                                     }
                                     if (lyricsColorModePref.value == "Personalizado") {
                                         Spacer(Modifier.height(10.dp))

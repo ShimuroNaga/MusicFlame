@@ -1,5 +1,8 @@
 package com.music.musicflame.data
 
+import androidx.annotation.StringRes
+import com.music.musicflame.R
+
 import com.music.musicflame.ui.utils.CoverShapeGeometry
 import org.json.JSONArray
 import org.json.JSONObject
@@ -11,14 +14,14 @@ import java.util.UUID
  * @param sidesLabel nombre de lo que cuenta el slider de cantidad (null = la figura no lo usa).
  * @param depthLabel nombre de lo que controla el slider de profundidad (null = no lo usa).
  */
-enum class CoverFigure(val label: String, val sidesLabel: String?, val depthLabel: String?) {
-    POLYGON("Polígono", "Caras", null),
-    STAR("Estrella", "Puntas", "Profundidad de las puntas"),
-    FLOWER("Flor", "Pétalos", "Profundidad de los pétalos"),
-    HEART("Corazón", null, null),
-    CROSS("Cruz", null, "Grosor de los brazos"),
-    GEAR("Engrane", "Dientes", "Altura de los dientes"),
-    DIAMOND("Rombo", null, "Anchura")
+enum class CoverFigure(@StringRes val labelRes: Int, @StringRes val sidesLabelRes: Int?, @StringRes val depthLabelRes: Int?) {
+    POLYGON(R.string.cf_polygon, R.string.cf_sides, null),
+    STAR(R.string.cf_star, R.string.cf_points, R.string.cf_depth_points),
+    FLOWER(R.string.cf_flower, R.string.cf_petals, R.string.cf_depth_petals),
+    HEART(R.string.cf_heart, null, null),
+    CROSS(R.string.cf_cross, null, R.string.cf_arm_thickness),
+    GEAR(R.string.cf_gear, R.string.cf_teeth, R.string.cf_tooth_height),
+    DIAMOND(R.string.cf_diamond, null, R.string.cf_width)
 }
 
 /**

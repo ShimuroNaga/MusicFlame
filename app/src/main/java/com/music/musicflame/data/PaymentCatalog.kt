@@ -1,5 +1,8 @@
 package com.music.musicflame.data
 
+import androidx.annotation.StringRes
+import com.music.musicflame.R
+
 /**
  * Catálogo único de los ítems cosméticos vendidos por separado en Lemon
  * Squeezy, con su precio individual (usado para mostrar en la tabla
@@ -29,46 +32,51 @@ object PaymentCatalog {
 
     data class Item(
         val id: String,
-        val section: String,
-        val label: String,
+        @StringRes val sectionRes: Int,
+        // Nombre propio que no se traduce (ej. nombres de fuentes); si hay labelRes, manda labelRes.
+        val label: String = "",
+        @StringRes val labelRes: Int? = null,
         // Precio individual en MXN. Por defecto el mismo de siempre (PRICE_PER_ITEM_MXN);
         // algunos ítems más grandes (ej. el EQ Pro de 10 bandas) tienen un precio propio.
         val priceMxn: Int = PRICE_PER_ITEM_MXN
-    )
+    ) {
+        fun displayLabel(context: android.content.Context): String =
+            labelRes?.let { context.getString(it) } ?: label
+    }
 
     val ITEMS: List<Item> = listOf(
-        Item("eq_style_mirrored", "Estilos de ecualizador", "Doble espejado"),
-        Item("eq_style_wave", "Estilos de ecualizador", "Ondas de agua"),
-        Item("eq_style_pulse", "Estilos de ecualizador", "Círculo pulsante"),
-        Item("eq_style_particles", "Estilos de ecualizador", "Partículas"),
-        Item("eq_style_thin", "Estilos de ecualizador", "Barras finas"),
-        Item("eq_style_vu", "Estilos de ecualizador", "VU meter retro"),
-        Item("eq_style_oscilloscope", "Estilos de ecualizador", "Osciloscopio"),
-        Item("eq_style_skyline", "Estilos de ecualizador", "Ondas concéntricas"),
-        Item("eq_style_rain", "Estilos de ecualizador", "Constelación"),
+        Item("eq_style_mirrored", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_mirrored),
+        Item("eq_style_wave", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_wave),
+        Item("eq_style_pulse", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_pulse),
+        Item("eq_style_particles", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_particles),
+        Item("eq_style_thin", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_thin),
+        Item("eq_style_vu", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_vu),
+        Item("eq_style_oscilloscope", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_osc),
+        Item("eq_style_skyline", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_skyline),
+        Item("eq_style_rain", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_rain),
 
         // "Adaptativo" del ecualizador vuelto a ser gratis (igual que en
         // texto/Now Playing) — no se vende, no tiene id de catálogo.
-        Item("eq_color_custom", "Color del ecualizador", "Personalizado"),
-        Item("eq_color_rainbow", "Color del ecualizador", "Arcoíris"),
+        Item("eq_color_custom", R.string.pay_sec_eq_color, labelRes = R.string.pay_it_custom),
+        Item("eq_color_rainbow", R.string.pay_sec_eq_color, labelRes = R.string.pay_it_rainbow),
 
-        Item("text_color_rainbow", "Color de texto", "Arcoíris"),
+        Item("text_color_rainbow", R.string.pay_sec_text_color, labelRes = R.string.pay_it_rainbow),
 
-        Item("now_playing_custom", "Color del \"Now Playing\"", "Personalizado"),
-        Item("now_playing_rainbow", "Color del \"Now Playing\"", "Arcoíris"),
+        Item("now_playing_custom", R.string.pay_sec_now_playing, labelRes = R.string.pay_it_custom),
+        Item("now_playing_rainbow", R.string.pay_sec_now_playing, labelRes = R.string.pay_it_rainbow),
 
-        Item("vinyl_widget", "Widget vinilo", "Widget completo"),
+        Item("vinyl_widget", R.string.pay_sec_vinyl, labelRes = R.string.pay_it_widget_full),
 
-        Item("lyrics_custom", "Color de letras", "Personalizado"),
-        Item("lyrics_rainbow", "Color de letras", "Arcoíris"),
+        Item("lyrics_custom", R.string.pay_sec_lyrics_color, labelRes = R.string.pay_it_custom),
+        Item("lyrics_rainbow", R.string.pay_sec_lyrics_color, labelRes = R.string.pay_it_rainbow),
 
-        Item("font_comfortaa", "Tipo de letra", "Comfortaa"),
-        Item("font_playfair_display", "Tipo de letra", "Playfair Display"),
-        Item("font_orbitron", "Tipo de letra", "Orbitron"),
-        Item("font_press_start_2p", "Tipo de letra", "Press Start 2P"),
-        Item("font_space_mono", "Tipo de letra", "Space Mono"),
+        Item("font_comfortaa", R.string.pay_sec_font, label = "Comfortaa"),
+        Item("font_playfair_display", R.string.pay_sec_font, label = "Playfair Display"),
+        Item("font_orbitron", R.string.pay_sec_font, label = "Orbitron"),
+        Item("font_press_start_2p", R.string.pay_sec_font, label = "Press Start 2P"),
+        Item("font_space_mono", R.string.pay_sec_font, label = "Space Mono"),
 
-        Item("pro_eq_10band", "Ecualizador PRO", "10 bandas + normalización de volumen", priceMxn = 20)
+        Item("pro_eq_10band", R.string.pay_sec_pro_eq, labelRes = R.string.pay_it_pro_eq, priceMxn = 20)
     )
 
     val TOTAL_PRICE_MXN: Int = ITEMS.sumOf { it.priceMxn }

@@ -181,7 +181,7 @@ private fun EqualizerStyleCard(
                 enabled = !locked,
                 modifier = Modifier.width(28.dp)
             )
-            Text(style.displayName, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(stringResource(style.displayNameRes), fontSize = 13.sp, fontWeight = FontWeight.Bold)
             if (locked) {
                 Spacer(Modifier.width(6.dp))
                 val priceMxn = com.music.musicflame.data.PaymentCatalog.ITEMS
@@ -190,7 +190,7 @@ private fun EqualizerStyleCard(
             }
         }
         Text(
-            style.description,
+            stringResource(style.descriptionRes),
             fontSize = 11.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(start = 28.dp, top = 2.dp).alpha(contentAlpha)

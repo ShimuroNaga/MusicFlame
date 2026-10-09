@@ -1121,7 +1121,7 @@ fun SettingsScreen(
                             // SettingsRepository.EQUALIZER_STYLES_UNLOCKED_FOR_TESTING).
                             ListItem(
                                 headlineContent = { Text(stringResource(R.string.settings_estilo_de_ecualizador_grafico)) },
-                                supportingContent = { Text(equalizerStyle.value.displayName) },
+                                supportingContent = { Text(stringResource(equalizerStyle.value.displayNameRes)) },
                                 trailingContent = {
                                     TextButton(onClick = { showEqualizerStyleDialog.value = true }) {
                                         Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = trailingColor)
@@ -2382,7 +2382,7 @@ fun SettingsScreen(
                                         .filterKeys { it != "TODO" }
                                         .forEach { (productName, ids) ->
                                             val itemsInProduct = com.music.musicflame.data.PaymentCatalog.ITEMS.filter { it.id in ids }
-                                            val label = itemsInProduct.joinToString(" + ") { it.label }
+                                            val label = itemsInProduct.joinToString(" + ") { it.displayLabel(context) }
                                             val priceMxn = itemsInProduct.sumOf { it.priceMxn }
                                             val owned = ids.all { unlockedIds.contains(it) }
                                             val checkoutUrl = com.music.musicflame.data.LicenseRepository.PRODUCT_NAME_TO_CHECKOUT_URL[productName]
@@ -2757,8 +2757,8 @@ fun SettingsScreen(
                                                 )
                                             }
                                         }
-                                        format.note?.let { note ->
-                                            Text(text = note, color = trailingColor)
+                                        format.noteRes?.let { note ->
+                                            Text(text = stringResource(note), color = trailingColor)
                                         }
                                     }
                                 }

@@ -55,6 +55,7 @@ import java.time.LocalTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 
 /**
  * Card única "Hogar de Shimuro". Vive en su propia sección de SettingsScreen
@@ -113,55 +114,20 @@ private fun standingStickerFor(visual: DayVisual): Int? = when (visual) {
 }
 
 /** Lo único que dice Shimuro cuando no está respondiendo una pregunta puntual. */
-private const val SHIMURO_DEFAULT_LINE = "¿Necesitas algo?"
 
-private data class ShimuroFaq(val question: String, val answer: String)
+private data class ShimuroFaq(@StringRes val question: Int, @StringRes val answer: Int)
 
 // Respuestas en la voz de Shimuro, en base a lo que contó el desarrollador.
-// Para agregar/editar una pregunta, solo se toca esta lista.
+// Para agregar/editar una pregunta, se tocan las claves shimuro_faqN_q / _a en strings.
 private val shimuroFaq = listOf(
-    ShimuroFaq(
-        "¿Para qué sirve MusicFlame?",
-        "Más que solo reproducir canciones, esta app es el proyecto personal de mi creador: " +
-                "la usa para \"entrenarse\", aprender, y analizar cómo se le ocurren y cómo desarrolla " +
-                "sus ideas. Literal, yo soy parte de ese experimento."
-    ),
-    ShimuroFaq(
-        "¿Cómo se hizo la app?",
-        "Se armó con ayuda de IA, aprendiendo sobre la marcha, y fijándose en cosas que le " +
-                "llamaron la atención de otros reproductores de música."
-    ),
-    ShimuroFaq(
-        "¿Qué lo inspiró a crearla?",
-        "El tiempo libre, y las ganas de siempre mejorar y hacer algo propio y único desde cero. " +
-                "Nada más ni nada menos :3"
-    ),
-    ShimuroFaq(
-        "¿Quién es mi creador?",
-        "Es un universitario que recién está entrando a la universidad, de unos 18 años. Se " +
-                "describe como hiperactivo (jeje), con muchísimas ideas dando vueltas... y cuando algo " +
-                "le llama la atención, no lo suelta hasta exprimirle la última gota."
-    ),
-    ShimuroFaq(
-        "¿Quién soy yo (Shimuro)?",
-        "Soy el personaje que mi creador usa como su \"representante\" a partir de esta " +
-                "actualización. Tengo una historia bastante larga detrás... ¡para otro día!"
-    ),
-    ShimuroFaq(
-        "¿La app va a tener más funciones?",
-        "Siempre que se le ocurran o se lo sugieran. De hecho pensó en algo con QR para " +
-                "transferir mp3, pero lo descartó por otras ideas que le gustaron más."
-    ),
-    ShimuroFaq(
-        "¿Puedo confiar en que mis canciones están seguras?",
-        "Sí, tranquilo. Mi creador usa esta misma app todos los días para sus propias canciones, " +
-                "y hasta ahora no ha visto ningún problema de corrupción de archivos ni nada por el estilo."
-    ),
-    ShimuroFaq(
-        "¿Cómo lo contacto?",
-        "Por Discord (buscalo en la sección \"Especificaciones\"), pronto también por Facebook, " +
-                "y siempre por GitHub o por correo."
-    )
+    ShimuroFaq(R.string.shimuro_faq1_q, R.string.shimuro_faq1_a),
+    ShimuroFaq(R.string.shimuro_faq2_q, R.string.shimuro_faq2_a),
+    ShimuroFaq(R.string.shimuro_faq3_q, R.string.shimuro_faq3_a),
+    ShimuroFaq(R.string.shimuro_faq4_q, R.string.shimuro_faq4_a),
+    ShimuroFaq(R.string.shimuro_faq5_q, R.string.shimuro_faq5_a),
+    ShimuroFaq(R.string.shimuro_faq6_q, R.string.shimuro_faq6_a),
+    ShimuroFaq(R.string.shimuro_faq7_q, R.string.shimuro_faq7_a),
+    ShimuroFaq(R.string.shimuro_faq8_q, R.string.shimuro_faq8_a)
 )
 
 
@@ -182,7 +148,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
             ?.trim()
             ?.substringBefore(" ")
             ?.takeIf { it.isNotBlank() }
-            ?: "amigo"
+            ?: context.getString(R.string.shimuro_friend)
     }
 
     // --- Estado de NOCHE (simple, cerrado/abierto) ---
@@ -194,7 +160,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
     var isAnimatingStandUp by remember { mutableStateOf(false) }
 
     var bubbleVisible by remember { mutableStateOf(false) }
-    var bubbleText by remember { mutableStateOf(SHIMURO_DEFAULT_LINE) }
+    var bubbleText by remember { mutableStateOf(context.getString(R.string.shimuro_default_line)) }
 
     val scope = rememberCoroutineScope()
     val popScale = remember { Animatable(1f) }
@@ -203,7 +169,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
     LaunchedEffect(Unit) {
         if (timeOfDay == ShimuroTimeOfDay.NIGHT) {
             nightTalking = true
-            bubbleText = "Ah... Hola, $userFirstName... ¿Necesitas algo?"
+            bubbleText = context.getString(R.string.shimuro_night_greeting, userFirstName)
             bubbleVisible = true
         }
     }
@@ -212,9 +178,9 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
     DisposableEffect(Unit) {
         onDispose {
             val farewell = if (timeOfDay == ShimuroTimeOfDay.DAY) {
-                "Buen día, $userFirstName"
+                context.getString(R.string.shimuro_farewell_day, userFirstName)
             } else {
-                "Buenas noches....$userFirstName.."
+                context.getString(R.string.shimuro_farewell_night, userFirstName)
             }
             Toast.makeText(context, farewell, Toast.LENGTH_SHORT).show()
         }
@@ -235,7 +201,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
         when (timeOfDay) {
             ShimuroTimeOfDay.NIGHT -> {
                 nightTalking = !nightTalking
-                bubbleText = SHIMURO_DEFAULT_LINE
+                bubbleText = context.getString(R.string.shimuro_default_line)
                 bubbleVisible = nightTalking
             }
             ShimuroTimeOfDay.DAY -> {
@@ -251,7 +217,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                         dayVisual = DayVisual.STANDING_SMILE
                         delay(320)
                         dayVisual = DayVisual.STANDING_TALK
-                        bubbleText = SHIMURO_DEFAULT_LINE
+                        bubbleText = context.getString(R.string.shimuro_default_line)
                         bubbleVisible = true
                         hasStoodUp = true
                         isAnimatingStandUp = false
@@ -259,7 +225,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                 } else {
                     // Ya de pie: solo alterna calma <-> hablando, siempre diciendo lo mismo.
                     dayVisual = if (dayVisual == DayVisual.STANDING_TALK) DayVisual.STANDING_CALM else DayVisual.STANDING_TALK
-                    bubbleText = SHIMURO_DEFAULT_LINE
+                    bubbleText = context.getString(R.string.shimuro_default_line)
                     bubbleVisible = (dayVisual == DayVisual.STANDING_TALK)
                 }
             }
@@ -274,7 +240,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
         when (timeOfDay) {
             ShimuroTimeOfDay.NIGHT -> {
                 nightTalking = true
-                bubbleText = faq.answer
+                bubbleText = context.getString(faq.answer)
                 bubbleVisible = true
             }
             ShimuroTimeOfDay.DAY -> {
@@ -291,12 +257,12 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                         dayVisual = DayVisual.STANDING_TALK
                         hasStoodUp = true
                         isAnimatingStandUp = false
-                        bubbleText = faq.answer
+                        bubbleText = context.getString(faq.answer)
                         bubbleVisible = true
                     }
                 } else {
                     dayVisual = DayVisual.STANDING_TALK
-                    bubbleText = faq.answer
+                    bubbleText = context.getString(faq.answer)
                     bubbleVisible = true
                 }
             }
@@ -386,9 +352,9 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                                                 Image(
                                                     painter = painterResource(id = stickerRes),
                                                     contentDescription = when (visual) {
-                                                        DayVisual.STANDING_SMILE -> "Shimuro sonriendo"
-                                                        DayVisual.STANDING_TALK -> "Shimuro hablando"
-                                                        else -> "Shimuro de pie"
+                                                        DayVisual.STANDING_SMILE -> stringResource(R.string.shimuro_cd_smiling)
+                                                        DayVisual.STANDING_TALK -> stringResource(R.string.shimuro_cd_talking)
+                                                        else -> stringResource(R.string.shimuro_cd_standing_up)
                                                     },
                                                     contentScale = ContentScale.Fit,
                                                     modifier = Modifier
@@ -472,7 +438,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        faq.question,
+                        stringResource(faq.question),
                         fontWeight = FontWeight.SemiBold,
                         fontSize = 14.sp,
                         color = MaterialTheme.colorScheme.onSurface,

@@ -1,6 +1,8 @@
 package com.music.musicflame.ui.components
 
+import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import com.music.musicflame.R
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.withFrameNanos
@@ -19,55 +21,55 @@ import kotlin.math.sin
  *            para saber si este estilo está desbloqueado; null = gratis
  *            (BARS es el único estilo gratis).
  */
-enum class EqualizerStyle(val displayName: String, val description: String, val catalogId: String?) {
+enum class EqualizerStyle(@StringRes val displayNameRes: Int, @StringRes val descriptionRes: Int, val catalogId: String?) {
     BARS(
-        "Barras clásicas",
-        "El ecualizador de siempre: barras verticales tipo espectro.",
+        R.string.eqs_bars,
+        R.string.eqs_d_bars,
         catalogId = null
     ),
     MIRRORED_BARS(
-        "Doble espejado",
-        "Dos filas de barras reflejadas, arriba y abajo, simétricas.",
+        R.string.pay_it_mirrored,
+        R.string.eqs_d_mirrored,
         catalogId = "eq_style_mirrored"
     ),
     WATER_WAVE(
-        "Ondas de agua",
-        "Una onda continua y fluida, tipo osciloscopio.",
+        R.string.pay_it_wave,
+        R.string.eqs_d_wave,
         catalogId = "eq_style_wave"
     ),
     PULSE_CIRCLE(
-        "Círculo pulsante",
-        "Un aro que late de tamaño según la intensidad del audio.",
+        R.string.pay_it_pulse,
+        R.string.eqs_d_pulse,
         catalogId = "eq_style_pulse"
     ),
     PARTICLES(
-        "Partículas",
-        "Puntos que saltan y rebotan con cada frecuencia.",
+        R.string.pay_it_particles,
+        R.string.eqs_d_particles,
         catalogId = "eq_style_particles"
     ),
     THIN_BARS(
-        "Barras finas",
-        "Versión ultra delgada, estilo Spotify Canvas.",
+        R.string.pay_it_thin,
+        R.string.eqs_d_thin,
         catalogId = "eq_style_thin"
     ),
     VU_METER_RETRO(
-        "VU meter retro",
-        "Agujas analógicas estilo ecualizador vintage.",
+        R.string.pay_it_vu,
+        R.string.eqs_d_vu,
         catalogId = "eq_style_vu"
     ),
     OSCILLOSCOPE(
-        "Osciloscopio",
-        "Trazo en vivo tipo monitor de audio, sube y baja del centro.",
+        R.string.pay_it_osc,
+        R.string.eqs_d_osc,
         catalogId = "eq_style_oscilloscope"
     ),
     CONCENTRIC_RIPPLES(
-        "Ondas concéntricas",
-        "Anillos que se expanden hacia afuera con delay, como un eco.",
+        R.string.pay_it_skyline,
+        R.string.eqs_d_ripples,
         catalogId = "eq_style_skyline"
     ),
     CONSTELLATION(
-        "Constelación",
-        "Estrellas conectadas por líneas que brillan según la frecuencia.",
+        R.string.pay_it_rain,
+        R.string.eqs_d_constellation,
         catalogId = "eq_style_rain"
     );
 

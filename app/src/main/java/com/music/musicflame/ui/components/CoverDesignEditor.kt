@@ -147,14 +147,15 @@ fun CoverDesignEditorDialog(
                                 FilterChip(
                                     selected = draft.figure == figure,
                                     onClick = { draft = draft.copy(figure = figure) },
-                                    label = { Text(figure.label) }
+                                    label = { Text(stringResource(figure.labelRes)) }
                                 )
                             }
                         }
                     }
 
                     // Cantidad de caras / puntas / pétalos / dientes (solo si la figura lo usa)
-                    draft.figure.sidesLabel?.let { sidesLabel ->
+                    draft.figure.sidesLabelRes?.let { sidesLabelRes ->
+                        val sidesLabel = stringResource(sidesLabelRes)
                         LabeledSlider(
                             label = "$sidesLabel: ${draft.sides}",
                             value = draft.sides.toFloat(),
@@ -165,7 +166,8 @@ fun CoverDesignEditorDialog(
                     }
 
                     // Profundidad / grosor / altura / anchura (según la figura)
-                    draft.figure.depthLabel?.let { depthLabel ->
+                    draft.figure.depthLabelRes?.let { depthLabelRes ->
+                        val depthLabel = stringResource(depthLabelRes)
                         LabeledSlider(
                             label = "$depthLabel: ${(draft.depth * 100).roundToInt()}%",
                             value = draft.depth,

@@ -5,6 +5,7 @@ import com.google.android.gms.auth.api.signin.GoogleSignIn
 import org.json.JSONArray
 import org.json.JSONObject
 import java.security.MessageDigest
+import com.music.musicflame.R
 
 enum class LicenseStatus { INACTIVE, ACTIVE, ERROR }
 
@@ -215,11 +216,11 @@ class LicenseRepository(context: Context) {
 
     /** Nombre corto para mostrarle al usuario qué desbloquea una licencia ("Todo el catálogo", "Doble espejado + Ondas de agua", etc). */
     fun labelFor(unlockedItemIds: List<String>): String {
-        if (unlockedItemIds.contains(ALL_ITEMS_ID)) return "Todo el catálogo"
+        if (unlockedItemIds.contains(ALL_ITEMS_ID)) return appContext.getString(R.string.lic_whole_catalog)
         return unlockedItemIds
-            .mapNotNull { id -> PaymentCatalog.ITEMS.find { it.id == id }?.label }
+            .mapNotNull { id -> PaymentCatalog.ITEMS.find { it.id == id }?.displayLabel(appContext) }
             .joinToString(" + ")
-            .ifBlank { "(producto no reconocido)" }
+            .ifBlank { appContext.getString(R.string.lic_unrecognized_product) }
     }
 
     // ---------------------------------------------------------------------
@@ -235,7 +236,7 @@ class LicenseRepository(context: Context) {
     suspend fun validateAndAdd(rawKey: String): LicenseValidationResult {
         val key = rawKey.trim()
         if (key.isEmpty()) {
-            return LicenseValidationResult.Invalid("Pega tu license key primero.")
+            return LicenseValidationResult.Invalid(appContext.getString(R.string.lic_paste_key_first))
         }
 
         val existing = getSavedLicenses()
@@ -248,7 +249,7 @@ class LicenseRepository(context: Context) {
             val body = response.body()
 
             if (!response.isSuccessful || body == null) {
-                return LicenseValidationResult.Invalid("La key no es válida o ya fue usada.")
+                return LicenseValidationResult.Invalid(appContext.getString(R.string.lic_invalid_or_used))
             }
 
             if (body.valid) {
@@ -263,7 +264,7 @@ class LicenseRepository(context: Context) {
                     // catálogo y Lemon Squeezy están sincronizados, pero así
                     // no se pierde la compra ni se le miente al usuario.
                     LicenseValidationResult.Invalid(
-                        "La licencia es válida (\"$productName\") pero no se reconoce qué desbloquea todavía. Avisale al desarrollador."
+                        appContext.getString(R.string.lic_valid_unknown, productName)
                     )
                 } else {
                     LicenseValidationResult.Success(productName, labelFor(unlockedIds))
@@ -304,7 +305,7 @@ class LicenseRepository(context: Context) {
                 val body = response.body()
                 when {
                     !response.isSuccessful || body == null ->
-                        lic.copy(lastError = "No se pudo re-verificar la licencia.")
+                        lic.copy(lastError = appContext.getString(R.string.lic_reverify_failed))
                     body.valid -> {
                         val productName = body.meta?.product_name ?: lic.productName
                         lic.copy(
@@ -317,7 +318,7 @@ class LicenseRepository(context: Context) {
                     else -> lic.copy(status = LicenseStatus.INACTIVE.name, lastError = reasonFor(body))
                 }
             } catch (e: Exception) {
-                lic.copy(lastError = "Sin conexión: no se pudo re-verificar la licencia.")
+                lic.copy(lastError = appContext.getString(R.string.lic_reverify_offline))
             }
         }
         saveLicenses(updated)
@@ -330,9 +331,9 @@ class LicenseRepository(context: Context) {
 
     private fun reasonFor(body: LemonSqueezyValidateResponse): String {
         return when (body.license_key?.status) {
-            "expired" -> "Esta licencia ya expiró."
-            "disabled" -> "Esta licencia fue desactivada."
-            else -> body.error ?: "Esta licencia ya no es válida."
+            "expired" -> appContext.getString(R.string.lic_expired)
+            "disabled" -> appContext.getString(R.string.lic_disabled)
+            else -> body.error ?: appContext.getString(R.string.lic_no_longer_valid)
         }
     }
 

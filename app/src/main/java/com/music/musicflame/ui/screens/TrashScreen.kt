@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.provider.MediaStore
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -121,7 +123,7 @@ fun TrashScreen(
                 ExtendedFloatingActionButton(
                     onClick = { showClearAllDialog.value = true },
                     icon = { Icon(Icons.Filled.DeleteSweep, contentDescription = null) },
-                    text = { Text("Vaciar papelera") },
+                    text = { Text(stringResource(R.string.tr_empty_trash)) },
                     containerColor = MaterialTheme.colorScheme.errorContainer,
                     contentColor = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -146,7 +148,7 @@ fun TrashScreen(
                 if (trashedPlaylists.isNotEmpty()) {
                     item {
                         Text(
-                            "Playlists",
+                            stringResource(R.string.nav_playlists),
                             fontWeight = FontWeight.Bold,
                             fontSize = 14.sp,
                             color = LocalAppTextColor.current.copy(alpha = 0.7f)
@@ -177,7 +179,7 @@ fun TrashScreen(
                         item { Spacer(Modifier.height(8.dp)) }
                         item {
                             Text(
-                                "Canciones",
+                                stringResource(R.string.nav_songs),
                                 fontWeight = FontWeight.Bold,
                                 fontSize = 14.sp,
                                 color = LocalAppTextColor.current.copy(alpha = 0.7f)
@@ -233,14 +235,14 @@ fun TrashScreen(
                     modifier = Modifier.size(48.dp)
                 )
             },
-            title = { Text("¿Vaciar papelera?", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.tr_empty_trash_q), fontWeight = FontWeight.Bold) },
             text = {
                 val songCount = trashedItems.size
                 val playlistCount = trashedPlaylists.size
                 val parts = mutableListOf<String>()
-                if (songCount > 0) parts.add("$songCount ${if (songCount == 1) "canción" else "canciones"}")
-                if (playlistCount > 0) parts.add("$playlistCount ${if (playlistCount == 1) "playlist" else "playlists"}")
-                Text("Se eliminarán permanentemente ${parts.joinToString(" y ")} del dispositivo. Las playlists solo pierden el contenedor, no las canciones. Esta acción no se puede deshacer.")
+                if (songCount > 0) parts.add(if (songCount == 1) stringResource(R.string.tr_song_one, songCount) else stringResource(R.string.tr_song_many, songCount))
+                if (playlistCount > 0) parts.add(if (playlistCount == 1) stringResource(R.string.tr_playlist_one, playlistCount) else stringResource(R.string.tr_playlist_many, playlistCount))
+                Text(stringResource(R.string.tr_empty_confirm_msg, parts.joinToString(stringResource(R.string.tr_and))))
             },
             confirmButton = {
                 Button(
@@ -279,12 +281,12 @@ fun TrashScreen(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Eliminar todo")
+                    Text(stringResource(R.string.tr_delete_all))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showClearAllDialog.value = false }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -303,9 +305,9 @@ fun TrashScreen(
                     modifier = Modifier.size(48.dp)
                 )
             },
-            title = { Text("¿Eliminar permanentemente?", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.tr_delete_perm_q), fontWeight = FontWeight.Bold) },
             text = {
-                Text("\"${songToDelete.song.title}\" se borrará del dispositivo. Esta acción no se puede deshacer.")
+                Text(stringResource(R.string.tr_delete_song_msg, songToDelete.song.title))
             },
             confirmButton = {
                 Button(
@@ -323,12 +325,12 @@ fun TrashScreen(
                         containerColor = MaterialTheme.colorScheme.error
                     )
                 ) {
-                    Text("Eliminar")
+                    Text(stringResource(R.string.tr_delete))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { songPendingPermanentDelete.value = null }) {
-                    Text("Cancelar")
+                    Text(stringResource(R.string.action_cancel))
                 }
             }
         )
@@ -394,7 +396,7 @@ fun TrashItemCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Seleccionado",
+                            contentDescription = stringResource(R.string.tr_selected),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -425,7 +427,7 @@ fun TrashItemCard(
                 Spacer(Modifier.height(2.dp))
 
                 Text(
-                    text = if (daysLeft > 1) "Se elimina en $daysLeft días" else "Se elimina hoy",
+                    text = if (daysLeft > 1) stringResource(R.string.tr_deletes_in_days, daysLeft) else stringResource(R.string.tr_deletes_today),
                     fontSize = 11.sp,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f) else (if (daysLeft <= 7) MaterialTheme.colorScheme.error else normalTextColor.copy(alpha = 0.7f)),
                     fontWeight = if (daysLeft <= 7) FontWeight.Bold else FontWeight.Normal
@@ -435,10 +437,10 @@ fun TrashItemCard(
             // Ocultamos los botones de acción si estamos en modo selección para evitar líos
             if (!isSelectionMode) {
                 IconButton(onClick = onRestore, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Filled.Restore, contentDescription = "Restaurar", tint = MaterialTheme.colorScheme.primary)
+                    Icon(Icons.Filled.Restore, contentDescription = stringResource(R.string.tr_restore), tint = MaterialTheme.colorScheme.primary)
                 }
                 IconButton(onClick = onDeletePermanent, modifier = Modifier.size(48.dp)) {
-                    Icon(Icons.Filled.DeleteForever, contentDescription = "Eliminar permanentemente", tint = MaterialTheme.colorScheme.error)
+                    Icon(Icons.Filled.DeleteForever, contentDescription = stringResource(R.string.tr_delete_perm), tint = MaterialTheme.colorScheme.error)
                 }
             }
         }
@@ -503,7 +505,7 @@ fun TrashedPlaylistCard(
                     color = normalTextColor
                 )
                 Text(
-                    text = "${trashedPlaylist.playlist.songIds.size} canciones (a salvo)",
+                    text = stringResource(R.string.tr_playlist_songs_safe, trashedPlaylist.playlist.songIds.size),
                     fontSize = 13.sp,
                     color = normalTextColor.copy(alpha = 0.7f),
                     maxLines = 1
@@ -512,7 +514,7 @@ fun TrashedPlaylistCard(
                 Spacer(Modifier.height(2.dp))
 
                 Text(
-                    text = if (daysLeft > 1) "Se elimina en $daysLeft días" else "Se elimina hoy",
+                    text = if (daysLeft > 1) stringResource(R.string.tr_deletes_in_days, daysLeft) else stringResource(R.string.tr_deletes_today),
                     fontSize = 11.sp,
                     color = if (daysLeft <= 7) MaterialTheme.colorScheme.error else normalTextColor.copy(alpha = 0.7f),
                     fontWeight = if (daysLeft <= 7) FontWeight.Bold else FontWeight.Normal
@@ -520,7 +522,7 @@ fun TrashedPlaylistCard(
             }
 
             IconButton(onClick = onRestore, modifier = Modifier.size(48.dp)) {
-                Icon(Icons.Filled.Restore, contentDescription = "Restaurar playlist", tint = MaterialTheme.colorScheme.primary)
+                Icon(Icons.Filled.Restore, contentDescription = stringResource(R.string.tr_restore_playlist), tint = MaterialTheme.colorScheme.primary)
             }
         }
     }
@@ -543,14 +545,14 @@ fun EmptyTrashView() {
         )
         Spacer(Modifier.height(16.dp))
         Text(
-            "Papelera vacía",
+            stringResource(R.string.tr_empty_title),
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = LocalAppTextColor.current
         )
         Spacer(Modifier.height(8.dp))
         Text(
-            "Las canciones y playlists eliminadas aparecerán aquí",
+            stringResource(R.string.tr_empty_hint),
             fontSize = 14.sp,
             textAlign = TextAlign.Center,
             modifier = Modifier.fillMaxWidth(0.8f),

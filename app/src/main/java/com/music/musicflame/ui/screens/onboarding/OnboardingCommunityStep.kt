@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.layout.*
@@ -34,14 +36,14 @@ fun OnboardingCommunityStep() {
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "¡Todo listo!",
+            stringResource(R.string.ob_cm_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = highEmphasis
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            "Si te gusta MusicFlame, te invito a seguir el proyecto:",
+            stringResource(R.string.ob_cm_hint),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = mediumEmphasis
@@ -52,7 +54,7 @@ fun OnboardingCommunityStep() {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ShimuroNaga/MusicFlame"))
             context.startActivity(intent)
         }) {
-            Text("Repositorio en GitHub")
+            Text(stringResource(R.string.ob_cm_github))
         }
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(onClick = {
@@ -60,7 +62,7 @@ fun OnboardingCommunityStep() {
             val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/gGZ4zCZvab"))
             context.startActivity(intent)
         }) {
-            Text("Únete al Discord")
+            Text(stringResource(R.string.ob_cm_discord))
         }
     }
 }

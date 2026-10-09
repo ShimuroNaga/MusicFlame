@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccountCircle
@@ -35,14 +37,14 @@ fun OnboardingAccountStep(
         )
         Spacer(modifier = Modifier.height(16.dp))
         Text(
-            "Cuenta de Google",
+            stringResource(R.string.ob_account_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.Bold,
             color = highEmphasis
         )
         Spacer(modifier = Modifier.height(8.dp))
         Text(
-            text = "Opcional — vincula tu cuenta para usar  Google Drive dentro de MusicFlame. Puedes hacerlo luego desde Ajustes si prefieres saltarlo ahora.",
+            text = stringResource(R.string.ob_account_hint),
             style = MaterialTheme.typography.bodyMedium,
             textAlign = TextAlign.Center,
             color = mediumEmphasis
@@ -50,7 +52,7 @@ fun OnboardingAccountStep(
         Spacer(modifier = Modifier.height(24.dp))
 
         if (isUserSignedIn) {
-            Text("Sesión iniciada como ${userName ?: "usuario"}", fontWeight = FontWeight.SemiBold, color = highEmphasis)
+            Text(stringResource(R.string.ob_signed_in_as, userName ?: stringResource(R.string.ob_user)), fontWeight = FontWeight.SemiBold, color = highEmphasis)
         } else {
             Button(
                 onClick = onSignInClick,
@@ -59,7 +61,7 @@ fun OnboardingAccountStep(
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
-                Text("Vincular cuenta de Google")
+                Text(stringResource(R.string.ob_account_link))
             }
         }
     }

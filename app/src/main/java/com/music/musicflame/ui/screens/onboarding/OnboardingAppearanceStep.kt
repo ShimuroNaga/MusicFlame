@@ -1,5 +1,6 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -126,20 +127,20 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
     ) {
         item {
             Text(
-                "Personaliza tu app",
+                stringResource(R.string.ob_ap_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = highEmphasis
             )
             Text(
-                "Podrás cambiar todo esto luego desde Ajustes.",
+                stringResource(R.string.ob_ap_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = mediumEmphasis,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
-        item { onboardingSectionHeader("Icono de la app") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_ap_icon)) }
         item {
             LazyRow(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -186,7 +187,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
             HorizontalDivider(color = dividerColor, modifier = Modifier.padding(top = 12.dp))
         }
 
-        item { onboardingSectionHeader("Tema") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_ap_theme)) }
         item {
             Column {
                 themeOptions.forEach { theme ->
@@ -212,7 +213,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Color de texto") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_ap_text_color)) }
         item {
             Column {
                 listOf("Adaptativo", "Personalizado").forEach { colorOption ->
@@ -269,7 +270,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                             customTextColorHex = it
                             settingsRepo.saveCustomTextColorHex(it)
                         },
-                        label = { Text("Hex (#RRGGBB) o RGBA (r,g,b,a)") },
+                        label = { Text(stringResource(R.string.ob_ap_hex)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp)
                     )
@@ -291,7 +292,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            "MusicFlame adaptará el color del texto (blanco o negro) según el color de fondo que elijas, para que siempre se pueda leer bien.",
+                            stringResource(R.string.ob_ap_adaptive),
                             color = mediumEmphasis,
                             style = MaterialTheme.typography.bodySmall
                         )
@@ -301,7 +302,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Forma de la carátula") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_ap_shape)) }
         item {
             // Reusa la Shape real (HexagonShape, SquircleShape, VinylOverlay, etc.)
             // de AlbumArt.kt — la misma que usa el reproductor de verdad, no una
@@ -394,7 +395,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                         ) {
                             Text("+", fontSize = 22.sp, fontWeight = FontWeight.Bold, color = trailingColor)
                         }
-                        Text("Crear diseño", fontSize = 12.sp, color = mediumEmphasis)
+                        Text(stringResource(R.string.ob_ap_create_design), fontSize = 12.sp, color = mediumEmphasis)
                     }
                 }
             }

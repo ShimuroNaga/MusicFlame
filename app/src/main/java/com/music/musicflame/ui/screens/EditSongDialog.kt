@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.Intent
 import android.net.Uri
 import android.widget.Toast
@@ -123,7 +125,7 @@ fun EditSongDialog(
 
     // Bug corregido: antes esta bandera no consideraba el "Subtítulo de
     // visualización" (displayTitleFormatted), así que escribir solo ahí
-    // dejaba el botón "Guardar" deshabilitado hasta tocar otro campo.
+    // dejaba el botón stringResource(R.string.action_save) deshabilitado hasta tocar otro campo.
     val displayTitleChanged = displayTitleFormatted != (existingCustomization?.displayTitleFormatted ?: "")
 
     val hasChanges = pickedCoverUri != null || resetCover ||
@@ -139,8 +141,8 @@ fun EditSongDialog(
         onDismissRequest = onDismiss,
         title = {
             Text(
-                if (isSingle) "Editar etiquetas y carátula"
-                else "Editar carátula (${selectedSongs.size} canciones)"
+                if (isSingle) stringResource(R.string.es_edit_tags_cover)
+                else stringResource(R.string.es_edit_cover_n, selectedSongs.size)
             )
         },
         text = {
@@ -156,7 +158,7 @@ fun EditSongDialog(
                     OutlinedButton(onClick = { pickCoverLauncher.launch("image/*") }) {
                         Icon(Icons.Filled.Image, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
-                        Text("Elegir imagen o GIF")
+                        Text(stringResource(R.string.es_pick_image))
                         // Nota: las imágenes estáticas (jpg/png/webp/etc.) ahora
                         // abren el recortador antes de aplicarse; los GIF se
                         // usan directo, sin recorte, para no perder la animación.
@@ -171,7 +173,7 @@ fun EditSongDialog(
                     }) {
                         Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                         Spacer(Modifier.width(4.dp))
-                        Text(if (isSingle) "Restablecer carátula original" else "Quitar carátula personalizada a todas")
+                        Text(if (isSingle) stringResource(R.string.es_reset_cover) else stringResource(R.string.es_remove_custom_cover_all))
                     }
                 }
 
@@ -181,7 +183,7 @@ fun EditSongDialog(
                     OutlinedTextField(
                         value = titleText,
                         onValueChange = { titleText = it; resetTitle = false },
-                        label = { Text("Nombre de la canción") },
+                        label = { Text(stringResource(R.string.es_song_name)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -192,7 +194,7 @@ fun EditSongDialog(
                         }) {
                             Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Restablecer nombre original")
+                            Text(stringResource(R.string.es_reset_name))
                         }
                     }
 
@@ -211,7 +213,7 @@ fun EditSongDialog(
                     OutlinedTextField(
                         value = artistText,
                         onValueChange = { artistText = it; resetArtist = false },
-                        label = { Text("Artista") },
+                        label = { Text(stringResource(R.string.es_artist)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -222,7 +224,7 @@ fun EditSongDialog(
                         }) {
                             Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Restablecer artista original")
+                            Text(stringResource(R.string.es_reset_artist))
                         }
                     }
 
@@ -232,7 +234,7 @@ fun EditSongDialog(
                     OutlinedTextField(
                         value = albumText,
                         onValueChange = { albumText = it; resetAlbum = false },
-                        label = { Text("Álbum") },
+                        label = { Text(stringResource(R.string.es_album)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
@@ -243,12 +245,12 @@ fun EditSongDialog(
                         }) {
                             Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
-                            Text("Restablecer álbum original")
+                            Text(stringResource(R.string.es_reset_album))
                         }
                     }
                 } else {
                     Text(
-                        text = "El nombre y el artista solo se pueden editar seleccionando una sola canción.",
+                        text = stringResource(R.string.es_single_only),
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp)
@@ -262,12 +264,12 @@ fun EditSongDialog(
                     OutlinedTextField(
                         value = albumText,
                         onValueChange = { albumText = it; resetAlbum = false },
-                        label = { Text("Álbum (para las ${selectedSongs.size} canciones)") },
+                        label = { Text(stringResource(R.string.es_album_n, selectedSongs.size)) },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth()
                     )
                     Text(
-                        text = "Si además eliges una carátula arriba, se usará esa misma para las ${selectedSongs.size} canciones y para representar el álbum.",
+                        text = stringResource(R.string.es_cover_all_hint, selectedSongs.size),
                         style = MaterialTheme.typography.bodySmall,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.padding(top = 4.dp)
@@ -320,7 +322,7 @@ fun EditSongDialog(
                             if (!wroteOk) {
                                 Toast.makeText(
                                     context,
-                                    "No se pudo guardar en el archivo real (¿formato soportado y permiso concedido?)",
+                                    context.getString(R.string.es_write_failed),
                                     Toast.LENGTH_LONG
                                 ).show()
                             }
@@ -384,16 +386,16 @@ fun EditSongDialog(
                                 if (!ok && RealTagWriter.isSupportedFile(s.path)) anyFailed = true
                             }
                             if (anyFailed) {
-                                Toast.makeText(context, "Algunas canciones no se pudieron actualizar en el archivo real", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, context.getString(R.string.es_some_failed), Toast.LENGTH_LONG).show()
                             }
                         }
                     }
                     onSaved(patches)
                 }
-            ) { Text("Guardar", fontWeight = FontWeight.Bold) }
+            ) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

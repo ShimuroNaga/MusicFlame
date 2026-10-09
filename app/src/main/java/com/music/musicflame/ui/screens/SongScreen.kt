@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
@@ -379,13 +381,13 @@ fun SongsScreen(
                                 } else if (searchQuery.isBlank()) {
                                     Text(
                                         // El texto cambia dependiendo de si el usuario vinculó su cuenta o no
-                                        text = if (isYoutubeLoggedIn) "Tus videos favoritos y búsqueda" else "Tendencias y búsqueda en YouTube",
+                                        text = if (isYoutubeLoggedIn) stringResource(R.string.sg_yt_logged) else stringResource(R.string.sg_yt_trends),
                                         color = normalTextColor,
                                         fontWeight = FontWeight.Medium
                                     )
                                 } else {
                                     Text(
-                                        text = "Buscando: \"$searchQuery\"...",
+                                        text = stringResource(R.string.sg_searching, searchQuery),
                                         color = normalTextColor,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 18.sp
@@ -490,7 +492,7 @@ fun SongsScreen(
                                 )
                                 Spacer(modifier = Modifier.height(16.dp))
                                 Text(
-                                    text = "¡Aún no tienes canciones, llena la app de sinfonía!",
+                                    text = stringResource(R.string.sg_empty),
                                     color = normalTextColor,
                                     fontWeight = FontWeight.Medium,
                                     textAlign = TextAlign.Center,
@@ -561,7 +563,7 @@ fun SongsScreen(
                                                 Spacer(Modifier.width(8.dp))
                                                 Icon(
                                                     imageVector = Icons.Filled.CloudDone,
-                                                    contentDescription = "Sincronizado con Drive",
+                                                    contentDescription = stringResource(R.string.sg_synced),
                                                     tint = MaterialTheme.colorScheme.primary,
                                                     modifier = Modifier.size(16.dp)
                                                 )
@@ -581,7 +583,7 @@ fun SongsScreen(
                                                 Spacer(Modifier.width(4.dp))
                                                 Icon(
                                                     imageVector = Icons.Filled.Subject,
-                                                    contentDescription = "Letra disponible",
+                                                    contentDescription = stringResource(R.string.sg_lyrics_available),
                                                     tint = (if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else rowTextColor).copy(alpha = 0.5f),
                                                     modifier = Modifier.size(13.dp)
                                                 )
@@ -593,7 +595,7 @@ fun SongsScreen(
                                     IconButton(onClick = { onToggleFavorite(song) }) {
                                         Icon(
                                             imageVector = if (favoriteIds.contains(song.id)) Icons.Filled.Favorite else Icons.Outlined.FavoriteBorder,
-                                            contentDescription = "Favorito",
+                                            contentDescription = stringResource(R.string.fp_favorite),
                                             tint = if (favoriteIds.contains(song.id)) Color(0xFFE91E63) else rowTextColor.copy(alpha = 0.5f)
                                         )
                                     }
@@ -625,7 +627,7 @@ fun SongsScreen(
                 ) {
                     MFIconButton(
                         icon = Icons.Filled.Checklist,
-                        contentDescription = "Seleccionar canciones",
+                        contentDescription = stringResource(R.string.sg_select_songs),
                         hasBackgroundImage = hasBackgroundImage,
                         onClick = onToggleSelectionModeButton
                     )
@@ -635,7 +637,7 @@ fun SongsScreen(
                         Box {
                             MFIconButton(
                                 icon = Icons.Filled.FilterList,
-                                contentDescription = "Filtrar",
+                                contentDescription = stringResource(R.string.sg_filter),
                                 hasBackgroundImage = hasBackgroundImage,
                                 onClick = { showFilterSheet = true }
                             )
@@ -663,12 +665,12 @@ fun SongsScreen(
                         Box {
                             MFIconButton(
                                 icon = Icons.Filled.Sort,
-                                contentDescription = "Ordenar",
+                                contentDescription = stringResource(R.string.sg_sort),
                                 hasBackgroundImage = hasBackgroundImage,
                                 onClick = { showSortMenu.value = true }
                             )
                             DropdownMenu(expanded = showSortMenu.value, onDismissRequest = { showSortMenu.value = false }) {
-                                listOf("Fecha creada" to SortType.DATE_CREATED, "A - Z" to SortType.A_Z, "Z - A" to SortType.Z_A).forEach { (label, type) -> DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = sortType.value == type, onClick = null); Spacer(Modifier.width(8.dp)); Text(label) } }, onClick = { sortType.value = type; showSortMenu.value = false }) }
+                                listOf(stringResource(R.string.sg_date_created) to SortType.DATE_CREATED, "A - Z" to SortType.A_Z, "Z - A" to SortType.Z_A).forEach { (label, type) -> DropdownMenuItem(text = { Row(verticalAlignment = Alignment.CenterVertically) { RadioButton(selected = sortType.value == type, onClick = null); Spacer(Modifier.width(8.dp)); Text(label) } }, onClick = { sortType.value = type; showSortMenu.value = false }) }
                             }
                         }
                     }
@@ -694,36 +696,36 @@ fun SongsScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Text("Filtros", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.sg_filters), fontSize = 18.sp, fontWeight = FontWeight.Bold)
                             if (activeFilterCount > 0) {
                                 TextButton(onClick = {
                                     filterArtist = null; filterAlbum = null; filterYear = null; filterGenre = null
-                                }) { Text("Limpiar") }
+                                }) { Text(stringResource(R.string.sg_clear)) }
                             }
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
 
                         FilterCategorySection(
-                            title = "Artista",
+                            title = stringResource(R.string.es_artist),
                             options = allArtists,
                             selected = filterArtist,
                             onSelect = { filterArtist = if (filterArtist == it) null else it }
                         )
                         FilterCategorySection(
-                            title = "Álbum",
+                            title = stringResource(R.string.es_album),
                             options = allAlbums,
                             selected = filterAlbum,
                             onSelect = { filterAlbum = if (filterAlbum == it) null else it }
                         )
                         FilterCategorySection(
-                            title = "Año",
+                            title = stringResource(R.string.sg_year),
                             options = allYears.map { it.toString() },
                             selected = filterYear?.toString(),
                             onSelect = { picked -> filterYear = if (filterYear?.toString() == picked) null else picked.toIntOrNull() }
                         )
                         FilterCategorySection(
-                            title = "Género",
+                            title = stringResource(R.string.sg_genre),
                             options = allGenres,
                             selected = filterGenre,
                             onSelect = { filterGenre = if (filterGenre == it) null else it }
@@ -731,7 +733,7 @@ fun SongsScreen(
 
                         if (allArtists.isEmpty() && allAlbums.isEmpty() && allYears.isEmpty() && allGenres.isEmpty()) {
                             Text(
-                                "No hay suficientes datos en tu biblioteca para filtrar todavía.",
+                                stringResource(R.string.sg_no_filter_data),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 fontSize = 13.sp
                             )

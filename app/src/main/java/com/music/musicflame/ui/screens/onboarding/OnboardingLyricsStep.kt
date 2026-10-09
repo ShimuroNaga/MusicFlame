@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.*
@@ -31,7 +33,7 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
         item {
             onboardingSectionHeader("Lyrics")
             Text(
-                "MusicFlame busca la letra automáticamente cuando abres el reproductor a pantalla completa. Para verla, desliza la pantalla (no la carátula) hacia la derecha con una canción sonando. Configúralo a tu gusto:",
+                stringResource(R.string.ob_ly_hint),
                 fontSize = 13.sp,
                 color = mediumEmphasis,
                 modifier = Modifier.padding(bottom = 16.dp)
@@ -43,7 +45,7 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        "Velocidad de animación: ${"%.1f".format(speed)}x",
+                        stringResource(R.string.settings_anim_speed, "%.1f".format(speed)),
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -61,13 +63,13 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
                         )
                     )
                     Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                        Text("Lenta", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
-                        Text("Rápida", fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                        Text(stringResource(R.string.ob_ly_slow), fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
+                        Text(stringResource(R.string.ob_ly_fast), fontSize = 11.sp, color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.7f))
                     }
 
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Tipo de animación",
+                        stringResource(R.string.ob_ly_anim_type),
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onTertiaryContainer
@@ -92,7 +94,7 @@ fun OnboardingLyricsStep(settingsRepo: SettingsRepository) {
 
                     Spacer(Modifier.height(16.dp))
                     Text(
-                        "Color del texto",
+                        stringResource(R.string.ob_ly_text_color),
                         fontWeight = FontWeight.Bold,
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onTertiaryContainer

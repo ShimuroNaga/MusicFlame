@@ -45,6 +45,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -211,14 +212,14 @@ class MainActivity : ComponentActivity() {
                         // cosméticos de pago al instante, sin reiniciar la app.
                         com.music.musicflame.data.ProStatusHolder.refresh(context)
                     } catch (e: Exception) {
-                        Toast.makeText(context, "Error al iniciar sesión", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, context.getString(R.string.main_login_error), Toast.LENGTH_SHORT).show()
                     }
                 }
 
                 val audioPermission = if (SDK_INT >= 33) Manifest.permission.READ_MEDIA_AUDIO else Manifest.permission.READ_EXTERNAL_STORAGE
 
                 val permissionLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { isGranted ->
-                    if (!isGranted) Toast.makeText(context, "Se requiere permiso para leer tu música", Toast.LENGTH_LONG).show()
+                    if (!isGranted) Toast.makeText(context, context.getString(R.string.main_permission_needed), Toast.LENGTH_LONG).show()
                 }
 
                 LaunchedEffect(Unit) {
@@ -280,10 +281,10 @@ class MainActivity : ComponentActivity() {
                                                 latestReleaseUrl = downloadUrl
                                                 showUpdateDialog = true
                                             } else if (isManualCheck) {
-                                                Toast.makeText(context, "Ya tienes la última versión", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.main_latest_version), Toast.LENGTH_SHORT).show()
                                             }
                                         } else if (isManualCheck) {
-                                            Toast.makeText(context, "Estás al día", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, context.getString(R.string.main_up_to_date), Toast.LENGTH_SHORT).show()
                                         }
                                     }
                                 }
@@ -292,7 +293,7 @@ class MainActivity : ComponentActivity() {
                             e.printStackTrace()
                             if (isManualCheck) {
                                 withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, "Error de red al buscar actualizaciones", Toast.LENGTH_SHORT).show()
+                                    Toast.makeText(context, context.getString(R.string.main_update_network_error), Toast.LENGTH_SHORT).show()
                                 }
                             }
                         }
@@ -353,7 +354,7 @@ class MainActivity : ComponentActivity() {
                 var selectedGenre by remember { mutableStateOf<com.music.musicflame.data.Genre?>(null) }
                 var showSettings by remember { mutableStateOf(false) }
                 var showTogether by remember { mutableStateOf(false) }
-                // Enlace musicflame://sala/CODIGO -> abre la pantalla "En compañía"
+                // Enlace musicflame://sala/CODIGO -> abre la pantalla stringResource(R.string.main_together)
                 LaunchedEffect(togetherManager.pendingDeepLinkCode) {
                     if (togetherManager.pendingDeepLinkCode != null) { showSettings = false; showTogether = true }
                 }
@@ -488,7 +489,7 @@ class MainActivity : ComponentActivity() {
                 }
 
                 CompositionLocalProvider(LocalUseRoundCorners provides useRoundCornersState.value, LocalAlbumArtShape provides albumArtShapeState.value, LocalCustomCoverDesign provides customCoverDesignState.value, LocalAlbumGridColumns provides albumGridColumnsState.value) {
-                    // El gesto/botón "atrás" del sistema también cierra "En compañía"
+                    // El gesto/botón "atrás" del sistema también cierra stringResource(R.string.main_together)
                     // (la sala sigue activa en segundo plano; solo se cierra la pantalla).
                     BackHandler(enabled = showTogether && !showFullScreenPlayer && !isAnySelectionMode) {
                         showTogether = false
@@ -509,9 +510,9 @@ class MainActivity : ComponentActivity() {
 
                         if (hasBackgroundImage) {
                             if (playerGifUri.value != null) {
-                                AsyncImage(model = ImageRequest.Builder(context).data(playerGifUri.value).decoderFactory(if (SDK_INT >= 28) ImageDecoderDecoder.Factory() else GifDecoder.Factory()).build(), contentDescription = "Fondo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                AsyncImage(model = ImageRequest.Builder(context).data(playerGifUri.value).decoderFactory(if (SDK_INT >= 28) ImageDecoderDecoder.Factory() else GifDecoder.Factory()).build(), contentDescription = stringResource(R.string.main_background), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             } else {
-                                AsyncImage(model = backgroundImageUri.value, contentDescription = "Fondo", modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                AsyncImage(model = backgroundImageUri.value, contentDescription = stringResource(R.string.main_background), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
                             }
 
                             val brightness = bgBrightness.floatValue
@@ -545,14 +546,14 @@ class MainActivity : ComponentActivity() {
                                     TopAppBar(
                                         title = { Text("${selectedSongs.size} / $totalSongsOnDevice", fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
-                                            IconButton(onClick = { selectedSongs.clear(); manualSongSelectionMode = false }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
+                                            IconButton(onClick = { selectedSongs.clear(); manualSongSelectionMode = false }) { Icon(Icons.Filled.Close, stringResource(R.string.main_cancel_selection)) }
                                         },
                                         actions = {
-                                            IconButton(onClick = { showSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, "Opciones") }
+                                            IconButton(onClick = { showSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, stringResource(R.string.main_options)) }
 
                                             DropdownMenu(expanded = showSelectionMenu, onDismissRequest = { showSelectionMenu = false }) {
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Seleccionar todos") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_select_all)) } },
                                                     onClick = {
                                                         showSelectionMenu = false
                                                         val trashedIds = trashRepo.getTrash().map { it.song.id }
@@ -562,21 +563,21 @@ class MainActivity : ComponentActivity() {
                                                     }
                                                 )
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Añadir a playlist") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_add_to_playlist)) } },
                                                     onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }
                                                 )
                                                 // --- COMPARTIR FRAGMENTO (carátula + audio horneados en un mp4, para
                                                 // cualquier app vía el selector genérico de Android) ---
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Share, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Compartir fragmento") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Share, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_share_clip)) } },
                                                     onClick = {
                                                         showSelectionMenu = false
                                                         if (selectedSongs.size != 1) {
-                                                            Toast.makeText(context, "Selecciona solo una canción para compartir", Toast.LENGTH_SHORT).show()
+                                                            Toast.makeText(context, context.getString(R.string.main_share_one_only), Toast.LENGTH_SHORT).show()
                                                         } else {
                                                             val songToShare = selectedSongs.first()
                                                             selectedSongs.clear(); manualSongSelectionMode = false
-                                                            Toast.makeText(context, "Generando video para compartir…", Toast.LENGTH_SHORT).show()
+                                                            Toast.makeText(context, context.getString(R.string.main_generating_video), Toast.LENGTH_SHORT).show()
                                                             coroutineScope.launch(Dispatchers.IO) {
                                                                 val clipFile = com.music.musicflame.audio.MusicClipVideoGenerator.generate(context, songToShare.path)
                                                                 withContext(Dispatchers.Main) {
@@ -589,9 +590,9 @@ class MainActivity : ComponentActivity() {
                                                                             putExtra(android.content.Intent.EXTRA_STREAM, clipUri)
                                                                             addFlags(android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                                                                         }
-                                                                        context.startActivity(android.content.Intent.createChooser(shareIntent, "Compartir canción"))
+                                                                        context.startActivity(android.content.Intent.createChooser(shareIntent, context.getString(R.string.main_share_song)))
                                                                     } else {
-                                                                        Toast.makeText(context, "No se pudo generar el video para compartir", Toast.LENGTH_SHORT).show()
+                                                                        Toast.makeText(context, context.getString(R.string.main_video_failed), Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
                                                             }
@@ -610,7 +611,7 @@ class MainActivity : ComponentActivity() {
                                                                     tint = Color(0xFFE91E63)
                                                                 )
                                                                 Spacer(Modifier.width(8.dp))
-                                                                Text(if (allSelectedAreFavorites) "Quitar de favoritos" else "Añadir a favoritos")
+                                                                Text(if (allSelectedAreFavorites) stringResource(R.string.main_remove_favorites) else stringResource(R.string.main_add_favorites))
                                                             }
                                                         },
                                                         onClick = {
@@ -624,7 +625,7 @@ class MainActivity : ComponentActivity() {
                                                             val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
                                                             intent.setPackage(packageName)
                                                             sendBroadcast(intent)
-                                                            Toast.makeText(context, if (allSelectedAreFavorites) "${selectedSongs.size} quitadas de Favoritos" else "${selectedSongs.size} añadidas a Favoritos", Toast.LENGTH_SHORT).show()
+                                                            Toast.makeText(context, if (allSelectedAreFavorites) context.getString(R.string.main_n_removed_favorites, selectedSongs.size) else context.getString(R.string.main_n_added_favorites, selectedSongs.size), Toast.LENGTH_SHORT).show()
                                                             selectedSongs.clear(); manualSongSelectionMode = false
                                                         }
                                                     )
@@ -635,7 +636,7 @@ class MainActivity : ComponentActivity() {
                                                         Row(verticalAlignment = Alignment.CenterVertically) {
                                                             Icon(Icons.Filled.CloudUpload, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                                                             Spacer(Modifier.width(8.dp))
-                                                            Text("Subir a Google Drive")
+                                                            Text(stringResource(R.string.main_upload_drive))
                                                         }
                                                     },
                                                     onClick = {
@@ -644,7 +645,7 @@ class MainActivity : ComponentActivity() {
 
                                                         if (account != null && isDriveLinked) {
                                                             coroutineScope.launch {
-                                                                Toast.makeText(context, "Subiendo ${selectedSongs.size} canciones a la nube...", Toast.LENGTH_SHORT).show()
+                                                                Toast.makeText(context, context.getString(R.string.main_uploading_n, selectedSongs.size), Toast.LENGTH_SHORT).show()
 
                                                                 val driveRepo = DriveRepository(context)
                                                                 val folderId = driveRepo.getOrCreateAppFolder(account)
@@ -657,20 +658,20 @@ class MainActivity : ComponentActivity() {
                                                                     }
 
                                                                     withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, "$successCount de ${selectedSongs.size} canciones subidas con éxito", Toast.LENGTH_LONG).show()
+                                                                        Toast.makeText(context, context.getString(R.string.main_uploaded_n_of_m, successCount, selectedSongs.size), Toast.LENGTH_LONG).show()
                                                                         // Actualizamos la lista visual instantáneamente
                                                                         val files = driveRepo.getSongsFromFolder(account, folderId)
                                                                         syncedFileNames = files.map { it.name }.toSet()
                                                                     }
                                                                 } else {
                                                                     withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, "Error al acceder a la carpeta de Drive", Toast.LENGTH_SHORT).show()
+                                                                        Toast.makeText(context, context.getString(R.string.main_drive_folder_error), Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
                                                                 selectedSongs.clear(); manualSongSelectionMode = false
                                                             }
                                                         } else {
-                                                            Toast.makeText(context, "Por favor, vincula Google Drive en Configuración primero", Toast.LENGTH_LONG).show()
+                                                            Toast.makeText(context, context.getString(R.string.main_link_drive_first), Toast.LENGTH_LONG).show()
                                                         }
                                                     }
                                                 )
@@ -681,7 +682,7 @@ class MainActivity : ComponentActivity() {
                                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                                 Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
                                                                 Spacer(Modifier.width(8.dp))
-                                                                Text(if (selectedSongs.size == 1) "Editar carátula y nombre" else "Editar carátula de todas")
+                                                                Text(if (selectedSongs.size == 1) stringResource(R.string.main_edit_cover_name) else stringResource(R.string.main_edit_cover_all))
                                                             }
                                                         },
                                                         onClick = {
@@ -691,7 +692,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text("Mover a papelera") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_move_to_trash)) } },
                                                     onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }
                                                 )
                                             }
@@ -700,16 +701,16 @@ class MainActivity : ComponentActivity() {
                                     )
                                 } else if (isPlaylistSelectionMode) {
                                     TopAppBar(
-                                        title = { Text("${selectedPlaylists.size} seleccionadas", fontWeight = FontWeight.Bold) },
+                                        title = { Text(stringResource(R.string.main_n_selected, selectedPlaylists.size), fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
-                                            IconButton(onClick = { selectedPlaylists.clear(); manualPlaylistSelectionMode = false }) { Icon(Icons.Filled.Close, "Cancelar Selección") }
+                                            IconButton(onClick = { selectedPlaylists.clear(); manualPlaylistSelectionMode = false }) { Icon(Icons.Filled.Close, stringResource(R.string.main_cancel_selection)) }
                                         },
                                         actions = {
-                                            IconButton(onClick = { showPlaylistSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, "Opciones") }
+                                            IconButton(onClick = { showPlaylistSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, stringResource(R.string.main_options)) }
 
                                             DropdownMenu(expanded = showPlaylistSelectionMenu, onDismissRequest = { showPlaylistSelectionMenu = false }) {
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Seleccionar todos") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_select_all)) } },
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         val favoritesPlaylist = Playlist("favorites", "Favoritos", favoriteIds.toList())
@@ -724,7 +725,7 @@ class MainActivity : ComponentActivity() {
                                                     selectedPlaylists.first().id != SmartPlaylistIds.NEVER_PLAYED
                                                 ) {
                                                     DropdownMenuItem(
-                                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text("Renombrar") } },
+                                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_rename)) } },
                                                         onClick = {
                                                             showPlaylistSelectionMenu = false
                                                             renamePlaylistText = selectedPlaylists.first().name
@@ -733,7 +734,7 @@ class MainActivity : ComponentActivity() {
                                                     )
                                                 }
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Download, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary); Spacer(Modifier.width(8.dp)); Text("Exportar a M3U") } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Download, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_export_m3u)) } },
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         var successCount = 0
@@ -746,12 +747,12 @@ class MainActivity : ComponentActivity() {
                                                             }
                                                             if (playlistRepo.exportToM3U(context, exportable)) successCount++
                                                         }
-                                                        Toast.makeText(context, "$successCount de ${selectedPlaylists.size} exportadas a Descargas", Toast.LENGTH_SHORT).show()
+                                                        Toast.makeText(context, context.getString(R.string.main_n_of_m_exported, successCount, selectedPlaylists.size), Toast.LENGTH_SHORT).show()
                                                         selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                     }
                                                 )
                                                 DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text("Mover a papelera", color = MaterialTheme.colorScheme.error) } },
+                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_move_to_trash), color = MaterialTheme.colorScheme.error) } },
                                                     onClick = { showPlaylistSelectionMenu = false; showDeletePlaylistsDialog = true }
                                                 )
                                             }
@@ -777,7 +778,7 @@ class MainActivity : ComponentActivity() {
                                                             ) {
                                                                 Icon(
                                                                     imageVector = if (searchMode == SearchMode.LOCAL) Icons.Filled.PhoneAndroid else Icons.Filled.OndemandVideo,
-                                                                    contentDescription = "Modo de búsqueda",
+                                                                    contentDescription = stringResource(R.string.main_search_mode),
                                                                     modifier = Modifier.size(20.dp),
                                                                     tint = if (hasBackgroundImage) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.primary
                                                                 )
@@ -793,7 +794,7 @@ class MainActivity : ComponentActivity() {
                                                                 onDismissRequest = { showSearchModeMenu = false }
                                                             ) {
                                                                 DropdownMenuItem(
-                                                                    text = { Text("Dispositivo Local") },
+                                                                    text = { Text(stringResource(R.string.main_local_device)) },
                                                                     leadingIcon = { Icon(Icons.Filled.PhoneAndroid, contentDescription = null) },
                                                                     onClick = {
                                                                         searchMode = SearchMode.LOCAL
@@ -813,21 +814,21 @@ class MainActivity : ComponentActivity() {
 
                                                         Box(modifier = Modifier.weight(1f).padding(horizontal = 8.dp), contentAlignment = Alignment.CenterStart) {
                                                             if (searchQuery.isEmpty()) {
-                                                                val hintText = if (searchMode == SearchMode.LOCAL) "Buscar en dispositivo..." else "Buscar en YouTube..."
+                                                                val hintText = if (searchMode == SearchMode.LOCAL) stringResource(R.string.main_search_device_hint) else stringResource(R.string.main_search_youtube_hint)
                                                                 Text(hintText, fontSize = 14.sp, color = LocalAppTextColor.current.copy(alpha = 0.5f))
                                                             }
                                                             BasicTextField(value = searchQuery, onValueChange = { searchQuery = it }, singleLine = true, textStyle = TextStyle(fontSize = 15.sp, color = LocalAppTextColor.current), cursorBrush = SolidColor(if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.primary), keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search), modifier = Modifier.fillMaxWidth())
                                                         }
 
-                                                        IconButton(onClick = { if (searchQuery.isNotEmpty()) searchQuery = "" else isSearchActive = false }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, "Cerrar", modifier = Modifier.size(18.dp), tint = if (hasBackgroundImage) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant) }
+                                                        IconButton(onClick = { if (searchQuery.isNotEmpty()) searchQuery = "" else isSearchActive = false }, modifier = Modifier.size(28.dp)) { Icon(Icons.Filled.Close, stringResource(R.string.main_close), modifier = Modifier.size(18.dp), tint = if (hasBackgroundImage) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant) }
                                                     }
                                                 }
 
                                                 AnimatedVisibility(visible = !isSearchActive, enter = fadeIn(), exit = fadeOut()) {
                                                     Text(
                                                         text = when {
-                                                            showTogether -> "En compañía"
-                                                            showSettings -> "Configuración"
+                                                            showTogether -> stringResource(R.string.main_together)
+                                                            showSettings -> stringResource(R.string.main_settings)
                                                             selectedPlaylist != null -> selectedPlaylist!!.name
                                                             selectedAlbum != null -> selectedAlbum!!.name
                                                             selectedArtist != null -> selectedArtist!!.name
@@ -841,17 +842,17 @@ class MainActivity : ComponentActivity() {
                                             }
                                         },
                                         navigationIcon = {
-                                            if (selectedPlaylist != null || selectedAlbum != null || selectedArtist != null || selectedGenre != null || showSettings || showTogether) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; selectedArtist = null; selectedGenre = null; showSettings = false; showTogether = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Atrás") }
+                                            if (selectedPlaylist != null || selectedAlbum != null || selectedArtist != null || selectedGenre != null || showSettings || showTogether) IconButton(onClick = { selectedPlaylist = null; selectedAlbum = null; selectedArtist = null; selectedGenre = null; showSettings = false; showTogether = false }) { Icon(Icons.AutoMirrored.Filled.ArrowBack, stringResource(R.string.main_back)) }
                                         },
                                         actions = {
                                             if (selectedPlaylist == null && selectedAlbum == null && selectedArtist == null && selectedGenre == null && !showSettings && !showTogether && !isSearchActive) {
                                                 IconButton(onClick = {
                                                     isSearchActive = true
                                                     youtubeVideoId = null
-                                                }) { Icon(Icons.Filled.Search, "Buscar") }
+                                                }) { Icon(Icons.Filled.Search, stringResource(R.string.main_search)) }
 
-                                                IconButton(onClick = { showTogether = true }) { Icon(Icons.Filled.Groups, "En compañía") }
-                                                IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, "Configuración") }
+                                                IconButton(onClick = { showTogether = true }) { Icon(Icons.Filled.Groups, stringResource(R.string.main_together)) }
+                                                IconButton(onClick = { showSettings = true }) { Icon(Icons.Filled.Settings, stringResource(R.string.main_settings)) }
                                             }
                                             if (selectedPlaylist != null) {
                                                 IconButton(onClick = {
@@ -863,26 +864,26 @@ class MainActivity : ComponentActivity() {
                                                         PlaylistKind.REGULAR -> playlist
                                                     }
                                                     val success = playlistRepo.exportToM3U(context, exportable)
-                                                    Toast.makeText(context, if (success) "Playlist exportada a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
-                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                                    Toast.makeText(context, if (success) context.getString(R.string.main_playlist_exported) else context.getString(R.string.main_export_error), Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, stringResource(R.string.main_export_m3u)) }
                                             }
                                             if (selectedAlbum != null) {
                                                 IconButton(onClick = {
                                                     val ok = exportAlbumToM3U(context, selectedAlbum!!.name, selectedAlbum!!.songs)
-                                                    Toast.makeText(context, if (ok) "Álbum exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
-                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                                    Toast.makeText(context, if (ok) context.getString(R.string.main_album_exported) else context.getString(R.string.main_export_error), Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, stringResource(R.string.main_export_m3u)) }
                                             }
                                             if (selectedArtist != null) {
                                                 IconButton(onClick = {
                                                     val ok = exportSongsToM3U(context, selectedArtist!!.name, selectedArtist!!.songs)
-                                                    Toast.makeText(context, if (ok) "Artista exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
-                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                                    Toast.makeText(context, if (ok) context.getString(R.string.main_artist_exported) else context.getString(R.string.main_export_error), Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, stringResource(R.string.main_export_m3u)) }
                                             }
                                             if (selectedGenre != null) {
                                                 IconButton(onClick = {
                                                     val ok = exportSongsToM3U(context, selectedGenre!!.name, selectedGenre!!.songs)
-                                                    Toast.makeText(context, if (ok) "Género exportado a Descargas" else "Error al exportar", Toast.LENGTH_SHORT).show()
-                                                }) { Icon(Icons.Filled.Download, "Exportar a M3U") }
+                                                    Toast.makeText(context, if (ok) context.getString(R.string.main_genre_exported) else context.getString(R.string.main_export_error), Toast.LENGTH_SHORT).show()
+                                                }) { Icon(Icons.Filled.Download, stringResource(R.string.main_export_m3u)) }
                                             }
                                         },
                                         colors = TopAppBarDefaults.centerAlignedTopAppBarColors(
@@ -980,8 +981,8 @@ class MainActivity : ComponentActivity() {
                                                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                     coroutineScope.launch { pagerState.animateScrollToPage(index) }
                                                 },
-                                                icon = { Icon(screen.icon, screen.label) },
-                                                label = { Text(screen.label) }
+                                                icon = { Icon(screen.icon, stringResource(screen.labelRes)) },
+                                                label = { Text(stringResource(screen.labelRes)) }
                                             )
                                         }
                                     }
@@ -1041,7 +1042,7 @@ class MainActivity : ComponentActivity() {
                                     isDriveLinked = isDriveLinked,
                                     onLinkDriveClick = {
                                         if (isDriveLinked) {
-                                            Toast.makeText(context, "Google Drive ya está vinculado con MusicFlame", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, context.getString(R.string.main_drive_already_linked), Toast.LENGTH_SHORT).show()
                                         } else {
                                             signInLauncher.launch(googleSignInClient.signInIntent)
                                         }
@@ -1120,7 +1121,7 @@ class MainActivity : ComponentActivity() {
                                                         onClick = { youtubeVideoId = null },
                                                         modifier = Modifier.align(Alignment.TopEnd).padding(16.dp)
                                                     ) {
-                                                        Icon(Icons.Filled.Close, "Cerrar", tint = Color.White)
+                                                        Icon(Icons.Filled.Close, stringResource(R.string.main_close), tint = Color.White)
                                                     }
                                                 }
                                             }
@@ -1183,7 +1184,7 @@ class MainActivity : ComponentActivity() {
                                 val playlists = playlistRepo.getPlaylists()
                                 AlertDialog(
                                     onDismissRequest = { showMultiPlaylistDialog = false },
-                                    title = { Text("Añadir a playlist", fontWeight = FontWeight.Bold) },
+                                    title = { Text(stringResource(R.string.main_add_to_playlist), fontWeight = FontWeight.Bold) },
                                     text = {
                                         Column(modifier = Modifier.fillMaxWidth()) {
                                             Row(
@@ -1349,7 +1350,7 @@ class MainActivity : ComponentActivity() {
                                 }
                                 AlertDialog(
                                     onDismissRequest = { showDeletePlaylistsDialog = false },
-                                    title = { Text("Mover a papelera", fontWeight = FontWeight.Bold) },
+                                    title = { Text(stringResource(R.string.main_move_to_trash), fontWeight = FontWeight.Bold) },
                                     text = {
                                         if (deletablePlaylists.isEmpty()) {
                                             Text("Favoritos y las playlists inteligentes (Lo Más Sonado, Por Descubrir) no se pueden mover a la papelera.")
@@ -1369,7 +1370,7 @@ class MainActivity : ComponentActivity() {
                                                 showDeletePlaylistsDialog = false
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
-                                        ) { Text("Mover a papelera") }
+                                        ) { Text(stringResource(R.string.main_move_to_trash)) }
                                     },
                                     dismissButton = { TextButton(onClick = { showDeletePlaylistsDialog = false }) { Text("Cancelar") } }
                                 )

@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.app.Activity
 import android.content.Context
@@ -113,30 +115,30 @@ fun OnboardingPermissionsStep() {
     ) {
         item {
             Text(
-                "Permisos necesarios",
+                stringResource(R.string.ob_pm_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = LocalAppTextColor.current
             )
             Text(
-                "MusicFlame los necesita para funcionar correctamente. Puedes cambiarlos luego desde Ajustes.",
+                stringResource(R.string.ob_pm_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = LocalAppTextColor.current.copy(alpha = 0.7f),
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
-        item { onboardingSectionHeader("Música") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_pm_music)) }
         item {
             ListItem(
-                headlineContent = { Text("Acceder a tu música") },
-                supportingContent = { Text("Para mostrar y reproducir las canciones de tu dispositivo") },
+                headlineContent = { Text(stringResource(R.string.ob_pm_music_title)) },
+                supportingContent = { Text(stringResource(R.string.ob_pm_music_desc)) },
                 trailingContent = {
                     if (audioGranted) {
-                        Text("Concedido", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                        Text(stringResource(R.string.ob_pm_granted), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                     } else {
                         TextButton(onClick = { audioLauncher.launch(audioPermission) }) {
-                            Text("Activar", fontWeight = FontWeight.ExtraBold)
+                            Text(stringResource(R.string.ob_pm_enable), fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 },
@@ -145,20 +147,20 @@ fun OnboardingPermissionsStep() {
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Notificaciones") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_pm_notif)) }
         item {
             ListItem(
-                headlineContent = { Text("Mostrar el reproductor") },
+                headlineContent = { Text(stringResource(R.string.ob_pm_notif_title)) },
                 supportingContent = {
                     Text(
                         if (notificationPermanentlyDenied)
-                            "Bloqueado por Android — actívalo desde Ajustes"
-                        else "Para controlar la música desde la barra de notificaciones"
+                            stringResource(R.string.ob_pm_notif_blocked)
+                        else stringResource(R.string.ob_pm_notif_desc)
                     )
                 },
                 trailingContent = {
                     if (notificationsGranted) {
-                        Text("Concedido", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                        Text(stringResource(R.string.ob_pm_granted), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                     } else {
                         TextButton(onClick = {
                             if (SDK_INT < 33) return@TextButton
@@ -174,7 +176,7 @@ fun OnboardingPermissionsStep() {
                                 notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
                         }) {
-                            Text(if (notificationPermanentlyDenied) "Abrir Ajustes" else "Activar", fontWeight = FontWeight.ExtraBold)
+                            Text(if (notificationPermanentlyDenied) stringResource(R.string.ob_pm_open_settings) else stringResource(R.string.ob_pm_enable), fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 },
@@ -183,16 +185,16 @@ fun OnboardingPermissionsStep() {
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Optimización de batería") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_pm_battery)) }
         item {
             ListItem(
-                headlineContent = { Text("Reproducción continua") },
+                headlineContent = { Text(stringResource(R.string.ob_pm_battery_title)) },
                 supportingContent = {
                     Text(
                         text = if (isIgnoringBattery)
-                            "Optimizado para música continua (Recomendado)"
+                            stringResource(R.string.ob_pm_battery_ok)
                         else
-                            "Restringido — Android podría pausar la música al apagar la pantalla",
+                            stringResource(R.string.ob_pm_battery_bad),
                         color = if (isIgnoringBattery) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                     )
                 },
@@ -216,22 +218,22 @@ fun OnboardingPermissionsStep() {
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Ecualizador gráfico") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_pm_eq)) }
         item {
             ListItem(
-                headlineContent = { Text("Visualizador de audio") },
+                headlineContent = { Text(stringResource(R.string.fp_viz_title)) },
                 supportingContent = {
                     Text(
-                        if (recordAudioGranted) "Concedido — las barras del ecualizador se animan con la música"
-                        else "Android exige este permiso para leer el sonido y dibujar las barras, aunque MusicFlame no graba nada"
+                        if (recordAudioGranted) stringResource(R.string.ob_pm_viz_ok)
+                        else stringResource(R.string.ob_pm_viz_why)
                     )
                 },
                 trailingContent = {
                     if (recordAudioGranted) {
-                        Text("Concedido", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
+                        Text(stringResource(R.string.ob_pm_granted), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.ExtraBold)
                     } else {
                         TextButton(onClick = { showVisualizerExplanationDialog = true }) {
-                            Text("Activar", fontWeight = FontWeight.ExtraBold)
+                            Text(stringResource(R.string.ob_pm_enable), fontWeight = FontWeight.ExtraBold)
                         }
                     }
                 },
@@ -248,13 +250,10 @@ fun OnboardingPermissionsStep() {
     if (showVisualizerExplanationDialog) {
         AlertDialog(
             onDismissRequest = { showVisualizerExplanationDialog = false },
-            title = { Text("Visualizador de audio") },
+            title = { Text(stringResource(R.string.fp_viz_title)) },
             text = {
                 Text(
-                    "Para animar las barras con el ritmo de tu música, Android exige el " +
-                        "permiso de \"grabar audio\", aunque MusicFlame no graba ni guarda nada. " +
-                        "Solo se usa para leer el sonido que ya está sonando y dibujar el " +
-                        "ecualizador en tiempo real."
+                    stringResource(R.string.fp_viz_msg)
                 )
             },
             confirmButton = {
@@ -263,14 +262,14 @@ fun OnboardingPermissionsStep() {
                     context.getSharedPreferences("settings", Context.MODE_PRIVATE)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
                     recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }) { Text("Permitir") }
+                }) { Text(stringResource(R.string.fp_allow)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showVisualizerExplanationDialog = false
                     context.getSharedPreferences("settings", Context.MODE_PRIVATE)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
-                }) { Text("Ahora no") }
+                }) { Text(stringResource(R.string.fp_not_now)) }
             }
         )
     }

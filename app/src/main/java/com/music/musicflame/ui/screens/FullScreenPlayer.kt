@@ -1,5 +1,6 @@
 package com.music.musicflame.ui.screens
 
+import androidx.compose.ui.res.stringResource
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
@@ -188,13 +189,10 @@ fun FullScreenPlayer(
     if (showVisualizerPermissionDialog) {
         AlertDialog(
             onDismissRequest = { showVisualizerPermissionDialog = false },
-            title = { Text("Visualizador de audio") },
+            title = { Text(stringResource(R.string.fp_viz_title)) },
             text = {
                 Text(
-                    "Para animar las barras con el ritmo de tu música, Android exige el " +
-                            "permiso de \"grabar audio\", aunque MusicFlame no graba ni guarda nada. " +
-                            "Solo se usa para leer el sonido que ya está sonando y dibujar el " +
-                            "ecualizador en tiempo real."
+                    stringResource(R.string.fp_viz_msg)
                 )
             },
             confirmButton = {
@@ -203,14 +201,14 @@ fun FullScreenPlayer(
                     context.getSharedPreferences("settings", Context.MODE_PRIVATE)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
                     recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }) { Text("Permitir") }
+                }) { Text(stringResource(R.string.fp_allow)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showVisualizerPermissionDialog = false
                     context.getSharedPreferences("settings", Context.MODE_PRIVATE)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
-                }) { Text("Ahora no") }
+                }) { Text(stringResource(R.string.fp_not_now)) }
             }
         )
     }
@@ -299,20 +297,20 @@ fun FullScreenPlayer(
     fun saveMoment(startMs: Long, endMs: Long) {
         if (momentsRepo.addMoment(song.path, startMs, endMs) != null) {
             moments = momentsRepo.getMoments(song.path)
-            toast("Momento guardado")
+            toast(context.getString(R.string.fp_moment_saved))
         } else {
-            toast("Muy corto: mínimo ${MomentsRepository.MIN_DURATION_MS / 1000} s")
+            toast(context.getString(R.string.fp_too_short, MomentsRepository.MIN_DURATION_MS / 1000))
         }
     }
 
     // Un toque: marca inicio; segundo toque: marca fin y guarda.
     fun onMomentTap() {
-        if (highlightsActive) { toast("Sal de Highlights para marcar momentos"); return }
+        if (highlightsActive) { toast(context.getString(R.string.fp_exit_highlights)); return }
         val pos = currentPositionMsState.longValue
         val start = markStartMs
         if (start == null) {
             markStartMs = pos
-            toast("Inicio marcado. Toca otra vez donde termina")
+            toast(context.getString(R.string.fp_start_marked))
         } else {
             markStartMs = null
             saveMoment(start, pos)
@@ -321,7 +319,7 @@ fun FullScreenPlayer(
 
     // Mantener presionado: guarda los últimos 15 s (para cuando el coro ya pasó).
     fun onMomentLongPress() {
-        if (highlightsActive) { toast("Sal de Highlights para marcar momentos"); return }
+        if (highlightsActive) { toast(context.getString(R.string.fp_exit_highlights)); return }
         val pos = currentPositionMsState.longValue
         markStartMs = null
         saveMoment((pos - MomentsRepository.QUICK_DURATION_MS).coerceAtLeast(0L), pos)
@@ -344,7 +342,7 @@ fun FullScreenPlayer(
         if (highlightsActive) {
             // Salir: sigue con esas mismas canciones completas.
             playerManager.playSong(song, effectiveSongList)
-            toast("Highlights desactivado")
+            toast(context.getString(R.string.fp_highlights_off))
             return
         }
         val all = momentsRepo.getAll()
@@ -353,7 +351,7 @@ fun FullScreenPlayer(
             s.id !in trashedIds && all[s.path].orEmpty().isNotEmpty()
         }
         if (candidates.isEmpty()) {
-            toast("Aún no tienes momentos. Marca uno en cualquier canción")
+            toast(context.getString(R.string.fp_no_moments_toast))
             return
         }
         val shuffled = candidates.shuffled()
@@ -363,7 +361,7 @@ fun FullScreenPlayer(
         }
         onSongListChange(shuffled)
         playerManager.playHighlights(shuffled, clips)
-        toast("Highlights: ${shuffled.size} canciones")
+        toast(context.getString(R.string.fp_highlights_n, shuffled.size))
     }
 
     LaunchedEffect(isPlaying, isDragging, song) {
@@ -857,7 +855,7 @@ fun FullScreenPlayer(
                             IconButton(onClick = { showLyrics = false }) {
                                 Icon(
                                     imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Volver",
+                                    contentDescription = stringResource(R.string.q_back),
                                     tint = adaptiveContentColor
                                 )
                             }
@@ -922,7 +920,7 @@ fun FullScreenPlayer(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = "Ocultar reproductor",
+                                    contentDescription = stringResource(R.string.fp_hide_player),
                                     modifier = Modifier.size(36.dp),
                                     tint = adaptiveContentColor
                                 )
@@ -933,7 +931,7 @@ fun FullScreenPlayer(
                                 modifier = Modifier.align(Alignment.Center)
                             ) {
                                 Text(
-                                    text = "REPRODUCIENDO DESDE",
+                                    text = stringResource(R.string.fp_playing_from),
                                     fontSize = 10.sp,
                                     letterSpacing = 1.5.sp,
                                     fontWeight = FontWeight.Bold,
@@ -955,7 +953,7 @@ fun FullScreenPlayer(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.QueueMusic,
-                                    contentDescription = "Cola de reproducción",
+                                    contentDescription = stringResource(R.string.q_title),
                                     tint = adaptiveContentColor
                                 )
                             }
@@ -1094,7 +1092,7 @@ fun FullScreenPlayer(
                                                     )
                                                     .build(),
                                                 imageLoader = SharedAlbumArtImageLoader.get(context),
-                                                contentDescription = "Carátula",
+                                                contentDescription = stringResource(R.string.fp_cover),
                                                 contentScale = ContentScale.Crop,
                                                 modifier = Modifier.fillMaxSize()
                                             ) {
@@ -1162,10 +1160,10 @@ fun FullScreenPlayer(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 IconButton(onClick = { jumpToMoment(false) }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Filled.KeyboardArrowLeft, "Momento anterior", tint = adaptiveContentColor)
+                                    Icon(Icons.Filled.KeyboardArrowLeft, stringResource(R.string.fp_prev_moment), tint = adaptiveContentColor)
                                 }
                                 Text(
-                                    text = if (moments.size == 1) "1 momento" else "${moments.size} momentos",
+                                    text = if (moments.size == 1) stringResource(R.string.fp_one_moment) else stringResource(R.string.fp_n_moments, moments.size),
                                     fontSize = 13.sp,
                                     fontWeight = FontWeight.Medium,
                                     color = MaterialTheme.colorScheme.primary,
@@ -1175,7 +1173,7 @@ fun FullScreenPlayer(
                                         .padding(horizontal = 12.dp, vertical = 6.dp)
                                 )
                                 IconButton(onClick = { jumpToMoment(true) }, modifier = Modifier.size(36.dp)) {
-                                    Icon(Icons.Filled.KeyboardArrowRight, "Momento siguiente", tint = adaptiveContentColor)
+                                    Icon(Icons.Filled.KeyboardArrowRight, stringResource(R.string.fp_next_moment), tint = adaptiveContentColor)
                                 }
                             }
                         }
@@ -1190,7 +1188,7 @@ fun FullScreenPlayer(
                             IconButton(onClick = { playerManager.toggleCycleMode() }) {
                                 Icon(
                                     painter = painterResource(id = playerManager.cycleIconRes), // ¡Aquí se actualiza solo!
-                                    contentDescription = "Modo Reproducción",
+                                    contentDescription = stringResource(R.string.fp_play_mode),
                                     // Pinta de color primario solo si NO es el modo 0 (Normal)
                                     tint = if (playerManager.cycleMode.value != 0)
                                         MaterialTheme.colorScheme.primary
@@ -1200,7 +1198,7 @@ fun FullScreenPlayer(
                             }
 
                             IconButton(onClick = onAddToPlaylist) {
-                                Icon(Icons.Filled.PlaylistAdd, contentDescription = "Añadir a Playlist", tint = adaptiveContentColor)
+                                Icon(Icons.Filled.PlaylistAdd, contentDescription = stringResource(R.string.fp_add_playlist), tint = adaptiveContentColor)
                             }
 
                             // MOMENTO: toque = marcar inicio/fin; mantener = guardar los últimos 15 s.
@@ -1217,7 +1215,7 @@ fun FullScreenPlayer(
                                 val marking = markStartMs != null
                                 Icon(
                                     imageVector = if (marking || moments.isNotEmpty()) Icons.Filled.Bookmark else Icons.Filled.BookmarkBorder,
-                                    contentDescription = "Momento",
+                                    contentDescription = stringResource(R.string.fp_moment),
                                     tint = if (marking) MaterialTheme.colorScheme.primary
                                     else adaptiveContentColor.copy(alpha = if (highlightsActive) 0.38f else 1f)
                                 )
@@ -1237,7 +1235,7 @@ fun FullScreenPlayer(
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.AutoAwesome,
-                                    contentDescription = "Highlights",
+                                    contentDescription = stringResource(R.string.fp_highlights),
                                     tint = if (highlightsActive) MaterialTheme.colorScheme.primary else adaptiveContentColor
                                 )
                             }
@@ -1245,7 +1243,7 @@ fun FullScreenPlayer(
                             IconButton(onClick = onToggleFavorite) {
                                 Icon(
                                     imageVector = if (isFavorite) Icons.Filled.Favorite else Icons.Filled.FavoriteBorder,
-                                    contentDescription = "Favorito",
+                                    contentDescription = stringResource(R.string.fp_favorite),
                                     tint = if (isFavorite) MaterialTheme.colorScheme.primary else adaptiveContentColor,
                                     modifier = Modifier.size(28.dp)
                                 )
@@ -1260,7 +1258,7 @@ fun FullScreenPlayer(
                             verticalAlignment = Alignment.CenterVertically
                         ) {
                             IconButton(onClick = onSkipPrevious) {
-                                Icon(Icons.Filled.SkipPrevious, "Anterior", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
+                                Icon(Icons.Filled.SkipPrevious, stringResource(R.string.fp_previous), modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
                             }
 
                             // El Box de afuera solo crece cuando el estilo elegido necesita aire
@@ -1331,7 +1329,7 @@ fun FullScreenPlayer(
                                     Box(contentAlignment = Alignment.Center) {
                                         Icon(
                                             imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                            contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                            contentDescription = if (isPlaying) stringResource(R.string.fp_pause) else stringResource(R.string.fp_play),
                                             tint = MaterialTheme.colorScheme.onPrimary,
                                             modifier = Modifier.size(40.dp)
                                         )
@@ -1340,7 +1338,7 @@ fun FullScreenPlayer(
                             }
 
                             IconButton(onClick = onSkipNext) {
-                                Icon(Icons.Filled.SkipNext, "Siguiente", modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
+                                Icon(Icons.Filled.SkipNext, stringResource(R.string.fp_next), modifier = Modifier.size(44.dp), tint = adaptiveContentColor)
                             }
                         }
 
@@ -1612,7 +1610,7 @@ private fun MomentsDialog(
     var confirmDeleteAll by remember { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Momentos de esta canción") },
+        title = { Text(stringResource(R.string.fp_song_moments)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -1631,10 +1629,10 @@ private fun MomentsDialog(
                                     modifier = Modifier.weight(1f)
                                 )
                                 IconButton(onClick = { onSeek(m.startMs) }) {
-                                    Icon(Icons.Filled.PlayArrow, "Ir al momento")
+                                    Icon(Icons.Filled.PlayArrow, stringResource(R.string.fp_go_to_moment))
                                 }
                                 IconButton(onClick = { onDelete(m) }) {
-                                    Icon(Icons.Filled.Delete, "Borrar momento", tint = MaterialTheme.colorScheme.error)
+                                    Icon(Icons.Filled.Delete, stringResource(R.string.fp_delete_moment), tint = MaterialTheme.colorScheme.error)
                                 }
                             }
                             if (durationMs > 0) {
@@ -1648,7 +1646,7 @@ private fun MomentsDialog(
                                             range = m.startMs.toFloat()..m.endMs.toFloat()
                                             android.widget.Toast.makeText(
                                                 context,
-                                                "Mínimo ${MomentsRepository.MIN_DURATION_MS / 1000} s",
+                                                context.getString(R.string.fp_min_duration, MomentsRepository.MIN_DURATION_MS / 1000),
                                                 android.widget.Toast.LENGTH_SHORT
                                             ).show()
                                         }
@@ -1660,13 +1658,13 @@ private fun MomentsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) } },
         dismissButton = {
             TextButton(onClick = {
                 if (confirmDeleteAll) onDeleteAll() else confirmDeleteAll = true
             }) {
                 Text(
-                    if (confirmDeleteAll) "¿Seguro? Toca otra vez" else "Borrar todos",
+                    if (confirmDeleteAll) stringResource(R.string.fp_sure) else stringResource(R.string.fp_delete_all),
                     color = MaterialTheme.colorScheme.error
                 )
             }
@@ -1692,10 +1690,10 @@ private fun AllMomentsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Todos mis momentos") },
+        title = { Text(stringResource(R.string.fp_all_moments)) },
         text = {
             if (entries.isEmpty()) {
-                Text("No tienes momentos guardados.")
+                Text(stringResource(R.string.fp_no_moments))
             } else {
                 Column(
                     modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -1731,7 +1729,7 @@ private fun AllMomentsDialog(
                                         all = repo.getAll()
                                         onChanged()
                                     }) {
-                                        Icon(Icons.Filled.Delete, "Borrar momento", tint = MaterialTheme.colorScheme.error)
+                                        Icon(Icons.Filled.Delete, stringResource(R.string.fp_delete_moment), tint = MaterialTheme.colorScheme.error)
                                     }
                                 }
                             }
@@ -1740,7 +1738,7 @@ private fun AllMomentsDialog(
                 }
             }
         },
-        confirmButton = { TextButton(onClick = onDismiss) { Text("Cerrar") } },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) } },
         dismissButton = {
             if (entries.isNotEmpty()) {
                 TextButton(onClick = {
@@ -1754,7 +1752,7 @@ private fun AllMomentsDialog(
                     }
                 }) {
                     Text(
-                        if (confirmWipe) "¿Seguro? Toca otra vez" else "Borrar todos",
+                        if (confirmWipe) stringResource(R.string.fp_sure) else stringResource(R.string.fp_delete_all),
                         color = MaterialTheme.colorScheme.error
                     )
                 }

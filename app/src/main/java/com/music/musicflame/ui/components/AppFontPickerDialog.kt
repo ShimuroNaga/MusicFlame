@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.components
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -63,12 +65,12 @@ fun AppFontPickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Tipo de letra", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.fn_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 if (!isUnlocked) {
                     Text(
-                        "Roboto, Lato, Open Sans, Inter, Asap Sharp y Nunito son gratis. Las demás son de pago (Ajustes > Pagos).",
+                        stringResource(R.string.fn_hint),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -93,11 +95,11 @@ fun AppFontPickerDialog(
         },
         confirmButton = {
             Button(onClick = { onConfirm(tempFont) }) {
-                Text("Guardar", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) }
         }
     )
 }
@@ -154,7 +156,7 @@ private fun AppFontCard(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         Icons.Filled.Lock,
-                        contentDescription = "Bloqueado",
+                        contentDescription = stringResource(R.string.pe_locked_desc),
                         tint = MaterialTheme.colorScheme.onSurface,
                         modifier = Modifier.padding(bottom = 2.dp)
                     )

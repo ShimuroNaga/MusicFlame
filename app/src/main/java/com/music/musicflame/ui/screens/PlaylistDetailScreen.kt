@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import com.music.musicflame.ui.components.FormatCodeText
 import com.music.musicflame.ui.components.rawDisplayTitle
@@ -245,7 +247,7 @@ fun PlaylistDetailScreen(
                     ) {
                         Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Reproducir", fontWeight = FontWeight.Bold) // No se toca por estar en botón primario
+                        Text(stringResource(R.string.fp_play), fontWeight = FontWeight.Bold) // No se toca por estar en botón primario
                     }
 
                     // Botón Mezclar (Secundario)
@@ -292,7 +294,7 @@ fun PlaylistDetailScreen(
                                             }
                                         )
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Orden original", color = LocalAppTextColor.current)
+                                        Text(stringResource(R.string.d_original_order), color = LocalAppTextColor.current)
                                     }
                                 },
                                 onClick = {
@@ -363,7 +365,7 @@ fun PlaylistDetailScreen(
             if (songs.isEmpty() && kind == PlaylistKind.MOST_PLAYED) {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "Todavía no tienes canciones reproducidas.\nEscucha algo y vuelve por aquí.",
+                        text = stringResource(R.string.d_none_played),
                         color = LocalAppTextColor.current.copy(alpha = 0.6f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 32.dp)
@@ -372,7 +374,7 @@ fun PlaylistDetailScreen(
             } else if (songs.isEmpty() && kind == PlaylistKind.NEVER_PLAYED) {
                 Box(modifier = Modifier.fillMaxWidth().padding(top = 48.dp), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "¡Ya le diste play a todo tu catálogo!",
+                        text = stringResource(R.string.d_all_played),
                         color = LocalAppTextColor.current.copy(alpha = 0.6f),
                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
                         modifier = Modifier.padding(horizontal = 32.dp)
@@ -557,7 +559,7 @@ fun SongItemCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Seleccionado",
+                            contentDescription = stringResource(R.string.tr_selected),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -601,7 +603,7 @@ fun SongItemCard(
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "Eliminar",
+                        contentDescription = stringResource(R.string.tr_delete),
                         tint = MaterialTheme.colorScheme.error
                     )
                 }

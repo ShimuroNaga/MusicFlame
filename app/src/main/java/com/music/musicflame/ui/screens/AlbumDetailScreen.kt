@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -169,7 +171,7 @@ fun AlbumDetailScreen(
                     )
                     Text(album.artist, color = LocalAppTextColor.current.copy(alpha = 0.7f))
                     Text(
-                        "${album.songCount} canciones",
+                        stringResource(R.string.q_songs, album.songCount),
                         color = LocalAppTextColor.current.copy(alpha = 0.7f),
                         style = MaterialTheme.typography.bodySmall
                     )
@@ -198,7 +200,7 @@ fun AlbumDetailScreen(
                 ) {
                     Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(Modifier.width(8.dp))
-                    Text("Reproducir", fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.fp_play), fontWeight = FontWeight.Bold)
                 }
 
                 AnimatedActionButton(
@@ -234,7 +236,7 @@ fun AlbumDetailScreen(
                                         onClick = { sortType.value = SortType.DATE_CREATED; showSortMenu.value = false }
                                     )
                                     Spacer(Modifier.width(8.dp))
-                                    Text("Orden original")
+                                    Text(stringResource(R.string.d_original_order))
                                 }
                             },
                             onClick = { sortType.value = SortType.DATE_CREATED; showSortMenu.value = false }

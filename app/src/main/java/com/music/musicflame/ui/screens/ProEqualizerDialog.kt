@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
@@ -137,15 +139,15 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = MaterialTheme.colorScheme.onBackground)
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.main_close), tint = MaterialTheme.colorScheme.onBackground)
                     }
-                    Text("EQ PRO — 10 Bandas", fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
+                    Text(stringResource(R.string.pe_title), fontSize = 20.sp, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.onBackground)
 
                     if (isProUnlocked) {
                         Button(onClick = {
                             applyCurrentState()
-                            Toast.makeText(context, "EQ PRO aplicado 🔥", Toast.LENGTH_SHORT).show()
-                        }) { Text("Guardar", fontWeight = FontWeight.Bold) }
+                            Toast.makeText(context, context.getString(R.string.pe_applied), Toast.LENGTH_SHORT).show()
+                        }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
                     } else {
                         Spacer(Modifier.width(48.dp))
                     }
@@ -166,9 +168,9 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column {
-                                            Text("Modo PRO exclusivo", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text(stringResource(R.string.pe_exclusive), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                             Text(
-                                                "Apaga el ecualizador de 5 bandas mientras el PRO está sonando, para que no se sumen los dos.",
+                                                stringResource(R.string.pe_exclusive_hint),
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -185,9 +187,9 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Column {
-                                            Text("Comparar (A/B)", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                            Text(stringResource(R.string.pe_compare), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                             Text(
-                                                if (bypassEnabled.value) "Sonando SIN EQ Pro (audio original)" else "Sonando CON EQ Pro",
+                                                if (bypassEnabled.value) stringResource(R.string.pe_bypass_on) else stringResource(R.string.pe_bypass_off),
                                                 fontSize = 11.sp,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -202,7 +204,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                         }
 
                         item {
-                            Text("Presets PRO", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                            Text(stringResource(R.string.pe_presets), fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                             Spacer(Modifier.height(8.dp))
                             val presets = remember {
                                 listOf(
@@ -234,7 +236,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                                 Column(modifier = Modifier.padding(16.dp)) {
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                                        Text("Pre-amp (ganancia maestra)", fontWeight = FontWeight.Black, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
+                                        Text(stringResource(R.string.pe_preamp), fontWeight = FontWeight.Black, fontSize = 14.sp, color = MaterialTheme.colorScheme.primary)
                                         Text("${tempPreamp.floatValue.toInt()} dB", fontWeight = FontWeight.Bold, fontSize = 14.sp)
                                     }
                                     Slider(
@@ -249,7 +251,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                         item {
                             Card(modifier = Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)) {
                                 Column(modifier = Modifier.padding(16.dp)) {
-                                    Text("Ecualizador 10 Bandas", fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
+                                    Text(stringResource(R.string.pe_eq10), fontWeight = FontWeight.Black, fontSize = 16.sp, color = MaterialTheme.colorScheme.primary)
                                     Spacer(Modifier.height(16.dp))
                                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
                                         for (i in 0 until bandCount) {
@@ -298,23 +300,23 @@ private fun LockedProEqualizerContent() {
             modifier = Modifier.height(56.dp).width(56.dp)
         )
         Spacer(Modifier.height(16.dp))
-        Text("EQ PRO bloqueado", fontWeight = FontWeight.Black, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
+        Text(stringResource(R.string.pe_locked), fontWeight = FontWeight.Black, fontSize = 20.sp, color = MaterialTheme.colorScheme.onBackground)
         Spacer(Modifier.height(6.dp))
         Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.Filled.Lock, contentDescription = "Bloqueado", modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.pe_locked_desc), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
             Spacer(Modifier.width(2.dp))
             Text("$15 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
         Text(
-            "El ecualizador de 10 bandas con motor propio, pre-amp, presets y normalización de volumen entre canciones es una función de pago.",
+            stringResource(R.string.pe_paid_desc),
             fontSize = 14.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
         Spacer(Modifier.height(24.dp))
         Text(
-            "¿Ya tienes tu license key? Actívala en Ajustes → Licencia.",
+            stringResource(R.string.pe_license_hint),
             fontSize = 12.sp,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

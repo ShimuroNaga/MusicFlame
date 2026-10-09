@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.text.KeyboardOptions
@@ -36,20 +38,20 @@ fun OnboardingSongsStep(settingsRepo: SettingsRepository) {
     ) {
         item {
             Text(
-                "Manejo de canciones",
+                stringResource(R.string.ob_sg_title),
                 style = MaterialTheme.typography.headlineSmall,
                 fontWeight = FontWeight.Bold,
                 color = highEmphasis
             )
             Text(
-                "Ajusta cómo se comporta la reproducción.",
+                stringResource(R.string.ob_sg_hint),
                 style = MaterialTheme.typography.bodyMedium,
                 color = mediumEmphasis,
                 modifier = Modifier.padding(bottom = 8.dp)
             )
         }
 
-        item { onboardingSectionHeader("Manejo de Canciones") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_sg_header)) }
         item {
             OutlinedTextField(
                 value = durationMin,
@@ -57,19 +59,19 @@ fun OnboardingSongsStep(settingsRepo: SettingsRepository) {
                     durationMin = it.filter { c -> c.isDigit() }
                     settingsRepo.saveDurationFilterMin(durationMin.toIntOrNull() ?: 0)
                 },
-                label = { Text("Duración mínima (segundos)") },
-                supportingText = { Text("Excluye canciones más cortas que esto, ej. tonos o clips") },
+                label = { Text(stringResource(R.string.ob_sg_min_dur)) },
+                supportingText = { Text(stringResource(R.string.ob_sg_min_dur_hint)) },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp)
             )
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Reproducción") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_sg_playback)) }
         item {
             ListItem(
-                headlineContent = { Text("Reproducir en segundo plano") },
-                supportingContent = { Text("Mantiene el reproductor activo fuera de la app") },
+                headlineContent = { Text(stringResource(R.string.ob_sg_background)) },
+                supportingContent = { Text(stringResource(R.string.ob_sg_background_desc)) },
                 trailingContent = {
                     Switch(
                         checked = playInBackground,
@@ -85,8 +87,8 @@ fun OnboardingSongsStep(settingsRepo: SettingsRepository) {
         }
         item {
             ListItem(
-                headlineContent = { Text("Pausar al desconectar audífonos") },
-                supportingContent = { Text("Detiene la canción si te quitas los audífonos o se desconecta el Bluetooth") },
+                headlineContent = { Text(stringResource(R.string.ob_sg_pause_unplug)) },
+                supportingContent = { Text(stringResource(R.string.ob_sg_pause_unplug_desc)) },
                 trailingContent = {
                     Switch(
                         checked = pauseOnDisconnect,
@@ -101,11 +103,11 @@ fun OnboardingSongsStep(settingsRepo: SettingsRepository) {
             HorizontalDivider(color = dividerColor)
         }
 
-        item { onboardingSectionHeader("Ecualizador") }
+        item { onboardingSectionHeader(stringResource(R.string.ob_sg_eq)) }
         item {
             ListItem(
                 headlineContent = { Text("Studio Pro EQ") },
-                supportingContent = { Text("Preset activo: $eqPreset — personalízalo desde Ajustes cuando quieras") },
+                supportingContent = { Text(stringResource(R.string.ob_sg_preset_active, eqPreset)) },
                 colors = listItemColors
             )
             HorizontalDivider(color = dividerColor)

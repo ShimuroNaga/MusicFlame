@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
@@ -46,13 +48,13 @@ fun OnboardingScreen(
         topBar = {
             Column {
                 TopAppBar(
-                    title = { Text("Configura MusicFlame", color = highEmphasis) },
+                    title = { Text(stringResource(R.string.ob_sc_title), color = highEmphasis) },
                     navigationIcon = {
                         if (currentStep > 1) {
                             IconButton(onClick = { currentStep-- }) {
                                 Icon(
                                     Icons.AutoMirrored.Filled.ArrowBack,
-                                    contentDescription = "Atrás",
+                                    contentDescription = stringResource(R.string.main_back),
                                     tint = highEmphasis
                                 )
                             }
@@ -89,7 +91,7 @@ fun OnboardingScreen(
                     )
 
                     if (currentStep == 4) {
-                        TextButton(onClick = { currentStep++ }) { Text("Omitir por ahora") }
+                        TextButton(onClick = { currentStep++ }) { Text(stringResource(R.string.ob_sc_skip)) }
                     }
                 }
 
@@ -107,7 +109,7 @@ fun OnboardingScreen(
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     )
                 ) {
-                    Text(if (currentStep == TOTAL_STEPS) "Empezar a usar MusicFlame" else "Siguiente")
+                    Text(if (currentStep == TOTAL_STEPS) stringResource(R.string.ob_sc_start) else stringResource(R.string.fp_next))
                 }
             }
         }

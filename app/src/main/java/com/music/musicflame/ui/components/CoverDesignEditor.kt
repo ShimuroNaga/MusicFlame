@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.components
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -96,16 +98,16 @@ fun CoverDesignEditorDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     IconButton(onClick = onDismiss) {
-                        Icon(Icons.Filled.Close, contentDescription = "Cerrar")
+                        Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.main_close))
                     }
                     Text(
-                        if (isNew) "Crear diseño de carátula" else "Editar diseño",
+                        if (isNew) stringResource(R.string.ce_create) else stringResource(R.string.ce_edit),
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         modifier = Modifier.weight(1f)
                     )
                     Button(onClick = { onSave(draft.sanitized()) }) {
-                        Text("Guardar", fontWeight = FontWeight.Bold)
+                        Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold)
                     }
                     Spacer(Modifier.width(8.dp))
                 }
@@ -127,7 +129,7 @@ fun CoverDesignEditorDialog(
                     OutlinedTextField(
                         value = draft.name,
                         onValueChange = { draft = draft.copy(name = it.take(CoverDesign.MAX_NAME_LENGTH)) },
-                        label = { Text("Nombre") },
+                        label = { Text(stringResource(R.string.ce_name)) },
                         singleLine = true,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                         modifier = Modifier.fillMaxWidth()
@@ -135,7 +137,7 @@ fun CoverDesignEditorDialog(
 
                     // Figura
                     Column {
-                        Text("Figura", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                        Text(stringResource(R.string.ce_shape), fontWeight = FontWeight.Bold, fontSize = 14.sp)
                         Spacer(Modifier.height(8.dp))
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -250,7 +252,7 @@ private fun CoverPreviewPanel(design: CoverDesign, previewSong: Song?) {
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        previewSong?.title ?: "Así se verá en tus listas",
+                        previewSong?.title ?: stringResource(R.string.ce_preview),
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
                         maxLines = 1

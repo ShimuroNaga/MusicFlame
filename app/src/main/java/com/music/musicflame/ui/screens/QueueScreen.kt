@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -264,20 +266,20 @@ fun QueueScreen(
                 IconButton(onClick = onClose) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "Volver",
+                        contentDescription = stringResource(R.string.q_back),
                         tint = adaptiveContentColor
                     )
                 }
                 Spacer(Modifier.width(4.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Cola de reproducción",
+                        text = stringResource(R.string.q_title),
                         fontWeight = FontWeight.Black,
                         fontSize = 18.sp,
                         color = adaptiveContentColor
                     )
                     Text(
-                        text = if (isShuffleOn) "${queue.size} canciones · mezcladas" else "${queue.size} canciones",
+                        text = if (isShuffleOn) stringResource(R.string.q_songs_shuffled, queue.size) else stringResource(R.string.q_songs, queue.size),
                         fontSize = 12.sp,
                         color = adaptiveContentColor.copy(alpha = 0.6f)
                     )
@@ -285,7 +287,7 @@ fun QueueScreen(
                 if (isShuffleOn) {
                     Icon(
                         imageVector = Icons.Filled.Shuffle,
-                        contentDescription = "Mezclado",
+                        contentDescription = stringResource(R.string.q_shuffled),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(20.dp)
                     )
@@ -296,7 +298,7 @@ fun QueueScreen(
             if (queue.isEmpty()) {
                 Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                     Text(
-                        text = "No hay canciones en la cola",
+                        text = stringResource(R.string.q_empty),
                         color = adaptiveContentColor.copy(alpha = 0.6f)
                     )
                 }
@@ -407,7 +409,7 @@ fun QueueScreen(
                                     ) {
                                         Icon(
                                             imageVector = Icons.Filled.DragIndicator,
-                                            contentDescription = "Mantén presionada la canción para reordenar",
+                                            contentDescription = stringResource(R.string.q_hold_reorder),
                                             tint = adaptiveContentColor.copy(alpha = 0.6f)
                                         )
                                     }
@@ -461,7 +463,7 @@ fun QueueScreen(
                 } else {
                     QueueFab(
                         icon = Icons.Filled.Add,
-                        contentDescription = "Agregar canciones a la cola",
+                        contentDescription = stringResource(R.string.q_add_songs),
                         hasBackgroundImage = hasBackgroundImage,
                         onClick = { showAddSongsDialog = true }
                     )
@@ -469,7 +471,7 @@ fun QueueScreen(
 
                 QueueFab(
                     icon = Icons.Filled.Reorder,
-                    contentDescription = "Reordenar",
+                    contentDescription = stringResource(R.string.q_reorder),
                     hasBackgroundImage = hasBackgroundImage,
                     highlighted = reorderModeActive,
                     onClick = { reorderModeActive = !reorderModeActive }
@@ -512,14 +514,14 @@ private fun AddSongsToQueueDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Agregar a la cola", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.q_add_to_queue), fontWeight = FontWeight.Bold) },
         text = {
             Column(modifier = Modifier.heightIn(max = 420.dp)) {
                 OutlinedTextField(
                     value = query,
                     onValueChange = { query = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Buscar canción o artista") },
+                    placeholder = { Text(stringResource(R.string.q_search_hint)) },
                     singleLine = true,
                     leadingIcon = { Icon(Icons.Filled.Search, null) }
                 )
@@ -549,7 +551,7 @@ private fun AddSongsToQueueDialog(
                                     color = if (alreadyQueued) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f) else MaterialTheme.colorScheme.onSurface
                                 )
                                 Text(
-                                    text = if (alreadyQueued) "Ya está en la cola" else song.artist,
+                                    text = if (alreadyQueued) stringResource(R.string.q_already) else song.artist,
                                     fontSize = 12.sp,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                                     maxLines = 1,
@@ -568,10 +570,10 @@ private fun AddSongsToQueueDialog(
                     val songsToAdd = allSongs.filter { selectedIds.contains(it.id) }
                     onConfirm(songsToAdd)
                 }
-            ) { Text("Agregar (${selectedIds.size})") }
+            ) { Text(stringResource(R.string.q_add_n, selectedIds.size)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.components
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
@@ -50,13 +52,13 @@ fun DisplayTitleField(
         value = value,
         onValueChange = onValueChange,
         modifier = modifier,
-        label = { Text("Subtítulo de visualización (solo en la app)") },
-        placeholder = { Text("Ej: §bMi Canción§r") },
-        supportingText = { Text("No modifica el archivo mp3, solo cómo se ve aquí") },
+        label = { Text(stringResource(R.string.dt_label)) },
+        placeholder = { Text(stringResource(R.string.dt_placeholder)) },
+        supportingText = { Text(stringResource(R.string.dt_support)) },
         trailingIcon = {
             Box {
                 IconButton(onClick = { menuExpanded = true }) {
-                    Icon(Icons.Filled.Palette, contentDescription = "Insertar código de formato")
+                    Icon(Icons.Filled.Palette, contentDescription = stringResource(R.string.dt_insert_code))
                 }
                 DropdownMenu(
                     expanded = menuExpanded,

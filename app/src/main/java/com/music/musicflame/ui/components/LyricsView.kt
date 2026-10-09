@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.components
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -131,7 +133,7 @@ fun LyricsView(
                     CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(12.dp))
                     Text(
-                        "Buscando la letra...",
+                        stringResource(R.string.ly_searching),
                         color = textColor.copy(alpha = 0.7f),
                         fontSize = 13.sp
                     )
@@ -144,7 +146,7 @@ fun LyricsView(
                     verticalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        if (searchFailed) "No encontramos la letra de esta canción" else "Sin letra para esta canción",
+                        if (searchFailed) stringResource(R.string.ly_not_found) else stringResource(R.string.ly_none),
                         color = textColor.copy(alpha = 0.8f),
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
@@ -153,7 +155,7 @@ fun LyricsView(
                     if (searchFailed) {
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            "Puede que el título/artista no coincida exacto. Prueba insertándola tú a mano, o usa \"Verificar en YouTube\" y toca el video correcto: MusicFlame intentará traer la letra automáticamente.",
+                            stringResource(R.string.ly_fail_hint),
                             color = textColor.copy(alpha = 0.6f),
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center
@@ -165,19 +167,19 @@ fun LyricsView(
                             Button(onClick = onSearchOnline) {
                                 Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.height(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Reintentar")
+                                Text(stringResource(R.string.ly_retry))
                             }
                         } else {
                             Button(onClick = onSearchOnline) {
                                 Icon(Icons.Filled.Search, contentDescription = null, modifier = Modifier.height(18.dp))
                                 Spacer(Modifier.width(6.dp))
-                                Text("Buscar")
+                                Text(stringResource(R.string.main_search))
                             }
                         }
                         TextButton(onClick = { showInsertDialog = true }) {
                             Icon(Icons.Filled.Edit, contentDescription = null, modifier = Modifier.height(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Insertar")
+                            Text(stringResource(R.string.ly_insert))
                         }
                     }
                     if (searchFailed) {
@@ -185,11 +187,11 @@ fun LyricsView(
                         TextButton(onClick = onSearchYoutube) {
                             Icon(Icons.Filled.PlayCircle, contentDescription = null, modifier = Modifier.height(18.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("Verificar en YouTube")
+                            Text(stringResource(R.string.ly_verify_youtube))
                         }
                         Spacer(Modifier.height(2.dp))
                         Text(
-                            "Se abre YouTube dentro de la app. Al tocar el video correcto, MusicFlame lee su título e intenta buscar la letra automáticamente. Si aun así no la encuentra, podrás insertarla tú con el botón \"Insertar\".",
+                            stringResource(R.string.ly_youtube_hint),
                             color = textColor.copy(alpha = 0.5f),
                             fontSize = 11.sp,
                             textAlign = TextAlign.Center
@@ -267,7 +269,7 @@ fun LyricsView(
                     .align(Alignment.BottomEnd)
                     .padding(16.dp)
             ) {
-                Icon(Icons.Filled.Delete, contentDescription = "Borrar letra de esta canción")
+                Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.ly_delete_desc))
             }
         }
     }
@@ -286,16 +288,16 @@ fun LyricsView(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("Borrar letra", fontWeight = FontWeight.Black) },
-            text = { Text("Esto borrará definitivamente la letra guardada de esta canción (solo de esta). ¿Continuar?") },
+            title = { Text(stringResource(R.string.ly_delete_title), fontWeight = FontWeight.Black) },
+            text = { Text(stringResource(R.string.ly_delete_msg)) },
             confirmButton = {
                 TextButton(onClick = {
                     showDeleteConfirm = false
                     onDeleteLyrics()
-                }) { Text("Borrar", color = MaterialTheme.colorScheme.error) }
+                }) { Text(stringResource(R.string.ly_delete), color = MaterialTheme.colorScheme.error) }
             },
             dismissButton = {
-                TextButton(onClick = { showDeleteConfirm = false }) { Text("Cancelar") }
+                TextButton(onClick = { showDeleteConfirm = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -311,11 +313,11 @@ fun InsertLyricsDialog(
     var text by remember { mutableStateOf(initialText) }
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Insertar letra", fontWeight = FontWeight.Black) },
+        title = { Text(stringResource(R.string.ly_insert_title), fontWeight = FontWeight.Black) },
         text = {
             Column {
                 Text(
-                    "Pega la letra en formato LRC (con [mm:ss.xx]) para sincronizarla con la canción, o como texto plano si no tienes marcas de tiempo.",
+                    stringResource(R.string.ly_insert_hint),
                     fontSize = 13.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -324,16 +326,16 @@ fun InsertLyricsDialog(
                     value = text,
                     onValueChange = { text = it },
                     modifier = Modifier.fillMaxWidth().height(220.dp),
-                    placeholder = { Text("[00:12.50] Primera línea de la canción...") },
+                    placeholder = { Text(stringResource(R.string.ly_placeholder)) },
                     keyboardOptions = KeyboardOptions.Default
                 )
             }
         },
         confirmButton = {
-            TextButton(onClick = { if (text.isNotBlank()) onConfirm(text) }) { Text("Guardar") }
+            TextButton(onClick = { if (text.isNotBlank()) onConfirm(text) }) { Text(stringResource(R.string.action_save)) }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

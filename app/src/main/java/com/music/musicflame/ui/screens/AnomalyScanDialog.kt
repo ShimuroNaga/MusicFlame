@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -150,13 +152,13 @@ fun AnomalyScanDialog(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar", tint = textColor)
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.main_close), tint = textColor)
                         }
-                        Text("Búsqueda de anomalías", fontSize = 20.sp, fontWeight = FontWeight.Black, color = textColor)
+                        Text(stringResource(R.string.an_title), fontSize = 20.sp, fontWeight = FontWeight.Black, color = textColor)
                     }
                     if (hasScannedOnce && !scanning) {
                         IconButton(onClick = { runScan() }) {
-                            Icon(Icons.Filled.Refresh, contentDescription = "Volver a analizar", tint = MaterialTheme.colorScheme.primary)
+                            Icon(Icons.Filled.Refresh, contentDescription = stringResource(R.string.an_rescan), tint = MaterialTheme.colorScheme.primary)
                         }
                     }
                 }
@@ -193,7 +195,7 @@ fun AnomalyScanDialog(
             onSaved = {
                 editingSong = null
                 scope.launch { SongLibraryHolder.refresh(context) }
-                Toast.makeText(context, "Metadata actualizada. Vuelve a analizar para reflejar el cambio en la lista.", Toast.LENGTH_LONG).show()
+                Toast.makeText(context, context.getString(R.string.an_meta_updated), Toast.LENGTH_LONG).show()
             }
         )
     }
@@ -209,7 +211,7 @@ fun AnomalyScanDialog(
                     playerManager.playSong(song, SongLibraryHolder.songs)
                     viewingRecord = null
                 } else {
-                    Toast.makeText(context, "La canción ya no está en tu biblioteca", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.an_song_gone), Toast.LENGTH_SHORT).show()
                 }
             }
         )
@@ -226,7 +228,7 @@ private fun ScanningProgress(scanned: Int, total: Int, textColor: Color) {
         val progress = if (total > 0) scanned.toFloat() / total.toFloat() else 0f
         Icon(Icons.Filled.BugReport, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(48.dp))
         Spacer(Modifier.height(16.dp))
-        Text("Analizando ${scanned}/${total}", fontWeight = FontWeight.Bold, color = textColor, fontSize = 16.sp)
+        Text(stringResource(R.string.an_scanning, scanned, total), fontWeight = FontWeight.Bold, color = textColor, fontSize = 16.sp)
         Spacer(Modifier.height(4.dp))
         Text(
             "${(progress * 100).toInt()}%",
@@ -251,7 +253,7 @@ private fun EmptyState(hasScannedOnce: Boolean, textColor: Color, onScanClick: (
         Icon(Icons.Filled.BugReport, contentDescription = null, tint = textColor.copy(alpha = 0.5f), modifier = Modifier.size(56.dp))
         Spacer(Modifier.height(16.dp))
         Text(
-            text = if (hasScannedOnce) "No se encontraron problemas en tu biblioteca 🎉" else "Analiza tu biblioteca en busca de carátulas corruptas, metadata sospechosa, formatos sin soporte, canciones truncadas y posibles duplicados.",
+            text = if (hasScannedOnce) stringResource(R.string.an_no_problems) else stringResource(R.string.an_intro),
             color = textColor.copy(alpha = 0.8f),
             fontSize = 14.sp,
             modifier = Modifier.padding(bottom = 24.dp)
@@ -262,7 +264,7 @@ private fun EmptyState(hasScannedOnce: Boolean, textColor: Color, onScanClick: (
         ) {
             Icon(Icons.Filled.BugReport, contentDescription = null, modifier = Modifier.size(18.dp))
             Spacer(Modifier.width(8.dp))
-            Text(if (hasScannedOnce) "Volver a analizar" else "Buscar anomalías", fontWeight = FontWeight.Bold)
+            Text(if (hasScannedOnce) stringResource(R.string.an_rescan) else stringResource(R.string.an_scan), fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -286,7 +288,7 @@ private fun ResultsList(
     LazyColumn(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         item {
             Text(
-                "$totalProblems problema(s) en ${results.size} canción(es)",
+                stringResource(R.string.an_summary, totalProblems, results.size),
                 color = textColor.copy(alpha = 0.7f),
                 fontSize = 13.sp,
                 modifier = Modifier.padding(vertical = 12.dp)
@@ -343,15 +345,15 @@ private fun AnomalyRow(
                 )
                 Spacer(Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text(record.title.ifBlank { "(sin título)" }, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                    Text(record.artist.ifBlank { "(sin artista)" }, color = textColor.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1)
+                    Text(record.title.ifBlank { stringResource(R.string.an_no_title) }, color = textColor, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
+                    Text(record.artist.ifBlank { stringResource(R.string.an_no_artist) }, color = textColor.copy(alpha = 0.7f), fontSize = 12.sp, maxLines = 1)
                 }
             }
             Spacer(Modifier.height(10.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                QuickActionButton(text = "Editar metadata", icon = Icons.Filled.Edit, onClick = onEdit, modifier = Modifier.weight(1f))
-                QuickActionButton(text = "Ver archivo", icon = Icons.Filled.FolderOpen, onClick = onView, modifier = Modifier.weight(1f))
-                QuickActionButton(text = "Ignorar", icon = Icons.Filled.VisibilityOff, onClick = onIgnore, modifier = Modifier.weight(1f))
+                QuickActionButton(text = stringResource(R.string.an_edit_meta), icon = Icons.Filled.Edit, onClick = onEdit, modifier = Modifier.weight(1f))
+                QuickActionButton(text = stringResource(R.string.an_view_file), icon = Icons.Filled.FolderOpen, onClick = onView, modifier = Modifier.weight(1f))
+                QuickActionButton(text = stringResource(R.string.an_ignore), icon = Icons.Filled.VisibilityOff, onClick = onIgnore, modifier = Modifier.weight(1f))
             }
         }
     }
@@ -373,17 +375,17 @@ private fun FileInfoDialog(record: AnomalyRecord, onDismiss: () -> Unit, onPlay:
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(record.title.ifBlank { "(sin título)" }, fontWeight = FontWeight.Bold) },
+        title = { Text(record.title.ifBlank { stringResource(R.string.an_no_title) }, fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                Text(record.artist.ifBlank { "(sin artista)" }, fontSize = 13.sp)
+                Text(record.artist.ifBlank { stringResource(R.string.an_no_artist) }, fontSize = 13.sp)
                 Spacer(Modifier.height(12.dp))
-                Text("Ruta del archivo", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(stringResource(R.string.an_file_path), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 Text(record.path, fontSize = 12.sp)
                 Spacer(Modifier.height(8.dp))
-                Text("Tamaño: ${formatFileSize(record.fileSize)}", fontSize = 12.sp)
+                Text(stringResource(R.string.an_size, formatFileSize(record.fileSize)), fontSize = 12.sp)
                 Spacer(Modifier.height(12.dp))
-                Text("Problemas detectados", fontWeight = FontWeight.Bold, fontSize = 12.sp)
+                Text(stringResource(R.string.an_problems_found), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 record.visibleTypes.forEach { type ->
                     Text("• ${type.label}", fontSize = 12.sp)
                 }
@@ -393,21 +395,21 @@ private fun FileInfoDialog(record: AnomalyRecord, onDismiss: () -> Unit, onPlay:
             TextButton(onClick = onPlay) {
                 Icon(Icons.Filled.PlayArrow, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(Modifier.width(4.dp))
-                Text("Reproducir")
+                Text(stringResource(R.string.fp_play))
             }
         },
         dismissButton = {
             Row {
                 TextButton(onClick = {
                     val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                    clipboard.setPrimaryClip(ClipData.newPlainText("Ruta de archivo", record.path))
-                    Toast.makeText(context, "Ruta copiada", Toast.LENGTH_SHORT).show()
+                    clipboard.setPrimaryClip(ClipData.newPlainText(context.getString(R.string.an_clip_label), record.path))
+                    Toast.makeText(context, context.getString(R.string.an_path_copied), Toast.LENGTH_SHORT).show()
                 }) {
                     Icon(Icons.Filled.ContentCopy, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(4.dp))
-                    Text("Copiar ruta")
+                    Text(stringResource(R.string.an_copy_path))
                 }
-                TextButton(onClick = onDismiss) { Text("Cerrar") }
+                TextButton(onClick = onDismiss) { Text(stringResource(R.string.main_close)) }
             }
         }
     )

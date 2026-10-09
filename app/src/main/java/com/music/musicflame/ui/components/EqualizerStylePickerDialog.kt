@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.components
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -72,12 +74,12 @@ fun EqualizerStylePickerDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Estilo de ecualizador gráfico", fontWeight = FontWeight.Bold) },
+        title = { Text(stringResource(R.string.es_style_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
                 if (anyLocked) {
                     Text(
-                        "\"Barras clásicas\" es gratis. Los demás estilos son de pago (Ajustes > Pagos).",
+                        stringResource(R.string.es_style_hint),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -105,11 +107,11 @@ fun EqualizerStylePickerDialog(
         },
         confirmButton = {
             Button(onClick = { onConfirm(tempStyle) }) {
-                Text("Guardar", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold)
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar", fontWeight = FontWeight.Bold) }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) }
         }
     )
 }
@@ -161,7 +163,7 @@ private fun EqualizerStyleCard(
             if (locked) {
                 Icon(
                     Icons.Filled.Lock,
-                    contentDescription = "Bloqueado",
+                    contentDescription = stringResource(R.string.pe_locked_desc),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier
                         .align(Alignment.Center)

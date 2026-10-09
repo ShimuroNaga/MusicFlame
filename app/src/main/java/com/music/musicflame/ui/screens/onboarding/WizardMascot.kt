@@ -1,5 +1,6 @@
 package com.music.musicflame.ui.screens.onboarding
 
+import androidx.compose.ui.res.stringResource
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.*
 import androidx.compose.animation.fadeIn
@@ -62,46 +63,46 @@ private fun mascotIsMirrored(pose: MascotPose): Boolean = when (pose) {
 private data class MascotStepState(
     val restPose: MascotPose,
     val activePose: MascotPose,
-    val message: String,
+    @androidx.annotation.StringRes val message: Int,
     /** Mensaje alterno usado solo cuando el paso tiene un disparador
      *  especial ajeno al toque (ej: vincular cuenta de Google). Si es
      *  null, se reusa `message`. */
-    val celebrateMessage: String? = null
+    @androidx.annotation.StringRes val celebrateMessage: Int? = null
 )
 
 private fun stateForStep(step: Int): MascotStepState = when (step) {
     1 -> MascotStepState(
         restPose = MascotPose.NORMAL,
         activePose = MascotPose.EXPLAINING,
-        message = "¡Hola, buenas! Soy Shimuro, tu asistente musical. Primero necesito algunos permisos para funcionar bien."
+        message = R.string.mascot_1
     )
     2 -> MascotStepState(
         restPose = MascotPose.NORMAL,
         activePose = MascotPose.POINTING,
-        message = "Elige el estilo y los colores que más te gusten."
+        message = R.string.mascot_2
     )
     3 -> MascotStepState(
         restPose = MascotPose.NORMAL,
         activePose = MascotPose.EXPLAINING,
-        message = "Configuremos cómo se ven tus canciones."
+        message = R.string.mascot_3
     )
     4 -> MascotStepState(
         restPose = MascotPose.NORMAL,
         activePose = MascotPose.NORMAL,
-        message = "Si quieres, inicia sesión para sincronizar tus cosas.",
-        celebrateMessage = "¡Genial, ya vinculaste tu cuenta!"
+        message = R.string.mascot_4,
+        celebrateMessage = R.string.mascot_4b
     )
     5 -> MascotStepState(
         restPose = MascotPose.NORMAL,
         activePose = MascotPose.POINTING,
-        message = "Así se verán las letras, tanto dentro como fuera de la app."
+        message = R.string.mascot_5
     )
     6 -> MascotStepState(
         restPose = MascotPose.CELEBRATING,
         activePose = MascotPose.CELEBRATING,
-        message = "¡Listo, ya terminamos! Si me necesitas, estaré en Ajustes descansando. ¡Bye!"
+        message = R.string.mascot_6
     )
-    else -> MascotStepState(MascotPose.NORMAL, MascotPose.NORMAL, "")
+    else -> MascotStepState(MascotPose.NORMAL, MascotPose.NORMAL, R.string.mascot_none)
 }
 
 @Composable
@@ -120,11 +121,9 @@ fun WizardMascot(
 
     val basePose = if (hasGreeted) stepState.activePose else stepState.restPose
     val displayPose = if (forceCelebrate) MascotPose.CELEBRATING else basePose
-    val displayMessage = if (forceCelebrate) {
-        stepState.celebrateMessage ?: stepState.message
-    } else {
-        stepState.message
-    }
+    val displayMessage = stringResource(
+        if (forceCelebrate) (stepState.celebrateMessage ?: stepState.message) else stepState.message
+    )
     val drawableRes = when (displayPose) {
         MascotPose.NORMAL -> R.drawable.mascot_normal
         MascotPose.POINTING -> R.drawable.mascot_pointing
@@ -169,7 +168,7 @@ fun WizardMascot(
         ) { (res, mirrored) ->
             Image(
                 painter = painterResource(id = res),
-                contentDescription = "Mascota, tocar para más información",
+                contentDescription = stringResource(R.string.mascot_desc),
                 modifier = Modifier
                     .size(MASCOT_SIZE)
                     .graphicsLayer {

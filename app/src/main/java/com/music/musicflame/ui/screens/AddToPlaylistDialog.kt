@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -43,7 +45,7 @@ fun AddToPlaylistDialog(
         onDismissRequest = onDismiss,
         title = {
             Column {
-                Text("Agregar a playlist", fontWeight = FontWeight.Bold)
+                Text(stringResource(R.string.ap_title), fontWeight = FontWeight.Bold)
                 Spacer(Modifier.height(12.dp))
 
                 // Mostrar la canción que se va a agregar
@@ -94,7 +96,7 @@ fun AddToPlaylistDialog(
         },
         text = {
             if (playlists.isEmpty()) {
-                Text("No tienes playlists creadas.")
+                Text(stringResource(R.string.ap_none))
             } else {
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth()
@@ -128,7 +130,7 @@ fun AddToPlaylistDialog(
         },
         confirmButton = {},
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancelar") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
         }
     )
 }

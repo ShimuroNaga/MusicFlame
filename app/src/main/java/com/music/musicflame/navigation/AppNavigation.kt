@@ -1,5 +1,7 @@
 package com.music.musicflame.navigation
 
+import androidx.annotation.StringRes
+import com.music.musicflame.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
 import androidx.compose.material.icons.filled.Delete
@@ -9,14 +11,14 @@ import androidx.compose.material.icons.filled.List
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.material.icons.filled.Settings
 
-sealed class Screen(val route: String, val label: String, val icon: ImageVector) {
-    object Songs     : Screen("songs",     "Canciones", Icons.Filled.Home)
-    object Playlists : Screen("playlists", "Playlists", Icons.Filled.List)
-    object Album     : Screen("album",     "Albums",    Icons.Filled.Album)
-    object Mix       : Screen("mix",       "Tu Mix",    Icons.Filled.Favorite)
-    object Trash     : Screen("trash",     "Papelera",  Icons.Filled.Delete)
+sealed class Screen(val route: String, @StringRes val labelRes: Int, val icon: ImageVector) {
+    object Songs     : Screen("songs",     R.string.nav_songs, Icons.Filled.Home)
+    object Playlists : Screen("playlists", R.string.nav_playlists, Icons.Filled.List)
+    object Album     : Screen("album",     R.string.nav_albums,    Icons.Filled.Album)
+    object Mix       : Screen("mix",       R.string.nav_mix,    Icons.Filled.Favorite)
+    object Trash     : Screen("trash",     R.string.nav_trash,  Icons.Filled.Delete)
 
-    object Settings : Screen("settings", "Ajustes", Icons.Filled.Settings)
+    object Settings : Screen("settings", R.string.nav_settings, Icons.Filled.Settings)
 }
 
 val bottomNavItems = listOf(

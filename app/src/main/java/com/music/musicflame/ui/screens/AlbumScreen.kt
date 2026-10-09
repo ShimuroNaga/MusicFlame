@@ -1,5 +1,7 @@
 package com.music.musicflame.ui.screens
 
+import com.music.musicflame.R
+import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -136,19 +138,19 @@ fun AlbumScreen(
                         onClick = { libraryTab = LibraryTab.ALBUMS },
                         shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
                         icon = {}
-                    ) { Text("Álbumes") }
+                    ) { Text(stringResource(R.string.nav_albums)) }
                     SegmentedButton(
                         selected = libraryTab == LibraryTab.ARTISTS,
                         onClick = { libraryTab = LibraryTab.ARTISTS },
                         shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
                         icon = {}
-                    ) { Text("Artistas") }
+                    ) { Text(stringResource(R.string.al_artists)) }
                     SegmentedButton(
                         selected = libraryTab == LibraryTab.GENRES,
                         onClick = { libraryTab = LibraryTab.GENRES },
                         shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
                         icon = {}
-                    ) { Text("Géneros") }
+                    ) { Text(stringResource(R.string.al_genres)) }
                 }
 
                 PullToRefreshBox(
@@ -189,7 +191,7 @@ private fun AlbumGrid(albums: List<Album>, hasBackgroundImage: Boolean, onAlbumC
     val columns = LocalAlbumGridColumns.current
 
     if (albums.isEmpty()) {
-        EmptyLibraryState(icon = Icons.Filled.Album, message = "No se encontraron álbumes")
+        EmptyLibraryState(icon = Icons.Filled.Album, message = stringResource(R.string.al_no_albums))
         return
     }
 
@@ -244,7 +246,7 @@ private fun AlbumCard(album: Album, artSize: androidx.compose.ui.unit.Dp, hasBac
             color = titleColor
         )
         Text(
-            "${album.artist} · ${album.songCount} canciones",
+            stringResource(R.string.d_artist_songs, album.artist, album.songCount),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             color = subtitleColor,
@@ -261,7 +263,7 @@ private fun ArtistGrid(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
     val columns = LocalAlbumGridColumns.current
 
     if (artists.isEmpty()) {
-        EmptyLibraryState(icon = Icons.Filled.Person, message = "No se encontraron artistas")
+        EmptyLibraryState(icon = Icons.Filled.Person, message = stringResource(R.string.al_no_artists))
         return
     }
 
@@ -318,7 +320,7 @@ private fun ArtistCard(artist: Artist, artSize: androidx.compose.ui.unit.Dp, onC
             textAlign = androidx.compose.ui.text.style.TextAlign.Center
         )
         Text(
-            "${artist.albumCount} álbumes · ${artist.songCount} canciones",
+            stringResource(R.string.d_albums_songs, artist.albumCount, artist.songCount),
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             color = subtitleColor,
@@ -334,7 +336,7 @@ private fun ArtistCard(artist: Artist, artSize: androidx.compose.ui.unit.Dp, onC
 @Composable
 private fun GenreList(genres: List<Genre>, onGenreClick: (Genre) -> Unit) {
     if (genres.isEmpty()) {
-        EmptyLibraryState(icon = Icons.Filled.Category, message = "No se encontraron géneros")
+        EmptyLibraryState(icon = Icons.Filled.Category, message = stringResource(R.string.al_no_genres))
         return
     }
 
@@ -375,7 +377,7 @@ private fun GenreRow(genre: Genre, onClick: () -> Unit) {
                 color = LocalAppTextColor.current
             )
             Text(
-                "${genre.songCount} canciones",
+                stringResource(R.string.q_songs, genre.songCount),
                 color = LocalAppTextColor.current.copy(alpha = 0.7f),
                 style = MaterialTheme.typography.bodySmall
             )

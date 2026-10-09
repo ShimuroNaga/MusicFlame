@@ -318,8 +318,8 @@ fun SongsScreen(
                             val realVideoId = item.id?.videoId ?: return@mapNotNull null
                             Song(
                                 id = realVideoId.hashCode().toLong(),
-                                title = item.snippet?.title ?: "Sin título",
-                                artist = item.snippet?.channelTitle ?: "Desconocido",
+                                title = item.snippet?.title ?: context.getString(R.string.yt_untitled),
+                                artist = item.snippet?.channelTitle ?: context.getString(R.string.common_unknown),
                                 albumArtUri = item.snippet?.thumbnails?.high?.url ?: "",
                                 path = "",
                                 dateAdded = 0L,

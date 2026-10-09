@@ -6,6 +6,7 @@ import android.os.Environment
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import com.music.musicflame.R
 
 data class Playlist(
     val id: String,
@@ -45,7 +46,7 @@ fun buildMostPlayedPlaylist(context: Context): Playlist {
         .filter { (id, stat) -> stat.playCount > 0 && id in libraryIds }
         .map { it.first }
     val coverUri = SettingsRepository(context).getMostPlayedCoverUri()
-    return Playlist(id = SmartPlaylistIds.MOST_PLAYED, name = "Lo Más Sonado", songIds = topIds, isDefault = true, customCoverUri = coverUri)
+    return Playlist(id = SmartPlaylistIds.MOST_PLAYED, name = context.getString(R.string.pl_most_played), songIds = topIds, isDefault = true, customCoverUri = coverUri)
 }
 
 /**
@@ -62,10 +63,11 @@ fun buildNeverPlayedPlaylist(context: Context): Playlist {
         .sortedByDescending { it.dateAdded }
         .map { it.id }
     val coverUri = SettingsRepository(context).getNeverPlayedCoverUri()
-    return Playlist(id = SmartPlaylistIds.NEVER_PLAYED, name = "Por Descubrir", songIds = neverPlayedIds, isDefault = true, customCoverUri = coverUri)
+    return Playlist(id = SmartPlaylistIds.NEVER_PLAYED, name = context.getString(R.string.pl_never_played), songIds = neverPlayedIds, isDefault = true, customCoverUri = coverUri)
 }
 
 class PlaylistRepository(context: Context) {
+    private val appContext: Context = context.applicationContext
     private val prefs = context.getSharedPreferences("playlists", Context.MODE_PRIVATE)
 
     fun getPlaylists(): List<Playlist> {
@@ -175,7 +177,7 @@ class PlaylistRepository(context: Context) {
                 ?.readLines() ?: return null
 
             val name = lines.firstOrNull { it.startsWith("#PLAYLIST:") }
-                ?.removePrefix("#PLAYLIST:") ?: "Playlist Importada"
+                ?.removePrefix("#PLAYLIST:") ?: appContext.getString(R.string.pl_imported_default_name)
 
             val paths = lines.filter { !it.startsWith("#") && it.isNotBlank() }
 

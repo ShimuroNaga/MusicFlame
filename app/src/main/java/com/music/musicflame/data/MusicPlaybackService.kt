@@ -943,7 +943,7 @@ class MusicPlaybackService : MediaSessionService() {
                     CommandButton.Builder()
                         .setPlayerCommand(Player.COMMAND_PLAY_PAUSE)
                         .setIconResId(if (showPauseButton) R.drawable.ic_widget_pause else R.drawable.ic_widget_play)
-                        .setDisplayName(if (showPauseButton) "Pausar" else "Reproducir")
+                        .setDisplayName(this@MusicPlaybackService.getString(if (showPauseButton) R.string.fp_pause else R.string.fp_play))
                         .setExtras(extras)
                         .build()
                 )

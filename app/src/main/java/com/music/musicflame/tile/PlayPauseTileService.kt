@@ -95,7 +95,7 @@ class PlayPauseTileService : TileService() {
         // "activo" del tile (resaltado) es lo que indica si está sonando.
         tile.state = if (isPlaying) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile_play_pause)
-        tile.label = "Reproducir/Pausar"
+        tile.label = getString(R.string.tile_play_pause)
         tile.updateTile()
     }
 }

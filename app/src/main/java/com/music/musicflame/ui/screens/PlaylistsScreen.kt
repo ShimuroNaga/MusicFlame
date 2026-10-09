@@ -103,6 +103,8 @@ import java.io.OutputStreamWriter
 import java.util.concurrent.TimeUnit
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 fun formatPlaylistDuration(ms: Long): String {
     val hours = TimeUnit.MILLISECONDS.toHours(ms)
@@ -150,8 +152,8 @@ fun PlaylistsScreen(
     val favoriteCount = remember { mutableStateOf(0) }
     var defaultPlaylistsExpanded by remember { mutableStateOf(settingsRepo.isDefaultPlaylistsExpanded()) }
     // --- Playlists inteligentes: se recalculan al entrar y en cada "pull to refresh" ---
-    val mostPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.MOST_PLAYED, "Lo Más Sonado", emptyList(), isDefault = true)) }
-    val neverPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.NEVER_PLAYED, "Por Descubrir", emptyList(), isDefault = true)) }
+    val mostPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.MOST_PLAYED, context.getString(R.string.pl_most_played), emptyList(), isDefault = true)) }
+    val neverPlayedPlaylist = remember { mutableStateOf(Playlist(SmartPlaylistIds.NEVER_PLAYED, context.getString(R.string.pl_never_played), emptyList(), isDefault = true)) }
 
     val isRounded = LocalUseRoundCorners.current
     val fabRadius = if (isRounded) 16.dp else 0.dp
@@ -184,9 +186,9 @@ fun PlaylistsScreen(
                             }
                         }
                     }
-                    Toast.makeText(context, "Playlist exportada exitosamente", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.pl_exported), Toast.LENGTH_SHORT).show()
                 } catch (e: Exception) {
-                    Toast.makeText(context, "Error al exportar: ${e.localizedMessage}", Toast.LENGTH_LONG).show()
+                    Toast.makeText(context, context.getString(R.string.pl_export_error, e.localizedMessage ?: ""), Toast.LENGTH_LONG).show()
                 } finally {
                     playlistToExport.value = null
                 }
@@ -333,7 +335,7 @@ fun PlaylistsScreen(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = "Playlists predeterminadas",
+                                    text = stringResource(R.string.pl_default_playlists),
                                     fontSize = 15.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = LocalAppTextColor.current
@@ -341,7 +343,7 @@ fun PlaylistsScreen(
                                 Spacer(modifier = Modifier.width(6.dp))
                                 Icon(
                                     imageVector = if (defaultPlaylistsExpanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                    contentDescription = if (defaultPlaylistsExpanded) "Contraer" else "Expandir",
+                                    contentDescription = if (defaultPlaylistsExpanded) stringResource(R.string.pl_collapse) else stringResource(R.string.pl_expand),
                                     tint = LocalAppTextColor.current
                                 )
                             }
@@ -355,7 +357,7 @@ fun PlaylistsScreen(
                                     modifier = Modifier.padding(top = 6.dp),
                                     verticalArrangement = Arrangement.spacedBy(6.dp)
                                 ) {
-                                    val favoritesPlaylist = Playlist("favorites", "Favoritos", favoritesRepo.getAllFavoriteIds().toList(), customCoverUri = favoritesRepo.getCoverUri())
+                                    val favoritesPlaylist = Playlist("favorites", context.getString(R.string.pl_favorites), favoritesRepo.getAllFavoriteIds().toList(), customCoverUri = favoritesRepo.getCoverUri())
                                     PlaylistCard(
                                         playlist = favoritesPlaylist,
                                         songCount = favoriteCount.value,
@@ -414,7 +416,7 @@ fun PlaylistsScreen(
                                     )
                                     Spacer(modifier = Modifier.height(16.dp))
                                     Text(
-                                        text = "¡Aún no tienes playlists, llena la app de tus playlists favoritas!",
+                                        text = stringResource(R.string.pl_empty),
                                         color = LocalAppTextColor.current,
                                         fontWeight = FontWeight.Medium,
                                         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
@@ -469,7 +471,7 @@ fun PlaylistsScreen(
                         contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                         elevation = FloatingActionButtonDefaults.elevation()
                     ) {
-                        Icon(Icons.Filled.Checklist, contentDescription = "Seleccionar playlists")
+                        Icon(Icons.Filled.Checklist, contentDescription = stringResource(R.string.pl_select_playlists))
                     }
 
                     Box {
@@ -480,7 +482,7 @@ fun PlaylistsScreen(
                             contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
                             elevation = FloatingActionButtonDefaults.elevation()
                         ) {
-                            Icon(Icons.Filled.Sort, contentDescription = "Ordenar")
+                            Icon(Icons.Filled.Sort, contentDescription = stringResource(R.string.sg_sort))
                         }
 
                         DropdownMenu(
@@ -492,7 +494,7 @@ fun PlaylistsScreen(
                                     Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
                                         RadioButton(selected = sortType.value == PlaylistSortType.DATE_CREATED, onClick = { sortType.value = PlaylistSortType.DATE_CREATED; showSortMenu.value = false })
                                         Spacer(Modifier.width(8.dp))
-                                        Text("Fecha creada", color = LocalAppTextColor.current)
+                                        Text(stringResource(R.string.pl_sort_date_created), color = LocalAppTextColor.current)
                                     }
                                 },
                                 onClick = { sortType.value = PlaylistSortType.DATE_CREATED; showSortMenu.value = false }
@@ -537,7 +539,7 @@ fun PlaylistsScreen(
                     ExtendedFloatingActionButton(
                         onClick = { showCreateDialog.value = true },
                         icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                        text = { Text("Nueva") },
+                        text = { Text(stringResource(R.string.pl_new)) },
                         shape = RoundedCornerShape(fabRadius),
                         containerColor = MaterialTheme.colorScheme.primaryContainer,
                         contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
@@ -546,7 +548,7 @@ fun PlaylistsScreen(
                     ExtendedFloatingActionButton(
                         onClick = onImportClick,
                         icon = { Icon(Icons.Filled.FileDownload, contentDescription = null) },
-                        text = { Text("Importar") },
+                        text = { Text(stringResource(R.string.pl_import)) },
                         shape = RoundedCornerShape(fabRadius),
                         containerColor = MaterialTheme.colorScheme.tertiaryContainer,
                         contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
@@ -562,12 +564,12 @@ fun PlaylistsScreen(
         AlertDialog(
             shape = RoundedCornerShape(dialogRadius),
             onDismissRequest = { showCreateDialog.value = false },
-            title = { Text("Nueva Playlist", fontWeight = FontWeight.Bold) },
+            title = { Text(stringResource(R.string.pl_new_playlist), fontWeight = FontWeight.Bold) },
             text = {
                 OutlinedTextField(
                     value = name.value,
                     onValueChange = { name.value = it },
-                    label = { Text("Nombre") },
+                    label = { Text(stringResource(R.string.ce_name)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(textFieldRadius)
@@ -591,10 +593,10 @@ fun PlaylistsScreen(
                             showCreateDialog.value = false
                         }
                     }
-                ) { Text("Crear") }
+                ) { Text(stringResource(R.string.pl_create)) }
             },
             dismissButton = {
-                TextButton(onClick = { showCreateDialog.value = false }) { Text("Cancelar") }
+                TextButton(onClick = { showCreateDialog.value = false }) { Text(stringResource(R.string.action_cancel)) }
             }
         )
     }
@@ -735,7 +737,7 @@ fun PlaylistCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Seleccionada",
+                            contentDescription = stringResource(R.string.pl_selected),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )
@@ -754,7 +756,7 @@ fun PlaylistCard(
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else if (kind != PlaylistKind.REGULAR) favoritesTextColor else LocalAppTextColor.current
                 )
                 Text(
-                    text = "$songCount ${if (songCount == 1) "canción" else "canciones"} • $totalDurationFormatted",
+                    text = if (songCount == 1) stringResource(R.string.pl_song_one, songCount, totalDurationFormatted) else stringResource(R.string.pl_song_many, songCount, totalDurationFormatted),
                     fontSize = 13.sp,
                     color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.85f) else if (kind != PlaylistKind.REGULAR) favoritesTextColor.copy(alpha = 0.85f) else LocalAppTextColor.current.copy(alpha = 0.7f)
                 )
@@ -766,19 +768,19 @@ fun PlaylistCard(
         AlertDialog(
             shape = RoundedCornerShape(dialogRadius),
             onDismissRequest = { showCoverDialog.value = false },
-            title = { Text("Carátula de playlist", fontWeight = FontWeight.Bold) },
-            text = { Text("Elige una opción para la carátula de \"${playlist.name}\"") },
+            title = { Text(stringResource(R.string.pl_cover_title), fontWeight = FontWeight.Bold) },
+            text = { Text(stringResource(R.string.pl_cover_message, playlist.name)) },
             confirmButton = {
                 Button(onClick = {
                     onChangeCoverClick(playlist.id)
                     showCoverDialog.value = false
-                }) { Text("Elegir Imagen/GIF") }
+                }) { Text(stringResource(R.string.pl_cover_pick)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     onResetCoverClick(playlist.id)
                     showCoverDialog.value = false
-                }) { Text("Restablecer") }
+                }) { Text(stringResource(R.string.pl_cover_reset)) }
             }
         )
     }

@@ -106,7 +106,7 @@ fun OnboardingSongsStep(settingsRepo: SettingsRepository) {
         item { onboardingSectionHeader(stringResource(R.string.ob_sg_eq)) }
         item {
             ListItem(
-                headlineContent = { Text("Studio Pro EQ") },
+                headlineContent = { Text(stringResource(R.string.settings_studio_pro_eq)) },
                 supportingContent = { Text(stringResource(R.string.ob_sg_preset_active, eqPreset)) },
                 colors = listItemColors
             )

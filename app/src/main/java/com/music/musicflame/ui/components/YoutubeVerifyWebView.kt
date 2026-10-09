@@ -30,6 +30,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 /**
  * Pantalla dentro de la app (no navegador externo) que muestra los resultados
@@ -67,7 +69,7 @@ fun YoutubeVerifyWebView(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onClose) {
-                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Cerrar")
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_close))
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(

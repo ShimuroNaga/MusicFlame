@@ -34,6 +34,7 @@ import java.io.File
 import java.security.SecureRandom
 import java.util.UUID
 import kotlin.math.abs
+import com.music.musicflame.R
 
 /**
  * Modo "En compañía": varias personas escuchan lo mismo a la vez.
@@ -164,7 +165,7 @@ class TogetherManager(
 
     init {
         // Si quedó una sala guardada de la sesión anterior, se ofrece reconectar (no se une sola).
-        if (roomCode != null) { status = Status.DISCONNECTED; statusDetail = "Sala guardada. Pulsa Conectar para volver." }
+        if (roomCode != null) { status = Status.DISCONNECTED; statusDetail = appContext.getString(R.string.tgm_saved_room) }
         // Archivos que quedaron en Supabase de una sesión anterior (la app se cerró sin cerrar la sala).
         cleanupOrphanUploads()
         // Escucha el desfase con el reloj del servidor (una sola vez).
@@ -190,7 +191,7 @@ class TogetherManager(
         prefs.edit().putString(KEY_NAME, userName).apply()
         val code = roomCode ?: return
         val uid = auth.currentUser?.uid ?: return
-        if (status == Status.CONNECTED) db.getReference("rooms/$code/members/$uid/name").setValue(userName.ifBlank { "Invitado" })
+        if (status == Status.CONNECTED) db.getReference("rooms/$code/members/$uid/name").setValue(userName.ifBlank { appContext.getString(R.string.tgm_guest) })
     }
 
     /** "+ Crear sala". */
@@ -200,7 +201,7 @@ class TogetherManager(
         scope.launch {
             try {
                 if (roomCode != null) leaveInternal(removeRemote = true)
-                status = Status.CONNECTING; statusDetail = "Creando sala…"
+                status = Status.CONNECTING; statusDetail = appContext.getString(R.string.tgm_creating)
                 val user = ensureAuth()
                 var created: String? = null
                 repeat(5) {
@@ -220,12 +221,12 @@ class TogetherManager(
                     }
                 }
                 val code = created ?: throw IllegalStateException(
-                    "No se pudo crear la sala. Revisa que el inicio de sesión de Firebase y las reglas estén activos."
+                    appContext.getString(R.string.tgm_create_failed)
                 )
                 hostUid = user.uid
                 persistRoom(code, true)
                 attach(code, user.uid)
-                toast("Sala creada: $code")
+                toast(appContext.getString(R.string.tgm_room_created, code))
             } catch (t: Throwable) {
                 fail(t)
             } finally {
@@ -237,24 +238,24 @@ class TogetherManager(
     /** Unirse pegando el código (o el enlace completo). */
     fun joinRoom(input: String) {
         val code = parseCode(input)
-        if (code.length < 4) { toast("Pega un código válido"); return }
+        if (code.length < 4) { toast(appContext.getString(R.string.tgm_invalid_code)); return }
         if (_busy.value) return
         _busy.value = true
         scope.launch {
             try {
                 if (roomCode != null && roomCode != code) leaveInternal(removeRemote = true)
-                status = Status.CONNECTING; statusDetail = "Entrando a la sala…"
+                status = Status.CONNECTING; statusDetail = appContext.getString(R.string.tgm_joining)
                 val user = ensureAuth()
                 val meta = db.getReference("rooms/$code/meta").get().await()
                 if (!meta.exists()) {
                     status = Status.IDLE; statusDetail = ""
-                    toast("No existe una sala con ese código")
+                    toast(appContext.getString(R.string.tgm_room_not_found))
                     return@launch
                 }
                 hostUid = meta.child("hostUid").getValue(String::class.java)
                 persistRoom(code, hostUid == user.uid)
                 attach(code, user.uid)
-                toast("Conectado a la sala $code")
+                toast(appContext.getString(R.string.tgm_connected_to, code))
             } catch (t: Throwable) {
                 fail(t)
             } finally {
@@ -274,7 +275,7 @@ class TogetherManager(
                 val user = ensureAuth()
                 val meta = db.getReference("rooms/$code/meta").get().await()
                 if (!meta.exists()) {
-                    toast("La sala ya no existe")
+                    toast(appContext.getString(R.string.tgm_room_gone))
                     leaveInternal(removeRemote = false)
                     return@launch
                 }
@@ -302,7 +303,7 @@ class TogetherManager(
             } catch (_: Throwable) {}
         }
         status = Status.DISCONNECTED
-        statusDetail = "Desconectado. Pulsa Conectar para volver."
+        statusDetail = appContext.getString(R.string.tgm_disconnected_hint)
         nowPlayingText = null; missingSongText = null
         uploadPrompt = null; transferText = null
     }
@@ -320,7 +321,7 @@ class TogetherManager(
                 val user = ensureAuth()
                 val meta = db.getReference("rooms/$code/meta").get().await()
                 if (!meta.exists()) {
-                    toast("La sala ya no existe")
+                    toast(appContext.getString(R.string.tgm_room_gone))
                     leaveInternal(removeRemote = false)
                     return@launch
                 }
@@ -383,7 +384,7 @@ class TogetherManager(
                 override fun onDataChange(s: DataSnapshot) {
                     if (!s.exists() && status == Status.CONNECTED) {
                         scope.launch {
-                            toast("El anfitrión cerró la sala")
+                            toast(appContext.getString(R.string.tgm_host_closed))
                             leaveInternal(removeRemote = false)
                         }
                     }
@@ -404,7 +405,7 @@ class TogetherManager(
                         if (!online) return@mapNotNull null
                         Member(
                             uid = id,
-                            name = c.child("name").getValue(String::class.java) ?: "Invitado",
+                            name = c.child("name").getValue(String::class.java) ?: appContext.getString(R.string.tgm_guest),
                             online = true,
                             isHost = id == hostUid,
                             missing = c.child("missing").getValue(String::class.java)
@@ -417,7 +418,7 @@ class TogetherManager(
                     evaluateMissing()
                 }
                 override fun onCancelled(e: DatabaseError) {
-                    fail(e.toException(), "Sin permiso para leer la sala")
+                    fail(e.toException(), appContext.getString(R.string.tgm_no_permission))
                 }
             }
             ref.addValueEventListener(membersListener!!)
@@ -604,7 +605,7 @@ class TogetherManager(
                 "joinedAt" to ServerValue.TIMESTAMP
             )
         ).addOnFailureListener {
-            fail(it, "No se pudo entrar (¿sala llena? máximo $MAX_MEMBERS personas)")
+            fail(it, appContext.getString(R.string.tgm_join_failed, MAX_MEMBERS))
         }
     }
 
@@ -664,7 +665,7 @@ class TogetherManager(
         if (songKey(song.title, song.artist) != key || uploading) return
         val file = File(song.path)
         if (!file.isFile || file.length() > SupabaseSalas.MAX_BYTES) {
-            toast("Esa canción no se puede compartir (máximo 25 MB)")
+            toast(appContext.getString(R.string.tgm_cannot_share))
             return
         }
         val ext = file.extension.lowercase().filter { it.isLetterOrDigit() }.take(5).ifBlank { "mp3" }
@@ -677,11 +678,11 @@ class TogetherManager(
                 uploadedPaths[key] = objectPath
                 persistUploadedPaths()
                 publishNow() // ahora el estado incluye filePath y los invitados la descargan
-                toast("Canción compartida: «${song.title}»")
+                toast(appContext.getString(R.string.tgm_song_shared, song.title))
             } catch (t: Throwable) {
                 Log.e(TAG, "Falló la subida", t)
                 declinedKeys += key
-                toast("No se pudo subir la canción: ${t.message ?: "error desconocido"}")
+                toast(appContext.getString(R.string.tgm_upload_failed, t.message ?: appContext.getString(R.string.tgm_unknown_error)))
             } finally {
                 uploading = false
                 transferText = null
@@ -713,7 +714,7 @@ class TogetherManager(
                 latestHostState?.takeIf { it.key == st.key }?.let { applyHostState(it) }
             } catch (t: Throwable) {
                 Log.e(TAG, "Falló la descarga", t)
-                toast("No se pudo descargar la canción del anfitrión")
+                toast(appContext.getString(R.string.tgm_download_failed))
             } finally {
                 downloadingKey = null
                 transferText = null
@@ -772,13 +773,13 @@ class TogetherManager(
         }
         // 2) Respaldo: sesión anónima (hay que activarla en Firebase → Authentication).
         return auth.signInAnonymously().await().user
-            ?: throw IllegalStateException("No se pudo iniciar sesión en Firebase")
+            ?: throw IllegalStateException(appContext.getString(R.string.tgm_firebase_signin_failed))
     }
 
-    private fun displayName() = userName.trim().ifBlank { "Invitado" }
+    private fun displayName() = userName.trim().ifBlank { appContext.getString(R.string.tgm_guest) }
 
     private fun defaultName(): String =
-        GoogleSignIn.getLastSignedInAccount(appContext)?.displayName ?: "Invitado"
+        GoogleSignIn.getLastSignedInAccount(appContext)?.displayName ?: appContext.getString(R.string.tgm_guest)
 
     private fun persistRoom(code: String, host: Boolean) {
         roomCode = code; isHost = host
@@ -789,9 +790,9 @@ class TogetherManager(
         Log.e(TAG, "Error en el modo En compañía", t)
         val msg = friendly ?: when {
             t.message?.contains("permission denied", true) == true ->
-                "Firebase rechazó la operación: revisa las reglas de la base de datos"
-            t.message?.contains("network", true) == true -> "Sin conexión a internet"
-            else -> t.message ?: "Error desconocido"
+                appContext.getString(R.string.tgm_firebase_denied)
+            t.message?.contains("network", true) == true -> appContext.getString(R.string.tgm_no_internet)
+            else -> t.message ?: appContext.getString(R.string.tgm_unknown_error_cap)
         }
         status = if (roomCode != null) Status.DISCONNECTED else Status.ERROR
         statusDetail = msg

@@ -176,7 +176,7 @@ fun CoverDesignEditorDialog(
 
                     // Redondeado
                     LabeledSlider(
-                        label = "Redondeado: ${(draft.roundness * 100).roundToInt()}%",
+                        label = stringResource(R.string.cd_rounding, (draft.roundness * 100).roundToInt()),
                         value = draft.roundness,
                         onValueChange = { draft = draft.copy(roundness = it) },
                         valueRange = 0f..1f
@@ -184,7 +184,7 @@ fun CoverDesignEditorDialog(
 
                     // Rotación
                     LabeledSlider(
-                        label = "Rotación: ${draft.rotation.roundToInt()}°",
+                        label = stringResource(R.string.cd_rotation, draft.rotation.roundToInt()),
                         value = draft.rotation,
                         onValueChange = { draft = draft.copy(rotation = it) },
                         valueRange = 0f..360f
@@ -192,7 +192,7 @@ fun CoverDesignEditorDialog(
 
                     // Transparencia
                     LabeledSlider(
-                        label = "Transparencia: ${(draft.transparency * 100).roundToInt()}%",
+                        label = stringResource(R.string.cd_transparency, (draft.transparency * 100).roundToInt()),
                         value = draft.transparency,
                         onValueChange = { draft = draft.copy(transparency = it) },
                         valueRange = 0f..CoverDesign.MAX_TRANSPARENCY

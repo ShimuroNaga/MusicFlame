@@ -41,6 +41,8 @@ import java.util.Date
 import java.util.Locale
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 /** Canciones que trae el Mix Diario al generarse. */
 private const val DAILY_MIX_SIZE = 40
@@ -294,11 +296,11 @@ fun MixScreen(
 
                                         val textColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onPrimaryContainer
 
-                                        Text("Tu Mix Diario", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textColor)
-                                        Text("Hoy ($todayFormatted)", fontSize = 14.sp, color = textColor.copy(alpha = 0.8f))
+                                        Text(stringResource(R.string.mix_daily_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = textColor)
+                                        Text(stringResource(R.string.mix_today, todayFormatted), fontSize = 14.sp, color = textColor.copy(alpha = 0.8f))
                                         if (mixSongs.isNotEmpty()) {
                                             Spacer(Modifier.height(8.dp))
-                                            Text("${mixSongs.size} canciones • $totalDurationFormatted", fontSize = 13.sp, color = textColor.copy(alpha = 0.8f))
+                                            Text(stringResource(R.string.mix_songs_duration, mixSongs.size, totalDurationFormatted), fontSize = 13.sp, color = textColor.copy(alpha = 0.8f))
                                         }
                                     }
                                 }
@@ -315,7 +317,7 @@ fun MixScreen(
                                         shape = RoundedCornerShape(buttonRadius),
                                         enabled = !isSelectionMode // Deshabilitamos reproducir todo si estamos seleccionando
                                     ) {
-                                        Icon(Icons.Filled.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text("Reproducir Mix")
+                                        Icon(Icons.Filled.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.mix_play))
                                     }
                                 }
                             }
@@ -358,10 +360,10 @@ fun MixScreen(
                                         Icon(Icons.Filled.BarChart, null, tint = statsTextColor)
                                         Spacer(Modifier.width(12.dp))
                                         Column(Modifier.weight(1f)) {
-                                            Text("Estadísticas", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = statsTextColor)
+                                            Text(stringResource(R.string.mix_stats), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = statsTextColor)
                                             val topSongLabel = statsRows.firstOrNull()?.song?.title
                                             Text(
-                                                if (topSongLabel != null) "Más escuchada: $topSongLabel" else "Top 20 canciones más escuchadas",
+                                                if (topSongLabel != null) stringResource(R.string.mix_most_played, topSongLabel) else stringResource(R.string.mix_top20),
                                                 fontSize = 12.sp,
                                                 color = statsTextColor.copy(alpha = 0.8f)
                                             )
@@ -386,9 +388,9 @@ fun MixScreen(
                                             // para aparecer en este Top 20 — lo que parecía un bug
                                             // (como si nada se estuviera registrando) sin serlo.
                                             if (hasAnyStatsRecorded.value)
-                                                "Todavía ninguna canción llegó a las 3 reproducciones necesarias para aparecer acá (no hace falta que sean seguidas). ¡Sigue escuchando!"
+                                                stringResource(R.string.mix_stats_empty_threshold)
                                             else
-                                                "Aún no hay estadísticas. ¡Reproduce alguna canción para empezar a registrar!",
+                                                stringResource(R.string.mix_stats_empty),
                                             fontSize = 13.sp,
                                             color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
@@ -435,7 +437,7 @@ fun MixScreen(
                                                 if (row.isFavorite) {
                                                     Icon(
                                                         Icons.Filled.Favorite,
-                                                        contentDescription = "Favorita",
+                                                        contentDescription = stringResource(R.string.mix_favorite),
                                                         tint = MaterialTheme.colorScheme.primary,
                                                         modifier = Modifier.size(16.dp)
                                                     )
@@ -476,7 +478,7 @@ fun MixScreen(
                                     ExtendedFloatingActionButton(
                                         onClick = { showSaveDialog.value = true },
                                         icon = { Icon(Icons.Filled.Save, null) },
-                                        text = { Text("Guardar Mix") },
+                                        text = { Text(stringResource(R.string.mix_save)) },
                                         modifier = Modifier.weight(1f),
                                         shape = RoundedCornerShape(buttonRadius)
                                     )
@@ -496,10 +498,10 @@ fun MixScreen(
                                                 settingsRepo.saveLastMixDate(todayFormatted)
                                                 canGenerate = false
                                                 isGenerating.value = false
-                                                Toast.makeText(context, "¡${newMix.size} canciones generadas!", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.mix_generated, newMix.size), Toast.LENGTH_SHORT).show()
                                             }
                                         } else {
-                                            Toast.makeText(context, "Nuevo mix disponible en $hoursUntilNextMix horas", Toast.LENGTH_SHORT).show()
+                                            Toast.makeText(context, context.getString(R.string.mix_next_available, hoursUntilNextMix), Toast.LENGTH_SHORT).show()
                                         }
                                     },
                                     icon = {
@@ -508,7 +510,7 @@ fun MixScreen(
                                             contentDescription = null
                                         )
                                     },
-                                    text = { Text(if (canGenerate) "Generar Mix" else "Listo (${hoursUntilNextMix}h)") },
+                                    text = { Text(if (canGenerate) stringResource(R.string.mix_generate) else stringResource(R.string.mix_ready_in, hoursUntilNextMix)) },
                                     modifier = Modifier.weight(1f),
                                     shape = RoundedCornerShape(buttonRadius),
                                     containerColor = FloatingActionButtonDefaults.containerColor,
@@ -527,18 +529,18 @@ fun MixScreen(
         val playlistName = remember { mutableStateOf("Mix Diario $todayFormatted") }
         AlertDialog(
             onDismissRequest = { showSaveDialog.value = false },
-            title = { Text("Guardar como Playlist") },
-            text = { OutlinedTextField(value = playlistName.value, onValueChange = { playlistName.value = it }, label = { Text("Nombre de la playlist") }) },
+            title = { Text(stringResource(R.string.mix_save_as_playlist)) },
+            text = { OutlinedTextField(value = playlistName.value, onValueChange = { playlistName.value = it }, label = { Text(stringResource(R.string.mix_playlist_name)) }) },
             confirmButton = {
                 TextButton(onClick = {
                     playlistRepo.createPlaylist(playlistName.value)
                     val newPlaylist = playlistRepo.getPlaylists().last()
                     mixSongs.forEach { playlistRepo.addSongToPlaylist(newPlaylist.id, it.id) }
-                    Toast.makeText(context, "Playlist guardada", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(context, context.getString(R.string.mix_playlist_saved), Toast.LENGTH_SHORT).show()
                     showSaveDialog.value = false
-                }) { Text("Guardar") }
+                }) { Text(stringResource(R.string.action_save)) }
             },
-            dismissButton = { TextButton(onClick = { showSaveDialog.value = false }) { Text("Cancelar") } }
+            dismissButton = { TextButton(onClick = { showSaveDialog.value = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
     }
 }
@@ -637,8 +639,8 @@ private fun MomentsMixPage(
                             Icon(Icons.Filled.AutoAwesome, null, modifier = Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onTertiary)
                         }
                         Spacer(Modifier.height(16.dp))
-                        Text("Tu Mezcla de Momentos", fontSize = 24.sp, fontWeight = FontWeight.Bold, color = headerText)
-                        Text("Solo lo mejor de cada canción", fontSize = 14.sp, color = headerText.copy(alpha = 0.8f))
+                        Text(stringResource(R.string.mix_moments_title), fontSize = 24.sp, fontWeight = FontWeight.Bold, color = headerText)
+                        Text(stringResource(R.string.mix_moments_subtitle), fontSize = 14.sp, color = headerText.copy(alpha = 0.8f))
                         if (entries.isNotEmpty()) {
                             Spacer(Modifier.height(8.dp))
                             Text(
@@ -654,7 +656,7 @@ private fun MomentsMixPage(
             if (entries.isEmpty()) {
                 item {
                     Text(
-                        "Aún no tienes momentos. Abre el reproductor, toca el botón de marcador mientras suena tu parte favorita (un toque para marcar inicio y otro para el fin, o mantén presionado para guardar los últimos 15 segundos) y aquí aparecerá tu mezcla.",
+                        stringResource(R.string.mix_moments_empty),
                         fontSize = 13.sp,
                         color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(horizontal = 4.dp, vertical = 12.dp)
@@ -668,14 +670,14 @@ private fun MomentsMixPage(
                             modifier = Modifier.weight(1f).height(48.dp),
                             shape = RoundedCornerShape(buttonRadius)
                         ) {
-                            Icon(Icons.Filled.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text("Reproducir mezcla")
+                            Icon(Icons.Filled.PlayArrow, null); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.mix_play_mix_lower))
                         }
                         FilledTonalButton(
                             onClick = { onShuffle() },
                             modifier = Modifier.height(48.dp),
                             shape = RoundedCornerShape(buttonRadius)
                         ) {
-                            Icon(Icons.Filled.Shuffle, null); Spacer(Modifier.width(6.dp)); Text("Mezclar")
+                            Icon(Icons.Filled.Shuffle, null); Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.mix_shuffle))
                         }
                     }
                 }
@@ -720,7 +722,7 @@ private fun MomentsMixPage(
                                     fontSize = 13.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary
                                 )
                                 Text(
-                                    if (entry.moments.size > 1) "${entry.moments.size} momentos" else "1 momento",
+                                    if (entry.moments.size > 1) stringResource(R.string.mix_moments_many, entry.moments.size) else stringResource(R.string.mix_moments_one),
                                     fontSize = 11.sp, color = rowText.copy(alpha = 0.7f)
                                 )
                             }

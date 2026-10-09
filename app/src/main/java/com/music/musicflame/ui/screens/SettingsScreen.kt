@@ -1765,7 +1765,7 @@ fun SettingsScreen(
                         item {
                             ListItem(
                                 headlineContent = { Text(stringResource(R.string.settings_paleta_de_colores)) },
-                                supportingContent = { Text("Material You (Dinámico)") },
+                                supportingContent = { Text(stringResource(R.string.settings_material_you_dynamic)) },
                                 colors = listItemColors
                             ); HorizontalDivider(color = dividerColor)
                         }

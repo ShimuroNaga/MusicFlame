@@ -20,6 +20,8 @@ import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.listeners.Abs
 import com.pierfrancescosoffritti.androidyoutubeplayer.core.player.views.YouTubePlayerView
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 private fun findWebView(view: View): WebView? {
     if (view is WebView) return view
@@ -89,7 +91,7 @@ fun YoutubePlayerScreen(videoId: String, modifier: Modifier = Modifier) {
                     .padding(16.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(text = "Error del player: $playerError", color = Color.Red)
+                Text(text = stringResource(R.string.yt_player_error, playerError ?: ""), color = Color.Red)
             }
         }
     }

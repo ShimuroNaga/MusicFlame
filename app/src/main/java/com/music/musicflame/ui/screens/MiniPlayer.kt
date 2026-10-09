@@ -35,6 +35,8 @@ import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
 import com.music.musicflame.ui.utils.TransparentCardDefaults
 import kotlinx.coroutines.delay
 import java.util.concurrent.TimeUnit
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 fun formatDuration(ms: Long): String {
     if (ms < 0) return "0:00"
@@ -197,7 +199,7 @@ fun MiniPlayer(
 
             // --- INFO Y CONTROLES CON ANIMACIÓN ---
             AnimatedContent(
-                targetState = currentSong?.title ?: "Sin reproducción",
+                targetState = currentSong?.title ?: stringResource(R.string.mp_no_playback),
                 transitionSpec = {
                     slideInHorizontally(initialOffsetX = { -it }, animationSpec = tween(400)) + fadeIn() togetherWith
                             slideOutHorizontally(targetOffsetX = { it }, animationSpec = tween(400)) + fadeOut()
@@ -226,7 +228,7 @@ fun MiniPlayer(
                             modifier = Modifier.basicMarquee()
                         )
                         Text(
-                            text = currentSong?.artist ?: "Selecciona una canción",
+                            text = currentSong?.artist ?: stringResource(R.string.mp_select_song),
                             fontSize = 12.sp,
                             // <-- APLICANDO COLOR GLOBAL SECUNDARIO
                             color = LocalAppTextColor.current.copy(alpha = 0.7f),
@@ -245,7 +247,7 @@ fun MiniPlayer(
                         ) {
                             Icon(
                                 painter = painterResource(id = playerManager.cycleIconRes),
-                                contentDescription = "Modo Reproducción",
+                                contentDescription = stringResource(R.string.mp_play_mode),
                                 tint = if (playerManager.cycleMode.value != 0)
                                     MaterialTheme.colorScheme.primary
                                 else
@@ -261,7 +263,7 @@ fun MiniPlayer(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.SkipPrevious,
-                                contentDescription = "Anterior",
+                                contentDescription = stringResource(R.string.fp_previous),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -274,7 +276,7 @@ fun MiniPlayer(
                         ) {
                             Icon(
                                 imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                                contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                                contentDescription = if (isPlaying) stringResource(R.string.fp_pause) else stringResource(R.string.fp_play),
                                 tint = MaterialTheme.colorScheme.onSurface,
                                 modifier = Modifier.size(32.dp)
                             )
@@ -288,7 +290,7 @@ fun MiniPlayer(
                         ) {
                             Icon(
                                 imageVector = Icons.Filled.SkipNext,
-                                contentDescription = "Siguiente",
+                                contentDescription = stringResource(R.string.fp_next),
                                 tint = MaterialTheme.colorScheme.onSurface
                             )
                         }

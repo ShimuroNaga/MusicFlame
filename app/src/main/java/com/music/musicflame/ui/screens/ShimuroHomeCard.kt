@@ -54,6 +54,7 @@ import com.music.musicflame.R
 import java.time.LocalTime
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
 
 /**
  * Card única "Hogar de Shimuro". Vive en su propia sección de SettingsScreen
@@ -345,7 +346,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                                     // Foto plana: Shimuro ya sentado en el cuarto.
                                     Image(
                                         painter = painterResource(id = R.drawable.mascot_room_day),
-                                        contentDescription = "Shimuro sentado, tocar para interactuar",
+                                        contentDescription = stringResource(R.string.shimuro_cd_sitting),
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
                                     )
@@ -354,7 +355,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                                     // Foto plana: la silla sola, paso intermedio de la animación.
                                     Image(
                                         painter = painterResource(id = R.drawable.mascot_room_day_alone),
-                                        contentDescription = "Shimuro se levanta de la silla",
+                                        contentDescription = stringResource(R.string.shimuro_cd_standing),
                                         contentScale = ContentScale.Crop,
                                         modifier = Modifier.fillMaxSize()
                                     )
@@ -422,7 +423,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                                 painter = painterResource(
                                     id = if (isTalking) R.drawable.mascot_talk_night else R.drawable.mascot_night
                                 ),
-                                contentDescription = if (isTalking) "Shimuro hablando" else "Shimuro, tocar para interactuar",
+                                contentDescription = if (isTalking) stringResource(R.string.shimuro_cd_talking) else stringResource(R.string.shimuro_cd_idle),
                                 contentScale = ContentScale.Crop,
                                 modifier = Modifier.fillMaxSize()
                             )
@@ -480,7 +481,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
                     Spacer(Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Filled.KeyboardArrowRight,
-                        contentDescription = "Preguntarle a Shimuro",
+                        contentDescription = stringResource(R.string.shimuro_cd_ask),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }

@@ -64,6 +64,8 @@ import kotlin.math.cos
 import kotlin.math.pow
 import kotlin.math.sign
 import kotlin.math.sin
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 // Hexágono regular inscrito en el tamaño exacto del contenedor (punta arriba y abajo).
 private class HexagonShape : Shape {
@@ -463,7 +465,7 @@ fun AlbumArt(
                     .build(),
                 // ¡AQUÍ ES DONDE CONECTAMOS EL DECODIFICADOR DE GIFS!
                 imageLoader = imageLoader,
-                contentDescription = "Carátula",
+                contentDescription = stringResource(R.string.fp_cover),
                 modifier = Modifier.size(size),
                 contentScale = ContentScale.Crop
             ) {

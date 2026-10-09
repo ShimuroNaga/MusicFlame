@@ -68,6 +68,7 @@ import kotlinx.coroutines.withContext
 import kotlin.math.abs
 import com.music.musicflame.ui.components.YoutubePlayerScreen
 import com.music.musicflame.ui.screens.onboarding.OnboardingScreen
+import com.music.musicflame.R
 
 // ⚠️ Reemplaza esto con tu "Web Client ID" de Google Cloud Console.
 private const val WEB_CLIENT_ID = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k.apps.googleusercontent.com"
@@ -426,8 +427,8 @@ class MainActivity : ComponentActivity() {
                                 val realVideoId = item.id?.videoId ?: (item.id as? String) ?: return@mapNotNull null
                                 Song(
                                     id = realVideoId.hashCode().toLong(),
-                                    title = item.snippet?.title ?: "Sin título",
-                                    artist = item.snippet?.channelTitle ?: "Desconocido",
+                                    title = item.snippet?.title ?: context.getString(R.string.yt_untitled),
+                                    artist = item.snippet?.channelTitle ?: context.getString(R.string.common_unknown),
                                     albumArtUri = item.snippet?.thumbnails?.high?.url ?: "",
                                     path = "",
                                     dateAdded = 0L,
@@ -713,7 +714,7 @@ class MainActivity : ComponentActivity() {
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_select_all)) } },
                                                     onClick = {
                                                         showPlaylistSelectionMenu = false
-                                                        val favoritesPlaylist = Playlist("favorites", "Favoritos", favoriteIds.toList())
+                                                        val favoritesPlaylist = Playlist("favorites", context.getString(R.string.pl_favorites), favoriteIds.toList())
                                                         val allPlaylists = listOf(favoritesPlaylist, buildMostPlayedPlaylist(context), buildNeverPlayedPlaylist(context)) + playlistRepo.getPlaylists()
                                                         selectedPlaylists.clear()
                                                         selectedPlaylists.addAll(allPlaylists)
@@ -1200,13 +1201,13 @@ class MainActivity : ComponentActivity() {
                                             ) {
                                                 Icon(Icons.Filled.Add, null, tint = MaterialTheme.colorScheme.primary)
                                                 Spacer(Modifier.width(8.dp))
-                                                Text("Crear nueva playlist", color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium, fontSize = 16.sp)
+                                                Text(stringResource(R.string.main_create_new_playlist), color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Medium, fontSize = 16.sp)
                                             }
 
                                             HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                                             if (playlists.isEmpty()) {
-                                                Text("No tienes playlists creadas.", modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp))
+                                                Text(stringResource(R.string.main_no_playlists), modifier = Modifier.padding(horizontal = 8.dp, vertical = 8.dp))
                                             } else {
                                                 LazyColumn(modifier = Modifier.fillMaxWidth()) {
                                                     items(playlists) { playlist ->
@@ -1216,7 +1217,7 @@ class MainActivity : ComponentActivity() {
                                                                 .fillMaxWidth()
                                                                 .clickable {
                                                                     selectedSongs.forEach { playlistRepo.addSongToPlaylist(playlist.id, it.id) }
-                                                                    Toast.makeText(context, "${selectedSongs.size} canciones añadidas a ${playlist.name}", Toast.LENGTH_SHORT).show()
+                                                                    Toast.makeText(context, context.getString(R.string.main_songs_added_to, selectedSongs.size, playlist.name), Toast.LENGTH_SHORT).show()
                                                                     showMultiPlaylistDialog = false
                                                                     selectedSongs.clear(); manualSongSelectionMode = false
                                                                 }
@@ -1228,7 +1229,7 @@ class MainActivity : ComponentActivity() {
                                             }
                                         }
                                     },
-                                    confirmButton = { TextButton(onClick = { showMultiPlaylistDialog = false }) { Text("Cancelar") } }
+                                    confirmButton = { TextButton(onClick = { showMultiPlaylistDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
                                 )
                             }
 
@@ -1236,12 +1237,12 @@ class MainActivity : ComponentActivity() {
                                 val targetPlaylist = selectedPlaylists.firstOrNull()
                                 AlertDialog(
                                     onDismissRequest = { showRenamePlaylistDialog = false },
-                                    title = { Text("Renombrar Playlist", fontWeight = FontWeight.Bold) },
+                                    title = { Text(stringResource(R.string.main_rename_playlist), fontWeight = FontWeight.Bold) },
                                     text = {
                                         OutlinedTextField(
                                             value = renamePlaylistText,
                                             onValueChange = { renamePlaylistText = it },
-                                            label = { Text("Nombre") },
+                                            label = { Text(stringResource(R.string.ce_name)) },
                                             singleLine = true,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -1257,10 +1258,10 @@ class MainActivity : ComponentActivity() {
                                                     selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                 }
                                             }
-                                        ) { Text("Guardar") }
+                                        ) { Text(stringResource(R.string.action_save)) }
                                     },
                                     dismissButton = {
-                                        TextButton(onClick = { showRenamePlaylistDialog = false }) { Text("Cancelar") }
+                                        TextButton(onClick = { showRenamePlaylistDialog = false }) { Text(stringResource(R.string.action_cancel)) }
                                     }
                                 )
                             }
@@ -1268,12 +1269,12 @@ class MainActivity : ComponentActivity() {
                             if (showCreatePlaylistFromSelection) {
                                 AlertDialog(
                                     onDismissRequest = { showCreatePlaylistFromSelection = false },
-                                    title = { Text("Nueva Playlist", fontWeight = FontWeight.Bold) },
+                                    title = { Text(stringResource(R.string.pl_new_playlist), fontWeight = FontWeight.Bold) },
                                     text = {
                                         OutlinedTextField(
                                             value = newPlaylistNameFromSelection,
                                             onValueChange = { newPlaylistNameFromSelection = it },
-                                            label = { Text("Nombre") },
+                                            label = { Text(stringResource(R.string.ce_name)) },
                                             singleLine = true,
                                             modifier = Modifier.fillMaxWidth()
                                         )
@@ -1289,16 +1290,16 @@ class MainActivity : ComponentActivity() {
                                                         .maxByOrNull { it.id.toLongOrNull() ?: 0L }
                                                     if (newPlaylist != null) {
                                                         selectedSongs.forEach { playlistRepo.addSongToPlaylist(newPlaylist.id, it.id) }
-                                                        Toast.makeText(context, "${selectedSongs.size} canciones añadidas a $trimmedName", Toast.LENGTH_SHORT).show()
+                                                        Toast.makeText(context, context.getString(R.string.main_songs_added_to, selectedSongs.size, trimmedName), Toast.LENGTH_SHORT).show()
                                                     }
                                                     showCreatePlaylistFromSelection = false
                                                     selectedSongs.clear(); manualSongSelectionMode = false
                                                 }
                                             }
-                                        ) { Text("Crear y añadir") }
+                                        ) { Text(stringResource(R.string.main_create_and_add)) }
                                     },
                                     dismissButton = {
-                                        TextButton(onClick = { showCreatePlaylistFromSelection = false }) { Text("Cancelar") }
+                                        TextButton(onClick = { showCreatePlaylistFromSelection = false }) { Text(stringResource(R.string.action_cancel)) }
                                     }
                                 )
                             }
@@ -1318,7 +1319,7 @@ class MainActivity : ComponentActivity() {
                                         selectedSongs.clear(); manualSongSelectionMode = false
                                         Toast.makeText(
                                             context,
-                                            if (count == 1) "Canción actualizada" else "$count canciones actualizadas",
+                                            if (count == 1) context.getString(R.string.main_song_updated) else context.getString(R.string.main_songs_updated, count),
                                             Toast.LENGTH_SHORT
                                         ).show()
                                     }
@@ -1329,8 +1330,8 @@ class MainActivity : ComponentActivity() {
                                 AlertDialog(
                                     onDismissRequest = { showMultiDeleteDialog = false },
                                     icon = { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.primary) },
-                                    title = { Text("Mover a la papelera", fontWeight = FontWeight.Bold) },
-                                    text = { Text("¿Mover ${selectedSongs.size} canciones a la papelera?\nPodrás recuperarlas más tarde desde ahí.") },
+                                    title = { Text(stringResource(R.string.main_move_to_trash), fontWeight = FontWeight.Bold) },
+                                    text = { Text(stringResource(R.string.main_trash_songs_message, selectedSongs.size)) },
                                     confirmButton = {
                                         Button(
                                             onClick = {
@@ -1338,9 +1339,9 @@ class MainActivity : ComponentActivity() {
                                                 showMultiDeleteDialog = false
                                                 selectedSongs.clear(); manualSongSelectionMode = false
                                             }
-                                        ) { Text("Mover") }
+                                        ) { Text(stringResource(R.string.main_move)) }
                                     },
-                                    dismissButton = { TextButton(onClick = { showMultiDeleteDialog = false }) { Text("Cancelar") } }
+                                    dismissButton = { TextButton(onClick = { showMultiDeleteDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
                                 )
                             }
 
@@ -1353,9 +1354,9 @@ class MainActivity : ComponentActivity() {
                                     title = { Text(stringResource(R.string.main_move_to_trash), fontWeight = FontWeight.Bold) },
                                     text = {
                                         if (deletablePlaylists.isEmpty()) {
-                                            Text("Favoritos y las playlists inteligentes (Lo Más Sonado, Por Descubrir) no se pueden mover a la papelera.")
+                                            Text(stringResource(R.string.main_trash_not_allowed))
                                         } else {
-                                            Text("¿Mover ${deletablePlaylists.size} playlists a la papelera?\nLas canciones no se borrarán del dispositivo, solo la playlist. Podrás restaurarla dentro de 30 días.")
+                                            Text(stringResource(R.string.main_trash_playlists_message, deletablePlaylists.size))
                                         }
                                     },
                                     confirmButton = {
@@ -1365,14 +1366,14 @@ class MainActivity : ComponentActivity() {
                                                     trashRepo.trashPlaylist(playlist)
                                                     playlistRepo.deletePlaylist(playlist.id)
                                                 }
-                                                Toast.makeText(context, "${deletablePlaylists.size} playlists movidas a la papelera", Toast.LENGTH_SHORT).show()
+                                                Toast.makeText(context, context.getString(R.string.main_playlists_trashed, deletablePlaylists.size), Toast.LENGTH_SHORT).show()
                                                 selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                 showDeletePlaylistsDialog = false
                                             },
                                             colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
                                         ) { Text(stringResource(R.string.main_move_to_trash)) }
                                     },
-                                    dismissButton = { TextButton(onClick = { showDeletePlaylistsDialog = false }) { Text("Cancelar") } }
+                                    dismissButton = { TextButton(onClick = { showDeletePlaylistsDialog = false }) { Text(stringResource(R.string.action_cancel)) } }
                                 )
                             }
                         }
@@ -1485,7 +1486,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 Toast.makeText(
                     this@MainActivity,
-                    "No se pudo abrir ese archivo de audio",
+                    this@MainActivity.getString(R.string.main_cannot_open_audio),
                     Toast.LENGTH_SHORT
                 ).show()
             }
@@ -1509,7 +1510,7 @@ class MainActivity : ComponentActivity() {
             val title = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_TITLE)
                 ?.takeIf { it.isNotBlank() }
                 ?: fileName
-                ?: "Pista externa"
+                ?: this@MainActivity.getString(R.string.main_external_track)
             val artist = retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ARTIST)
                 ?.takeIf { it.isNotBlank() }
                 ?: retriever.extractMetadata(MediaMetadataRetriever.METADATA_KEY_ALBUMARTIST)
@@ -1594,18 +1595,18 @@ fun UpdateDialog(
     AlertDialog(
         onDismissRequest = { onDismiss() },
         containerColor = dialogColor,
-        title = { Text(text = "¡Actualización disponible!") },
+        title = { Text(text = stringResource(R.string.main_update_available)) },
         text = {
-            Text(text = "La versión $newVersion ya está lista para instalarse. ¿Deseas descargarla ahora?")
+            Text(text = stringResource(R.string.main_update_message, newVersion))
         },
         confirmButton = {
             Button(onClick = { onConfirm() }) {
-                Text("Actualizar")
+                Text(stringResource(R.string.main_update))
             }
         },
         dismissButton = {
             TextButton(onClick = { onDismiss() }) {
-                Text("Más tarde")
+                Text(stringResource(R.string.main_later))
             }
         }
     )
@@ -1614,8 +1615,8 @@ fun UpdateDialog(
 fun downloadApk(context: android.content.Context, url: String, fileName: String) {
     try {
         val request = android.app.DownloadManager.Request(android.net.Uri.parse(url))
-            .setTitle("Descargando actualización")
-            .setDescription("Descargando la nueva versión...")
+            .setTitle(context.getString(R.string.main_downloading_update))
+            .setDescription(context.getString(R.string.main_downloading_new))
             .setNotificationVisibility(android.app.DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
             .setDestinationInExternalPublicDir(android.os.Environment.DIRECTORY_DOWNLOADS, fileName)
             .setAllowedOverMetered(true)
@@ -1623,8 +1624,8 @@ fun downloadApk(context: android.content.Context, url: String, fileName: String)
 
         val downloadManager = context.getSystemService(android.content.Context.DOWNLOAD_SERVICE) as android.app.DownloadManager
         downloadManager.enqueue(request)
-        android.widget.Toast.makeText(context, "Descarga iniciada...", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(context, context.getString(R.string.main_download_started), android.widget.Toast.LENGTH_SHORT).show()
     } catch (e: Exception) {
-        android.widget.Toast.makeText(context, "Error al iniciar la descarga", android.widget.Toast.LENGTH_SHORT).show()
+        android.widget.Toast.makeText(context, context.getString(R.string.main_download_error), android.widget.Toast.LENGTH_SHORT).show()
     }
 }

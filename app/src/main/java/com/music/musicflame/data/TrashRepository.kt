@@ -6,6 +6,7 @@ import android.widget.Toast
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import com.music.musicflame.R
 
 data class TrashedSong(
     val song: Song,
@@ -61,7 +62,7 @@ class TrashRepository(private val context: Context) { // Hacemos el context acce
         saveTrash(trash)
 
         // El mismo repositorio se encarga de avisar al usuario
-        Toast.makeText(context, "$movedCount canciones movidas a la papelera", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, context.getString(R.string.trash_songs_moved, movedCount), Toast.LENGTH_SHORT).show()
     }
 
     fun addToTrash(song: Song) {

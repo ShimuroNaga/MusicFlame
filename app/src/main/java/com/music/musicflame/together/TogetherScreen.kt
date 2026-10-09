@@ -46,6 +46,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 /** Pantalla "En compañía". Se abre desde el botón junto a Configuración. */
 @Composable
@@ -88,10 +90,7 @@ fun TogetherScreen(
                 accent = accent,
                 showInfo = showInfo,
                 onToggleInfo = { showInfo = !showInfo },
-                infoText = "Cada quien reproduce la canción desde su propia biblioteca; MusicFlame sincroniza " +
-                        "qué suena, play/pausa y el momento exacto. Si a alguien le falta una canción, el anfitrión " +
-                        "puede subirla (máx. 25 MB) y se descarga sola; se borra al cerrar la sala. " +
-                        "De 2 a ${TogetherManager.MAX_MEMBERS} personas."
+                infoText = stringResource(R.string.tg_info, TogetherManager.MAX_MEMBERS)
             )
         }
 
@@ -100,7 +99,7 @@ fun TogetherScreen(
             OutlinedTextField(
                 value = manager.userName,
                 onValueChange = { manager.changeUserName(it) },
-                label = { Text("Tu nombre en la sala") },
+                label = { Text(stringResource(R.string.tg_your_name)) },
                 leadingIcon = { Icon(Icons.Filled.Person, null) },
                 singleLine = true,
                 shape = RoundedCornerShape(16.dp),
@@ -124,13 +123,13 @@ fun TogetherScreen(
                 ) {
                     Icon(Icons.Filled.Add, null)
                     Spacer(Modifier.width(8.dp))
-                    Text("Crear sala", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.tg_create_room), fontSize = 16.sp, fontWeight = FontWeight.Bold)
                 }
             }
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     HorizontalDivider(modifier = Modifier.weight(1f))
-                    Text("o únete a una", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.tg_or_join), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     HorizontalDivider(modifier = Modifier.weight(1f))
                 }
             }
@@ -145,7 +144,7 @@ fun TogetherScreen(
                         OutlinedTextField(
                             value = joinInput,
                             onValueChange = { joinInput = it },
-                            label = { Text("Pega el código o el enlace") },
+                            label = { Text(stringResource(R.string.tg_paste_hint)) },
                             singleLine = true,
                             shape = RoundedCornerShape(16.dp),
                             keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Characters),
@@ -155,7 +154,7 @@ fun TogetherScreen(
                                     val text = cm.primaryClip?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
                                     if (text.isNotBlank()) joinInput = text
                                 }) {
-                                    Icon(Icons.Filled.ContentPaste, "Pegar del portapapeles", tint = accent.value)
+                                    Icon(Icons.Filled.ContentPaste, stringResource(R.string.tg_paste_clipboard), tint = accent.value)
                                 }
                             },
                             colors = OutlinedTextFieldDefaults.colors(
@@ -196,19 +195,19 @@ fun TogetherScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        if (manager.isHost) "Tu sala · eres el anfitrión 👑" else "Sala",
+                        if (manager.isHost) stringResource(R.string.tg_your_room_host) else stringResource(R.string.tg_room),
                         fontSize = 12.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     RoomCodeChips(accent = accent, code = manager.roomCode ?: "")
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
-                        QuickAction(accent, Icons.Filled.ContentCopy, "Código", Modifier.weight(1f)) {
-                            copy(context, "Código", manager.roomCode.orEmpty())
+                        QuickAction(accent, Icons.Filled.ContentCopy, stringResource(R.string.tg_code), Modifier.weight(1f)) {
+                            copy(context, context.getString(R.string.tg_code), manager.roomCode.orEmpty())
                         }
-                        QuickAction(accent, Icons.Filled.Link, "Enlace", Modifier.weight(1f)) {
-                            copy(context, "Enlace", manager.roomLink.orEmpty())
+                        QuickAction(accent, Icons.Filled.Link, stringResource(R.string.tg_link), Modifier.weight(1f)) {
+                            copy(context, context.getString(R.string.tg_link), manager.roomLink.orEmpty())
                         }
-                        QuickAction(accent, Icons.Filled.Share, "Invitar", Modifier.weight(1f)) {
+                        QuickAction(accent, Icons.Filled.Share, stringResource(R.string.tg_invite), Modifier.weight(1f)) {
                             share(context, manager)
                         }
                     }
@@ -218,10 +217,10 @@ fun TogetherScreen(
             // ---- Estado ----
             item {
                 val (label, fixedColor) = when (manager.status) {
-                    TogetherManager.Status.CONNECTED -> "Conectado" to null
-                    TogetherManager.Status.CONNECTING -> "Conectando…" to Color(0xFFF9A825)
-                    TogetherManager.Status.DISCONNECTED -> "Desconectado" to Color(0xFFC62828)
-                    else -> "Sin sala" to Color.Gray
+                    TogetherManager.Status.CONNECTED -> stringResource(R.string.tg_connected) to null
+                    TogetherManager.Status.CONNECTING -> stringResource(R.string.tg_connecting) to Color(0xFFF9A825)
+                    TogetherManager.Status.DISCONNECTED -> stringResource(R.string.tg_disconnected) to Color(0xFFC62828)
+                    else -> stringResource(R.string.tg_no_room) to Color.Gray
                 }
                 val colorProvider: () -> Color = { fixedColor ?: accent.value }
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -230,14 +229,14 @@ fun TogetherScreen(
                         Text(manager.statusDetail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     if (connected && manager.onlineCount < 2) {
-                        Text("Esperando a más personas… (se necesitan al menos 2)", fontSize = 12.sp,
+                        Text(stringResource(R.string.tg_waiting_more), fontSize = 12.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     manager.missingSongText?.let {
                         if (connected && !manager.isHost) {
                             Text(
-                                if (manager.transferText != null) "No la tienes en tu biblioteca: $it"
-                                else "No la tienes en tu biblioteca: $it. Se le avisó al anfitrión para que la suba.",
+                                if (manager.transferText != null) stringResource(R.string.tg_missing_song, it)
+                                else stringResource(R.string.tg_missing_song_notified, it),
                                 fontSize = 12.sp,
                                 color = MaterialTheme.colorScheme.error
                             )
@@ -270,16 +269,16 @@ fun TogetherScreen(
                             EqualizerBars(color = { accent.value }, active = playingText != null || manager.isHost)
                             Column(Modifier.weight(1f)) {
                                 if (manager.isHost) {
-                                    Text("Tú eres el DJ", fontWeight = FontWeight.Bold)
+                                    Text(stringResource(R.string.tg_you_are_dj), fontWeight = FontWeight.Bold)
                                     Text(
-                                        "Lo que reproduzcas (canciones de tu biblioteca) lo escuchan todos.",
+                                        stringResource(R.string.tg_dj_hint),
                                         fontSize = 12.sp,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )
                                 } else {
-                                    Text("Ahora suena", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(stringResource(R.string.tg_now_playing), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
                                     Text(
-                                        playingText ?: "Esperando a que el anfitrión ponga música…",
+                                        playingText ?: stringResource(R.string.tg_waiting_host),
                                         fontWeight = FontWeight.SemiBold,
                                         maxLines = 2,
                                         overflow = TextOverflow.Ellipsis
@@ -297,37 +296,37 @@ fun TogetherScreen(
                     if (connected) {
                         AccentOutlinedButton(accent, onClick = { manager.disconnect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Filled.LinkOff, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp)); Text("Desconectar")
+                            Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.tg_disconnect))
                         }
                     } else {
                         AccentButton(accent, onClick = { manager.connect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
                             Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
-                            Spacer(Modifier.width(6.dp)); Text("Conectar")
+                            Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.tg_connect))
                         }
                     }
                     AccentOutlinedButton(accent, onClick = { manager.reconnect() }, enabled = !busy, modifier = Modifier.weight(1f)) {
                         Icon(Icons.Filled.Refresh, null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp)); Text("Reconectar")
+                        Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.tg_reconnect))
                     }
                 }
             }
             item {
                 TextButton(onClick = { manager.leave() }, enabled = !busy, modifier = Modifier.fillMaxWidth()) {
-                    Text(if (manager.isHost) "Cerrar sala" else "Salir de la sala", color = MaterialTheme.colorScheme.error)
+                    Text(if (manager.isHost) stringResource(R.string.tg_close_room) else stringResource(R.string.tg_leave_room), color = MaterialTheme.colorScheme.error)
                 }
             }
 
             // ---- Miembros ----
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("En la sala", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = accent.value)
+                    Text(stringResource(R.string.tg_in_room), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = accent.value)
                     Box(
                         Modifier
                             .clip(CircleShape)
                             .drawBehind { drawRect(accent.value.copy(alpha = 0.2f)) }
                             .padding(horizontal = 10.dp, vertical = 2.dp)
                     ) {
-                        Text("${manager.onlineCount} conectados", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent.value)
+                        Text(stringResource(R.string.tg_n_connected, manager.onlineCount), fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent.value)
                     }
                 }
             }
@@ -352,9 +351,9 @@ fun TogetherScreen(
                             )
                             Text(
                                 when {
-                                    !m.online -> "desconectado"
-                                    m.isHost -> "anfitrión · en línea"
-                                    else -> "en línea"
+                                    !m.online -> stringResource(R.string.tg_member_offline)
+                                    m.isHost -> stringResource(R.string.tg_member_host_online)
+                                    else -> stringResource(R.string.tg_member_online)
                                 },
                                 fontSize = 12.sp,
                                 color = if (m.online) accent.value else MaterialTheme.colorScheme.onSurfaceVariant
@@ -430,15 +429,15 @@ private fun TogetherHero(
             }
         }
         Spacer(Modifier.height(8.dp))
-        Text("Escucha juntos", fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
+        Text(stringResource(R.string.tg_listen_together), fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, textAlign = TextAlign.Center)
         Text(
-            "La misma música, al mismo tiempo. Juntos o a distancia.",
+            stringResource(R.string.tg_tagline),
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
         TextButton(onClick = onToggleInfo, colors = ButtonDefaults.textButtonColors(contentColor = accent.value)) {
-            Text("¿Cómo funciona?", fontWeight = FontWeight.SemiBold)
+            Text(stringResource(R.string.tg_how_it_works), fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.width(4.dp))
             Icon(if (showInfo) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore, null, modifier = Modifier.size(18.dp))
         }
@@ -661,21 +660,21 @@ fun TogetherUploadPrompt(manager: TogetherManager) {
     if (p.tooBig) {
         AlertDialog(
             onDismissRequest = { manager.dismissUploadPrompt() },
-            title = { Text("Canción muy pesada") },
+            title = { Text(stringResource(R.string.tg_too_big_title)) },
             text = {
-                Text("$names no tiene «$song», pero pesa ${"%.1f".format(mb)} MB y el límite para compartir es 25 MB.")
+                Text(stringResource(R.string.tg_too_big_text, names, song, "%.1f".format(mb)))
             },
-            confirmButton = { TextButton(onClick = { manager.dismissUploadPrompt() }) { Text("Entendido") } }
+            confirmButton = { TextButton(onClick = { manager.dismissUploadPrompt() }) { Text(stringResource(R.string.tg_got_it)) } }
         )
     } else {
         AlertDialog(
             onDismissRequest = { manager.dismissUploadPrompt() },
-            title = { Text(if (p.who.size == 1) "A tu amigo le falta esta canción" else "A tus amigos les falta esta canción") },
+            title = { Text(if (p.who.size == 1) stringResource(R.string.tg_friend_missing_one) else stringResource(R.string.tg_friend_missing_many)) },
             text = {
-                Text("$names no tiene «$song» (${"%.1f".format(mb)} MB). ¿Subirla para que la escuche contigo? Se borra al cerrar la sala.")
+                Text(stringResource(R.string.tg_upload_text, names, song, "%.1f".format(mb)))
             },
-            confirmButton = { TextButton(onClick = { manager.confirmUpload() }) { Text("Subir") } },
-            dismissButton = { TextButton(onClick = { manager.dismissUploadPrompt() }) { Text("Ahora no") } }
+            confirmButton = { TextButton(onClick = { manager.confirmUpload() }) { Text(stringResource(R.string.tg_upload)) } },
+            dismissButton = { TextButton(onClick = { manager.dismissUploadPrompt() }) { Text(stringResource(R.string.fp_not_now)) } }
         )
     }
 }
@@ -683,11 +682,11 @@ fun TogetherUploadPrompt(manager: TogetherManager) {
 private fun copy(context: Context, label: String, text: String) {
     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
     cm.setPrimaryClip(ClipData.newPlainText(label, text))
-    Toast.makeText(context, "$label copiado", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, context.getString(R.string.tg_copied, label), Toast.LENGTH_SHORT).show()
 }
 
 private fun share(context: Context, manager: TogetherManager) {
-    val msg = "Escucha música conmigo en MusicFlame 🔥\nCódigo: ${manager.roomCode}\nEnlace: ${manager.roomLink}"
+    val msg = context.getString(R.string.tg_share_message, manager.roomCode.orEmpty(), manager.roomLink.orEmpty())
     val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, msg) }
-    context.startActivity(Intent.createChooser(send, "Invitar a la sala"))
+    context.startActivity(Intent.createChooser(send, context.getString(R.string.tg_invite_to_room)))
 }

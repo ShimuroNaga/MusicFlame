@@ -49,6 +49,8 @@ import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.ui.utils.TransparentCardDefaults
 import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 /**
  * Widget compacto 1x3 de MusicFlame.
@@ -147,7 +149,7 @@ fun CompactSongWidget(
 
                 // Nombre de la canción, con transición al cambiar (feedback del swipe)
                 AnimatedContent(
-                    targetState = currentSong?.title ?: "Sin reproducción",
+                    targetState = currentSong?.title ?: stringResource(R.string.mp_no_playback),
                     transitionSpec = {
                         slideInHorizontally(initialOffsetX = { it / 3 }, animationSpec = tween(300)) + fadeIn() togetherWith
                                 slideOutHorizontally(targetOffsetX = { -it / 3 }, animationSpec = tween(300)) + fadeOut()
@@ -188,7 +190,7 @@ fun CompactSongWidget(
             ) {
                 Icon(
                     imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                    contentDescription = if (isPlaying) "Pausar" else "Reproducir",
+                    contentDescription = if (isPlaying) stringResource(R.string.fp_pause) else stringResource(R.string.fp_play),
                     tint = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.size(30.dp)
                 )

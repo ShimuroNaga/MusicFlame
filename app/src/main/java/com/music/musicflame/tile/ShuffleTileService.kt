@@ -175,7 +175,7 @@ class ShuffleTileService : TileService() {
         val tile = qsTile ?: return
         tile.state = if (shuffleModeEnabled) Tile.STATE_ACTIVE else Tile.STATE_INACTIVE
         tile.icon = Icon.createWithResource(this, R.drawable.ic_tile_shuffle)
-        tile.label = "Mezclar"
+        tile.label = getString(R.string.tile_shuffle)
         tile.updateTile()
     }
 }

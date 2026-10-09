@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.data.Song
 import com.music.musicflame.ui.theme.LocalAppTextColor // <-- IMPORT AÑADIDO
+import androidx.compose.ui.res.stringResource
+import com.music.musicflame.R
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -92,7 +94,7 @@ fun SongItemCard(
                     ) {
                         Icon(
                             imageVector = Icons.Filled.CheckCircle,
-                            contentDescription = "Seleccionada",
+                            contentDescription = stringResource(R.string.pl_selected),
                             tint = Color.White,
                             modifier = Modifier.size(24.dp)
                         )

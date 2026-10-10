@@ -72,9 +72,9 @@
     <string name="mp_no_playback">Nothing playing</string>
     <string name="mp_select_song">Select a song</string>
     <string name="mp_play_mode">Playback mode</string>
-    <string name="cd_rounding">Roundness: %1$d%%%</string>
+    <string name="cd_rounding">Roundness: %1$d%%</string>
     <string name="cd_rotation">Rotation: %1$d°</string>
-    <string name="cd_transparency">Transparency: %1$d%%%</string>
+    <string name="cd_transparency">Transparency: %1$d%%</string>
     <string name="settings_material_you_dynamic">Material You (Dynamic)</string>
     <string name="shimuro_cd_sitting">Shimuro sitting, tap to interact</string>
     <string name="shimuro_cd_standing">Shimuro gets up from the chair</string>

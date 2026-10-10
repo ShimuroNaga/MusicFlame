@@ -81,6 +81,22 @@ enum class AppFont(
         ),
         isFree = true
     ),
+    BLACK_OPS_ONE(
+        id = "black_ops_one",
+        displayName = "Black Ops One",
+        fontFamily = FontFamily(
+            Font(R.font.black_regular, FontWeight.Normal)
+        ),
+        isFree = true
+    ),
+    ISOMETRA(
+        id = "isometra",
+        displayName = "Isometra",
+        fontFamily = FontFamily(
+            Font(R.font.iso_regular, FontWeight.Normal)
+        ),
+        isFree = true
+    ),
 
     // --- Premium ($5 MXN c/u, ver PaymentCatalog) ---
     COMFORTAA(

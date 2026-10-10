@@ -1,6 +1,7 @@
 package com.music.musicflame.ui.components
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import com.music.musicflame.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -53,23 +54,23 @@ object FormatCodes {
 
     // Nombre en español de cada color, para mostrarlo en el desplegable de
     // ejemplos (antes solo decía "Color" y no se distinguía uno de otro).
-    val COLOR_NAMES: Map<Char, String> = mapOf(
-        '0' to "Negro",
-        '1' to "Azul oscuro",
-        '2' to "Verde oscuro",
-        '3' to "Aqua oscuro",
-        '4' to "Rojo oscuro",
-        '5' to "Púrpura oscuro",
-        '6' to "Dorado",
-        '7' to "Gris",
-        '8' to "Gris oscuro",
-        '9' to "Azul",
-        'a' to "Verde",
-        'b' to "Aqua / cian",
-        'c' to "Rojo",
-        'd' to "Rosa / magenta",
-        'e' to "Amarillo",
-        'f' to "Blanco",
+    val COLOR_NAMES: Map<Char, Int> = mapOf(
+        '0' to R.string.fmt_black,
+        '1' to R.string.fmt_dark_blue,
+        '2' to R.string.fmt_dark_green,
+        '3' to R.string.fmt_dark_aqua,
+        '4' to R.string.fmt_dark_red,
+        '5' to R.string.fmt_dark_purple,
+        '6' to R.string.fmt_gold,
+        '7' to R.string.fmt_gray,
+        '8' to R.string.fmt_dark_gray,
+        '9' to R.string.fmt_blue,
+        'a' to R.string.fmt_green,
+        'b' to R.string.fmt_aqua,
+        'c' to R.string.fmt_red,
+        'd' to R.string.fmt_pink,
+        'e' to R.string.fmt_yellow,
+        'f' to R.string.fmt_white,
     )
 
     // Modificadores de estilo (no son colores)
@@ -86,17 +87,17 @@ object FormatCodes {
     /** Lista de ejemplos para mostrar en el desplegable de ayuda. */
     data class CodeExample(val code: String, val label: String, val previewColor: Color? = null)
 
-    fun examples(): List<CodeExample> = buildList {
+    fun examples(context: android.content.Context): List<CodeExample> = buildList {
         COLOR_CODES.forEach { (char, color) ->
-            add(CodeExample("$PREFIX$char", COLOR_NAMES[char] ?: "Color", color))
+            add(CodeExample("$PREFIX$char", context.getString(COLOR_NAMES[char] ?: R.string.fmt_color), color))
         }
-        add(CodeExample("$PREFIX$RAINBOW", "Arcoíris (mismo modo del ecualizador)"))
-        add(CodeExample("$PREFIX$OBFUSCATED", "Obfuscado (glitch)"))
-        add(CodeExample("$PREFIX$BOLD", "Negrita"))
-        add(CodeExample("$PREFIX$ITALIC", "Cursiva"))
-        add(CodeExample("$PREFIX$UNDERLINE", "Subrayado"))
-        add(CodeExample("$PREFIX$STRIKETHROUGH", "Tachado"))
-        add(CodeExample("$PREFIX$RESET", "Reset (quita formato)"))
+        add(CodeExample("$PREFIX$RAINBOW", context.getString(R.string.fmt_rainbow)))
+        add(CodeExample("$PREFIX$OBFUSCATED", context.getString(R.string.fmt_obfuscated)))
+        add(CodeExample("$PREFIX$BOLD", context.getString(R.string.fmt_bold)))
+        add(CodeExample("$PREFIX$ITALIC", context.getString(R.string.fmt_italic)))
+        add(CodeExample("$PREFIX$UNDERLINE", context.getString(R.string.fmt_underline)))
+        add(CodeExample("$PREFIX$STRIKETHROUGH", context.getString(R.string.fmt_strikethrough)))
+        add(CodeExample("$PREFIX$RESET", context.getString(R.string.fmt_reset)))
     }
 }
 

@@ -706,11 +706,11 @@ class MusicPlaybackService : MediaSessionService() {
 
         // Le damos icono y texto en base al orden: Normal -> Aleatorio -> Repetir Todo -> Repetir Una
         val (cycleIcon, cycleTitle) = when (cycleState) {
-            0 -> Pair(R.drawable.ic_straight_arrow, "Normal")
-            1 -> Pair(R.drawable.ic_shuffle, "Aleatorio")
-            2 -> Pair(R.drawable.ic_autorenew, "Repetir Todo")
-            3 -> Pair(R.drawable.ic_autoplay, "Repetir Una")
-            else -> Pair(R.drawable.ic_straight_arrow, "Normal")
+            0 -> Pair(R.drawable.ic_straight_arrow, getString(R.string.pb_cycle_normal))
+            1 -> Pair(R.drawable.ic_shuffle, getString(R.string.pb_cycle_shuffle))
+            2 -> Pair(R.drawable.ic_autorenew, getString(R.string.pb_cycle_repeat_all))
+            3 -> Pair(R.drawable.ic_autoplay, getString(R.string.pb_cycle_repeat_one))
+            else -> Pair(R.drawable.ic_straight_arrow, getString(R.string.pb_cycle_normal))
         }
 
         val cycleButton = CommandButton.Builder()

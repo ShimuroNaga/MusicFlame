@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.app.ActivityManager
+import com.music.musicflame.R
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
@@ -103,22 +104,22 @@ object DeviceInfoProvider {
         val isCharging = status == BatteryManager.BATTERY_STATUS_CHARGING ||
             status == BatteryManager.BATTERY_STATUS_FULL
         val statusLabel = when (status) {
-            BatteryManager.BATTERY_STATUS_CHARGING -> "Cargando"
-            BatteryManager.BATTERY_STATUS_DISCHARGING -> "Descargando"
-            BatteryManager.BATTERY_STATUS_FULL -> "Completa"
-            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> "No cargando"
-            else -> "Desconocido"
+            BatteryManager.BATTERY_STATUS_CHARGING -> context.getString(R.string.batt_charging)
+            BatteryManager.BATTERY_STATUS_DISCHARGING -> context.getString(R.string.batt_discharging)
+            BatteryManager.BATTERY_STATUS_FULL -> context.getString(R.string.batt_full)
+            BatteryManager.BATTERY_STATUS_NOT_CHARGING -> context.getString(R.string.batt_not_charging)
+            else -> context.getString(R.string.common_unknown)
         }
 
         val health = intent?.getIntExtra(BatteryManager.EXTRA_HEALTH, -1) ?: -1
         val healthLabel = when (health) {
-            BatteryManager.BATTERY_HEALTH_GOOD -> "Buena"
-            BatteryManager.BATTERY_HEALTH_OVERHEAT -> "Sobrecalentada"
-            BatteryManager.BATTERY_HEALTH_DEAD -> "Agotada"
-            BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> "Sobrevoltaje"
-            BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> "Falla no especificada"
-            BatteryManager.BATTERY_HEALTH_COLD -> "Fría"
-            else -> "Desconocida"
+            BatteryManager.BATTERY_HEALTH_GOOD -> context.getString(R.string.batt_health_good)
+            BatteryManager.BATTERY_HEALTH_OVERHEAT -> context.getString(R.string.batt_health_overheat)
+            BatteryManager.BATTERY_HEALTH_DEAD -> context.getString(R.string.batt_health_dead)
+            BatteryManager.BATTERY_HEALTH_OVER_VOLTAGE -> context.getString(R.string.batt_health_over_voltage)
+            BatteryManager.BATTERY_HEALTH_UNSPECIFIED_FAILURE -> context.getString(R.string.batt_health_failure)
+            BatteryManager.BATTERY_HEALTH_COLD -> context.getString(R.string.batt_health_cold)
+            else -> context.getString(R.string.batt_health_unknown)
         }
 
         val tempTenths = intent?.getIntExtra(BatteryManager.EXTRA_TEMPERATURE, Int.MIN_VALUE)
@@ -131,9 +132,9 @@ object DeviceInfoProvider {
 
         val plugged = intent?.getIntExtra(BatteryManager.EXTRA_PLUGGED, -1) ?: -1
         val plugLabel = when (plugged) {
-            BatteryManager.BATTERY_PLUGGED_AC -> "Cargador"
+            BatteryManager.BATTERY_PLUGGED_AC -> context.getString(R.string.batt_plug_ac)
             BatteryManager.BATTERY_PLUGGED_USB -> "USB"
-            BatteryManager.BATTERY_PLUGGED_WIRELESS -> "Inalámbrico"
+            BatteryManager.BATTERY_PLUGGED_WIRELESS -> context.getString(R.string.batt_plug_wireless)
             else -> null
         }
 

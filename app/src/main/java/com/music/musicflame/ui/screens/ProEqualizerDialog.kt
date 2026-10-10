@@ -305,7 +305,7 @@ private fun LockedProEqualizerContent() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.pe_locked_desc), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
             Spacer(Modifier.width(2.dp))
-            Text("$15 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            Text("\$${com.music.musicflame.data.PaymentCatalog.ITEMS.find { it.id == "pro_eq_10band" }?.priceMxn ?: 20} MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
         Text(

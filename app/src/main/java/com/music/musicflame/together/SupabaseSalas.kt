@@ -58,8 +58,8 @@ object SupabaseSalas {
     }
 
     /** Sube [file] a "{objectPath}". Lanza IOException si Supabase lo rechaza. */
-    suspend fun upload(file: File, objectPath: String, mime: String) = withContext(Dispatchers.IO) {
-        if (file.length() > MAX_BYTES) throw IOException("El archivo pasa el límite de 25 MB")
+    suspend fun upload(context: android.content.Context, file: File, objectPath: String, mime: String) = withContext(Dispatchers.IO) {
+        if (file.length() > MAX_BYTES) throw IOException(context.getString(com.music.musicflame.R.string.sb_file_too_big, MAX_BYTES / (1024L * 1024L)))
         val conn = open(objectPath, "POST")
         try {
             conn.doOutput = true
@@ -75,7 +75,7 @@ object SupabaseSalas {
     }
 
     /** Descarga "{objectPath}" en [dest] (escribe a .part y renombra al terminar). */
-    suspend fun download(objectPath: String, dest: File) = withContext(Dispatchers.IO) {
+    suspend fun download(context: android.content.Context, objectPath: String, dest: File) = withContext(Dispatchers.IO) {
         val conn = open(objectPath, "GET")
         val part = File(dest.parentFile, dest.name + ".part")
         try {
@@ -83,7 +83,7 @@ object SupabaseSalas {
             if (code !in 200..299) throw IOException("Supabase respondió $code ${errorText(conn)}")
             conn.inputStream.use { input -> part.outputStream().use { out -> input.copyTo(out) } }
             if (dest.exists()) dest.delete()
-            if (!part.renameTo(dest)) throw IOException("No se pudo guardar la canción descargada")
+            if (!part.renameTo(dest)) throw IOException(context.getString(com.music.musicflame.R.string.sb_save_failed))
         } catch (t: Throwable) {
             part.delete()
             throw t

@@ -118,7 +118,7 @@ fun GenreDetailScreen(
                 Spacer(Modifier.width(16.dp))
                 Column {
                     Text(
-                        genre.name,
+                        com.music.musicflame.data.genreDisplayName(genre.name),
                         fontWeight = FontWeight.Bold,
                         style = MaterialTheme.typography.titleLarge,
                         color = LocalAppTextColor.current

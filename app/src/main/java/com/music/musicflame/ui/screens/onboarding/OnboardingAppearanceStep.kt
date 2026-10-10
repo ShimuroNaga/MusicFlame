@@ -50,13 +50,32 @@ private val appIconOptions = listOf(
 )
 
 // Mismos labels que muestra el diálogo de forma de carátula en SettingsScreen.kt
+@Composable
 private fun shapeLabel(shape: AlbumArtShapeType) = when (shape) {
-    AlbumArtShapeType.SQUARE -> "Cuadrado"
-    AlbumArtShapeType.CIRCLE -> "Círculo"
-    AlbumArtShapeType.HEXAGON -> "Hexágono"
-    AlbumArtShapeType.VINYL -> "Vinilo"
-    AlbumArtShapeType.SQUIRCLE -> "Squircle"
-    AlbumArtShapeType.CUSTOM -> "Personalizado"
+    AlbumArtShapeType.SQUARE -> stringResource(R.string.settings_cuadrado)
+    AlbumArtShapeType.CIRCLE -> stringResource(R.string.settings_circulo)
+    AlbumArtShapeType.HEXAGON -> stringResource(R.string.settings_hexagono)
+    AlbumArtShapeType.VINYL -> stringResource(R.string.settings_vinilo)
+    AlbumArtShapeType.SQUIRCLE -> stringResource(R.string.settings_squircle)
+    AlbumArtShapeType.CUSTOM -> stringResource(R.string.option_custom)
+}
+
+// Las claves de tema se guardan en español; esto traduce el texto visible.
+@Composable
+private fun themeLabel(theme: String) = when (theme) {
+    "Siguiendo al sistema" -> stringResource(R.string.settings_siguiendo_al_sistema)
+    "Fondo blanco" -> stringResource(R.string.settings_fondo_blanco)
+    "Fondo oscuro" -> stringResource(R.string.settings_fondo_oscuro)
+    else -> theme
+}
+
+// Los nombres de ícono se guardan por clave; esto traduce los que llevan texto en español.
+@Composable
+private fun iconLabel(key: String, fallback: String) = when (key) {
+    "classic" -> stringResource(R.string.settings_original_version_anterior)
+    "brilliant" -> stringResource(R.string.settings_brillante)
+    "gray" -> stringResource(R.string.settings_escala_de_grises)
+    else -> fallback
 }
 
 // Mismos textos exactos que usa MusicFlameTheme para leer/guardar "app_theme"
@@ -146,7 +165,8 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                items(appIconOptions) { (key, label, previewRes) ->
+                items(appIconOptions) { (key, rawLabel, previewRes) ->
+                    val label = iconLabel(key, rawLabel)
                     val isSelected = selectedIcon == key
                     Column(
                         horizontalAlignment = Alignment.CenterHorizontally,
@@ -192,7 +212,7 @@ fun OnboardingAppearanceStep(settingsRepo: SettingsRepository) {
             Column {
                 themeOptions.forEach { theme ->
                     ListItem(
-                        headlineContent = { Text(theme) },
+                        headlineContent = { Text(themeLabel(theme)) },
                         leadingContent = {
                             RadioButton(
                                 selected = selectedTheme == theme,

@@ -587,7 +587,7 @@ fun SettingsScreen(
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
                                         Text(
-                                            "$${savingsGoalActual} de $${SavingsGoalRepository.META_MAX}",
+                                            stringResource(R.string.savings_goal_progress, savingsGoalActual.toString(), SavingsGoalRepository.META_MAX.toString()),
                                             fontSize = 18.sp,
                                             fontWeight = FontWeight.Black,
                                             color = highEmphasis
@@ -1688,7 +1688,7 @@ fun SettingsScreen(
                                             Spacer(Modifier.width(6.dp))
                                             Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
                                             Spacer(Modifier.width(2.dp))
-                                            Text("$15 MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                                            Text("\$${com.music.musicflame.data.PaymentCatalog.ITEMS.find { it.id == "pro_eq_10band" }?.priceMxn ?: 20} MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 },
@@ -4403,7 +4403,7 @@ fun SettingsScreen(
                                                 }
                                             }
                                         ) {
-                                            Text(text = preset, modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = if (tempPreset.value == preset) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                            Text(text = eqPresetLabel(preset), modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp), color = if (tempPreset.value == preset) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 13.sp, fontWeight = FontWeight.Bold)
                                         }
                                     }
                                 }
@@ -4696,6 +4696,17 @@ private fun settingsOptionLabel(option: String): String = when (option) {
     "Rebote" -> stringResource(R.string.option_anim_bounce)
     com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.option_rainbow)
     else -> option
+}
+
+/** Los presets se identifican por su nombre en español (se guardan así); esto traduce el nombre visible. */
+@Composable
+private fun eqPresetLabel(preset: String): String = when (preset) {
+    "Electronico" -> stringResource(R.string.eq_preset_electronic)
+    "Refuerzo de graves" -> stringResource(R.string.eq_preset_bass_boost)
+    "Refuerzo de agudos" -> stringResource(R.string.eq_preset_treble_boost)
+    "Vocales" -> stringResource(R.string.eq_preset_vocals)
+    "Customizar" -> stringResource(R.string.eq_preset_customize)
+    else -> preset
 }
 
 /** Mismo criterio: las secciones de Ajustes se identifican por su nombre en español; esto traduce el título visible. */

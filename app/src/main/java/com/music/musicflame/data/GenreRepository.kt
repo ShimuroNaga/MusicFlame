@@ -8,6 +8,11 @@ package com.music.musicflame.data
 // álbum/artista faltante.
 const val SIN_GENERO = "Sin género"
 
+/** SIN_GENERO es la clave interna del balde; esto devuelve el texto visible según el idioma. */
+@androidx.compose.runtime.Composable
+fun genreDisplayName(name: String): String =
+    if (name == SIN_GENERO) androidx.compose.ui.res.stringResource(com.music.musicflame.R.string.genre_none) else name
+
 data class Genre(
     val name: String,
     val songs: List<Song>

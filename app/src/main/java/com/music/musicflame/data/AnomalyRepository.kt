@@ -11,12 +11,12 @@ import org.json.JSONObject
  * renombrar un valor existente sin migrar los datos ya guardados en
  * SharedPreferences de usuarios que ya hayan corrido un análisis.
  */
-enum class AnomalyType(val label: String) {
-    CORRUPT_ARTWORK("Carátula corrupta o ilegible"),
-    SUSPICIOUS_METADATA("Metadata vacía o sospechosa"),
-    UNSUPPORTED_FORMAT("Formato no soportado por el tagger"),
-    ZERO_OR_TRUNCATED_DURATION("Duración cero o archivo truncado"),
-    POSSIBLE_DUPLICATE("Posible duplicado")
+enum class AnomalyType(@androidx.annotation.StringRes val labelRes: Int) {
+    CORRUPT_ARTWORK(com.music.musicflame.R.string.anomaly_corrupt_artwork),
+    SUSPICIOUS_METADATA(com.music.musicflame.R.string.anomaly_suspicious_metadata),
+    UNSUPPORTED_FORMAT(com.music.musicflame.R.string.anomaly_unsupported_format),
+    ZERO_OR_TRUNCATED_DURATION(com.music.musicflame.R.string.anomaly_zero_duration),
+    POSSIBLE_DUPLICATE(com.music.musicflame.R.string.anomaly_possible_duplicate)
 }
 
 /**

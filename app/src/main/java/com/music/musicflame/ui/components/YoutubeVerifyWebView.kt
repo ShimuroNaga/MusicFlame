@@ -52,6 +52,7 @@ fun YoutubeVerifyWebView(
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val unknownErrorText = stringResource(R.string.yt_verify_unknown_error)
     var isLoading by remember { mutableStateOf(true) }
     var lastExtractedRaw by remember { mutableStateOf<String?>(null) }
     // NUEVO: antes, si la carga fallaba (sin internet en ese momento, DNS, lo
@@ -73,14 +74,14 @@ fun YoutubeVerifyWebView(
             }
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    "Toca el video correcto",
+                    stringResource(R.string.yt_verify_title),
                     fontWeight = FontWeight.Bold,
                     fontSize = 14.sp,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    "MusicFlame intentará buscar la letra automáticamente",
+                    stringResource(R.string.yt_verify_subtitle),
                     fontSize = 11.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
@@ -100,7 +101,7 @@ fun YoutubeVerifyWebView(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    "No se pudo cargar YouTube: $loadErrorMessage. Revisá tu conexión y volvé a intentar.",
+                    stringResource(R.string.yt_verify_load_error, loadErrorMessage ?: ""),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onErrorContainer
                 )
@@ -137,7 +138,7 @@ fun YoutubeVerifyWebView(
                                 super.onReceivedError(view, request, error)
                                 if (request?.isForMainFrame == true) {
                                     isLoading = false
-                                    val description = error?.description?.toString() ?: "error desconocido"
+                                    val description = error?.description?.toString() ?: unknownErrorText
                                     loadErrorMessage = description
                                     android.util.Log.e("YOUTUBE_VERIFY_DEBUG", "Falló la carga de YouTube: $description (url=${request.url})")
                                 }

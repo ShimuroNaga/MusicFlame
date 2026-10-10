@@ -172,7 +172,7 @@ fun TogetherScreen(
                         ) {
                             Icon(Icons.Filled.Link, null, modifier = Modifier.size(18.dp))
                             Spacer(Modifier.width(8.dp))
-                            Text("Unirse", fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.tg_join), fontWeight = FontWeight.Bold)
                         }
                     }
                 }

@@ -422,7 +422,7 @@ fun ShimuroHomeCard(modifier: Modifier = Modifier) {
             // hacen que Shimuro responda arriba, en su bubble (solo la
             // respuesta, sin repetir la pregunta).
             Text(
-                "Preguntas frecuentes",
+                stringResource(R.string.shimuro_faq_title),
                 fontWeight = FontWeight.Black,
                 fontSize = 15.sp,
                 color = MaterialTheme.colorScheme.onSurface,

@@ -644,7 +644,7 @@ private fun MomentsMixPage(
                         if (entries.isNotEmpty()) {
                             Spacer(Modifier.height(8.dp))
                             Text(
-                                "${entries.size} canciones • $totalMomentsCount momentos • ${formatListenedTime(totalClipMs)}",
+                                stringResource(R.string.mix_moments_summary, entries.size, totalMomentsCount, formatListenedTime(totalClipMs)),
                                 fontSize = 13.sp,
                                 color = headerText.copy(alpha = 0.8f)
                             )

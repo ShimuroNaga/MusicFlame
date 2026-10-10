@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.content.ContentUris
+import com.music.musicflame.R
 import android.content.Context
 import android.net.Uri
 import android.provider.MediaStore
@@ -114,9 +115,9 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
                 songs.add(
                     Song(
                         id = id,
-                        title = customization?.title ?: (it.getString(titleCol) ?: "Desconocido"),
-                        artist = customization?.artist ?: (it.getString(artistCol) ?: "Artista Desconocido"),
-                        album = customization?.album ?: (it.getString(albumCol) ?: "Desconocido"),
+                        title = customization?.title ?: (it.getString(titleCol) ?: context.getString(R.string.common_unknown)),
+                        artist = customization?.artist ?: (it.getString(artistCol) ?: context.getString(R.string.common_unknown_artist)),
+                        album = customization?.album ?: (it.getString(albumCol) ?: context.getString(R.string.common_unknown)),
                         duration = duration,
                         path = path,
                         albumArtUri = customization?.coverUri ?: defaultAlbumArtUri,
@@ -187,10 +188,10 @@ fun getOriginalSongTitle(context: Context, songId: Long): String {
         projection, selection, arrayOf(songId.toString()), null
     )?.use { c ->
         if (c.moveToFirst()) {
-            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)) ?: "Desconocido"
+            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.TITLE)) ?: context.getString(R.string.common_unknown)
         }
     }
-    return "Desconocido"
+    return context.getString(R.string.common_unknown)
 }
 
 /** Consulta a MediaStore el artista ORIGINAL de una canción (ignorando cualquier personalización). */
@@ -202,10 +203,10 @@ fun getOriginalSongArtist(context: Context, songId: Long): String {
         projection, selection, arrayOf(songId.toString()), null
     )?.use { c ->
         if (c.moveToFirst()) {
-            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)) ?: "Artista Desconocido"
+            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.ARTIST)) ?: context.getString(R.string.common_unknown_artist)
         }
     }
-    return "Artista Desconocido"
+    return context.getString(R.string.common_unknown_artist)
 }
 
 /** Consulta a MediaStore el álbum ORIGINAL de una canción (ignorando cualquier personalización). */
@@ -217,10 +218,10 @@ fun getOriginalSongAlbum(context: Context, songId: Long): String {
         projection, selection, arrayOf(songId.toString()), null
     )?.use { c ->
         if (c.moveToFirst()) {
-            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)) ?: "Desconocido"
+            return c.getString(c.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM)) ?: context.getString(R.string.common_unknown)
         }
     }
-    return "Desconocido"
+    return context.getString(R.string.common_unknown)
 }
 
 /**

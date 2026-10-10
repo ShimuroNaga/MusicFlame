@@ -78,7 +78,8 @@ fun CoverDesignEditorDialog(
     onDismiss: () -> Unit,
     onSave: (CoverDesign) -> Unit
 ) {
-    var draft by remember { mutableStateOf(initial ?: CoverDesign()) }
+    val defaultDesignName = stringResource(R.string.cd_default_name)
+    var draft by remember { mutableStateOf(initial ?: CoverDesign(name = defaultDesignName)) }
     val isNew = initial == null
 
     Dialog(

@@ -370,7 +370,7 @@ private fun GenreRow(genre: Genre, onClick: () -> Unit) {
         Spacer(Modifier.width(16.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                genre.name,
+                com.music.musicflame.data.genreDisplayName(genre.name),
                 fontWeight = FontWeight.Bold,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,

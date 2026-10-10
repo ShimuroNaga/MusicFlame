@@ -47,6 +47,8 @@ fun DisplayTitleField(
     modifier: Modifier = Modifier,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val appContext = androidx.compose.ui.platform.LocalContext.current
+    val codeExamples = remember(appContext.resources.configuration.locales.toLanguageTags()) { FormatCodes.examples(appContext) }
 
     OutlinedTextField(
         value = value,
@@ -65,7 +67,7 @@ fun DisplayTitleField(
                     onDismissRequest = { menuExpanded = false },
                 ) {
                     LazyColumn(modifier = Modifier.size(width = 220.dp, height = 280.dp)) {
-                        items(FormatCodes.examples()) { example ->
+                        items(codeExamples) { example ->
                             DropdownMenuItem(
                                 text = {
                                     Row(verticalAlignment = Alignment.CenterVertically) {

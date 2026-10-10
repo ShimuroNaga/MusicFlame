@@ -332,7 +332,7 @@ fun SongsScreen(
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
 
-                    errorMessage = "Error tipo: " + e.javaClass.simpleName
+                    errorMessage = context.getString(R.string.song_youtube_error_type, e.javaClass.simpleName)
                     android.util.Log.e("YOUTUBE_DEBUG", "Error: ", e)
                 }
             } else {

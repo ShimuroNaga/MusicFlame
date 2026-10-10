@@ -85,15 +85,15 @@ object ConfigExportRepository {
         val root = try {
             JSONObject(json)
         } catch (e: Exception) {
-            throw IllegalArgumentException("El archivo no es un JSON válido")
+            throw IllegalArgumentException(context.getString(com.music.musicflame.R.string.cfg_invalid_json))
         }
 
         if (root.optString("app") != "musicflame") {
-            throw IllegalArgumentException("Este archivo no es una configuración de MusicFlame")
+            throw IllegalArgumentException(context.getString(com.music.musicflame.R.string.cfg_not_musicflame))
         }
 
         val entries = root.optJSONObject("settings")
-            ?: throw IllegalArgumentException("El archivo no tiene ajustes para importar")
+            ?: throw IllegalArgumentException(context.getString(com.music.musicflame.R.string.cfg_no_settings))
 
         val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
         val editor = prefs.edit()

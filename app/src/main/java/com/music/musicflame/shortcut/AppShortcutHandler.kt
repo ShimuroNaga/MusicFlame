@@ -1,6 +1,7 @@
 package com.music.musicflame.shortcut
 
 import android.content.Context
+import com.music.musicflame.R
 import android.widget.Toast
 import com.music.musicflame.data.FavoritesRepository
 import com.music.musicflame.data.MusicPlayerManager
@@ -32,7 +33,7 @@ object AppShortcutHandler {
         SongLibraryHolder.ensureLoaded(context)
         val library = SongLibraryHolder.songs
         if (library.isEmpty()) {
-            toast(context, "No hay canciones (¿falta el permiso de música?)")
+            toast(context, context.getString(R.string.shortcut_no_songs))
             return
         }
 
@@ -45,7 +46,7 @@ object AppShortcutHandler {
                     .maxByOrNull { it.value.lastPlayedAt }
                     ?.let { byId[it.key] }
                 if (last == null) {
-                    toast(context, "Todavía no has reproducido ninguna canción")
+                    toast(context, context.getString(R.string.shortcut_none_played))
                 } else {
                     playerManager.whenReady { playerManager.playSong(last, library) }
                 }
@@ -60,7 +61,7 @@ object AppShortcutHandler {
                 val ids = withContext(Dispatchers.IO) { FavoritesRepository(context).getAllFavoriteIds() }
                 val favorites = library.filter { it.id in ids }
                 if (favorites.isEmpty()) {
-                    toast(context, "Aún no tienes canciones favoritas")
+                    toast(context, context.getString(R.string.shortcut_no_favorites))
                 } else {
                     // "favorites" + FAVORITES = mismo id que usa la pantalla de Playlists, para que
                     // el tile de Mezclar sepa que se está reproduciendo esa playlist.

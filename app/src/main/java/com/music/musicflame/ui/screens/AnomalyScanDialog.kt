@@ -297,7 +297,7 @@ private fun ResultsList(
         grouped.forEach { (type, records) ->
             item {
                 Text(
-                    "${type.label} (${records.size})",
+                    "${stringResource(type.labelRes)} (${records.size})",
                     color = MaterialTheme.colorScheme.primary,
                     fontWeight = FontWeight.Black,
                     fontSize = 15.sp,
@@ -387,7 +387,7 @@ private fun FileInfoDialog(record: AnomalyRecord, onDismiss: () -> Unit, onPlay:
                 Spacer(Modifier.height(12.dp))
                 Text(stringResource(R.string.an_problems_found), fontWeight = FontWeight.Bold, fontSize = 12.sp)
                 record.visibleTypes.forEach { type ->
-                    Text("• ${type.label}", fontSize = 12.sp)
+                    Text("• ${stringResource(type.labelRes)}", fontSize = 12.sp)
                 }
             }
         },

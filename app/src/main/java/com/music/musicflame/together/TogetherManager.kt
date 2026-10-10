@@ -674,7 +674,7 @@ class TogetherManager(
         transferText = "Subiendo «${song.title}»…"
         scope.launch {
             try {
-                SupabaseSalas.upload(file, objectPath, SupabaseSalas.mimeFor(ext))
+                SupabaseSalas.upload(appContext, file, objectPath, SupabaseSalas.mimeFor(ext))
                 uploadedPaths[key] = objectPath
                 persistUploadedPaths()
                 publishNow() // ahora el estado incluye filePath y los invitados la descargan
@@ -700,12 +700,12 @@ class TogetherManager(
             try {
                 val dir = File(appContext.cacheDir, DOWNLOAD_DIR).apply { mkdirs() }
                 val dest = File(dir, path.substringAfterLast('/'))
-                if (!dest.isFile) SupabaseSalas.download(path, dest)
+                if (!dest.isFile) SupabaseSalas.download(appContext, path, dest)
                 downloaded[st.key] = Song(
                     id = -(abs(st.key.hashCode().toLong()) + 1000L), // id sintético negativo: no choca con la biblioteca
                     title = st.title,
                     artist = st.artist,
-                    album = "En compañía",
+                    album = appContext.getString(com.music.musicflame.R.string.tg_title),
                     duration = st.duration,
                     path = dest.absolutePath
                 )

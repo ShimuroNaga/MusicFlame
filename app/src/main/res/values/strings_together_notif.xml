@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tgn_channel_name">Canciones para la sala</string>
+    <string name="tgn_channel_desc">Avisa cuando a alguien de la sala le falta la canción que pusiste y te deja permitir o negar que se la pases.</string>
+    <string name="tgn_allow">Permitir</string>
+    <string name="tgn_deny">Negar</string>
+</resources>

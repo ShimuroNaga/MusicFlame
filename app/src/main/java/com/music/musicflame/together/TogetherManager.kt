@@ -15,6 +15,8 @@ import com.google.firebase.auth.GoogleAuthProvider
 import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
+import com.google.firebase.database.MutableData
+import com.google.firebase.database.Transaction
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
 import com.google.firebase.database.ValueEventListener
@@ -30,6 +32,8 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import kotlin.coroutines.resume
+import kotlin.coroutines.suspendCoroutine
 import java.io.File
 import java.security.SecureRandom
 import java.util.UUID
@@ -50,9 +54,24 @@ import com.music.musicflame.R
  *  - Los relojes se alinean con .info/serverTimeOffset para compensar la latencia.
  *
  * Estructura en la base de datos:
- *   rooms/{code}/meta     { hostUid, hostName, createdAt }
+ *   rooms/{code}/meta     { hostUid, hostName, createdAt, controllerUid }
  *   rooms/{code}/members/{uid} { name, online, joinedAt }
- *   rooms/{code}/state    { title, artist, duration, isPlaying, positionMs, updatedAt }
+ *   rooms/{code}/owners/{uid}  { name, since }          (1 a 2 propietarios; el anfitrión es uno)
+ *   rooms/{code}/queue/{id}    { title, artist, duration, addedBy, addedByName, pos, addedAt }
+ *   rooms/{code}/skipVotes/{uid} = trackId              (votos para saltar la canción actual)
+ *   rooms/{code}/state    { title, artist, duration, isPlaying, positionMs, updatedAt, filePath,
+ *                           trackId, addedBy, addedByName }
+ *
+ * v2 (varios propietarios, "opción B"):
+ *  - Solo los PROPIETARIOS eligen canciones. Quien tiene el control (controllerUid) es el dueño de
+ *    la canción que suena y es el ÚNICO que publica `state`; los demás lo siguen.
+ *  - Si otro propietario elige una canción mientras suena una, va a la lista de espera (queue).
+ *    Si nadie tiene el control, la reproduce al instante (toma el control con una transacción).
+ *  - Al terminar la canción el control pasa al autor de la siguiente de la cola (solo él tiene el
+ *    archivo). Si la cola se vacía, el control queda libre.
+ *  - Más de la mitad de los propietarios conectados puede saltar la canción votando; el
+ *    controlador puede saltarla solo.
+ *  - Si el anfitrión o el controlador se caen, el propietario conectado más antiguo asciende.
  */
 class TogetherManager(
     context: Context,
@@ -79,6 +98,20 @@ class TogetherManager(
         val tooBig: Boolean
     )
 
+    /** Un propietario de la sala (puede elegir canciones y votar). */
+    data class Owner(val uid: String, val name: String, val since: Long)
+
+    /** Una canción en la lista de espera. [pos] decide el orden (menor = antes). */
+    data class QueueItem(
+        val id: String,
+        val title: String,
+        val artist: String,
+        val duration: Long,
+        val addedBy: String,
+        val addedByName: String,
+        val pos: Double
+    )
+
     private data class HostState(
         val title: String,
         val artist: String,
@@ -86,7 +119,10 @@ class TogetherManager(
         val isPlaying: Boolean,
         val positionMs: Long,
         val updatedAt: Long,
-        val filePath: String? = null
+        val filePath: String? = null,
+        val trackId: String? = null,
+        val addedBy: String? = null,
+        val addedByName: String? = null
     ) {
         val key: String get() = songKey(title, artist)
     }
@@ -94,6 +130,8 @@ class TogetherManager(
     private val appContext = context.applicationContext
     private val prefs = appContext.getSharedPreferences("together_prefs", Context.MODE_PRIVATE)
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+
+    init { current = this }
 
     private val db: FirebaseDatabase by lazy { FirebaseDatabase.getInstance(DB_URL) }
     private val auth: FirebaseAuth get() = FirebaseAuth.getInstance()
@@ -117,13 +155,61 @@ class TogetherManager(
         private set
     val members = mutableStateListOf<Member>()
     /** Anfitrión: alguien no tiene la canción que suena → preguntar si se sube. */
-    var uploadPrompt by mutableStateOf<UploadPrompt?>(null)
-        private set
+    private var uploadPromptState by mutableStateOf<UploadPrompt?>(null)
+    var uploadPrompt: UploadPrompt?
+        get() = uploadPromptState
+        private set(value) {
+            uploadPromptState = value
+            syncUploadNotification(value)
+        }
+    private var notifiedPrompt: UploadPrompt? = null
     /** "Subiendo…" / "Descargando…" mientras hay una transferencia en curso. */
     var transferText by mutableStateOf<String?>(null)
         private set
     private val _busy = mutableStateOf(false)
     val busy: State<Boolean> = _busy
+
+    // ---------- Propietarios, lista de espera y votos ----------
+    val owners = mutableStateListOf<Owner>()
+    val queue = mutableStateListOf<QueueItem>()
+    /** Quién tiene el control ahora (dueño de la canción que suena). null = nadie, sala libre. */
+    var controllerUid by mutableStateOf<String?>(null)
+        private set
+    /** Nombre de quien puso la canción que suena (para la etiqueta "añadida por"). */
+    var nowAddedByName by mutableStateOf<String?>(null)
+        private set
+    /** Votos válidos para saltar la canción actual. */
+    var skipVotes by mutableStateOf(0)
+        private set
+    var iVotedSkip by mutableStateOf(false)
+        private set
+
+    private fun myUid(): String? = try { auth.currentUser?.uid } catch (_: Throwable) { null }
+    val isOwner: Boolean get() = myUid()?.let { me -> owners.any { it.uid == me } || (owners.isEmpty() && isHost) } == true
+    val isController: Boolean get() = controllerUid != null && controllerUid == myUid()
+    val ownersOnline: Int get() = owners.count { o -> members.any { it.uid == o.uid && it.online } }
+    /** Votos necesarios para saltar: más de la mitad de los propietarios conectados. */
+    val skipNeeded: Int get() = ownersOnline / 2 + 1
+    val canAddOwner: Boolean get() = owners.size < MAX_OWNERS
+    /** Mi uid de Firebase (para saber qué elementos de la cola son míos). */
+    val currentUid: String? get() = myUid()
+
+    /** Canción que suena ahora en la sala, si existe en este teléfono (para pintar su carátula). */
+    fun nowPlayingSong(): Song? {
+        nowPlayingText // se lee a propósito: así la pantalla se actualiza al cambiar la canción
+        if (isController) return playerManager.currentSong.value
+        val st = latestHostState ?: return null
+        return findLocalSong(st) ?: downloadedSongFor(st)
+    }
+
+    /** Carátula/archivo de un elemento de la cola, si la canción está en este teléfono. */
+    fun localSongFor(item: QueueItem): Song? =
+        myQueuedSongs[item.id] ?: findLocalSong(item.title, item.artist, item.duration)
+
+    /** Botón "Saltar canción" (solo el controlador; los demás propietarios votan). */
+    fun skipCurrent() {
+        if (isController) scope.launch { advanceQueue() }
+    }
 
     /** Código llegado por enlace musicflame://sala/CODIGO. MainActivity lo deja aquí. */
     var pendingDeepLinkCode by mutableStateOf<String?>(null)
@@ -145,6 +231,25 @@ class TogetherManager(
     private var stateListener: ValueEventListener? = null
     private var publishJobs = mutableListOf<Job>()
     private var hostUid: String? = null
+
+    private var ownersRef: DatabaseReference? = null
+    private var queueRef: DatabaseReference? = null
+    private var votesRef: DatabaseReference? = null
+    private var ownersListener: ValueEventListener? = null
+    private var queueListener: ValueEventListener? = null
+    private var votesListener: ValueEventListener? = null
+    private val voteMap = mutableMapOf<String, String>()          // uid -> trackId votado
+    private val myQueuedSongs = mutableMapOf<String, Song>()      // id en la cola -> mi canción (la que subí)
+    private var bypassInterceptor = false                         // true mientras la sala misma reproduce
+    private var claiming = false                                  // estoy tomando el control (transacción)
+    private var iHaveTrack = false                                // estoy reproduciendo una canción de la sala
+    private var lastAdvanceAt = 0L
+    private var advancing = false
+    private var idleJob: Job? = null
+    private var takeoverJob: Job? = null
+    private var promotionJob: Job? = null
+    /** Id de la canción actual de la sala (cambia con cada canción, aunque sea la misma repetida). */
+    private var currentTrackId by mutableStateOf<String?>(null)
     private var lastHostPlaying: Boolean? = null
     private var lastRequestedKey: String? = null
     private var lastRequestedAt = 0L
@@ -164,6 +269,10 @@ class TogetherManager(
     private var reportedMissing: String? = null
 
     init {
+        // Ganchos del reproductor: así tocar una canción o "siguiente" respeta las reglas de la sala.
+        playerManager.playInterceptor = { song -> onPlayRequested(song) }
+        playerManager.skipInterceptor = { onSkipRequested() }
+        playerManager.onTrackEnded = { onTrackEnded() }
         // Si quedó una sala guardada de la sesión anterior, se ofrece reconectar (no se une sola).
         if (roomCode != null) { status = Status.DISCONNECTED; statusDetail = appContext.getString(R.string.tgm_saved_room) }
         // Archivos que quedaron en Supabase de una sesión anterior (la app se cerró sin cerrar la sala).
@@ -224,6 +333,12 @@ class TogetherManager(
                     appContext.getString(R.string.tgm_create_failed)
                 )
                 hostUid = user.uid
+                // El anfitrión es el primer propietario de la sala.
+                try {
+                    db.getReference("rooms/$code/owners/${user.uid}").setValue(
+                        mapOf("name" to displayName(), "since" to ServerValue.TIMESTAMP)
+                    ).await()
+                } catch (t: Throwable) { Log.w(TAG, "No se pudo registrar al anfitrión como propietario", t) }
                 persistRoom(code, true)
                 attach(code, user.uid)
                 toast(appContext.getString(R.string.tgm_room_created, code))
@@ -294,6 +409,7 @@ class TogetherManager(
     fun disconnect() {
         val code = roomCode ?: return
         val uid = auth.currentUser?.uid
+        if (isController) releaseControlNow()   // la sala queda libre y el siguiente de la cola toma el turno
         detach()
         if (uid != null) {
             // Queda offline (y sin "missing"); la lista de la sala ya no lo muestra.
@@ -304,7 +420,7 @@ class TogetherManager(
         }
         status = Status.DISCONNECTED
         statusDetail = appContext.getString(R.string.tgm_disconnected_hint)
-        nowPlayingText = null; missingSongText = null
+        nowPlayingText = null; missingSongText = null; nowAddedByName = null
         uploadPrompt = null; transferText = null
     }
 
@@ -344,6 +460,10 @@ class TogetherManager(
     }
 
     fun release() {
+        playerManager.playInterceptor = null
+        playerManager.skipInterceptor = null
+        playerManager.onTrackEnded = null
+        if (isController) releaseControlNow()
         detach()
         offsetListener?.let { try { db.getReference(".info/serverTimeOffset").removeEventListener(it) } catch (_: Throwable) {} }
         scope.cancel()
@@ -378,16 +498,42 @@ class TogetherManager(
             ref.addValueEventListener(connectedListener!!)
         }
 
-        // 2) Meta: si desaparece, el anfitrión cerró la sala.
+        // 2) Meta: si desaparece, el anfitrión cerró la sala. También trae quién es el anfitrión
+        //    actual (puede cambiar por traspaso o ascenso) y quién tiene el control de la música.
         metaRef = db.getReference("rooms/$code/meta").also { ref ->
             metaListener = object : ValueEventListener {
                 override fun onDataChange(s: DataSnapshot) {
-                    if (!s.exists() && status == Status.CONNECTED) {
-                        scope.launch {
-                            toast(appContext.getString(R.string.tgm_host_closed))
-                            leaveInternal(removeRemote = false)
+                    if (!s.exists()) {
+                        if (status == Status.CONNECTED) {
+                            scope.launch {
+                                toast(appContext.getString(R.string.tgm_host_closed))
+                                leaveInternal(removeRemote = false)
+                            }
                         }
+                        return
                     }
+                    val me = auth.currentUser?.uid
+                    val newHost = s.child("hostUid").getValue(String::class.java)
+                    if (newHost != null && newHost != hostUid) {
+                        hostUid = newHost
+                        val nowHost = newHost == me
+                        val wasHost = isHost
+                        persistRoom(code, nowHost)
+                        val remapped = members.map { it.copy(isHost = it.uid == newHost) }
+                            .sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.name.lowercase() })
+                        members.clear(); members.addAll(remapped)
+                        if (nowHost && !wasHost) toast(appContext.getString(R.string.tgq_you_are_host_now))
+                    }
+                    val oldCtrl = controllerUid
+                    val newCtrl = s.child("controllerUid").getValue(String::class.java)
+                    controllerUid = newCtrl
+                    if (newCtrl == me && oldCtrl != me && !claiming && !iHaveTrack) {
+                        // Me pasaron el control (o lo tomé por relevo): toca mi canción de la cola.
+                        scope.launch { delay(300); takeTurn() }
+                    }
+                    if (newCtrl != me && oldCtrl == me) iHaveTrack = false
+                    evaluateIdle(); evaluateTakeover(); evaluatePromotion()
+                    evaluateMissing(); recomputeVotes()
                 }
                 override fun onCancelled(e: DatabaseError) {}
             }
@@ -416,6 +562,7 @@ class TogetherManager(
                         status = Status.CONNECTED; statusDetail = ""
                     }
                     evaluateMissing()
+                    evaluateIdle(); evaluateTakeover(); evaluatePromotion(); recomputeVotes()
                 }
                 override fun onCancelled(e: DatabaseError) {
                     fail(e.toException(), appContext.getString(R.string.tgm_no_permission))
@@ -424,21 +571,98 @@ class TogetherManager(
             ref.addValueEventListener(membersListener!!)
         }
 
-        // 4) Estado de reproducción.
-        stateRef = db.getReference("rooms/$code/state")
-        if (isHost) startPublishing() else {
-            stateListener = object : ValueEventListener {
+        // 4) Propietarios.
+        ownersRef = db.getReference("rooms/$code/owners").also { ref ->
+            ownersListener = object : ValueEventListener {
                 override fun onDataChange(s: DataSnapshot) {
-                    val st = parseState(s) ?: return
-                    latestHostState = st
-                    scope.launch { applyHostState(st) }
+                    val list = s.children.mapNotNull { c ->
+                        val id = c.key ?: return@mapNotNull null
+                        Owner(
+                            uid = id,
+                            name = c.child("name").getValue(String::class.java) ?: appContext.getString(R.string.tgm_guest),
+                            since = (c.child("since").value as? Number)?.toLong() ?: 0L
+                        )
+                    }.sortedWith(compareBy<Owner>({ it.since }, { it.uid }))
+                    owners.clear(); owners.addAll(list)
+                    // Salas creadas con la versión anterior: el anfitrión aún no figura como propietario.
+                    if (hostUid == uid && list.none { it.uid == uid }) {
+                        db.getReference("rooms/$code/owners/$uid")
+                            .setValue(mapOf("name" to displayName(), "since" to ServerValue.TIMESTAMP))
+                    }
+                    evaluateIdle(); evaluateTakeover(); evaluatePromotion(); recomputeVotes()
                 }
-                override fun onCancelled(e: DatabaseError) {
-                    Log.w(TAG, "state cancelled: ${e.message}")
-                }
+                override fun onCancelled(e: DatabaseError) {}
             }
-            stateRef!!.addValueEventListener(stateListener!!)
+            ref.addValueEventListener(ownersListener!!)
         }
+
+        // 5) Lista de espera.
+        queueRef = db.getReference("rooms/$code/queue").also { ref ->
+            queueListener = object : ValueEventListener {
+                override fun onDataChange(s: DataSnapshot) {
+                    val list = s.children.mapNotNull { c ->
+                        val id = c.key ?: return@mapNotNull null
+                        val title = c.child("title").getValue(String::class.java) ?: return@mapNotNull null
+                        QueueItem(
+                            id = id,
+                            title = title,
+                            artist = c.child("artist").getValue(String::class.java) ?: "",
+                            duration = (c.child("duration").value as? Number)?.toLong() ?: 0L,
+                            addedBy = c.child("addedBy").getValue(String::class.java) ?: return@mapNotNull null,
+                            addedByName = c.child("addedByName").getValue(String::class.java) ?: "",
+                            pos = (c.child("pos").value as? Number)?.toDouble() ?: 0.0
+                        )
+                    }.sortedWith(compareBy<QueueItem>({ it.pos }, { it.id }))
+                    queue.clear(); queue.addAll(list)
+                    myQueuedSongs.keys.retainAll(list.map { it.id }.toSet())
+                    evaluateIdle()
+                }
+                override fun onCancelled(e: DatabaseError) {}
+            }
+            ref.addValueEventListener(queueListener!!)
+        }
+
+        // 6) Votos para saltar.
+        votesRef = db.getReference("rooms/$code/skipVotes").also { ref ->
+            votesListener = object : ValueEventListener {
+                override fun onDataChange(s: DataSnapshot) {
+                    voteMap.clear()
+                    s.children.forEach { c ->
+                        val id = c.key ?: return@forEach
+                        c.getValue(String::class.java)?.let { voteMap[id] = it }
+                    }
+                    recomputeVotes()
+                }
+                override fun onCancelled(e: DatabaseError) {}
+            }
+            ref.addValueEventListener(votesListener!!)
+        }
+
+        // 7) Estado de reproducción. Todos lo escuchan; solo el controlador lo publica.
+        stateRef = db.getReference("rooms/$code/state")
+        stateListener = object : ValueEventListener {
+            override fun onDataChange(s: DataSnapshot) {
+                if (isController) return // soy yo quien publica; no me sigo a mí mismo
+                val st = parseState(s)
+                if (st == null) {
+                    // Sala libre: nadie está reproduciendo.
+                    latestHostState = null
+                    nowPlayingText = null; nowAddedByName = null; missingSongText = null
+                    reportMissing(null)
+                    recomputeVotes()
+                    return
+                }
+                latestHostState = st
+                nowAddedByName = st.addedByName
+                recomputeVotes()
+                scope.launch { applyHostState(st) }
+            }
+            override fun onCancelled(e: DatabaseError) {
+                Log.w(TAG, "state cancelled: ${e.message}")
+            }
+        }
+        stateRef!!.addValueEventListener(stateListener!!)
+        startPublishing()
     }
 
     private fun detach() {
@@ -447,8 +671,15 @@ class TogetherManager(
         membersListener?.let { membersRef?.removeEventListener(it) }
         stateListener?.let { stateRef?.removeEventListener(it) }
         connectedListener?.let { connectedRef?.removeEventListener(it) }
+        ownersListener?.let { ownersRef?.removeEventListener(it) }
+        queueListener?.let { queueRef?.removeEventListener(it) }
+        votesListener?.let { votesRef?.removeEventListener(it) }
         metaListener = null; membersListener = null; stateListener = null; connectedListener = null
+        ownersListener = null; queueListener = null; votesListener = null
         metaRef = null; membersRef = null; stateRef = null; connectedRef = null
+        ownersRef = null; queueRef = null; votesRef = null
+        idleJob?.cancel(); takeoverJob?.cancel(); promotionJob?.cancel()
+        idleJob = null; takeoverJob = null; promotionJob = null
         latestHostState = null; downloadingKey = null
     }
 
@@ -456,23 +687,37 @@ class TogetherManager(
         val code = roomCode
         val uid = auth.currentUser?.uid
         val wasHost = isHost
+        // Si yo tenía el control, lo suelto para que el siguiente de la cola siga la música.
+        if (isController) releaseControlNow()
         // Evita que un borrado de presencia pendiente ensucie la sala después de salir.
         try { myPresenceRef?.onDisconnect()?.cancel() } catch (_: Throwable) {}
         myPresenceRef = null
+        val myQueueIds = queue.filter { it.addedBy == uid }.map { it.id }
         detach()
-        // Limpieza de archivos compartidos: borra lo subido (anfitrión) y lo descargado (invitado).
-        if (wasHost) deleteUploadedFiles()
+        // Limpieza de archivos compartidos: borra lo subido (cualquier propietario puede haber subido) y lo descargado.
+        deleteUploadedFiles()
         clearDownloads()
         if (removeRemote && code != null && uid != null) {
             try {
-                if (isHost) db.getReference("rooms/$code").removeValue().await()
-                else db.getReference("rooms/$code/members/$uid").removeValue().await()
+                if (wasHost) {
+                    db.getReference("rooms/$code").removeValue().await()
+                } else {
+                    // Mis canciones en espera ya no se podrían reproducir (solo yo tengo el archivo).
+                    if (myQueueIds.isNotEmpty()) {
+                        db.getReference("rooms/$code/queue")
+                            .updateChildren(myQueueIds.associateWith { null as Any? }).await()
+                    }
+                    try { db.getReference("rooms/$code/owners/$uid").removeValue().await() } catch (_: Throwable) {}
+                    db.getReference("rooms/$code/members/$uid").removeValue().await()
+                }
             } catch (t: Throwable) {
                 Log.w(TAG, "No se pudo limpiar la sala", t)
             }
         }
         roomCode = null; isHost = false; hostUid = null
-        members.clear()
+        members.clear(); owners.clear(); queue.clear(); voteMap.clear(); myQueuedSongs.clear()
+        controllerUid = null; currentTrackId = null; iHaveTrack = false; claiming = false
+        skipVotes = 0; iVotedSkip = false; nowAddedByName = null
         nowPlayingText = null; missingSongText = null
         uploadPrompt = null; transferText = null
         declinedKeys.clear(); reportedMissing = null
@@ -480,29 +725,33 @@ class TogetherManager(
         prefs.edit().remove(KEY_ROOM).remove(KEY_IS_HOST).apply()
     }
 
-    // ================= Anfitrión: publicar =================
+    // ================= Controlador: publicar =================
 
     private fun startPublishing() {
-        // Publica al instante cuando cambia la canción o play/pausa…
+        // Publica al instante cuando cambia la canción, play/pausa o el id de pista…
         publishJobs += scope.launch {
             snapshotFlow {
                 val s = playerManager.currentSong.value
-                Pair(s?.let { songKey(it.title, it.artist) }, playerManager.isPlayingState.value)
+                Triple(s?.let { songKey(it.title, it.artist) }, playerManager.isPlayingState.value, currentTrackId)
             }.collect { publishNow(); evaluateMissing() }
         }
         // …y cada 3 s para que los demás corrijan el desfase (y detecten saltos de barra).
         publishJobs += scope.launch {
             while (isActive) {
                 delay(PUBLISH_EVERY_MS)
-                if (playerManager.isPlayingState.value) publishNow()
+                if (isController && playerManager.isPlayingState.value) publishNow()
             }
         }
     }
 
+    /** Solo publica quien tiene el control y está reproduciendo una canción de la sala. */
     private fun publishNow() {
+        if (!isController || !iHaveTrack) return
         val ref = stateRef ?: return
+        val me = myUid() ?: return
+        val trackId = currentTrackId ?: return
         val song = playerManager.currentSong.value ?: return
-        // Si el anfitrión ya subió ESTA canción, los invitados la descargan desde filePath.
+        // Si ya subí ESTA canción, los demás la descargan desde filePath.
         val filePath = uploadedPaths[songKey(song.title, song.artist)]
         val data = mutableMapOf<String, Any>(
             "title" to song.title,
@@ -510,9 +759,14 @@ class TogetherManager(
             "duration" to playerManager.duration.coerceAtLeast(0L),
             "isPlaying" to playerManager.isPlayingState.value,
             "positionMs" to playerManager.currentPosition,
-            "updatedAt" to ServerValue.TIMESTAMP
+            "updatedAt" to ServerValue.TIMESTAMP,
+            "trackId" to trackId,
+            "addedBy" to me,
+            "addedByName" to displayName()
         )
         if (filePath != null) data["filePath"] = filePath
+        nowPlayingText = songDisplay(song.title, song.artist)
+        nowAddedByName = displayName()
         ref.setValue(data)
     }
 
@@ -528,7 +782,10 @@ class TogetherManager(
             isPlaying = s.child("isPlaying").getValue(Boolean::class.java) ?: false,
             positionMs = s.child("positionMs").getValue(Long::class.java) ?: 0L,
             updatedAt = s.child("updatedAt").getValue(Long::class.java) ?: serverNow(),
-            filePath = s.child("filePath").getValue(String::class.java)
+            filePath = s.child("filePath").getValue(String::class.java),
+            trackId = s.child("trackId").getValue(String::class.java),
+            addedBy = s.child("addedBy").getValue(String::class.java),
+            addedByName = s.child("addedByName").getValue(String::class.java)
         )
     }
 
@@ -556,7 +813,7 @@ class TogetherManager(
             missingSongText = null
             reportMissing(null)
             lastRequestedKey = st.key; lastRequestedAt = now
-            playerManager.playSong(mine, listOf(mine))
+            playLocal(mine)
             delay(900) // damos tiempo a que el reproductor cargue antes de saltar a la posición
             playerManager.seekTo(expectedPosition(st))
             if (!st.isPlaying) playerManager.pause()
@@ -585,13 +842,15 @@ class TogetherManager(
         }
     }
 
-    private fun findLocalSong(st: HostState): Song? {
+    private fun findLocalSong(st: HostState): Song? = findLocalSong(st.title, st.artist, st.duration)
+
+    private fun findLocalSong(title: String, artist: String, duration: Long): Song? {
         val all = SongLibraryHolder.songs
-        all.firstOrNull { songKey(it.title, it.artist) == st.key }?.let { return it }
+        all.firstOrNull { songKey(it.title, it.artist) == songKey(title, artist) }?.let { return it }
         // Respaldo: mismo título y duración parecida (±3 s), por si el artista está escrito distinto.
-        val t = normalize(st.title)
+        val t = normalize(title)
         return all.firstOrNull {
-            normalize(it.title) == t && (st.duration <= 0L || abs(it.duration - st.duration) <= 3000L)
+            normalize(it.title) == t && (duration <= 0L || abs(it.duration - duration) <= 3000L)
         }
     }
 
@@ -606,6 +865,393 @@ class TogetherManager(
             )
         ).addOnFailureListener {
             fail(it, appContext.getString(R.string.tgm_join_failed, MAX_MEMBERS))
+        }
+    }
+
+    // ================= Propietarios, lista de espera y votos =================
+
+    private enum class Claim { WON, LOST, ERROR }
+
+    private fun onlineUids(): Set<String> = members.filter { it.online }.map { it.uid }.toSet()
+
+    /** Reproduce SIN pasar por el interceptor (lo usa la propia sala). */
+    private fun playLocal(song: Song) {
+        bypassInterceptor = true
+        try { playerManager.playSong(song, listOf(song)) } finally { bypassInterceptor = false }
+    }
+
+    /** Gancho de MusicPlayerManager.playSong: true = la sala se encargó (no reproducir aquí). */
+    private fun onPlayRequested(song: Song): Boolean {
+        if (bypassInterceptor) return false
+        if (roomCode == null || status != Status.CONNECTED) return false
+        if (!isOwner) { toast(appContext.getString(R.string.tgq_only_owners)); return true }
+        if (isController) { playAsController(song); return true }
+        scope.launch { claimOrEnqueue(song) }
+        return true
+    }
+
+    /** Gancho de skipNext: el controlador salta; otro propietario vota; un oyente no puede. */
+    private fun onSkipRequested(): Boolean {
+        if (roomCode == null || status != Status.CONNECTED) return false
+        if (!isOwner) { toast(appContext.getString(R.string.tgq_only_owners)); return true }
+        if (isController) { scope.launch { advanceQueue() }; return true }
+        if (controllerUid == null) return false      // sala libre: nada que votar
+        toggleSkipVote()
+        return true
+    }
+
+    /** Fin de canción (o repetición): si yo tengo el control, sigue la cola. */
+    private fun onTrackEnded() {
+        if (roomCode == null || status != Status.CONNECTED || !isController || !iHaveTrack) return
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastAdvanceAt < 2500) return       // evita doble aviso (fin de pista + repetición)
+        lastAdvanceAt = now
+        scope.launch { advanceQueue() }
+    }
+
+    /** Elijo una canción sin tener el control: si la sala está libre la tomo; si no, va a la espera. */
+    private suspend fun claimOrEnqueue(song: Song) {
+        val code = roomCode ?: return
+        val me = myUid() ?: return
+        claiming = true
+        try {
+            when (claimTransaction(code, me)) {
+                Claim.WON -> { controllerUid = me; playAsController(song) }
+                Claim.LOST -> enqueue(song)
+                Claim.ERROR -> {
+                    // Casi seguro: las reglas de Firebase aún no tienen la versión con propietarios.
+                    toast(appContext.getString(R.string.tgq_rules_hint))
+                    playLocal(song)
+                }
+            }
+        } finally {
+            claiming = false
+        }
+    }
+
+    private suspend fun claimTransaction(code: String, me: String): Claim = suspendCoroutine { cont ->
+        db.getReference("rooms/$code/meta/controllerUid").runTransaction(object : Transaction.Handler {
+            override fun doTransaction(d: MutableData): Transaction.Result {
+                return if (d.getValue(String::class.java) == null) { d.value = me; Transaction.success(d) }
+                else Transaction.abort()
+            }
+            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
+                cont.resume(when { error != null -> Claim.ERROR; committed -> Claim.WON; else -> Claim.LOST })
+            }
+        })
+    }
+
+    /** Cambia [path] de [from] a [to] solo si todavía vale [from] (relevos de control y de anfitrión). */
+    private suspend fun swapValue(path: String, from: String, to: String?): Boolean = suspendCoroutine { cont ->
+        db.getReference(path).runTransaction(object : Transaction.Handler {
+            override fun doTransaction(d: MutableData): Transaction.Result {
+                return if (d.getValue(String::class.java) == from) { d.value = to; Transaction.success(d) }
+                else Transaction.abort()
+            }
+            override fun onComplete(error: DatabaseError?, committed: Boolean, snapshot: DataSnapshot?) {
+                cont.resume(error == null && committed)
+            }
+        })
+    }
+
+    private var currentTrackKey: String? = null
+
+    /** Soy el controlador: esta canción es MÍA y la publico para todos. */
+    private fun playAsController(song: Song) {
+        val key = songKey(song.title, song.artist)
+        val prevKey = currentTrackKey
+        if (prevKey != null && prevKey != key) scope.launch { cleanupUpload(prevKey) }
+        currentTrackKey = key
+        iHaveTrack = true
+        lastAdvanceAt = SystemClock.elapsedRealtime()
+        playLocal(song)
+        currentTrackId = UUID.randomUUID().toString()   // después de playLocal: se publica con la canción nueva
+        nowPlayingText = songDisplay(song.title, song.artist)
+        nowAddedByName = displayName()
+        missingSongText = null; reportMissing(null)
+        latestHostState = null
+        clearSkipVotes()
+    }
+
+    /** Añade mi canción a la lista de espera (queda al final). */
+    private suspend fun enqueue(song: Song) {
+        val code = roomCode ?: return
+        val me = myUid() ?: return
+        if (queue.size >= TogetherQueueLogic.MAX_QUEUE) {
+            toast(appContext.getString(R.string.tgq_queue_full, TogetherQueueLogic.MAX_QUEUE)); return
+        }
+        try {
+            val pos = TogetherQueueLogic.positionBetween(queue.maxOfOrNull { it.pos }, null)
+            val ref = db.getReference("rooms/$code/queue").push()
+            val id = ref.key ?: return
+            myQueuedSongs[id] = song
+            ref.setValue(
+                mapOf(
+                    "title" to song.title,
+                    "artist" to song.artist,
+                    "duration" to song.duration,
+                    "addedBy" to me,
+                    "addedByName" to displayName(),
+                    "pos" to pos,
+                    "addedAt" to ServerValue.TIMESTAMP
+                )
+            ).await()
+            toast(appContext.getString(R.string.tgq_added_to_queue, song.title))
+        } catch (t: Throwable) {
+            fail(t)
+        }
+    }
+
+    /**
+     * Termina la canción actual y sigue la cola. Solo lo ejecuta el controlador.
+     *  - Si la siguiente (de un autor conectado) es mía: la reproduzco.
+     *  - Si es de otro: le paso el control (solo él tiene el archivo).
+     *  - Si no hay nadie: la sala queda libre.
+     */
+    private suspend fun advanceQueue() {
+        if (advancing) return
+        advancing = true
+        try {
+            val me = myUid() ?: return
+            if (roomCode == null || !isController) return
+            cleanupUpload(currentTrackKey); currentTrackKey = null
+            clearSkipVotes()
+            val skipped = mutableSetOf<String>()
+            while (true) {
+                val items = queue.filter { it.id !in skipped }
+                val idx = TogetherQueueLogic.firstPlayableIndex(items.map { it.addedBy }, onlineUids())
+                if (idx < 0) { playerManager.pause(); playerManager.seekTo(0); releaseControlNow(); return }
+                val next = items[idx]
+                if (next.addedBy == me) {
+                    val song = myQueuedSongs[next.id] ?: findLocalSong(next.title, next.artist, next.duration)
+                    removeQueueItem(next.id)
+                    if (song == null) {
+                        skipped += next.id
+                        toast(appContext.getString(R.string.tgq_song_not_found, next.title))
+                        continue
+                    }
+                    playAsController(song)
+                    return
+                }
+                handOff(next.addedBy)
+                return
+            }
+        } finally {
+            advancing = false
+        }
+    }
+
+    /** Me pasaron el control sin canción en curso: toca la primera de la cola que me corresponda. */
+    private suspend fun takeTurn() {
+        if (!isController || iHaveTrack || claiming || advancing) return
+        advanceQueue()
+    }
+
+    private suspend fun handOff(toUid: String) {
+        val code = roomCode ?: return
+        val me = myUid() ?: return
+        // Antes de soltar el control limpio lo publicado: nadie debe seguir una canción que ya terminó.
+        try { db.getReference("rooms/$code/state").removeValue() } catch (_: Throwable) {}
+        if (swapValue("rooms/$code/meta/controllerUid", me, toUid)) {
+            iHaveTrack = false; lastHostPlaying = null; lastRequestedKey = null
+            playerManager.pause()
+        }
+    }
+
+    /** Suelto el control (sala libre). No espera respuesta: sirve también al salir o desconectar. */
+    private fun releaseControlNow() {
+        val code = roomCode ?: return
+        if (!isController) return
+        iHaveTrack = false; lastHostPlaying = null; lastRequestedKey = null
+        nowPlayingText = null; nowAddedByName = null
+        try {
+            db.getReference("rooms/$code/state").removeValue()
+            db.getReference("rooms/$code/skipVotes").removeValue()
+            db.getReference("rooms/$code/meta/controllerUid").removeValue()
+        } catch (t: Throwable) {
+            Log.w(TAG, "No se pudo soltar el control", t)
+        }
+    }
+
+    private fun clearSkipVotes() {
+        val code = roomCode ?: return
+        if (!isController) return
+        try { db.getReference("rooms/$code/skipVotes").removeValue() } catch (_: Throwable) {}
+    }
+
+    /** Cuenta los votos válidos (propietarios conectados, para la canción actual) y salta si alcanzan. */
+    private fun recomputeVotes() {
+        val trackId = if (isController) currentTrackId else latestHostState?.trackId
+        if (trackId == null) { skipVotes = 0; iVotedSkip = false; return }
+        val onlineOwners = owners.map { it.uid }.filter { it in onlineUids() }.toSet()
+        val valid = voteMap.filter { (uid, t) -> t == trackId && uid in onlineOwners && uid != controllerUid }.keys
+        skipVotes = valid.size
+        iVotedSkip = myUid()?.let { it in valid } == true
+        if (isController && iHaveTrack && TogetherQueueLogic.skipPasses(valid.size, onlineOwners.size)) {
+            scope.launch { advanceQueue() }
+        }
+    }
+
+    /** Propietario (no controlador): vota para saltar la canción actual, o retira su voto. */
+    fun toggleSkipVote() {
+        val code = roomCode ?: return
+        val me = myUid() ?: return
+        if (!isOwner || isController) return
+        val trackId = latestHostState?.trackId ?: return
+        val ref = db.getReference("rooms/$code/skipVotes/$me")
+        if (voteMap[me] == trackId) ref.removeValue() else ref.setValue(trackId)
+    }
+
+    /** Quitar de la cola: cada quien lo suyo; el anfitrión puede quitar cualquiera. */
+    fun removeFromQueue(item: QueueItem) {
+        if (item.addedBy != myUid() && !isHost) return
+        removeQueueItem(item.id)
+    }
+
+    private fun removeQueueItem(id: String) {
+        val code = roomCode ?: return
+        queue.removeAll { it.id == id }
+        myQueuedSongs.remove(id)
+        try { db.getReference("rooms/$code/queue/$id").removeValue() } catch (_: Throwable) {}
+    }
+
+    /** Arrastrar: mueve el elemento [from] al lugar [to] (solo propietarios). */
+    fun moveQueueItem(from: Int, to: Int) {
+        val code = roomCode ?: return
+        if (!isOwner) return
+        val items = queue.toList()
+        if (from !in items.indices || to !in items.indices || from == to) return
+        val moved = items[from]
+        val positions = items.map { it.pos }
+        val rest = positions.filterIndexed { i, _ -> i != from }
+        if (TogetherQueueLogic.needsRenumber(rest.getOrNull(to - 1), rest.getOrNull(to))) {
+            // Las posiciones quedaron demasiado juntas: se renumera toda la cola de una vez.
+            val order = items.toMutableList().also { it.removeAt(from); it.add(to, moved) }
+            val nums = TogetherQueueLogic.renumbered(order.size)
+            val update = HashMap<String, Any?>()
+            order.forEachIndexed { i, q -> update["${q.id}/pos"] = nums[i] }
+            db.getReference("rooms/$code/queue").updateChildren(update)
+        } else {
+            val np = TogetherQueueLogic.newPositionForMove(positions, from, to)
+            db.getReference("rooms/$code/queue/${moved.id}/pos").setValue(np)
+        }
+    }
+
+    /** Borra de Supabase el archivo que subí para una canción que ya terminó. */
+    private suspend fun cleanupUpload(key: String?) {
+        if (key == null) return
+        val path = uploadedPaths.remove(key) ?: return
+        persistUploadedPaths()
+        try { SupabaseSalas.delete(listOf(path)) } catch (t: Throwable) { Log.w(TAG, "No se pudo borrar el archivo", t) }
+    }
+
+    // ---------- Administración de propietarios (solo anfitrión) ----------
+
+    fun addOwner(uid: String) {
+        val code = roomCode ?: return
+        if (!isHost) return
+        if (!canAddOwner) { toast(appContext.getString(R.string.tgq_max_owners, MAX_OWNERS)); return }
+        val name = members.firstOrNull { it.uid == uid }?.name ?: return
+        db.getReference("rooms/$code/owners/$uid")
+            .setValue(mapOf("name" to name, "since" to ServerValue.TIMESTAMP))
+    }
+
+    fun removeOwner(uid: String) {
+        val code = roomCode ?: return
+        if (!isHost || uid == myUid()) return
+        val theirQueue = queue.filter { it.addedBy == uid }.associate { it.id to (null as Any?) }
+        db.getReference("rooms/$code/owners/$uid").removeValue()
+        if (theirQueue.isNotEmpty()) db.getReference("rooms/$code/queue").updateChildren(theirQueue)
+        db.getReference("rooms/$code/skipVotes/$uid").removeValue()
+    }
+
+    /** Cambio de anfitrión: el elegido pasa a ser propietario (si no lo era) y anfitrión. */
+    fun transferHost(uid: String) {
+        val code = roomCode ?: return
+        if (!isHost || uid == myUid()) return
+        val name = members.firstOrNull { it.uid == uid }?.name ?: return
+        scope.launch {
+            try {
+                if (owners.none { it.uid == uid }) {
+                    if (!canAddOwner) { toast(appContext.getString(R.string.tgq_max_owners, MAX_OWNERS)); return@launch }
+                    db.getReference("rooms/$code/owners/$uid")
+                        .setValue(mapOf("name" to name, "since" to ServerValue.TIMESTAMP)).await()
+                }
+                db.getReference("rooms/$code/meta/hostName").setValue(name)
+                db.getReference("rooms/$code/meta/hostUid").setValue(uid).await()
+                toast(appContext.getString(R.string.tgq_host_changed, name))
+            } catch (t: Throwable) {
+                fail(t)
+            }
+        }
+    }
+
+    // ---------- Relevos automáticos ----------
+
+    /** Sala libre y la primera de la cola es MÍA (y su autor está conectado): tomo el control. */
+    private fun evaluateIdle() {
+        if (status != Status.CONNECTED || controllerUid != null || claiming) return
+        val me = myUid() ?: return
+        if (!isOwner || queue.isEmpty()) return
+        val idx = TogetherQueueLogic.firstPlayableIndex(queue.map { it.addedBy }, onlineUids())
+        if (idx < 0 || queue[idx].addedBy != me) return
+        if (idleJob?.isActive == true) return
+        idleJob = scope.launch {
+            delay(600)
+            if (controllerUid != null || claiming) return@launch
+            val code = roomCode ?: return@launch
+            claiming = true
+            try {
+                if (claimTransaction(code, me) == Claim.WON) {
+                    controllerUid = me; iHaveTrack = false
+                    advanceQueue()
+                }
+            } finally {
+                claiming = false
+            }
+        }
+    }
+
+    /** El controlador se cayó: el propietario conectado más antiguo toma el control tras una espera. */
+    private fun evaluateTakeover() {
+        if (status != Status.CONNECTED) return
+        val ctrl = controllerUid
+        if (ctrl == null || ctrl in onlineUids()) { takeoverJob?.cancel(); takeoverJob = null; return }
+        val me = myUid() ?: return
+        val winner = TogetherQueueLogic.oldestOnlineOwner(owners.associate { it.uid to it.since }, onlineUids(), exclude = ctrl)
+        if (winner != me || takeoverJob?.isActive == true) return
+        takeoverJob = scope.launch {
+            delay(TAKEOVER_GRACE_MS)
+            if (controllerUid != ctrl || ctrl in onlineUids()) return@launch
+            val code = roomCode ?: return@launch
+            claiming = true
+            try {
+                if (swapValue("rooms/$code/meta/controllerUid", ctrl, me)) {
+                    controllerUid = me; iHaveTrack = false
+                    try { db.getReference("rooms/$code/state").removeValue() } catch (_: Throwable) {}
+                    advanceQueue()
+                }
+            } finally {
+                claiming = false
+            }
+        }
+    }
+
+    /** El anfitrión se cayó: el propietario conectado más antiguo asciende a anfitrión (la sala sigue). */
+    private fun evaluatePromotion() {
+        if (status != Status.CONNECTED) return
+        val host = hostUid
+        if (host == null || host in onlineUids()) { promotionJob?.cancel(); promotionJob = null; return }
+        val me = myUid() ?: return
+        val winner = TogetherQueueLogic.oldestOnlineOwner(owners.associate { it.uid to it.since }, onlineUids(), exclude = host)
+        if (winner != me || promotionJob?.isActive == true) return
+        promotionJob = scope.launch {
+            delay(PROMOTION_GRACE_MS)
+            if (hostUid != host || host in onlineUids()) return@launch
+            val code = roomCode ?: return@launch
+            if (swapValue("rooms/$code/meta/hostUid", host, me)) {
+                try { db.getReference("rooms/$code/meta/hostName").setValue(displayName()) } catch (_: Throwable) {}
+            }
         }
     }
 
@@ -625,13 +1271,14 @@ class TogetherManager(
         }
     }
 
-    /** Anfitrión: ¿a algún invitado le falta lo que suena? Si sí, prepara la pregunta. */
+    /** Controlador: ¿a alguien le falta lo que suena? Si sí, prepara la pregunta de subir el archivo. */
     private fun evaluateMissing() {
-        if (!isHost || status != Status.CONNECTED) { return }
+        if (!isController || !iHaveTrack || status != Status.CONNECTED) { return }
         val song = playerManager.currentSong.value
         if (song == null) { uploadPrompt = null; return }
         val key = songKey(song.title, song.artist)
-        val who = members.filter { !it.isHost && it.online && it.missing == key }
+        val me = myUid()
+        val who = members.filter { it.uid != me && it.online && it.missing == key }
         if (who.isEmpty()) { uploadPrompt = null; return }
         if (uploading || key in declinedKeys || uploadedPaths.containsKey(key)) return
         val file = File(song.path)
@@ -643,6 +1290,18 @@ class TogetherManager(
             key = key, title = song.title, artist = song.artist,
             who = who.map { it.name }, sizeBytes = size, tooBig = size > SupabaseSalas.MAX_BYTES
         )
+    }
+
+    /** Mantiene la notificación del sistema (con Permitir / Negar) igual que el diálogo de la app. */
+    private fun syncUploadNotification(p: UploadPrompt?) {
+        if (p == notifiedPrompt) return
+        notifiedPrompt = p
+        try {
+            if (p == null) TogetherNotifications.cancelUploadPrompt(appContext)
+            else TogetherNotifications.showUploadPrompt(appContext, p)
+        } catch (t: Throwable) {
+            Log.w(TAG, "No se pudo mostrar la notificación de subida", t)
+        }
     }
 
     /** El anfitrión pulsó "Subir". */
@@ -815,13 +1474,19 @@ class TogetherManager(
         private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // sin 0/O/1/I para no confundir
         private const val CODE_LEN = 6
         const val MAX_MEMBERS = 8
+        /** Instancia activa, para que los botones de la notificación lleguen al manager. */
+        @Volatile var current: TogetherManager? = null
+        const val MAX_OWNERS = 2                  // anfitrión + 1 propietario más
         private const val PUBLISH_EVERY_MS = 3000L
         private const val DRIFT_LIMIT_MS = 1500L
+        private const val TAKEOVER_GRACE_MS = 8000L    // espera antes de relevar a un controlador caído
+        private const val PROMOTION_GRACE_MS = 8000L   // espera antes de ascender si el anfitrión se cae
 
         /** Acepta el código solo o el enlace musicflame://sala/ABC123. */
         fun parseCode(input: String): String =
             input.trim().substringAfterLast('/').substringBefore('?').uppercase().filter { it.isLetterOrDigit() }
 
+        private fun songDisplay(title: String, artist: String) = if (artist.isBlank()) title else "$title – $artist"
         private fun normalize(s: String) = s.lowercase().filter { it.isLetterOrDigit() }
         private fun songKey(title: String, artist: String) = normalize(title) + "|" + normalize(artist)
     }

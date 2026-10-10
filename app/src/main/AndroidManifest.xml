@@ -342,6 +342,11 @@
                 android:resource="@xml/musicflame_widget_info" />
         </receiver>
 
+        <!-- Botones Permitir / Negar de la notificación de En compañía -->
+        <receiver
+            android:name=".together.TogetherUploadReceiver"
+            android:exported="false" />
+
         <receiver
             android:name=".widget.WidgetActionReceiver"
             android:exported="false" />

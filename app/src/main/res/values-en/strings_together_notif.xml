@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tgn_channel_name">Songs for the room</string>
+    <string name="tgn_channel_desc">Lets you know when someone in the room is missing the song you played, and lets you allow or deny sending it to them.</string>
+    <string name="tgn_allow">Allow</string>
+    <string name="tgn_deny">Deny</string>
+</resources>

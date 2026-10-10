@@ -1,0 +1,66 @@
+name: Build
+
+on:
+  push:
+  pull_request:
+
+# Si haces varios push seguidos, cancela la compilación vieja de la misma rama.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Instalar el SDK de Android (y aceptar licencias)
+        uses: android-actions/setup-android@v3
+
+      - name: Preparar Gradle (con caché)
+        uses: gradle/actions/setup-gradle@v4
+
+      # Estos archivos NO están en GitHub (están en .gitignore), así que los
+      # recreamos desde los secrets del repositorio.
+      - name: Crear google-services.json
+        env:
+          DATA: ${{ secrets.GOOGLE_SERVICES_JSON_BASE64 }}
+        run: echo "$DATA" | base64 --decode > app/google-services.json
+
+      - name: Crear AppConfig.kt
+        env:
+          DATA: ${{ secrets.APPCONFIG_KT_BASE64 }}
+        run: echo "$DATA" | base64 --decode > app/src/main/java/com/music/musicflame/AppConfig.kt
+
+      - name: Crear ApiConstants.kt (solo si lo guardaste como secret)
+        env:
+          DATA: ${{ secrets.APICONSTANTS_KT_BASE64 }}
+        run: |
+          if [ -n "$DATA" ]; then
+            echo "$DATA" | base64 --decode > app/src/main/java/com/music/musicflame/ApiConstants.kt
+          fi
+
+      - name: Dar permiso de ejecución a gradlew
+        run: chmod +x ./gradlew
+
+      - name: Compilar (debug) y correr pruebas
+        run: ./gradlew assembleDebug testDebugUnitTest --stacktrace
+
+      # Solo si algo falla: sube el reporte de pruebas para poder verlo.
+      - name: Subir reporte de pruebas
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reportes-de-pruebas
+          path: app/build/reports/tests/
+          if-no-files-found: ignore

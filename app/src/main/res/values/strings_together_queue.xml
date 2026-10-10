@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- En compañía: varios propietarios, lista de espera y votos para saltar -->
+    <string name="tgq_only_owners">Solo los propietarios de la sala pueden elegir canciones</string>
+    <string name="tgq_rules_hint">Faltan actualizar las reglas de Firebase para usar varios propietarios. Esta canción suena solo en tu teléfono.</string>
+    <string name="tgq_queue_full">La lista de espera está llena (máximo %1$d canciones)</string>
+    <string name="tgq_added_to_queue">«%1$s» añadida a la lista de espera</string>
+    <string name="tgq_song_not_found">No encontré «%1$s» en este teléfono; paso a la siguiente</string>
+    <string name="tgq_max_owners">Máximo %1$d propietarios por sala</string>
+    <string name="tgq_host_changed">%1$s es ahora el anfitrión</string>
+    <string name="tgq_you_are_host_now">Ahora eres el anfitrión de la sala</string>
+    <string name="tgq_queue_title">Lista de espera</string>
+    <string name="tgq_queue_empty">No hay canciones en espera. Si otro propietario elige una canción mientras suena otra, aparecerá aquí.</string>
+    <string name="tgq_queue_hint_owner">Mantén pulsada una canción y arrástrala para cambiar el orden</string>
+    <string name="tgq_added_by">Añadida por %1$s</string>
+    <string name="tgq_added_by_short">por %1$s</string>
+    <string name="tgq_you_control">Tienes el control</string>
+    <string name="tgq_you_control_hint">Lo que reproduzcas ahora lo escuchan todos. Las canciones de otros propietarios esperan su turno en la lista.</string>
+    <string name="tgq_pick_a_song">Elige una canción de tu biblioteca</string>
+    <string name="tgq_skip_song">Saltar canción</string>
+    <string name="tgq_vote_skip">Votar para saltar (%1$d/%2$d)</string>
+    <string name="tgq_vote_skip_done">Votaste saltar (%1$d/%2$d) · toca para retirar</string>
+    <string name="tgq_remove_from_queue">Quitar de la lista</string>
+    <string name="tgq_member_owner_online">propietario · en línea</string>
+    <string name="tgq_member_menu">Opciones del miembro</string>
+    <string name="tgq_make_owner">Hacer propietario</string>
+    <string name="tgq_remove_owner">Quitar propietario</string>
+    <string name="tgq_make_host">Pasar el anfitrión a esta persona</string>
+</resources>

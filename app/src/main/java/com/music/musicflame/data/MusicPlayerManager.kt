@@ -48,6 +48,15 @@ class MusicPlayerManager(private val context: Context) {
     // carreras contra la conexión al servicio en segundo plano.
     private val pendingActions = mutableListOf<() -> Unit>()
 
+    // --- GANCHOS PARA "EN COMPAÑÍA" (ver together/TogetherManager) ---
+    // Si devuelve true, playSong() NO reproduce: el modo En compañía ya se encargó de la canción
+    // (p. ej. la mandó a la lista de espera de la sala porque otro propietario tiene el control).
+    var playInterceptor: ((Song) -> Boolean)? = null
+    // Igual para el botón "siguiente": true = lo manejó la sala (saltar la cola / votar).
+    var skipInterceptor: (() -> Boolean)? = null
+    // Se llama cuando la canción actual termina sola (fin de pista, o repetición al llegar al final).
+    var onTrackEnded: (() -> Unit)? = null
+
     // --- MEMORIA INTERNA ---
     private var currentPlaylist = listOf<Song>()
     private val playbackHistory = mutableListOf<Int>()
@@ -312,6 +321,7 @@ class MusicPlayerManager(private val context: Context) {
                     // para siempre sin que el timer se enterara.
                     if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
                         handleSongEndedForSleepTimer()
+                        onTrackEnded?.invoke()
                     }
                     // ESTADÍSTICAS: solo contamos aquí el salto manual (SEEK, botón
                     // siguiente/anterior). El avance automático y el loop de "repetir
@@ -363,6 +373,7 @@ class MusicPlayerManager(private val context: Context) {
                 // también, como tercera red de seguridad.
                 override fun onPlaybackStateChanged(playbackState: Int) {
                     val reallyPlaying = controller.isPlaying
+                    if (playbackState == Player.STATE_ENDED) onTrackEnded?.invoke()
                     _isPlayingState.value = reallyPlaying
                     if (!reallyPlaying) {
                         flushListenedTime()
@@ -570,6 +581,7 @@ class MusicPlayerManager(private val context: Context) {
     // Tile de Mezclar sabe así si debe remezclar la playlist activa o solo activar
     // el modo aleatorio normal.
     fun playSong(song: Song, songList: List<Song>, playlistId: String? = null, playlistKind: PlaylistKind? = null) {
+        if (playInterceptor?.invoke(song) == true) return
         currentPlaylist = songList
         // Cualquier reproducción normal sale del modo Highlights.
         _highlightsActive.value = false
@@ -701,6 +713,7 @@ class MusicPlayerManager(private val context: Context) {
     fun pause() { mediaController?.pause() }
 
     fun skipNext() {
+        if (skipInterceptor?.invoke() == true) return
         val controller = mediaController
         if (controller == null) {
             // DIAGNÓSTICO: si esto aparece en logcat justo cuando el botón

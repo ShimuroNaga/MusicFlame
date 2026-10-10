@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -38,7 +39,12 @@ import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.zIndex
+import com.music.musicflame.data.Song
+import com.music.musicflame.ui.components.AlbumArt
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -233,7 +239,7 @@ fun TogetherScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     manager.missingSongText?.let {
-                        if (connected && !manager.isHost) {
+                        if (connected && !manager.isController) {
                             Text(
                                 if (manager.transferText != null) stringResource(R.string.tg_missing_song, it)
                                 else stringResource(R.string.tg_missing_song_notified, it),
@@ -252,40 +258,108 @@ fun TogetherScreen(
                 }
             }
 
-            // ---- Ahora suena (con ecualizador animado) ----
+            // ---- Ahora suena (carátula con "añadida por", ecualizador y saltar/votar) ----
             if (connected) {
                 item {
-                    val playingText = if (manager.isHost) null else manager.nowPlayingText
+                    val playingText = manager.nowPlayingText
                     Card(
                         shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
                         modifier = Modifier.fillMaxWidth().animateContentSize()
                     ) {
-                        Row(
-                            modifier = Modifier.padding(16.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(14.dp)
-                        ) {
-                            EqualizerBars(color = { accent.value }, active = playingText != null || manager.isHost)
-                            Column(Modifier.weight(1f)) {
-                                if (manager.isHost) {
-                                    Text(stringResource(R.string.tg_you_are_dj), fontWeight = FontWeight.Bold)
-                                    Text(
-                                        stringResource(R.string.tg_dj_hint),
-                                        fontSize = 12.sp,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
+                        Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(14.dp)
+                            ) {
+                                CoverWithAddedBy(
+                                    song = manager.nowPlayingSong(),
+                                    addedBy = if (playingText != null) manager.nowAddedByName else null,
+                                    size = 72.dp,
+                                    labelSize = 10.sp
+                                )
+                                Column(Modifier.weight(1f)) {
+                                    if (manager.isController) {
+                                        Text(stringResource(R.string.tgq_you_control), fontWeight = FontWeight.Bold)
+                                        Text(
+                                            stringResource(R.string.tgq_you_control_hint),
+                                            fontSize = 12.sp,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        if (playingText != null) {
+                                            Spacer(Modifier.height(4.dp))
+                                            Text(playingText, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                                        }
+                                    } else {
+                                        Text(stringResource(R.string.tg_now_playing), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(
+                                            playingText ?: if (manager.isOwner) stringResource(R.string.tgq_pick_a_song) else stringResource(R.string.tg_waiting_host),
+                                            fontWeight = FontWeight.SemiBold,
+                                            maxLines = 2,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                    }
+                                }
+                                EqualizerBars(color = { accent.value }, active = playingText != null)
+                            }
+                            // Saltar: el controlador salta solo; los demás propietarios votan.
+                            if (manager.isOwner && playingText != null) {
+                                if (manager.isController) {
+                                    AccentOutlinedButton(accent, onClick = { manager.skipCurrent() }, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Filled.SkipNext, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp)); Text(stringResource(R.string.tgq_skip_song))
+                                    }
+                                } else if (manager.iVotedSkip) {
+                                    AccentButton(accent, onClick = { manager.toggleSkipVote() }, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Filled.SkipNext, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(stringResource(R.string.tgq_vote_skip_done, manager.skipVotes, manager.skipNeeded))
+                                    }
                                 } else {
-                                    Text(stringResource(R.string.tg_now_playing), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                    Text(
-                                        playingText ?: stringResource(R.string.tg_waiting_host),
-                                        fontWeight = FontWeight.SemiBold,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
+                                    AccentOutlinedButton(accent, onClick = { manager.toggleSkipVote() }, modifier = Modifier.fillMaxWidth()) {
+                                        Icon(Icons.Filled.SkipNext, null, modifier = Modifier.size(18.dp))
+                                        Spacer(Modifier.width(6.dp))
+                                        Text(stringResource(R.string.tgq_vote_skip, manager.skipVotes, manager.skipNeeded))
+                                    }
                                 }
                             }
                         }
+                    }
+                }
+
+                // ---- Lista de espera ----
+                item {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Text(stringResource(R.string.tgq_queue_title), fontWeight = FontWeight.Bold, fontSize = 16.sp, color = accent.value)
+                        Box(
+                            Modifier
+                                .clip(CircleShape)
+                                .drawBehind { drawRect(accent.value.copy(alpha = 0.2f)) }
+                                .padding(horizontal = 10.dp, vertical = 2.dp)
+                        ) {
+                            Text("${manager.queue.size}", fontSize = 12.sp, fontWeight = FontWeight.SemiBold, color = accent.value)
+                        }
+                    }
+                }
+                if (manager.queue.isEmpty()) {
+                    item {
+                        Text(
+                            stringResource(R.string.tgq_queue_empty),
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                } else {
+                    item {
+                        if (manager.isOwner && manager.queue.size > 1) {
+                            Text(
+                                stringResource(R.string.tgq_queue_hint_owner),
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(bottom = 6.dp)
+                            )
+                        }
+                        QueueList(manager = manager, accent = accent)
                     }
                 }
             }
@@ -344,7 +418,7 @@ fun TogetherScreen(
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
-                                m.name + if (m.isHost) "  👑" else "",
+                                m.name + (if (m.isHost) "  👑" else "") + (if (!m.isHost && manager.owners.any { it.uid == m.uid }) "  🎧" else ""),
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -353,11 +427,42 @@ fun TogetherScreen(
                                 when {
                                     !m.online -> stringResource(R.string.tg_member_offline)
                                     m.isHost -> stringResource(R.string.tg_member_host_online)
+                                    manager.owners.any { it.uid == m.uid } -> stringResource(R.string.tgq_member_owner_online)
                                     else -> stringResource(R.string.tg_member_online)
                                 },
                                 fontSize = 12.sp,
                                 color = if (m.online) accent.value else MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                        // Solo el anfitrión administra propietarios (no sobre sí mismo).
+                        if (manager.isHost && m.uid != manager.currentUid) {
+                            var menuOpen by remember { mutableStateOf(false) }
+                            val isOwnerMember = manager.owners.any { it.uid == m.uid }
+                            Box {
+                                IconButton(onClick = { menuOpen = true }) {
+                                    Icon(Icons.Filled.MoreVert, stringResource(R.string.tgq_member_menu), tint = accent.value)
+                                }
+                                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                    if (isOwnerMember) {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.tgq_remove_owner)) },
+                                            leadingIcon = { Icon(Icons.Filled.PersonRemove, null) },
+                                            onClick = { menuOpen = false; manager.removeOwner(m.uid) }
+                                        )
+                                    } else {
+                                        DropdownMenuItem(
+                                            text = { Text(stringResource(R.string.tgq_make_owner)) },
+                                            leadingIcon = { Icon(Icons.Filled.PersonAdd, null) },
+                                            onClick = { menuOpen = false; manager.addOwner(m.uid) }
+                                        )
+                                    }
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.tgq_make_host)) },
+                                        leadingIcon = { Icon(Icons.Filled.SwapHoriz, null) },
+                                        onClick = { menuOpen = false; manager.transferHost(m.uid) }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -557,6 +662,162 @@ private fun EqualizerBars(color: () -> Color, active: Boolean, modifier: Modifie
                     .clip(RoundedCornerShape(3.dp))
                     .drawBehind { drawRect(color()) }
             )
+        }
+    }
+}
+
+/**
+ * Carátula de una canción con la etiqueta "por Fulano" (quién la añadió) sobre la parte baja.
+ * Si esta canción no está en tu teléfono se muestra un cuadro con una nota musical.
+ */
+@Composable
+private fun CoverWithAddedBy(
+    song: Song?,
+    addedBy: String?,
+    size: Dp,
+    labelSize: androidx.compose.ui.unit.TextUnit
+) {
+    val shape = RoundedCornerShape(14.dp)
+    Box(Modifier.size(size).clip(shape)) {
+        if (song != null) {
+            AlbumArt(
+                albumArtUri = song.albumArtUri,
+                size = size,
+                cornerRadius = 14.dp,
+                filePath = song.path,
+                isCustomCover = song.hasCustomCover
+            )
+        } else {
+            Box(
+                Modifier.fillMaxSize().background(MaterialTheme.colorScheme.surfaceVariant),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.MusicNote, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+        if (!addedBy.isNullOrBlank()) {
+            Box(
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Color.Black.copy(alpha = 0.62f))
+                    .padding(horizontal = 3.dp, vertical = 2.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    stringResource(R.string.tgq_added_by_short, addedBy),
+                    color = Color.White,
+                    fontSize = labelSize,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Lista de espera. Mantén pulsada una fila y arrástrala para cambiar el orden (solo propietarios).
+ * La X quita lo que tú añadiste (el anfitrión puede quitar cualquiera).
+ */
+@Composable
+private fun QueueList(manager: TogetherManager, accent: State<Color>) {
+    val density = LocalDensity.current
+    val rowHeight = 68.dp
+    val gap = 6.dp
+    val pitchPx = with(density) { (rowHeight + gap).toPx() }
+    var draggingId by remember { mutableStateOf<String?>(null) }
+    var dragDy by remember { mutableStateOf(0f) }
+    val canReorder = manager.isOwner
+    val items = manager.queue.toList()
+
+    Column(verticalArrangement = Arrangement.spacedBy(gap)) {
+        items.forEachIndexed { index, item ->
+            key(item.id) {
+                val dragging = draggingId == item.id
+                val canRemove = item.addedBy == manager.currentUid || manager.isHost
+                Card(
+                    shape = RoundedCornerShape(18.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dragging) 0.8f else 0.35f)
+                    ),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(rowHeight)
+                        .zIndex(if (dragging) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (dragging) dragDy else 0f
+                            scaleX = if (dragging) 1.02f else 1f
+                            scaleY = if (dragging) 1.02f else 1f
+                        }
+                        .then(
+                            if (canReorder) Modifier.pointerInput(item.id) {
+                                detectDragGesturesAfterLongPress(
+                                    onDragStart = { draggingId = item.id; dragDy = 0f },
+                                    onDrag = { change, amount -> change.consume(); dragDy += amount.y },
+                                    onDragEnd = {
+                                        val from = manager.queue.indexOfFirst { it.id == item.id }
+                                        val to = TogetherQueueLogic.dragTarget(from, dragDy, pitchPx, manager.queue.size)
+                                        draggingId = null; dragDy = 0f
+                                        if (from >= 0 && from != to) manager.moveQueueItem(from, to)
+                                    },
+                                    onDragCancel = { draggingId = null; dragDy = 0f }
+                                )
+                            } else Modifier
+                        )
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxSize().padding(horizontal = 10.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            "${index + 1}",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            color = accent.value,
+                            modifier = Modifier.width(22.dp)
+                        )
+                        CoverWithAddedBy(
+                            song = manager.localSongFor(item),
+                            addedBy = item.addedByName,
+                            size = 54.dp,
+                            labelSize = 9.sp
+                        )
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(item.title, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (item.artist.isNotBlank()) {
+                                Text(
+                                    item.artist,
+                                    fontSize = 12.sp,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            Text(
+                                stringResource(R.string.tgq_added_by, item.addedByName),
+                                fontSize = 11.sp,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                color = accent.value
+                            )
+                        }
+                        if (canRemove) {
+                            IconButton(onClick = { manager.removeFromQueue(item) }) {
+                                Icon(Icons.Filled.Close, stringResource(R.string.tgq_remove_from_queue))
+                            }
+                        }
+                        if (canReorder) {
+                            Icon(
+                                Icons.Filled.DragHandle, null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(start = 2.dp)
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 }

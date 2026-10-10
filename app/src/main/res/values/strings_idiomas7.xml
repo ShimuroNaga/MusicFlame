@@ -72,9 +72,9 @@
     <string name="mp_no_playback">Sin reproducción</string>
     <string name="mp_select_song">Selecciona una canción</string>
     <string name="mp_play_mode">Modo Reproducción</string>
-    <string name="cd_rounding">Redondeado: %1$d%%%</string>
+    <string name="cd_rounding">Redondeado: %1$d%%</string>
     <string name="cd_rotation">Rotación: %1$d°</string>
-    <string name="cd_transparency">Transparencia: %1$d%%%</string>
+    <string name="cd_transparency">Transparencia: %1$d%%</string>
     <string name="settings_material_you_dynamic">Material You (Dinámico)</string>
     <string name="shimuro_cd_sitting">Shimuro sentado, tocar para interactuar</string>
     <string name="shimuro_cd_standing">Shimuro se levanta de la silla</string>

@@ -51,12 +51,12 @@ private fun pose(vararg v: Float): FloatArray {
 
 private val GUARD = pose(8f, 0f, 28f, 150f, 12f, 155f, 30f, 6f, -25f, -8f, 0f)
 // Golpeado pero cubriéndose: se echa atrás con los antebrazos arriba protegiendo la cara.
-private val HIT = pose(-20f, -10f, 50f, 160f, 35f, 165f, 12f, -12f, -28f, -8f, 0f)
+private val HIT = pose(-7f, -3f, 50f, 160f, 35f, 165f, 14f, -8f, -22f, -8f, 0f)
 // Bloqueo: agachado, antebrazos frente a la cara.
 private val BLOCK = pose(12f, -4f, 55f, 165f, 40f, 170f, 36f, 12f, -28f, -14f, 0f)
 // Rebote contra la pared: el cuerpo se despega con los brazos abiertos.
 private val WALL = pose(16f, -6f, 60f, 80f, 35f, 70f, 18f, 0f, -18f, -8f, 0.08f)
-private val DODGE = pose(-28f, -12f, 20f, 150f, 5f, 150f, 25f, 5f, -20f, -5f, 0f)
+private val DODGE = pose(-12f, -5f, 20f, 150f, 5f, 150f, 25f, 5f, -20f, -5f, 0f)
 
 private val JAB_W = pose(6f, -3f, 20f, 160f, 12f, 155f, 32f, 8f, -26f, -8f, 0f)
 private val JAB_S = pose(18f, 4f, 88f, 92f, 12f, 155f, 36f, 10f, -28f, -10f, 0f)
@@ -78,6 +78,34 @@ private val HIGHKICK_S = pose(-42f, -10f, 70f, 100f, -45f, -40f, 2f, 0f, 128f, 1
 private val FLY_W = pose(-6f, 0f, 40f, 110f, 20f, 120f, 50f, -20f, -30f, -40f, 0.1f)
 private val FLY_S = pose(-35f, -8f, 60f, 60f, -40f, -40f, 40f, 85f, 98f, 94f, 0.95f)
 
+// Patada frontal empujando (teep): sube la rodilla y estira la pierna delantera al frente.
+private val TEEP_W = pose(-6f, -3f, 40f, 120f, 15f, 140f, 70f, 8f, -22f, -10f, 0f)
+private val TEEP_S = pose(-24f, -8f, 45f, 125f, -20f, 40f, 86f, 88f, -22f, -10f, 0.03f)
+
+// Gancho con la mano delantera (el rival ve venir el brazo desde atrás).
+private val LHOOK_W = pose(-6f, -3f, -50f, -15f, 12f, 155f, 30f, 6f, -25f, -8f, 0f)
+private val LHOOK_S = pose(36f, 8f, 100f, 94f, 12f, 155f, 38f, 10f, -28f, -12f, 0f)
+
+// Codazo con el brazo trasero: el brazo sale doblado y pega con el codo.
+private val ELBOW_W = pose(-4f, -2f, 28f, 150f, -20f, 60f, 30f, 6f, -25f, -8f, 0f)
+private val ELBOW_S = pose(34f, 6f, 28f, 150f, 92f, 172f, 24f, 2f, -28f, -18f, 0f)
+
+// Overhand: el brazo trasero sube y cae en arco sobre el rival.
+private val OVER_W = pose(-10f, -4f, 28f, 150f, 170f, 175f, 30f, 6f, -25f, -8f, 0f)
+private val OVER_S = pose(36f, 8f, 28f, 150f, 100f, 82f, 26f, 2f, -30f, -18f, 0f)
+
+// Rodillazo con la pierna delantera.
+private val KNEE_W = pose(-8f, -2f, 30f, 140f, 10f, 150f, 10f, 5f, -25f, -8f, 0f)
+private val KNEE_S = pose(10f, 2f, 60f, 150f, 50f, 150f, 105f, 5f, -15f, -6f, 0.08f)
+
+// Patada baja con la pierna trasera (barrido a media altura).
+private val LOWK_W = pose(-8f, -2f, 36f, 130f, -10f, 100f, 26f, 5f, -30f, -70f, 0f)
+private val LOWK_S = pose(-12f, -4f, 55f, 130f, -20f, 60f, 6f, 0f, 62f, 58f, 0f)
+
+// Uppercut con la mano delantera.
+private val LUP_W = pose(-4f, 0f, 5f, 10f, 12f, 155f, 50f, -15f, -40f, -35f, 0f)
+private val LUP_S = pose(14f, -6f, 62f, 172f, 12f, 155f, 22f, 2f, -10f, -5f, 0.1f)
+
 // tip: qué punta pega. 0 mano delantera, 1 mano trasera, 2 pie delantero, 3 pie trasero.
 internal class FightMove(
     val windup: FloatArray,
@@ -96,6 +124,13 @@ private val UPPERCUT = FightMove(UPPER_W, UPPER_S, 1, 2.0f, 1.1f, 0.6f, 0.40f)
 private val KICK = FightMove(KICK_W, KICK_S, 3, 2.3f, 1.3f, 0.8f, 0.50f)
 private val HIGH_KICK = FightMove(KICK_W, HIGHKICK_S, 3, 2.2f, 1.2f, 0.7f, 0.52f)
 private val FLYING_KICK = FightMove(FLY_W, FLY_S, 3, 2.6f, 1.6f, 1.8f, 0.58f)
+private val TEEP = FightMove(TEEP_W, TEEP_S, 2, 2.3f, 0.9f, 0.4f, 0.42f)
+private val ELBOW = FightMove(ELBOW_W, ELBOW_S, 1, 1.7f, 1.0f, 0.5f, 0.34f)
+private val OVERHAND = FightMove(OVER_W, OVER_S, 1, 2.7f, 1.1f, 0.9f, 0.40f)
+private val KNEE = FightMove(KNEE_W, KNEE_S, 2, 1.6f, 1.1f, 0.5f, 0.38f)
+private val LOW_KICK = FightMove(LOWK_W, LOWK_S, 3, 2.2f, 0.9f, 0.6f, 0.40f)
+private val LEAD_UPPER = FightMove(LUP_W, LUP_S, 0, 1.9f, 0.9f, 0.5f, 0.36f)
+private val LEAD_HOOK = FightMove(LHOOK_W, LHOOK_S, 0, 2.3f, 0.8f, 0.7f, 0.36f)
 
 // Índices de los puntos del esqueleto (cada uno ocupa 2 floats: x, y).
 internal const val SK_HIP = 0
@@ -139,6 +174,13 @@ internal class FightFighter(val dir: Float, val isBass: Boolean) {
     var counters = 0
     var combo = 0
     var hitsTaken = 0
+
+    // Fase de la carrera (avanza según la velocidad real, no el tiempo), si el último
+    // golpe conectó (para encadenar combos), último golpe usado y fuerza del golpe recibido.
+    var runPh = 0f
+    var landed = false
+    var lastMove: FightMove? = null
+    var hitPower = 0f
 
     var band = 0f
     var avg = 0f
@@ -248,7 +290,7 @@ internal class FightSim(seed: Int = 20261011) {
         b.cornered = b.x < edge || b.x > w - edge
 
         // --- 2) Posiciones objetivo (qué tan cerca pelean depende del volumen) ---
-        val gap = lerp(8f * u, 3.3f * u, overall.pow(0.7f)).coerceAtMost(w * 0.8f)
+        val gap = lerp(6.5f * u, 3f * u, overall.pow(0.6f)).coerceAtMost(w * 0.8f)
         drift += (0f - drift) * (1f - exp(-dtReal * 0.9f))
         drift = drift.coerceIn(-0.2f * w, 0.2f * w)
         val center = w * 0.5f + drift + sin(time * 0.5f) * w * 0.03f
@@ -336,12 +378,13 @@ internal class FightSim(seed: Int = 20261011) {
 
     private fun stepFighter(f: FightFighter, o: FightFighter, targetX: Float, w: Float, dt: Float, dtReal: Float) {
         f.phase += dt * (4f + 10f * overall)
+        f.runPh += abs(f.vx) / u * dt * 1.6f
         f.avg += (f.drive - f.avg) * (1f - exp(-dtReal / 0.35f))
         if (f.stagger > 0f) {
             f.stagger -= dt
             if (f.stagger <= 0f) {
                 f.cd = 0f // al reponerse contraataca enseguida
-                f.counterPending = rnd.nextFloat() < 0.85f
+                f.counterPending = rnd.nextFloat() < 0.95f
             }
         }
         if (f.dodge > 0f) {
@@ -355,7 +398,7 @@ internal class FightSim(seed: Int = 20261011) {
             f.block -= dt
             if (f.block <= 0f) {
                 f.cd = 0f
-                f.counterPending = rnd.nextFloat() < 0.8f // bloqueó: contragolpe
+                f.counterPending = rnd.nextFloat() < 0.9f // bloqueó: contragolpe
             }
         }
         if (f.slam > 0f) {
@@ -376,11 +419,15 @@ internal class FightSim(seed: Int = 20261011) {
             }
             if (f.moveT >= 1f) {
                 f.move = null
-                f.cd = lerp(0.38f, 0f, f.drive) * (0.7f + rnd.nextFloat() * 0.5f) / (1f + tempoBoost())
-                if (f.combo >= 3) {
+                f.cd = lerp(0.15f, 0f, f.drive) * (0.7f + rnd.nextFloat() * 0.5f) / (1f + tempoBoost())
+                if (f.combo >= 4) {
                     // Tras 3 golpes seguidos retrocede un instante: le da chance al rival de responder.
-                    f.cd = max(f.cd, 0.45f / (1f + 0.5f * tempoBoost()))
+                    f.cd = max(f.cd, 0.3f / (1f + 0.5f * tempoBoost()))
                     f.combo = 0
+                } else if (f.landed && rnd.nextFloat() < 0.6f + 0.35f * f.drive) {
+                    // El golpe conectó: remata enseguida con otro (combo encadenado).
+                    f.cd = 0.02f
+                    f.counterPending = true
                 }
                 f.idleTime = 0f
             }
@@ -388,9 +435,9 @@ internal class FightSim(seed: Int = 20261011) {
             f.idleTime += dt
             val free = f.stagger <= 0f && f.dodge <= 0f && f.block <= 0f && f.slam <= 0f && f.cd <= 0f
             if (free) {
-                val onset = f.drive > 0.3f && f.drive - f.avg > 0.15f
+                val onset = f.drive > 0.25f && f.drive - f.avg > 0.12f
                 val sustained = f.drive > 0.7f
-                val restless = overall > 0.25f && f.idleTime > (0.6f - 0.4f * overall) / (1f + tempoBoost())
+                val restless = overall > 0.1f && f.idleTime > (0.22f - 0.16f * overall) / (1f + tempoBoost())
                 val counter = f.counterPending && overall > 0.08f
                 if (counter) {
                     f.counterPending = false
@@ -424,11 +471,15 @@ internal class FightSim(seed: Int = 20261011) {
     }
 
     private fun startMove(f: FightFighter, o: FightFighter) {
-        val m = pickMove(f)
+        var m = pickMove(f)
+        // Evita repetir el mismo golpe seguido: la pelea se ve más variada y natural.
+        if (m === f.lastMove && rnd.nextFloat() < 0.6f) m = pickMove(f)
+        f.lastMove = m
+        f.landed = false
         f.move = m
         f.moveT = 0f
         f.struck = false
-        f.moveSpeed = ((1f + (if (f.isBass) 2.4f else 2.0f) * f.drive) * (1f + tempoBoost()) * (0.92f + rnd.nextFloat() * 0.16f)).coerceAtMost(3.8f)
+        f.moveSpeed = ((1f + (if (f.isBass) 2.4f else 2.05f) * f.drive) * (1f + tempoBoost()) * (0.92f + rnd.nextFloat() * 0.16f)).coerceAtMost(3.6f)
         attacksStarted++
         f.attacks++
 
@@ -439,8 +490,8 @@ internal class FightSim(seed: Int = 20261011) {
 
         // Reacción del rival: se cubre (más seguido si está acorralado), esquiva o se come el golpe.
         if (o.move == null && o.stagger <= 0f && o.dodge <= 0f && o.block <= 0f) {
-            val pBlock = if (o.cornered || o.hitsTaken >= 2) 0.85f else 0.45f
-            val pDodge = if (o.cornered) 0.1f else 0.18f
+            val pBlock = if (o.cornered || o.hitsTaken >= 2) 0.8f else 0.32f
+            val pDodge = if (o.cornered) 0.06f else 0.12f
             val r = rnd.nextFloat()
             val window = 0.75f * m.dur / f.moveSpeed + 0.1f
             if (r < pBlock) {
@@ -457,30 +508,54 @@ internal class FightSim(seed: Int = 20261011) {
         val r = rnd.nextFloat()
         return if (f.isBass) {
             when {
-                b < 0.4f -> if (r < 0.5f) CROSS else HOOK
+                b < 0.4f -> when {
+                    r < 0.25f -> CROSS
+                    r < 0.50f -> HOOK
+                    r < 0.70f -> OVERHAND
+                    r < 0.85f -> LEAD_HOOK
+                    else -> LOW_KICK
+                }
                 b < 0.7f -> when {
-                    r < 0.35f -> HOOK
-                    r < 0.65f -> UPPERCUT
-                    else -> KICK
+                    r < 0.18f -> HOOK
+                    r < 0.34f -> UPPERCUT
+                    r < 0.52f -> KICK
+                    r < 0.66f -> OVERHAND
+                    r < 0.78f -> KNEE
+                    r < 0.90f -> LOW_KICK
+                    else -> TEEP
                 }
                 else -> when {
-                    r < 0.35f -> KICK
-                    r < 0.6f -> FLYING_KICK
-                    r < 0.85f -> HOOK
-                    else -> HIGH_KICK
+                    r < 0.20f -> KICK
+                    r < 0.36f -> FLYING_KICK
+                    r < 0.50f -> HOOK
+                    r < 0.62f -> HIGH_KICK
+                    r < 0.74f -> OVERHAND
+                    r < 0.84f -> KNEE
+                    r < 0.92f -> ELBOW
+                    else -> TEEP
                 }
             }
         } else {
             when {
-                b < 0.4f -> JAB
+                b < 0.4f -> when {
+                    r < 0.50f -> JAB
+                    r < 0.75f -> LEAD_HOOK
+                    else -> LEAD_UPPER
+                }
                 b < 0.7f -> when {
-                    r < 0.5f -> JAB
-                    r < 0.8f -> CROSS
+                    r < 0.28f -> JAB
+                    r < 0.50f -> CROSS
+                    r < 0.66f -> LEAD_HOOK
+                    r < 0.80f -> LEAD_UPPER
+                    r < 0.90f -> ELBOW
                     else -> UPPERCUT
                 }
                 else -> when {
-                    r < 0.5f -> JAB
-                    r < 0.8f -> CROSS
+                    r < 0.28f -> JAB
+                    r < 0.50f -> CROSS
+                    r < 0.62f -> TEEP
+                    r < 0.74f -> KNEE
+                    r < 0.86f -> ELBOW
                     else -> HIGH_KICK
                 }
             }
@@ -523,6 +598,8 @@ internal class FightSim(seed: Int = 20261011) {
         }
 
         hitsLanded++
+        f.landed = true
+        o.hitPower = m.power
         f.combo++
         f.hitsTaken = 0
         o.combo = 0
@@ -535,7 +612,7 @@ internal class FightSim(seed: Int = 20261011) {
         o.move = null
         o.dodge = 0f
         o.block = 0f
-        o.staggerDur = max(0.14f, 0.32f / (1f + 0.6f * f.band))
+        o.staggerDur = max(0.14f, 0.26f / (1f + 0.6f * f.band))
         o.stagger = o.staggerDur
         o.flash = 1f
         o.vx += f.dir * (12f + 12f * m.power) * u
@@ -581,10 +658,14 @@ internal class FightSim(seed: Int = 20261011) {
             f.block > 0f -> System.arraycopy(BLOCK, 0, out, 0, POSE_SIZE)
             f.stagger > 0f -> {
                 System.arraycopy(HIT, 0, out, 0, POSE_SIZE)
-                val flail = sin(time * 40f) * 6f
+                val flail = sin(time * 40f) * 2f
                 out[2] += flail
                 out[3] += flail
                 out[4] -= flail
+                // Cuanto más fuerte el golpe, más se echa atrás el torso y la cabeza (se recupera con el tambaleo).
+                val recoil = f.hitPower * 4f * (f.stagger / max(0.01f, f.staggerDur))
+                out[0] -= recoil
+                out[1] -= recoil * 0.4f
             }
             f.dodge > 0f -> System.arraycopy(DODGE, 0, out, 0, POSE_SIZE)
             m != null -> movePose(m, f.moveT, out)
@@ -598,6 +679,32 @@ internal class FightSim(seed: Int = 20261011) {
                 out[6] += s * 6f * amp
                 out[8] -= s * 6f * amp
                 out[10] = max(0f, sin(f.phase * 2f)) * 0.07f * amp
+                out[1] += sin(f.phase) * 2f * amp
+                out[2] += sin(f.phase * 0.5f + 1f) * 3f * amp
+                out[4] += sin(f.phase * 0.5f) * 3f * amp
+
+                // Carrera: si se desplaza rápido (se acercan, se alejan, vuelven tras un golpe)
+                // el cuerpo pasa a un ciclo de carrera cuya amplitud sigue a la velocidad real.
+                val sp = abs(f.vx) / u
+                if (sp > 4f) {
+                    val ra = ((sp - 4f) / 9f).coerceIn(0f, 1f)
+                    val front = f.vx * f.dir >= 0f
+                    val sc = if (front) 1f else 0.6f
+                    val s1 = sin(f.runPh)
+                    val c1 = cos(f.runPh)
+                    fun mix(i: Int, v: Float) { out[i] = lerp(out[i], v, ra) }
+                    mix(0, if (front) 20f else -4f)
+                    mix(1, 0f)
+                    mix(2, 30f - s1 * 45f * sc)
+                    mix(3, 30f - s1 * 45f * sc + 85f)
+                    mix(4, 30f + s1 * 45f * sc)
+                    mix(5, 30f + s1 * 45f * sc + 85f)
+                    mix(6, s1 * 55f * sc + 10f)
+                    mix(7, s1 * 55f * sc + 10f - max(0f, c1) * 70f * sc)
+                    mix(8, -s1 * 55f * sc - 5f)
+                    mix(9, -s1 * 55f * sc - 5f - max(0f, -c1) * 70f * sc)
+                    mix(10, max(out[10], 0.05f * abs(s1)))
+                }
             }
         }
     }
@@ -606,7 +713,7 @@ internal class FightSim(seed: Int = 20261011) {
         for (i in 0 until POSE_SIZE) {
             out[i] = when {
                 t < 0.30f -> lerp(GUARD[i], m.windup[i], smooth(t / 0.30f))
-                t < 0.48f -> lerp(m.windup[i], m.strike[i], easeOut((t - 0.30f) / 0.18f))
+                t < 0.48f -> lerp(m.windup[i], m.strike[i], easeOutBack((t - 0.30f) / 0.18f))
                 t < 0.66f -> m.strike[i]
                 else -> lerp(m.strike[i], GUARD[i], smooth((t - 0.66f) / 0.34f))
             }
@@ -684,6 +791,14 @@ internal class FightSim(seed: Int = 20261011) {
         val c = t.coerceIn(0f, 1f)
         return c * c * (3f - 2f * c)
     }
+    // Llega al golpe pasándose un poco y se acomoda: el golpe "late" en vez de verse mecánico.
+    private fun easeOutBack(t: Float): Float {
+        val c = t.coerceIn(0f, 1f)
+        val k = 1.4f
+        val x = c - 1f
+        return 1f + (k + 1f) * x * x * x + k * x * x
+    }
+
     private fun easeOut(t: Float): Float {
         val c = t.coerceIn(0f, 1f)
         return 1f - (1f - c) * (1f - c)

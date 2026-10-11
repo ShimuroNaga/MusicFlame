@@ -17,3 +17,6 @@ app/google-services.json
 app/src/main/java/com/music/musicflame/ApiConstants.kt
 app/src/main/java/com/music/musicflame/AppConfig.kt
 app/src/main/java/com/music/musicflame/anti-tampering.patch
+app/debug/
+app/release/*.apk
+app/release/baselineProfiles/

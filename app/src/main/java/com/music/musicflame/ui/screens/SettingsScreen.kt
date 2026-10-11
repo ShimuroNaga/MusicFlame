@@ -395,7 +395,7 @@ fun SettingsScreen(
         }
     }
     LaunchedEffect(Unit) {
-        if (licenseRepo.isOwnerAccount()) refreshSupaUsage()
+        if (licenseRepo.isRealOwnerAccount()) refreshSupaUsage()
     }
 
     LaunchedEffect(Unit) {
@@ -602,7 +602,7 @@ fun SettingsScreen(
                                         )
 
                                         // Campo editable + botón Guardar: SOLO para la cuenta dueña real.
-                                        if (licenseRepo.isOwnerAccount()) {
+                                        if (licenseRepo.isRealOwnerAccount()) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
                                                 OutlinedTextField(
                                                     value = savingsGoalInput,
@@ -701,7 +701,7 @@ fun SettingsScreen(
                             }
                         }
                         // Almacenamiento de Supabase (solo dueño): cuánto se ha usado y cuánto queda.
-                        if (licenseRepo.isOwnerAccount()) {
+                        if (licenseRepo.isRealOwnerAccount()) {
                             item {
                                 Card(
                                     modifier = Modifier

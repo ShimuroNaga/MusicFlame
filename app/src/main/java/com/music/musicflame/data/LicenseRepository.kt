@@ -157,6 +157,13 @@ class LicenseRepository(context: Context) {
         return sha256(email.trim().lowercase()) in SAVINGS_GOAL_EDITOR_EMAIL_SHA256_SET
     }
 
+    /**
+     * true SOLO para el dueño real. Gatea lo que únicamente él debe ver en
+     * Ajustes (Meta de ahorro editable, uso de Supabase). Las demás cuentas de
+     * [AUTHORIZED_EMAIL_SHA256_SET] tienen Pro pero NO ven nada de esto.
+     */
+    fun isRealOwnerAccount(): Boolean = canEditSavingsGoal()
+
     private fun sha256(text: String): String {
         val digest = MessageDigest.getInstance("SHA-256").digest(text.toByteArray(Charsets.UTF_8))
         return digest.joinToString("") { "%02x".format(it) }
@@ -342,7 +349,8 @@ class LicenseRepository(context: Context) {
         // con Pro desbloqueado sin necesidad de license key.
         val AUTHORIZED_EMAIL_SHA256_SET = setOf(
             "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8",
-            "35a83b8adf17dbf05c1158eb4d1e53eded0bb5e842bdefc0ded8568986ad40ed"
+            "35a83b8adf17dbf05c1158eb4d1e53eded0bb5e842bdefc0ded8568986ad40ed",
+            "20992c096c091b93349b2e998a9aa71ce742c0b199f4a218ad0542c88b8e5ee6"
         )
 
         // Subconjunto de lo de arriba: SOLO el dueño real (oomo), para gatear

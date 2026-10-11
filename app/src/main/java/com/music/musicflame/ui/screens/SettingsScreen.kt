@@ -36,6 +36,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.FileOpen
 import androidx.compose.material.icons.filled.SystemUpdate
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.BugReport
 import coil.compose.AsyncImage
@@ -769,7 +770,8 @@ fun SettingsScreen(
                                 Triple("Especificaciones", stringResource(R.string.settings_version_comunidad), Icons.Filled.Info),
                                 Triple("Lyrics", stringResource(R.string.settings_velocidad_animacion_y_color_de_la), Icons.Filled.MusicNote),
                                 Triple("Pagos (opcional)", stringResource(R.string.settings_licencia_de_apoyo_y_donacion_opcio), Icons.Filled.Favorite),
-                                Triple("Aviso de Uso", stringResource(R.string.settings_redistribucion_promocion_y_termino), Icons.Filled.Warning)
+                                Triple("Aviso de Uso", stringResource(R.string.settings_redistribucion_promocion_y_termino), Icons.Filled.Warning),
+                                Triple("Licencias de terceros", stringResource(R.string.settings_third_party_licenses_sub), Icons.Filled.Description)
                             ).forEach { (catKey, subtitle, icon) ->
                                 val isLyricsCard = catKey == "Lyrics"
                                 Card(
@@ -2630,6 +2632,12 @@ fun SettingsScreen(
                                 }
                             }
                         }
+                    }
+
+                    // LICENCIAS DE TERCEROS
+                    if (activeSection.value == "Licencias de terceros") {
+                        item { sectionHeader(stringResource(R.string.section_third_party_licenses)) }
+                        item { ThirdPartyLicensesCard() }
                     }
 
                     // HOGAR DE SHIMURO
@@ -4720,5 +4728,6 @@ private fun settingsSectionTitle(key: String): String = when (key) {
     "Especificaciones" -> stringResource(R.string.section_specs)
     "Pagos (opcional)" -> stringResource(R.string.section_payments)
     "Aviso de Uso" -> stringResource(R.string.section_usage_notice)
+    "Licencias de terceros" -> stringResource(R.string.section_third_party_licenses)
     else -> key
 }

@@ -155,12 +155,6 @@ dependencies {
     // Recorte de imágenes (carátulas / fondo) con pan+zoom, respeta orientación EXIF
     implementation("androidx.exifinterface:exifinterface:1.3.7")
 
-    // Efecto de desenfoque tipo vidrio esmerilado (frosted glass) para la barra
-    // superior y la barra inferior (mini-reproductor + nav). Versión estable
-    // 1.7.2 (no la 2.0-alpha) por rendimiento/estabilidad.
-    implementation("dev.chrisbanes.haze:haze:1.7.2")
-    implementation("dev.chrisbanes.haze:haze-materials:1.7.2")
-
     // --- FIREBASE (modo "En compañía") ---
     // Con el BoM 34+ ya no existen los módulos -ktx
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))

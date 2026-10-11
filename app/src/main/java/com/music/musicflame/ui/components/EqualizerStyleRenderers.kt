@@ -16,7 +16,10 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.lerp as lerpColor
 import kotlin.math.cos
 import kotlin.math.max
 import kotlin.math.min
@@ -47,6 +50,7 @@ fun EqualizerCanvas(
         EqualizerStyle.OSCILLOSCOPE -> OscilloscopeEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.CONCENTRIC_RIPPLES -> ConcentricRipplesEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.CONSTELLATION -> ConstellationEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.FIGHT -> FightEqualizerCanvas(spectrum, color, modifier)
     }
 }
 
@@ -774,4 +778,109 @@ fun ConstellationEqualizerCanvas(
             starOffset += shape.points.size
         }
     }
+}
+
+// --- 4k) PELEA DE STICKMANS ---
+// Dos stickman peleando. La lógica (bandas de frecuencia -> golpes, esquives,
+// retrocesos, chispas) vive en FightSimulation.kt y es Kotlin puro; aquí solo
+// se dibuja lo que calcula. Graves = luchador izquierdo (golpes pesados),
+// agudos = luchador derecho (golpes rápidos). Sin imágenes ni video: solo
+// líneas y círculos, así casi no gasta memoria.
+@Composable
+fun FightEqualizerCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    val sim = remember { FightSim() }
+
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        spectrum.tick
+
+        val now = System.nanoTime()
+        val dt = if (sim.lastNanos == 0L) 0f else ((now - sim.lastNanos) / 1_000_000_000f).coerceIn(0f, 0.05f)
+        sim.lastNanos = now
+        sim.update(spectrum.displayLevels, spectrum.barCount, size.width, size.height, dt)
+
+        translate(left = sim.shakeX, top = sim.shakeY) {
+            // Línea de suelo.
+            drawLine(
+                color = color.copy(alpha = color.alpha * 0.25f),
+                start = Offset(0f, sim.ground + sim.u * 0.15f),
+                end = Offset(size.width, sim.ground + sim.u * 0.15f),
+                strokeWidth = max(1.5f, sim.u * 0.06f)
+            )
+            // Destello en la pared cuando alguien se estrella contra ella.
+            if (sim.wallFlashL > 0f) {
+                drawLine(
+                    color = Color.White.copy(alpha = (sim.wallFlashL * 0.7f).coerceIn(0f, 1f)),
+                    start = Offset(0f, 0f), end = Offset(0f, size.height),
+                    strokeWidth = max(2f, sim.u * 0.25f)
+                )
+            }
+            if (sim.wallFlashR > 0f) {
+                drawLine(
+                    color = Color.White.copy(alpha = (sim.wallFlashR * 0.7f).coerceIn(0f, 1f)),
+                    start = Offset(size.width, 0f), end = Offset(size.width, size.height),
+                    strokeWidth = max(2f, sim.u * 0.25f)
+                )
+            }
+            drawFighter(sim.a, color, sim.u)
+            // El otro luchador va en una variante más clara del color elegido.
+            drawFighter(sim.b, lerpColor(color, Color.White, 0.4f), sim.u)
+
+            // Ondas de impacto.
+            for (im in sim.impacts) {
+                drawCircle(
+                    color = Color.White.copy(alpha = ((1f - im.age) * 0.8f).coerceIn(0f, 1f)),
+                    radius = sim.u * (0.4f + 1.6f * im.age) * (0.8f + 0.4f * im.power),
+                    center = Offset(im.x, im.y),
+                    style = Stroke(width = max(1.5f, sim.u * 0.12f))
+                )
+            }
+            // Chispas.
+            for (sp in sim.sparks) {
+                val k = (sp.life / sp.maxLife).coerceIn(0f, 1f)
+                drawLine(
+                    color = Color.White.copy(alpha = k),
+                    start = Offset(sp.x, sp.y),
+                    end = Offset(sp.x - sp.vx * 0.03f, sp.y - sp.vy * 0.03f),
+                    strokeWidth = max(1.5f, sim.u * 0.09f),
+                    cap = StrokeCap.Round
+                )
+            }
+        }
+    }
+}
+
+private fun DrawScope.drawFighter(f: FightFighter, c: Color, u: Float) {
+    val sk = f.skel
+    val sw = max(2.5f, u * 0.22f)
+    val base = lerpColor(c, Color.White, f.flash * 0.8f)
+    val rear = base.copy(alpha = base.alpha * 0.7f)
+
+    fun pt(i: Int) = Offset(sk[i * 2], sk[i * 2 + 1])
+    fun seg(from: Int, to: Int, col: Color) =
+        drawLine(col, pt(from), pt(to), strokeWidth = sw, cap = StrokeCap.Round)
+
+    // Estela del golpe (la punta que pega deja un rastro que se desvanece).
+    for (i in 0 until f.trailLen - 1) {
+        val alpha = (1f - i.toFloat() / TRAIL_N) * 0.5f * base.alpha
+        drawLine(
+            color = Color.White.copy(alpha = alpha),
+            start = Offset(f.trail[i * 2], f.trail[i * 2 + 1]),
+            end = Offset(f.trail[(i + 1) * 2], f.trail[(i + 1) * 2 + 1]),
+            strokeWidth = sw * 0.7f,
+            cap = StrokeCap.Round
+        )
+    }
+
+    // Extremidades traseras (más tenues, dan profundidad), torso, delanteras y cabeza.
+    seg(SK_SHOULDER, SK_ELBOW_R, rear); seg(SK_ELBOW_R, SK_HAND_R, rear)
+    seg(SK_HIP, SK_KNEE_R, rear); seg(SK_KNEE_R, SK_FOOT_R, rear)
+    seg(SK_HIP, SK_SHOULDER, base)
+    seg(SK_HIP, SK_KNEE_L, base); seg(SK_KNEE_L, SK_FOOT_L, base)
+    seg(SK_SHOULDER, SK_ELBOW_L, base); seg(SK_ELBOW_L, SK_HAND_L, base)
+    drawCircle(color = base, radius = u * 0.34f, center = pt(SK_HEAD))
 }

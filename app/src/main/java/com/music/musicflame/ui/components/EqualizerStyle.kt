@@ -71,6 +71,11 @@ enum class EqualizerStyle(@StringRes val displayNameRes: Int, @StringRes val des
         R.string.pay_it_rain,
         R.string.eqs_d_constellation,
         catalogId = "eq_style_rain"
+    ),
+    FIGHT(
+        R.string.pay_it_fight,
+        R.string.eqs_d_fight,
+        catalogId = "eq_style_fight"
     );
 
     companion object {

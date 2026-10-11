@@ -18,6 +18,7 @@
     <string name="pay_it_skyline">Ondas concéntricas</string>
     <string name="pay_it_rain">Constelación</string>
     <string name="pay_it_custom">Personalizado</string>
+    <string name="pay_it_fight">Pelea de stickmans</string>
     <string name="pay_it_rainbow">Arcoíris</string>
     <string name="pay_it_widget_full">Widget completo</string>
     <string name="pay_it_pro_eq">10 bandas + normalización de volumen</string>
@@ -65,6 +66,7 @@
     <string name="eqs_d_osc">Trazo en vivo tipo monitor de audio, sube y baja del centro.</string>
     <string name="eqs_d_ripples">Anillos que se expanden hacia afuera con delay, como un eco.</string>
     <string name="eqs_d_constellation">Estrellas conectadas por líneas que brillan según la frecuencia.</string>
+    <string name="eqs_d_fight">Dos stickman se pelean: los graves golpean fuerte y los agudos en ráfaga.</string>
     <string name="fmt_note_mp4">Cuando el archivo solo contiene audio (sin video)</string>
     <string name="fmt_note_3gp">Contenedor 3GPP con audio AMR o AAC</string>
     <string name="fmt_note_webm">Cuando lleva audio Vorbis u Opus</string>

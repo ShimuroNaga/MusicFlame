@@ -18,6 +18,7 @@
     <string name="pay_it_skyline">Concentric waves</string>
     <string name="pay_it_rain">Constellation</string>
     <string name="pay_it_custom">Custom</string>
+    <string name="pay_it_fight">Stickman fight</string>
     <string name="pay_it_rainbow">Rainbow</string>
     <string name="pay_it_widget_full">Complete widget</string>
     <string name="pay_it_pro_eq">10 bands + volume normalization</string>
@@ -65,6 +66,7 @@
     <string name="eqs_d_osc">Live trace like an audio monitor, rising and falling from the center.</string>
     <string name="eqs_d_ripples">Rings that expand outward with a delay, like an echo.</string>
     <string name="eqs_d_constellation">Stars connected by lines that glow according to the frequency.</string>
+    <string name="eqs_d_fight">Two stickmen brawl: bass throws heavy hits, treble fires fast flurries.</string>
     <string name="fmt_note_mp4">When the file contains only audio (no video)</string>
     <string name="fmt_note_3gp">3GPP container with AMR or AAC audio</string>
     <string name="fmt_note_webm">When it carries Vorbis or Opus audio</string>

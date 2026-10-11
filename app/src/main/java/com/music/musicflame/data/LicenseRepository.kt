@@ -384,7 +384,11 @@ class LicenseRepository(context: Context) {
             "Color de lyrics(personalizado y arcoiris)" to listOf("lyrics_custom", "lyrics_rainbow"),
             "Color de ecualizador (PERSONALIZADO Y ARCOIRIS)" to listOf("eq_color_custom", "eq_color_rainbow"),
             "Circulo pulsante y Particulas" to listOf("eq_style_pulse", "eq_style_particles"),
-            "Barras Finas y VU meter retro" to listOf("eq_style_thin", "eq_style_vu")
+            "Barras Finas y VU meter retro" to listOf("eq_style_thin", "eq_style_vu"),
+            // Nombre EXACTO que debe tener el producto en Lemon Squeezy. Mientras
+            // no exista su link en PRODUCT_NAME_TO_CHECKOUT_URL, el botón de compra
+            // individual queda deshabilitado (solo "TODO" lo desbloquea).
+            "Pelea de Stickmans" to listOf("eq_style_fight")
         )
 
         /** Mismas keys que [PRODUCT_NAME_TO_CATALOG_IDS]: link de checkout de Lemon Squeezy de cada producto. */
@@ -400,6 +404,7 @@ class LicenseRepository(context: Context) {
             "Color de ecualizador (PERSONALIZADO Y ARCOIRIS)" to "https://musicflame.lemonsqueezy.com/checkout/buy/3419cc0f-4c27-418c-bfaf-3fc75c86e5e7",
             "Circulo pulsante y Particulas" to "https://musicflame.lemonsqueezy.com/checkout/buy/869c15c3-d9c4-4a57-aa35-6efd54586570",
             "Barras Finas y VU meter retro" to "https://musicflame.lemonsqueezy.com/checkout/buy/34def065-4734-4314-9818-ff6f74722cf2"
+            // TODO: agregar aquí "Pelea de Stickmans" to "<link de checkout>" cuando exista el producto.
         )
 
         /**

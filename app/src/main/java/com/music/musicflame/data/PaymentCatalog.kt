@@ -54,6 +54,7 @@ object PaymentCatalog {
         Item("eq_style_oscilloscope", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_osc),
         Item("eq_style_skyline", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_skyline),
         Item("eq_style_rain", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_rain),
+        Item("eq_style_fight", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_fight),
 
         // "Adaptativo" del ecualizador vuelto a ser gratis (igual que en
         // texto/Now Playing) — no se vende, no tiene id de catálogo.

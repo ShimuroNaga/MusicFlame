@@ -1,0 +1,72 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "rooms": {
+      "$code": {
+        // El anfitrión (meta/hostUid) puede escribir en toda su sala (también borrarla).
+        // Cualquiera con sesión puede CREAR una sala que todavía no existe.
+        ".write": "auth != null && (!data.exists() || data.child('meta/hostUid').val() === auth.uid)",
+
+        "meta": {
+          // Hay que leer meta ANTES de ser miembro (así se comprueba que la sala existe al unirse).
+          ".read": "auth != null",
+
+          // Ascenso automático: si el anfitrión está desconectado, un propietario puede ponerse a sí mismo.
+          "hostUid": {
+            ".write": "auth != null && data.exists() && newData.val() === auth.uid && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && root.child('rooms/' + $code + '/members/' + data.val() + '/online').val() !== true"
+          },
+
+          // Quién controla la música: tomarlo si está libre, pasarlo/soltarlo si es mío,
+          // o relevar a un controlador desconectado. Siempre solo propietarios.
+          "controllerUid": {
+            ".write": "auth != null && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && ((!data.exists() && newData.val() === auth.uid) || (data.val() === auth.uid && (!newData.exists() || root.child('rooms/' + $code + '/owners/' + newData.val()).exists())) || (data.exists() && newData.val() === auth.uid && root.child('rooms/' + $code + '/members/' + data.val() + '/online').val() !== true))"
+          }
+        },
+
+        "members": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          "$uid": { ".write": "auth != null && $uid === auth.uid" }
+        },
+
+        // Propietarios: los añade/quita el anfitrión; cada quien puede renunciar a lo suyo.
+        "owners": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          "$uid": { ".write": "auth != null && $uid === auth.uid && !newData.exists()" }
+        },
+
+        // Lo que suena: solo lo escribe el controlador actual.
+        "state": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          ".write": "auth != null && root.child('rooms/' + $code + '/meta/controllerUid').val() === auth.uid"
+        },
+
+        // Lista de espera: un propietario añade las suyas y quita las suyas;
+        // cualquier propietario puede cambiar el orden (campo pos).
+        "queue": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          "$id": {
+            ".write": "auth != null && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && ((!data.exists() && newData.child('addedBy').val() === auth.uid) || data.child('addedBy').val() === auth.uid)",
+            ".validate": "newData.hasChildren(['title', 'addedBy', 'addedByName', 'pos'])",
+            "title": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "pos": {
+              ".write": "auth != null && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && data.exists()",
+              ".validate": "newData.isNumber()"
+            }
+          }
+        },
+
+        // Votos para saltar: cada propietario escribe solo el suyo; el controlador puede limpiarlos todos.
+        "skipVotes": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          ".write": "auth != null && root.child('rooms/' + $code + '/meta/controllerUid').val() === auth.uid",
+          "$uid": {
+            ".write": "auth != null && $uid === auth.uid && root.child('rooms/' + $code + '/owners/' + auth.uid).exists()",
+            ".validate": "newData.isString()"
+          }
+        }
+      }
+    }
+  }
+}

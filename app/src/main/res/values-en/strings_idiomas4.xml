@@ -55,4 +55,8 @@
     <string name="an_path_copied">Path copied</string>
     <string name="an_copy_path">Copy path</string>
     <string name="fp_next_moment">Next moment</string>
+    <string name="fp_equalizer">Equalizer</string>
+    <string name="fp_eq_studio_desc">Presets, 5 bands, bass boost, virtualizer and reverb</string>
+    <string name="fp_eq_pro_desc">Own 10-band engine and volume normalization</string>
+    <string name="fp_lyrics">Lyrics</string>
 </resources>

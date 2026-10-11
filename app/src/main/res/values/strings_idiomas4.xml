@@ -55,4 +55,8 @@
     <string name="an_path_copied">Ruta copiada</string>
     <string name="an_copy_path">Copiar ruta</string>
     <string name="fp_next_moment">Momento siguiente</string>
+    <string name="fp_equalizer">Ecualizador</string>
+    <string name="fp_eq_studio_desc">Presets, 5 bandas, graves, virtualizer y reverb</string>
+    <string name="fp_eq_pro_desc">Motor propio de 10 bandas y normalización</string>
+    <string name="fp_lyrics">Letra</string>
 </resources>

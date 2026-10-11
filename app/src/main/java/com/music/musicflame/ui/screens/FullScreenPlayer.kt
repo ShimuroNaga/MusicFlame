@@ -258,6 +258,69 @@ fun FullScreenPlayer(
     var markStartMs by remember(song.id) { mutableStateOf<Long?>(null) }
     var showMomentsDialog by remember { mutableStateOf(false) }
     var showAllMomentsDialog by remember { mutableStateOf(false) }
+
+    // --- ECUALIZADOR (6to botón de la fila) ---
+    // No se recrea nada: se reutilizan tal cual los diálogos de Ajustes > Canciones > Ecualizador
+    // (Studio Pro EQ de 5 bandas + graves/virtualizer/reverb/presets, y EQ PRO de 10 bandas).
+    // Los estados se leen del mismo SettingsRepository que usa SettingsScreen.
+    var showEqChooser by remember { mutableStateOf(false) }
+    val showEqualizerDialog = remember { mutableStateOf(false) }
+    val showProEqualizerDialog = remember { mutableStateOf(false) }
+    val eqSettingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
+    val eqSharedPrefs = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
+    val eqPresetSelected = remember { mutableStateOf(eqSettingsRepo.getEqPresetSelected()) }
+    val eqSliders = remember { List(5) { i -> mutableStateOf(eqSettingsRepo.getEqBand(i)) } }
+    val eqBassBoost = remember { mutableStateOf(eqSettingsRepo.getBassBoost()) }
+    val eqVirtualizer = remember { mutableStateOf(eqSettingsRepo.getVirtualizer()) }
+    val eqVolume = remember { mutableStateOf(eqSettingsRepo.getEqVolume()) }
+    if (showEqChooser) {
+        val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isItemUnlocked("pro_eq_10band")
+        AlertDialog(
+            onDismissRequest = { showEqChooser = false },
+            title = { Text(stringResource(R.string.fp_equalizer)) },
+            text = {
+                Column {
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_studio_pro_eq)) },
+                        supportingContent = { Text(stringResource(R.string.fp_eq_studio_desc)) },
+                        modifier = Modifier.clickable {
+                            showEqChooser = false
+                            showEqualizerDialog.value = true
+                        }
+                    )
+                    HorizontalDivider()
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.settings_eq_pro_10_bandas)) },
+                        supportingContent = { Text(stringResource(R.string.fp_eq_pro_desc)) },
+                        trailingContent = {
+                            if (!isProEqUnlocked) {
+                                Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
+                            }
+                        },
+                        modifier = Modifier.clickable {
+                            showEqChooser = false
+                            showProEqualizerDialog.value = true
+                        }
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showEqChooser = false }) { Text(stringResource(R.string.action_close)) }
+            }
+        )
+    }
+    SettingsEqualizerDialog(
+        context = context,
+        settingsRepo = eqSettingsRepo,
+        sharedPrefs = eqSharedPrefs,
+        showEqualizerDialog = showEqualizerDialog,
+        eqPresetSelected = eqPresetSelected,
+        slidersValues = eqSliders,
+        bassBoost = eqBassBoost,
+        virtualizer = eqVirtualizer,
+        eqVolume = eqVolume
+    )
+    SettingsProEqualizerDialog(showProEqualizerDialog = showProEqualizerDialog)
     val highlightsActive = playerManager.highlightsActive.value
 
     if (showAllMomentsDialog) {
@@ -609,8 +672,8 @@ fun FullScreenPlayer(
                 .safeScreenPadding()
                 // --- LETRA Y COLA: cada una se controla con SU PROPIO lado, y ese mismo lado
                 // sirve tanto para entrar como para salir (toggle), sin mezclarlos:
-                //   - Swipe IZQUIERDA: entra y sale de la Letra.
-                //   - Swipe DERECHA: entra y sale de la Cola.
+                //   - Swipe DERECHA: abre la Letra (se cierra con swipe izquierda).
+                //   - Swipe IZQUIERDA: abre la Cola (se cierra con swipe derecha).
                 // Se desactiva por completo mientras la verificación de YouTube está abierta
                 // (esa pantalla necesita todos los gestos para su propio WebView).
                 // Al vivir en el contenedor exterior (padre del HorizontalPager de carátulas y
@@ -626,19 +689,19 @@ fun FullScreenPlayer(
                         onDragEnd = {
                             when {
                                 showQueueScreen -> {
-                                    // Ya estamos en la Cola: swipe derecha vuelve a la vista normal
-                                    // (mismo lado que la abre, como toggle).
+                                    // Ya estamos en la Cola (entró desde la derecha): swipe derecha
+                                    // la empuja de vuelta y regresa a la vista normal.
                                     if (totalDrag > 120f) showQueueScreen = false
                                 }
                                 showLyrics -> {
-                                    // Ya estamos en la Letra: swipe izquierda vuelve a la vista normal
-                                    // (mismo lado que la abre, como toggle).
+                                    // Ya estamos en la Letra (entró desde la izquierda): swipe izquierda
+                                    // la empuja de vuelta y regresa a la vista normal.
                                     if (totalDrag < -120f) showLyrics = false
                                 }
                                 else -> {
-                                    // Vista normal: izquierda abre Letra, derecha abre Cola.
-                                    if (totalDrag < -120f) showLyrics = true
-                                    else if (totalDrag > 120f) showQueueScreen = true
+                                    // Vista normal: derecha abre Letra, izquierda abre Cola.
+                                    if (totalDrag > 120f) showLyrics = true
+                                    else if (totalDrag < -120f) showQueueScreen = true
                                 }
                             }
                             totalDrag = 0f
@@ -837,11 +900,13 @@ fun FullScreenPlayer(
                     .padding(horizontal = 24.dp, vertical = 8.dp),
                 transitionSpec = {
                     if (targetState) {
-                        (androidx.compose.animation.slideInHorizontally(tween(280)) { it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
-                                (androidx.compose.animation.slideOutHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeOut(tween(280)))
-                    } else {
+                        // Abrir Letra (swipe derecha): entra desde la izquierda.
                         (androidx.compose.animation.slideInHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
                                 (androidx.compose.animation.slideOutHorizontally(tween(280)) { it } + androidx.compose.animation.fadeOut(tween(280)))
+                    } else {
+                        // Cerrar Letra (swipe izquierda): sale hacia la izquierda.
+                        (androidx.compose.animation.slideInHorizontally(tween(280)) { it } + androidx.compose.animation.fadeIn(tween(280))) togetherWith
+                                (androidx.compose.animation.slideOutHorizontally(tween(280)) { -it } + androidx.compose.animation.fadeOut(tween(280)))
                     }
                 },
                 label = "fullscreen_lyrics_toggle"
@@ -947,15 +1012,25 @@ fun FullScreenPlayer(
 
                             // NUEVO: botón de Cola — único punto de entrada a QueueScreen.
                             // "Queue" solo existe dentro del reproductor a pantalla completa.
-                            IconButton(
-                                onClick = { showQueueScreen = true },
-                                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 12.dp)
+            // También hay un botón de Letra a su lado (equivale al swipe derecha).
+                            Row(
+                                modifier = Modifier.align(Alignment.CenterEnd).offset(x = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Icon(
-                                    imageVector = Icons.Filled.QueueMusic,
-                                    contentDescription = stringResource(R.string.q_title),
-                                    tint = adaptiveContentColor
-                                )
+                                IconButton(onClick = { showLyrics = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.Lyrics,
+                                        contentDescription = stringResource(R.string.fp_lyrics),
+                                        tint = adaptiveContentColor
+                                    )
+                                }
+                                IconButton(onClick = { showQueueScreen = true }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.QueueMusic,
+                                        contentDescription = stringResource(R.string.q_title),
+                                        tint = adaptiveContentColor
+                                    )
+                                }
                             }
                         }
 
@@ -1248,6 +1323,15 @@ fun FullScreenPlayer(
                                     modifier = Modifier.size(28.dp)
                                 )
                             }
+
+                            // ECUALIZADOR: abre el selector con Studio Pro EQ (5 bandas) y EQ PRO (10 bandas).
+                            IconButton(onClick = { showEqChooser = true }) {
+                                Icon(
+                                    imageVector = Icons.Filled.Equalizer,
+                                    contentDescription = stringResource(R.string.fp_equalizer),
+                                    tint = adaptiveContentColor
+                                )
+                            }
                         }
 
                         Spacer(modifier = Modifier.height(24.dp))
@@ -1353,7 +1437,7 @@ fun FullScreenPlayer(
             }
 
             // Misma animación que la Letra (slide + fade, 280ms): entra deslizando desde la
-            // derecha -tal como se abre, con swipe derecha- y sale deslizando hacia la derecha.
+            // derecha -tal como se abre, con swipe izquierda- y sale deslizando hacia la derecha.
             AnimatedVisibility(
                 visible = showQueueScreen,
                 enter = slideInHorizontally(tween(280)) { it } + fadeIn(tween(280)),

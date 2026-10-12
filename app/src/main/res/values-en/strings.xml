@@ -16,7 +16,7 @@
     <!-- Home screen widget -->
     <string name="widget_music_flame_description">MusicFlame compact player: cover art, song name, play/pause and next (make it bigger to also get a previous button).</string>
     <string name="widget_no_song">MusicFlame</string>
-    <string name="widget_vinyl_locked">Locked · $5 MXN</string>
+    <string name="widget_vinyl_locked">Locked · $%1$s MXN</string>
     <string name="widget_select_song">Not playing</string>
     <string name="widget_album_art_desc">Current song cover art</string>
     <string name="widget_play_pause_desc">Play or pause</string>
@@ -212,7 +212,6 @@
     <string name="settings_letra_en_vivo_en_el_widget">Live lyrics in the widget</string>
     <string name="settings_licencia_de_apoyo_opcional">Support license (optional)</string>
     <string name="settings_licencia_de_apoyo_y_donacion_opcio">Optional support license and donation</string>
-    <string name="settings_locked_lyrics_toast">Custom and Rainbow are sold together for $10 MXN (a single product). Unlock it in Settings &gt; Payments (optional).</string>
     <string name="settings_locked_toast">This is a paid feature. Unlock it in Settings &gt; Payments (optional).</string>
     <string name="settings_los_que_ya_tienes_en_tu_biblioteca">The ones you already have in your library say \"detected\".</string>
     <string name="settings_manejo_de_canciones">Song handling</string>

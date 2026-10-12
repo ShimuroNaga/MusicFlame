@@ -6,7 +6,7 @@
     <string name="kofi_step_pay">Pay there with whichever method Ko-fi offers you.</string>
     <string name="kofi_step_email">Use the same email as your Google account, or note down the one you use for the next step.</string>
     <string name="kofi_step_restore">Come back to the app and tap \"Restore purchases\": it unlocks instantly.</string>
-    <string name="kofi_catalog_sub">Each row is a product in the Ko-fi shop (some bundle 2 items because of the platform\'s minimum price). The check shows whether you already have it.</string>
+    <string name="kofi_catalog_sub">Each row is a product (pack) in the Ko-fi shop. The check shows whether you already have it.</string>
     <string name="kofi_soon">Coming soon</string>
     <string name="kofi_have_all">You have everything unlocked</string>
     <string name="kofi_have_it">You have it</string>
@@ -22,4 +22,12 @@
     <string name="kofi_nothing_found">I found no purchases for that email. If you just paid, wait a minute and try again; if you paid with another email, type it above.</string>
     <string name="kofi_need_email">Sign in with Google or type the email you used on Ko-fi.</string>
     <string name="kofi_network_error">No connection or the server did not respond. Check your internet and try again.</string>
+    <string name="kofi_opening_pack">Opening “%1$s” ($%2$d MXN) on Ko-fi…</string>
+    <string name="kofi_buy_pack">Buy on Ko-fi</string>
+    <string name="kofi_prod_fonts">Fonts (5)</string>
+    <string name="kofi_prod_eq_pack1">Equalizer pack 1</string>
+    <string name="kofi_prod_eq_pack2">Equalizer pack 2</string>
+    <string name="kofi_prod_colors">Color pack</string>
+    <string name="kofi_prod_pro_eq">PRO EQ</string>
+    <string name="kofi_prod_vinyl">Vinyl widget</string>
 </resources>

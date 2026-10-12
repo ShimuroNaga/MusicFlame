@@ -16,7 +16,7 @@
     <!-- Widget de home screen -->
     <string name="widget_music_flame_description">Reproductor compacto de MusicFlame: carátula, nombre de la canción, play/pause y siguiente (agrándalo para tener también un botón de anterior).</string>
     <string name="widget_no_song">MusicFlame</string>
-    <string name="widget_vinyl_locked">Bloqueado · $5 MXN</string>
+    <string name="widget_vinyl_locked">Bloqueado · $%1$s MXN</string>
     <string name="widget_select_song">Sin reproducción</string>
     <string name="widget_album_art_desc">Carátula de la canción actual</string>
     <string name="widget_play_pause_desc">Reproducir o pausar</string>
@@ -212,7 +212,6 @@
     <string name="settings_letra_en_vivo_en_el_widget">Letra en vivo en el widget</string>
     <string name="settings_licencia_de_apoyo_opcional">Licencia de apoyo (opcional)</string>
     <string name="settings_licencia_de_apoyo_y_donacion_opcio">Licencia de apoyo y donación opcional</string>
-    <string name="settings_locked_lyrics_toast">Personalizado y Arcoíris se venden juntos por $10 MXN (un solo producto). Actívalo en Ajustes &gt; Pagos (opcional).</string>
     <string name="settings_locked_toast">Esto es de pago. Actívalo en Ajustes &gt; Pagos (opcional).</string>
     <string name="settings_los_que_ya_tienes_en_tu_biblioteca">Los que ya tienes en tu biblioteca dicen \"detectado\".</string>
     <string name="settings_manejo_de_canciones">Manejo de Canciones</string>

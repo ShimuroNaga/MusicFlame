@@ -224,7 +224,7 @@ internal fun LazyListScope.settingsPaymentsSection(
 
     item {
         Text(
-            stringResource(R.string.settings_compra_solo_lo_que_te_interesa_o_t, com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN),
+            stringResource(R.string.settings_compra_solo_lo_que_te_interesa_o_t, LicenseRepository.buyAllPriceMxn()),
             fontSize = 13.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -287,7 +287,7 @@ internal fun LazyListScope.settingsPaymentsSection(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            if (buyAllUrl != null) stringResource(R.string.settings_comprar_todo_por_1_s_mxn, com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN)
+                            if (buyAllUrl != null) stringResource(R.string.settings_comprar_todo_por_1_s_mxn, LicenseRepository.buyAllPriceMxn())
                             else stringResource(R.string.kofi_soon),
                             fontWeight = FontWeight.Bold
                         )
@@ -325,9 +325,18 @@ internal fun LazyListScope.settingsPaymentsSection(
                 LicenseRepository.KOFI_PRODUCTS
                     .filter { !it.catalogIds.contains(LicenseRepository.ALL_ITEMS_ID) }
                     .forEach { product ->
+                        // Nombre del pack (no la unión de los ítems: varios se llaman igual,
+                        // ej. "Arcoíris" existe en ecualizador, Now Playing y lyrics).
+                        val label = product.displayName(context)
+                        // Qué incluye el pack, agrupado por sección (varios ítems se llaman igual,
+                        // ej. "Arcoíris"); con una sola sección se omite el prefijo.
                         val itemsInProduct = com.music.musicflame.data.PaymentCatalog.ITEMS.filter { it.id in product.catalogIds }
-                        val label = itemsInProduct.joinToString(" + ") { it.displayLabel(context) }
-                        val priceMxn = itemsInProduct.sumOf { it.priceMxn }
+                        val bySection = itemsInProduct.groupBy { it.sectionRes }
+                        val contents = bySection.entries.joinToString(" · ") { (sectionRes, sectionItems) ->
+                            val names = sectionItems.joinToString(", ") { it.displayLabel(context) }
+                            if (bySection.size > 1) "${context.getString(sectionRes)}: $names" else names
+                        }
+                        val priceMxn = LicenseRepository.productPriceMxn(product)
                         val owned = product.catalogIds.all { unlockedIds.contains(it) }
                         val checkoutUrl = product.url
 
@@ -344,7 +353,16 @@ internal fun LazyListScope.settingsPaymentsSection(
                                 tint = if (owned) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Spacer(Modifier.width(8.dp))
-                            Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(label, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                                if (contents.isNotBlank()) {
+                                    Text(
+                                        contents,
+                                        fontSize = 11.sp,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
                             if (owned) {
                                 Text(
                                     stringResource(R.string.kofi_have_it),
@@ -418,7 +436,7 @@ internal fun LazyListScope.settingsPaymentsSection(
                             )
                             Spacer(Modifier.width(8.dp))
                             Text(
-                                licenseRepo.labelFor(product.catalogIds),
+                                product.displayName(context),
                                 fontSize = 13.sp,
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.weight(1f)

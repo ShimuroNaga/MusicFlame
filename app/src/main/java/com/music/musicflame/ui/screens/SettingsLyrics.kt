@@ -152,7 +152,7 @@ internal fun LazyListScope.settingsLyricsSection(
     lyricsColorModePref: MutableState<String>,
     lyricsCustomColorHexPref: MutableState<String>,
     unlockedIds: Set<String>,
-    showLockedLyricsColorToast: () -> Unit
+    showLockedFeatureToast: (String) -> Unit
 ) {
     item {
         val settingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
@@ -245,10 +245,12 @@ internal fun LazyListScope.settingsLyricsSection(
                             (opt == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW && !unlockedIds.contains("lyrics_rainbow"))
                     androidx.compose.material3.FilterChip(
                         selected = selected,
-                        enabled = !locked,
+                        // Siempre habilitado: un FilterChip deshabilitado no recibe el toque y el
+                        // candado nunca llegaba a abrir el producto. Se atenúa a mano.
+                        modifier = Modifier.alpha(if (locked) 0.5f else 1f),
                         onClick = {
                             if (locked) {
-                                showLockedLyricsColorToast()
+                                showLockedFeatureToast(if (opt == "Personalizado") "lyrics_custom" else "lyrics_rainbow")
                             } else if (opt == "Personalizado") {
                                 // Selección visual inmediata; el modo recién se
                                 // persiste al confirmar un color en el diálogo

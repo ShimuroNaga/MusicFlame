@@ -6,7 +6,7 @@
     <string name="kofi_step_pay">Paga ahí con el método que te ofrezca Ko-fi.</string>
     <string name="kofi_step_email">Usa el mismo correo de tu cuenta de Google, o anota el que uses para el paso siguiente.</string>
     <string name="kofi_step_restore">Vuelve a la app y toca \"Restaurar compras\": se desbloquea al instante.</string>
-    <string name="kofi_catalog_sub">Cada fila es un producto de la tienda de Ko-fi (algunos agrupan 2 ítems por el precio mínimo de la plataforma). El check indica si ya lo tienes.</string>
+    <string name="kofi_catalog_sub">Cada fila es un producto (pack) de la tienda de Ko-fi. El check indica si ya lo tienes.</string>
     <string name="kofi_soon">Próximamente</string>
     <string name="kofi_have_all">Ya tienes todo desbloqueado</string>
     <string name="kofi_have_it">Ya lo tienes</string>
@@ -22,4 +22,12 @@
     <string name="kofi_nothing_found">No encontré compras con ese correo. Si acabas de pagar, espera un minuto y vuelve a intentarlo; si pagaste con otro correo, escríbelo arriba.</string>
     <string name="kofi_need_email">Inicia sesión con Google o escribe el correo que usaste en Ko-fi.</string>
     <string name="kofi_network_error">Sin conexión o el servidor no respondió. Revisa tu internet e inténtalo de nuevo.</string>
+    <string name="kofi_opening_pack">Abriendo «%1$s» ($%2$d MXN) en Ko-fi…</string>
+    <string name="kofi_buy_pack">Comprar en Ko-fi</string>
+    <string name="kofi_prod_fonts">Tipos de letra (5)</string>
+    <string name="kofi_prod_eq_pack1">Pack 1 de ecualizadores</string>
+    <string name="kofi_prod_eq_pack2">Pack 2 de ecualizadores</string>
+    <string name="kofi_prod_colors">Pack de colores</string>
+    <string name="kofi_prod_pro_eq">EQ PRO</string>
+    <string name="kofi_prod_vinyl">Widget vinilo</string>
 </resources>

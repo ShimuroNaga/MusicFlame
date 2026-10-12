@@ -66,7 +66,7 @@ fun EqualizerStylePickerDialog(
     isStyleUnlocked: (EqualizerStyle) -> Boolean,
     onDismiss: () -> Unit,
     onConfirm: (EqualizerStyle) -> Unit,
-    onLockedStyleClick: () -> Unit = {}
+    onLockedStyleClick: (EqualizerStyle) -> Unit = {}
 ) {
     var tempStyle by remember { mutableStateOf(currentStyle) }
     val previewColor = MaterialTheme.colorScheme.primary
@@ -99,7 +99,7 @@ fun EqualizerStylePickerDialog(
                             isSelected = tempStyle == style,
                             previewColor = previewColor,
                             locked = locked,
-                            onClick = { if (locked) onLockedStyleClick() else tempStyle = style }
+                            onClick = { if (locked) onLockedStyleClick(style) else tempStyle = style }
                         )
                     }
                 }

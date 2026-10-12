@@ -54,14 +54,14 @@ La app incluye Firebase Analytics (Google), que recopila de forma automática da
 ### YouTube
 La búsqueda y reproducción de YouTube usan la API y el reproductor oficiales de YouTube. Al usarlos, tus consultas y tu reproducción están sujetas a los [Términos de YouTube](https://www.youtube.com/t/terms) y a la [Política de privacidad de Google](https://policies.google.com/privacy).
 
-### Compras y licencias (Lemon Squeezy)
-Las funciones de pago se venden a través de **Lemon Squeezy**, que procesa el pago. MusicFlame **nunca ve ni guarda tus datos de pago**. Para activar una función, la app envía tu clave de licencia a Lemon Squeezy para validarla, y guarda esa clave cifrada en tu celular.
+### Compras (Ko-fi)
+Las funciones de pago se venden a través de **Ko-fi**, que procesa el pago. MusicFlame **nunca ve ni guarda tus datos de pago**. Cuando pagas, Ko-fi avisa a un servidor de MusicFlame (Supabase) con el correo que usaste y el producto comprado, y ahí se guarda ese registro. Para restaurar tus compras, la app consulta ese servidor con el correo de tu cuenta de Google (o el que escribas) y guarda en tu celular qué productos tienes.
 
 ### Meta pública
 La app puede leer un archivo público del repositorio de GitHub (`meta.json`) para mostrar una meta de ahorro. Esa petición es una descarga normal de una página pública.
 
 ## 3. Con quién se comparten los datos
-Solo con los proveedores que hacen funcionar cada función: Google (inicio de sesión, Drive, Firebase, YouTube), Supabase (archivos de las salas), Lemon Squeezy (licencias) y GitHub (archivo público). Cada uno trata los datos según su propia política. No se venden ni se usan para publicidad.
+Solo con los proveedores que hacen funcionar cada función: Google (inicio de sesión, Drive, Firebase, YouTube), Supabase (archivos de las salas y registro de compras), Ko-fi (pagos) y GitHub (archivo público). Cada uno trata los datos según su propia política. No se venden ni se usan para publicidad.
 
 ## 4. Cómo borrar tus datos o pedir ayuda
 - **Datos en tu celular:** desinstala la app o borra sus datos desde los ajustes de Android.
@@ -133,14 +133,14 @@ The app includes Firebase Analytics (Google), which automatically collects usage
 ### YouTube
 YouTube search and playback use the official YouTube API and player. When you use them, your queries and playback are subject to the [YouTube Terms of Service](https://www.youtube.com/t/terms) and the [Google Privacy Policy](https://policies.google.com/privacy).
 
-### Purchases and licenses (Lemon Squeezy)
-Paid features are sold through **Lemon Squeezy**, which processes the payment. MusicFlame **never sees or stores your payment details**. To activate a feature, the app sends your license key to Lemon Squeezy for validation and stores that key encrypted on your phone.
+### Purchases (Ko-fi)
+Paid features are sold through **Ko-fi**, which processes the payment. MusicFlame **never sees or stores your payment details**. When you pay, Ko-fi notifies a MusicFlame server (Supabase) with the email you used and the product you bought, and that record is stored there. To restore your purchases, the app queries that server with your Google account email (or the one you type) and stores on your phone which products you own.
 
 ### Public goal file
 The app may read a public file from the GitHub repository (`meta.json`) to show a savings goal. This is an ordinary download of a public page.
 
 ## 3. Who data is shared with
-Only with the providers that make each feature work: Google (sign-in, Drive, Firebase, YouTube), Supabase (room files), Lemon Squeezy (licenses) and GitHub (public file). Each handles data under its own policy. Data is not sold or used for advertising.
+Only with the providers that make each feature work: Google (sign-in, Drive, Firebase, YouTube), Supabase (room files and purchase records), Ko-fi (payments) and GitHub (public file). Each handles data under its own policy. Data is not sold or used for advertising.
 
 ## 4. How to delete your data or get help
 - **Data on your phone:** uninstall the app or clear its data from Android settings.

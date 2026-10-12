@@ -340,19 +340,29 @@ fun SettingsScreen(
     androidx.compose.runtime.LaunchedEffect(Unit) {
         com.music.musicflame.data.ProStatusHolder.refresh(context)
     }
-    fun showLockedFeatureToast() {
+    // Al tocar algo bloqueado: abre en Ko-fi el producto (pack) que vende ese ítem del catálogo.
+    // Si ese producto todavía no tiene link, solo avisa que es de pago.
+    fun showLockedFeatureToast(catalogId: String) {
+        val url = LicenseRepository.checkoutUrlFor(catalogId)
+        if (url == null) {
+            Toast.makeText(context, context.getString(R.string.settings_locked_toast), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val product = LicenseRepository.productFor(catalogId)
         Toast.makeText(
             context,
-            context.getString(R.string.settings_locked_toast),
+            context.getString(
+                R.string.kofi_opening_pack,
+                product?.displayName(context) ?: "",
+                product?.let { LicenseRepository.productPriceMxn(it) } ?: 0
+            ),
             Toast.LENGTH_SHORT
         ).show()
-    }
-    fun showLockedLyricsColorToast() {
-        Toast.makeText(
-            context,
-            context.getString(R.string.settings_locked_lyrics_toast),
-            Toast.LENGTH_SHORT
-        ).show()
+        try {
+            context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (e: Exception) {
+            Toast.makeText(context, context.getString(R.string.settings_locked_toast), Toast.LENGTH_SHORT).show()
+        }
     }
 
     // --- "Meta de ahorro" (arriba de todo en Ajustes) ---
@@ -962,7 +972,7 @@ fun SettingsScreen(
                             lyricsColorModePref = lyricsColorModePref,
                             lyricsCustomColorHexPref = lyricsCustomColorHexPref,
                             unlockedIds = unlockedIds,
-                            showLockedLyricsColorToast = { showLockedLyricsColorToast() }
+                            showLockedFeatureToast = { id -> showLockedFeatureToast(id) }
                         )
                     }
 
@@ -1042,7 +1052,7 @@ fun SettingsScreen(
             showEqualizerStyleDialog = showEqualizerStyleDialog,
             equalizerStyle = equalizerStyle,
             unlockedIds = unlockedIds,
-            showLockedFeatureToast = { showLockedFeatureToast() }
+            showLockedFeatureToast = { id -> showLockedFeatureToast(id) }
         )
 
         SettingsFontDialog(
@@ -1050,7 +1060,7 @@ fun SettingsScreen(
             showFontDialog = showFontDialog,
             appFontPref = appFontPref,
             unlockedIds = unlockedIds,
-            showLockedFeatureToast = { showLockedFeatureToast() }
+            showLockedFeatureToast = { id -> showLockedFeatureToast(id) }
         )
 
         SettingsFontSizeDialog(
@@ -1116,7 +1126,7 @@ fun SettingsScreen(
             settingsRepo = settingsRepo,
             showTextColorDialog = showTextColorDialog,
             unlockedIds = unlockedIds,
-            showLockedFeatureToast = { showLockedFeatureToast() },
+            showLockedFeatureToast = { id -> showLockedFeatureToast(id) },
             appTextColorPref = appTextColorPref,
             customTextColorHex = customTextColorHex
         )
@@ -1128,7 +1138,7 @@ fun SettingsScreen(
             equalizerColorModePref = equalizerColorModePref,
             equalizerCustomColorHexPref = equalizerCustomColorHexPref,
             unlockedIds = unlockedIds,
-            showLockedFeatureToast = { showLockedFeatureToast() }
+            showLockedFeatureToast = { id -> showLockedFeatureToast(id) }
         )
 
         SettingsFullPlayerBgDialog(
@@ -1183,7 +1193,7 @@ fun SettingsScreen(
             nowPlayingColorModePref = nowPlayingColorModePref,
             nowPlayingCustomColorHexPref = nowPlayingCustomColorHexPref,
             unlockedIds = unlockedIds,
-            showLockedFeatureToast = { showLockedFeatureToast() }
+            showLockedFeatureToast = { id -> showLockedFeatureToast(id) }
         )
 
         SettingsAnomalyScanDialog(

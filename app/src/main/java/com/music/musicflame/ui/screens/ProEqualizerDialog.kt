@@ -288,6 +288,9 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
 
 @Composable
 private fun LockedProEqualizerContent() {
+    val context = LocalContext.current
+    val proProduct = com.music.musicflame.data.LicenseRepository.productFor("pro_eq_10band")
+    val proUrl = proProduct?.url
     Column(
         modifier = Modifier.fillMaxSize().padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -305,7 +308,7 @@ private fun LockedProEqualizerContent() {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.pe_locked_desc), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
             Spacer(Modifier.width(2.dp))
-            Text("\$${com.music.musicflame.data.PaymentCatalog.ITEMS.find { it.id == "pro_eq_10band" }?.priceMxn ?: 20} MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+            Text("\$${proProduct?.let { com.music.musicflame.data.LicenseRepository.productPriceMxn(it) } ?: 20} MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
         }
         Spacer(Modifier.height(8.dp))
         Text(
@@ -314,7 +317,22 @@ private fun LockedProEqualizerContent() {
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(horizontal = 16.dp)
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(16.dp))
+        Button(
+            onClick = {
+                if (proUrl != null) {
+                    try {
+                        context.startActivity(Intent(Intent.ACTION_VIEW, android.net.Uri.parse(proUrl)))
+                    } catch (e: Exception) {
+                        Toast.makeText(context, context.getString(R.string.settings_locked_toast), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            },
+            enabled = proUrl != null
+        ) {
+            Text(if (proUrl != null) stringResource(R.string.kofi_buy_pack) else stringResource(R.string.kofi_soon), fontWeight = FontWeight.Bold)
+        }
+        Spacer(Modifier.height(16.dp))
         Text(
             stringResource(R.string.pe_license_hint),
             fontSize = 12.sp,

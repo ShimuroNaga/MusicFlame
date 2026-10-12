@@ -277,7 +277,11 @@ class MusicFlameVinylWidgetProvider : AppWidgetProvider() {
 
             val lockBitmap = withContext(Dispatchers.IO) { buildLockedDisc(context) }
             val views = RemoteViews(context.packageName, R.layout.widget_music_flame_vinyl).apply {
-                setTextViewText(R.id.widget_vinyl_title, context.getString(R.string.widget_vinyl_locked))
+                setTextViewText(R.id.widget_vinyl_title, context.getString(
+                    R.string.widget_vinyl_locked,
+                    com.music.musicflame.data.LicenseRepository.productFor("vinyl_widget")
+                        ?.let { com.music.musicflame.data.LicenseRepository.productPriceMxn(it) } ?: 5
+                ))
                 setImageViewBitmap(R.id.widget_vinyl_disc, lockBitmap)
                 setOnClickPendingIntent(R.id.widget_vinyl_disc, openAppPendingIntent(context))
                 setOnClickPendingIntent(R.id.widget_vinyl_sleeve_zone, openAppPendingIntent(context))

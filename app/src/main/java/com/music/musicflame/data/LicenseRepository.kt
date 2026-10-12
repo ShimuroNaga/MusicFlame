@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import androidx.annotation.StringRes
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import org.json.JSONArray
 import java.security.MessageDigest
@@ -16,8 +17,16 @@ import com.music.musicflame.R
 data class KofiProduct(
     val name: String,
     val url: String?,
-    val catalogIds: List<String>
+    val catalogIds: List<String>,
+    // Nombre traducible que se le muestra al usuario (tabla de Pagos, compras restauradas).
+    // Si es null se usa [name].
+    @StringRes val nameRes: Int? = null,
+    // Precio real del producto en Ko-fi (MXN). null = todavía no definido: se muestra la suma de
+    // los priceMxn de sus ítems de PaymentCatalog (ver LicenseRepository.productPriceMxn).
+    val priceMxn: Int? = null
 ) {
+    fun displayName(context: Context): String = nameRes?.let { context.getString(it) } ?: name
+
     val code: String?
         get() = url
             ?.substringAfter("/s/", "")
@@ -206,7 +215,7 @@ class LicenseRepository(context: Context) {
 
         val recognized = recognizedProducts()
         if (recognized.isEmpty()) return RestoreResult.Unrecognized
-        val label = recognized.joinToString(" · ") { labelFor(it.catalogIds) }
+        val label = recognized.joinToString(" · ") { it.displayName(appContext) }
         return RestoreResult.Success(label)
     }
 
@@ -255,22 +264,54 @@ class LicenseRepository(context: Context) {
          * identifica la compra es el código del final del link.
          */
         val KOFI_PRODUCTS: List<KofiProduct> = listOf(
-            KofiProduct("TODO", null, listOf(ALL_ITEMS_ID)),
+            KofiProduct("TODO", "https://ko-fi.com/s/1be1b91e12", listOf(ALL_ITEMS_ID), nameRes = R.string.lic_whole_catalog, priceMxn = 130),
             KofiProduct(
-                "Tipos de letra (Comfortaa, Playfair Display, Orbitron, Press Start 2P y Space Mono)", null,
-                listOf("font_comfortaa", "font_playfair_display", "font_orbitron", "font_press_start_2p", "font_space_mono")
+                "Tipos de letra (5)", "https://ko-fi.com/s/31810100a9",
+                listOf("font_comfortaa", "font_playfair_display", "font_orbitron", "font_press_start_2p", "font_space_mono"),
+                nameRes = R.string.kofi_prod_fonts, priceMxn = 25
             ),
-            KofiProduct("Osciloscopio y Ondas Concéntricas", null, listOf("eq_style_oscilloscope", "eq_style_skyline")),
-            KofiProduct("Doble espejado y Ondas de agua", null, listOf("eq_style_mirrored", "eq_style_wave")),
-            KofiProduct("ECUALIZADOR PRO y Constelación", null, listOf("pro_eq_10band", "eq_style_rain")),
-            KofiProduct("Color de texto y Now Playing (Arcoíris y Personalizado)", null, listOf("text_color_rainbow", "now_playing_custom")),
-            KofiProduct("Color de Now Playing (Arcoíris) y Widget Vinilo", null, listOf("now_playing_rainbow", "vinyl_widget")),
-            KofiProduct("Color de lyrics (Personalizado y Arcoíris)", null, listOf("lyrics_custom", "lyrics_rainbow")),
-            KofiProduct("Color de ecualizador (Personalizado y Arcoíris)", null, listOf("eq_color_custom", "eq_color_rainbow")),
-            KofiProduct("Círculo pulsante y Partículas", null, listOf("eq_style_pulse", "eq_style_particles")),
-            KofiProduct("Barras Finas y VU meter retro", null, listOf("eq_style_thin", "eq_style_vu")),
-            KofiProduct("Pelea de Stickmans", null, listOf("eq_style_fight"))
+            KofiProduct(
+                "Pack 1 de ecualizadores", "https://ko-fi.com/s/c213993c41",
+                listOf("eq_style_mirrored", "eq_style_wave", "eq_style_pulse", "eq_style_particles", "eq_style_thin"),
+                nameRes = R.string.kofi_prod_eq_pack1, priceMxn = 25
+            ),
+            KofiProduct(
+                "Pack 2 de ecualizadores", "https://ko-fi.com/s/2a390656e4",
+                listOf("eq_style_vu", "eq_style_oscilloscope", "eq_style_skyline", "eq_style_rain", "eq_style_fight"),
+                nameRes = R.string.kofi_prod_eq_pack2, priceMxn = 25
+            ),
+            KofiProduct(
+                "Pack de colores", "https://ko-fi.com/s/a9aa209b1e",
+                listOf(
+                    "eq_color_custom", "eq_color_rainbow", "text_color_rainbow", "now_playing_custom",
+                    "now_playing_rainbow", "lyrics_custom", "lyrics_rainbow"
+                ),
+                nameRes = R.string.kofi_prod_colors, priceMxn = 25
+            ),
+            KofiProduct("EQ PRO", "https://ko-fi.com/s/e7684d4d2d", listOf("pro_eq_10band"), nameRes = R.string.kofi_prod_pro_eq, priceMxn = 20),
+            KofiProduct("Widget vinilo", "https://ko-fi.com/s/c0e9a4d156", listOf("vinyl_widget"), nameRes = R.string.kofi_prod_vinyl, priceMxn = 10)
         )
+
+        /** Producto de Ko-fi que vende [catalogId] (el que lo desbloquea), o null si ninguno lo cubre. */
+        fun productFor(catalogId: String): KofiProduct? =
+            KOFI_PRODUCTS.firstOrNull { p -> p.catalogIds.none { it == ALL_ITEMS_ID } && catalogId in p.catalogIds }
+
+        /**
+         * Precio en MXN que se le muestra al usuario para [product]: el precio real si ya se definió
+         * en [KofiProduct.priceMxn]; si no, la suma de los priceMxn de sus ítems en PaymentCatalog
+         * (TODO = total del catálogo). Los precios reales de Ko-fi ya están en KOFI_PRODUCTS (en MXN).
+         */
+        fun productPriceMxn(product: KofiProduct): Int =
+            product.priceMxn ?: if (product.catalogIds.contains(ALL_ITEMS_ID)) {
+                PaymentCatalog.TOTAL_PRICE_MXN
+            } else {
+                PaymentCatalog.ITEMS.filter { it.id in product.catalogIds }.sumOf { it.priceMxn }
+            }
+
+        /** Precio mostrado del producto "TODO". */
+        fun buyAllPriceMxn(): Int =
+            KOFI_PRODUCTS.firstOrNull { it.catalogIds.contains(ALL_ITEMS_ID) }?.let { productPriceMxn(it) }
+                ?: PaymentCatalog.TOTAL_PRICE_MXN
 
         /** Link del producto "TODO" (desbloquea el catálogo completo de una), o null si todavía no existe. */
         fun buyAllUrl(): String? = KOFI_PRODUCTS.firstOrNull { it.catalogIds.contains(ALL_ITEMS_ID) }?.url

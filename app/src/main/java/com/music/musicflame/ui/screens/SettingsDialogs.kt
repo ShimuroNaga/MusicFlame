@@ -402,7 +402,7 @@ internal fun SettingsEqualizerStyleDialog(
     showEqualizerStyleDialog: MutableState<Boolean>,
     equalizerStyle: MutableState<com.music.musicflame.ui.components.EqualizerStyle>,
     unlockedIds: Set<String>,
-    showLockedFeatureToast: () -> Unit
+    showLockedFeatureToast: (String) -> Unit
 ) {
     if (showEqualizerStyleDialog.value) {
         com.music.musicflame.ui.components.EqualizerStylePickerDialog(
@@ -414,7 +414,7 @@ internal fun SettingsEqualizerStyleDialog(
                 settingsRepo.saveEqualizerStyle(newStyle)
                 showEqualizerStyleDialog.value = false
             },
-            onLockedStyleClick = { showLockedFeatureToast() }
+            onLockedStyleClick = { style -> showLockedFeatureToast(style.catalogId.orEmpty()) }
         )
     }
 }
@@ -426,7 +426,7 @@ internal fun SettingsFontDialog(
     showFontDialog: MutableState<Boolean>,
     appFontPref: MutableState<com.music.musicflame.ui.theme.AppFont>,
     unlockedIds: Set<String>,
-    showLockedFeatureToast: () -> Unit
+    showLockedFeatureToast: (String) -> Unit
 ) {
     if (showFontDialog.value) {
         com.music.musicflame.ui.components.AppFontPickerDialog(
@@ -441,7 +441,7 @@ internal fun SettingsFontDialog(
                 settingsRepo.saveAppFont(newFont.id)
                 showFontDialog.value = false
             },
-            onLockedFontClick = { showLockedFeatureToast() }
+            onLockedFontClick = { showLockedFeatureToast("font_comfortaa") }
         )
     }
 }
@@ -729,7 +729,7 @@ internal fun SettingsTextColorDialog(
     settingsRepo: SettingsRepository,
     showTextColorDialog: MutableState<Boolean>,
     unlockedIds: Set<String>,
-    showLockedFeatureToast: () -> Unit,
+    showLockedFeatureToast: (String) -> Unit,
     appTextColorPref: MutableState<String>,
     customTextColorHex: MutableState<String>
 ) {
@@ -750,14 +750,14 @@ internal fun SettingsTextColorDialog(
                                 .fillMaxWidth()
                                 .alpha(if (locked) 0.5f else 1f)
                                 .clickable {
-                                    if (locked) showLockedFeatureToast() else tempTextColor.value = colorOption
+                                    if (locked) showLockedFeatureToast("text_color_rainbow") else tempTextColor.value = colorOption
                                 }
                                 .padding(vertical = 8.dp)
                         ) {
                             RadioButton(
                                 selected = tempTextColor.value == colorOption,
                                 enabled = !locked,
-                                onClick = { if (locked) showLockedFeatureToast() else tempTextColor.value = colorOption }
+                                onClick = { if (locked) showLockedFeatureToast("text_color_rainbow") else tempTextColor.value = colorOption }
                             )
                             Spacer(Modifier.width(8.dp))
                             Column {
@@ -868,7 +868,7 @@ internal fun SettingsEqualizerColorDialog(
     equalizerColorModePref: MutableState<String>,
     equalizerCustomColorHexPref: MutableState<String>,
     unlockedIds: Set<String>,
-    showLockedFeatureToast: () -> Unit
+    showLockedFeatureToast: (String) -> Unit
 ) {
     if (showEqualizerColorDialog.value) {
         val tempEqColorMode = remember { mutableStateOf(equalizerColorModePref.value) }
@@ -899,14 +899,14 @@ internal fun SettingsEqualizerColorDialog(
                                 .fillMaxWidth()
                                 .alpha(if (locked) 0.5f else 1f)
                                 .clickable {
-                                    if (locked) showLockedFeatureToast() else tempEqColorMode.value = colorOption
+                                    if (locked) showLockedFeatureToast(if (colorOption == "Personalizado") "eq_color_custom" else "eq_color_rainbow") else tempEqColorMode.value = colorOption
                                 }
                                 .padding(vertical = 8.dp)
                         ) {
                             RadioButton(
                                 selected = tempEqColorMode.value == colorOption,
                                 enabled = !locked,
-                                onClick = { if (locked) showLockedFeatureToast() else tempEqColorMode.value = colorOption }
+                                onClick = { if (locked) showLockedFeatureToast(if (colorOption == "Personalizado") "eq_color_custom" else "eq_color_rainbow") else tempEqColorMode.value = colorOption }
                             )
                             Spacer(Modifier.width(8.dp))
                             Column {
@@ -1785,7 +1785,7 @@ internal fun SettingsNowPlayingColorDialog(
     nowPlayingColorModePref: MutableState<String>,
     nowPlayingCustomColorHexPref: MutableState<String>,
     unlockedIds: Set<String>,
-    showLockedFeatureToast: () -> Unit
+    showLockedFeatureToast: (String) -> Unit
 ) {
     if (showNowPlayingColorDialog.value) {
         val tempNowPlayingColorMode = remember { mutableStateOf(nowPlayingColorModePref.value) }
@@ -1814,14 +1814,14 @@ internal fun SettingsNowPlayingColorDialog(
                                 .fillMaxWidth()
                                 .alpha(if (locked) 0.5f else 1f)
                                 .clickable {
-                                    if (locked) showLockedFeatureToast() else tempNowPlayingColorMode.value = colorOption
+                                    if (locked) showLockedFeatureToast(if (colorOption == "Personalizado") "now_playing_custom" else "now_playing_rainbow") else tempNowPlayingColorMode.value = colorOption
                                 }
                                 .padding(vertical = 8.dp)
                         ) {
                             RadioButton(
                                 selected = tempNowPlayingColorMode.value == colorOption,
                                 enabled = !locked,
-                                onClick = { if (locked) showLockedFeatureToast() else tempNowPlayingColorMode.value = colorOption }
+                                onClick = { if (locked) showLockedFeatureToast(if (colorOption == "Personalizado") "now_playing_custom" else "now_playing_rainbow") else tempNowPlayingColorMode.value = colorOption }
                             )
                             Spacer(Modifier.width(8.dp))
                             Column {

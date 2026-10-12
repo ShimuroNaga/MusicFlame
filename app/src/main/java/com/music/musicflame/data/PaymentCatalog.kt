@@ -4,8 +4,7 @@ import androidx.annotation.StringRes
 import com.music.musicflame.R
 
 /**
- * Catálogo único de los ítems cosméticos vendidos por separado en Lemon
- * Squeezy, con su precio individual (usado para mostrar en la tabla
+ * Catálogo único de los ítems cosméticos vendidos por separado en Ko-fi, con su precio individual (usado para mostrar en la tabla
  * informativa/preview de Ajustes > Pagos, ver SettingsScreen).
  *
  * NOTA sobre "Adaptativo": es SIEMPRE gratis en los 3 selectores de color

@@ -232,13 +232,11 @@ class MainActivity : ComponentActivity() {
                 val trashRepo = remember { TrashRepository(context) }
                 val licenseRepo = remember { LicenseRepository(context) }
 
-                // Si ya hay una license key guardada, la revalidamos en segundo plano y en
-                // silencio (sin diálogos ni Toasts) para detectar si Lemon Squeezy la revocó
-                // o reembolsó. Si no hay internet, revalidateAllSilently() no toca el estado local.
+                // Al abrir la app se consultan en silencio (sin diálogos ni Toasts) las compras de
+                // Ko-fi del correo de la cuenta de Google (o el que se usó al restaurar), por si el
+                // usuario pagó fuera de la app. Si no hay internet, no se toca el estado local.
                 LaunchedEffect(Unit) {
-                    licenseRepo.revalidateAllSilently()
-                    // Por si Lemon Squeezy revocó/reembolsó la licencia (o la
-                    // reactivó) desde la última vez que se abrió la app.
+                    licenseRepo.restoreSilently()
                     com.music.musicflame.data.ProStatusHolder.refresh(context)
                 }
 

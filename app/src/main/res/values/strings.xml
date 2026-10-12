@@ -71,9 +71,7 @@
     <string name="settings_6_minimo">6 (mínimo)</string>
     <string name="settings_abrir">Abrir</string>
     <string name="settings_abrir_consola">Abrir Consola</string>
-    <string name="settings_activado_1_s_gracias_por_tu_apoyo">¡Activado! %1$s. Gracias por tu apoyo.</string>
     <string name="settings_activado_caratula_titulo_artista_y">Activado: carátula, título, artista y álbum se escriben de verdad en el archivo</string>
-    <string name="settings_activar">Activar</string>
     <string name="settings_actualizaciones">Actualizaciones</string>
     <string name="settings_actualizar">Actualizar</string>
     <string name="settings_adaptativo_color_del_tema">Adaptativo (color del tema)</string>
@@ -109,8 +107,6 @@
     <string name="settings_brillo_del_fondo">Brillo del fondo</string>
     <string name="settings_buscar_nueva_version">Buscar nueva versión</string>
     <string name="settings_busqueda_de_anomalias">Búsqueda de anomalías</string>
-    <string name="settings_cada_compra_te_llega_por_correo_co">Cada compra te llega por correo como una license key distinta. Pegá cada una acá para activarla.</string>
-    <string name="settings_cada_fila_es_un_producto_real_de_l">Cada fila es un producto real de Lemon Squeezy (algunos agrupan 2 ítems solo por el precio mínimo de la plataforma). El check indica si ya lo tenés.</string>
     <string name="settings_calculando">Calculando…</string>
     <string name="settings_cambia_el_widget_del_home_screen_a">Cambia el widget del home screen a una variante con letra completa (mínimo 3 líneas) y controles en grid. Se aplica al instante, sin tener que agrandar el widget a mano.</string>
     <string name="settings_chico">Chico</string>
@@ -130,7 +126,6 @@
     <string name="settings_como_funciona">¿Cómo funciona?</string>
     <string name="settings_compra_solo_lo_que_te_interesa_o_t">Compra solo lo que te interesa, o todo junto por $%1$s MXN</string>
     <string name="settings_comprar_todo_por_1_s_mxn">Comprar TODO por $%1$s MXN</string>
-    <string name="settings_compraste_varios_productos_sueltos">¿Compraste varios productos sueltos? Te llega una key distinta por cada uno — repetí el paso 5 con cada key. Todas quedan guardadas juntas y podés \"Quitar\" cualquiera sin afectar a las demás.</string>
     <string name="settings_comunidad">Comunidad</string>
     <string name="settings_comunidad_soporte_y_novedades_de_l">Comunidad, soporte y novedades de la app</string>
     <string name="settings_concede_acceso_a_todos_los_archivo">Concede \"Acceso a todos los archivos\" y vuelve a activar el interruptor</string>
@@ -152,7 +147,6 @@
     <string name="settings_detecta_caratulas_corruptas_metada">Detecta carátulas corruptas, metadata sospechosa, formatos sin soporte, canciones truncadas y posibles duplicados</string>
     <string name="settings_detectado">· detectado</string>
     <string name="settings_detiene_la_cancion_si_te_quitas_lo">Detiene la canción si te quitas los audífonos o se desconecta el Bluetooth</string>
-    <string name="settings_disponible_proximamente_esta_secci">Disponible próximamente. Esta sección todavía no está activa.</string>
     <string name="settings_duracion_maxima_segundos">Duración máxima (segundos)</string>
     <string name="settings_duracion_minima_segundos">Duración mínima (segundos)</string>
     <string name="settings_ecualizador">Ecualizador</string>
@@ -160,7 +154,6 @@
     <string name="settings_editar_diseno">Editar diseño</string>
     <string name="settings_el_reproductor_se_ve_como_siempre">El reproductor se ve como siempre</string>
     <string name="settings_el_texto_del_widget_siempre_lleva">El texto del widget siempre lleva una sombra para seguir viéndose claro aunque el fondo quede casi transparente.</string>
-    <string name="settings_elegi_que_comprar_un_producto_suel">Elegí qué comprar: un producto suelto de la tabla de abajo, o \"Comprar TODO\" para desbloquear las %1$s personalizaciones de una vez.</string>
     <string name="settings_elegir_imagen_o_gif">Elegir imagen o GIF</string>
     <string name="settings_elegir_tema">Elegir Tema</string>
     <string name="settings_elegir_un_archivo_json_exportado_a">Elegir un archivo .json exportado antes</string>
@@ -170,8 +163,6 @@
     <string name="settings_elige_una_imagen_o_gif_para_activa">Elige una imagen o GIF para activar el fondo.</string>
     <string name="settings_eq_pro_10_bandas">EQ PRO — 10 Bandas</string>
     <string name="settings_error_desconocido">error desconocido</string>
-    <string name="settings_es_pago_unico_no_es_suscripcion_pa">Es pago único (no es suscripción): pagás una sola vez y lo comprado es tuyo para siempre.</string>
-    <string name="settings_esa_key_ya_esta_activada">Esa key ya está activada.</string>
     <string name="settings_escala_de_grises">Escala de grises</string>
     <string name="settings_especificaciones_tecnicas">Especificaciones Técnicas</string>
     <string name="settings_estado">Estado</string>
@@ -255,7 +246,6 @@
     <string name="settings_original">Original</string>
     <string name="settings_original_version_anterior">Original (versión anterior)</string>
     <string name="settings_oscuro">Oscuro</string>
-    <string name="settings_paga_ahi_con_tarjeta_o_el_metodo_q">Pagá ahí con tarjeta o el método que te muestre Lemon Squeezy.</string>
     <string name="settings_paleta_de_colores">Paleta de Colores</string>
     <string name="settings_para_solicitar_autorizacion_o_coor">Para solicitar autorización o coordinar una colaboración, contacta al desarrollador a través del repositorio de GitHub o el servidor de Discord de la comunidad (sección \"Especificaciones\" &gt; \"Comunidad\").</string>
     <string name="settings_para_ver_la_letra_abre_el_reproduc">Para ver la letra: abre el reproductor a pantalla completa y desliza la pantalla (no la carátula) hacia la derecha.</string>
@@ -264,7 +254,6 @@
     <string name="settings_pausa_la_reproduccion_automaticame">Pausa la reproducción automáticamente</string>
     <string name="settings_pausando_en_02d_02d" formatted="false">Pausando en %02d:%02d</string>
     <string name="settings_pausar_al_desconectar_audifonos">Pausar al desconectar audífonos</string>
-    <string name="settings_pega_aqui_la_key_que_te_llego_por">Pega aquí la key que te llegó por correo</string>
     <string name="settings_pega_tu_personal_access_token_de_g">Pegá tu Personal Access Token de GitHub (fine-grained, permiso \"Contents: Read and write\" solo sobre este repo). Se guarda cifrado, solo en este dispositivo.</string>
     <string name="settings_personalizado_1_s">Personalizado: %1$s</string>
     <string name="settings_preset_activo_1_s">Preset activo: %1$s</string>
@@ -286,7 +275,6 @@
     <string name="settings_segundo_plano_activado">Segundo plano activado</string>
     <string name="settings_segundo_plano_desactivado">Segundo plano desactivado</string>
     <string name="settings_siguiendo_al_sistema">Siguiendo al sistema</string>
-    <string name="settings_sin_conexion_revisa_tu_internet_e">Sin conexión. Revisa tu internet e intenta de nuevo.</string>
     <string name="settings_sin_fondo">Sin fondo</string>
     <string name="settings_sin_foto_de_perfil">Sin foto de perfil</string>
     <string name="settings_sin_usuario_por_favor_registrese">Sin usuario, por favor regístrese</string>
@@ -299,7 +287,6 @@
     <string name="settings_studio_pro_eq">Studio Pro EQ</string>
     <string name="settings_tamano_de_caratulas_de_albumes">Tamaño de carátulas de álbumes</string>
     <string name="settings_tamano_de_letra">Tamaño de letra</string>
-    <string name="settings_te_llega_un_correo_con_tu_license">Te llega un correo con tu license key de esa compra.</string>
     <string name="settings_te_quedan_1_s_2_s_archivo_s_en_sal">Te quedan %1$s · %2$s archivo(s) en salas</string>
     <string name="settings_tecnologia">Tecnología</string>
     <string name="settings_tema_actual_1_s">Tema actual: %1$s</string>
@@ -307,13 +294,10 @@
     <string name="settings_temporizador_de_apagado">Temporizador de apagado</string>
     <string name="settings_tipo_de_animacion">Tipo de animación</string>
     <string name="settings_tipo_de_letra">Tipo de letra</string>
-    <string name="settings_toca_comprar_se_abre_el_checkout_d">Tocá \"Comprar\": se abre el checkout de Lemon Squeezy fuera de la app (en el navegador).</string>
     <string name="settings_toca_para_ver_tu_cuenta">Toca para ver tu cuenta</string>
-    <string name="settings_todavia_no_activaste_ninguna_licen">Todavía no activaste ninguna licencia.</string>
     <string name="settings_token_save_failed">No se pudo guardar el token: %1$s</string>
     <string name="settings_transparente">Transparente</string>
     <string name="settings_tu_mascota_interactiva">Tu mascota interactiva</string>
-    <string name="settings_tus_licencias">Tus licencias</string>
     <string name="settings_una_sola_compra_de_todo_desbloquea">Una sola compra de \"TODO\" desbloquea las %1$s personalizaciones de una vez. MusicFlame en sí es y seguirá siendo gratis.</string>
     <string name="settings_unete_al_discord">Únete al Discord</string>
     <string name="settings_unexpected_error">Error inesperado: %1$s: %2$s</string>
@@ -333,12 +317,9 @@
     <string name="settings_vista_previa">Vista previa</string>
     <string name="settings_vista_previa_del_fondo">Vista previa del fondo</string>
     <string name="settings_voltaje">Voltaje</string>
-    <string name="settings_volve_a_la_app_pega_esa_key_en_tus">Volvé a la app, pegá esa key en \"Tus licencias\" (más abajo) y tocá \"Activar\": se desbloquea al instante, sin reiniciar la app.</string>
     <string name="settings_volver">Volver</string>
     <string name="settings_volver_a_0">Volver a 0</string>
     <string name="settings_widget_cuadrado_de_letra_completa">Widget cuadrado de letra completa</string>
-    <string name="settings_ya_la_tenes">Ya la tenés</string>
-    <string name="settings_ya_tenes_todo_desbloqueado">Ya tenés todo desbloqueado</string>
     <string name="main_login_error">Error al iniciar sesión</string>
     <string name="main_permission_needed">Se requiere permiso para leer tu música</string>
     <string name="main_latest_version">Ya tienes la última versión</string>

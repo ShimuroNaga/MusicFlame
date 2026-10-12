@@ -58,7 +58,7 @@ import androidx.compose.ui.unit.sp
 fun EqualizerStylePickerDialog(
     currentStyle: EqualizerStyle,
     // Antes era un solo Boolean ("todo o nada"); ahora cada estilo puede estar
-    // en un producto distinto de Lemon Squeezy (ver EqualizerStyle.catalogId +
+    // en un producto distinto de Ko-fi (ver EqualizerStyle.catalogId +
     // LicenseRepository), así que se recibe una función que resuelve el
     // desbloqueo estilo por estilo. Pasar { style -> ProStatusHolder.isItemUnlocked(style.catalogId ?: "") }
     // desde SettingsScreen.kt (BARS tiene catalogId null, así que ese branch

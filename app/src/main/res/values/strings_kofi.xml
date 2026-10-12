@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="kofi_one_time">Es pago único (no es suscripción): pagas una sola vez y lo comprado es tuyo para siempre.</string>
+    <string name="kofi_step_choose">Elige qué comprar: un producto suelto de la tabla de abajo, o \"Comprar TODO\" para desbloquear las %1$s personalizaciones de una vez.</string>
+    <string name="kofi_step_open">Toca el botón del producto: se abre la tienda de Ko-fi en el navegador.</string>
+    <string name="kofi_step_pay">Paga ahí con el método que te ofrezca Ko-fi.</string>
+    <string name="kofi_step_email">Usa el mismo correo de tu cuenta de Google, o anota el que uses para el paso siguiente.</string>
+    <string name="kofi_step_restore">Vuelve a la app y toca \"Restaurar compras\": se desbloquea al instante.</string>
+    <string name="kofi_catalog_sub">Cada fila es un producto de la tienda de Ko-fi (algunos agrupan 2 ítems por el precio mínimo de la plataforma). El check indica si ya lo tienes.</string>
+    <string name="kofi_soon">Próximamente</string>
+    <string name="kofi_have_all">Ya tienes todo desbloqueado</string>
+    <string name="kofi_have_it">Ya lo tienes</string>
+    <string name="kofi_purchases_title">Tus compras</string>
+    <string name="kofi_purchases_sub">Las compras se detectan por el correo con el que pagaste en Ko-fi.</string>
+    <string name="kofi_none_yet">Todavía no hay compras restauradas en este dispositivo.</string>
+    <string name="kofi_email_label">Correo usado en Ko-fi (opcional)</string>
+    <string name="kofi_email_hint">Déjalo vacío para usar el de tu cuenta de Google</string>
+    <string name="kofi_restore">Restaurar compras</string>
+    <string name="kofi_clear">Quitar compras de este dispositivo</string>
+    <string name="kofi_restored">¡Listo! Se desbloqueó: %1$s. Gracias por tu apoyo.</string>
+    <string name="kofi_unrecognized">Encontré compras con ese correo, pero aún no reconozco qué desbloquean. Avisa al desarrollador.</string>
+    <string name="kofi_nothing_found">No encontré compras con ese correo. Si acabas de pagar, espera un minuto y vuelve a intentarlo; si pagaste con otro correo, escríbelo arriba.</string>
+    <string name="kofi_need_email">Inicia sesión con Google o escribe el correo que usaste en Ko-fi.</string>
+    <string name="kofi_network_error">Sin conexión o el servidor no respondió. Revisa tu internet e inténtalo de nuevo.</string>
+</resources>

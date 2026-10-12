@@ -28,7 +28,7 @@
     <string name="pe_locked">PRO EQ locked</string>
     <string name="pe_locked_desc">Locked</string>
     <string name="pe_paid_desc">The 10-band equalizer with its own engine, pre-amp, presets and volume normalization between songs is a paid feature.</string>
-    <string name="pe_license_hint">Already have your license key? Activate it in Settings → License.</string>
+    <string name="pe_license_hint">Already bought it? Restore your purchases in Settings → Payments.</string>
     <string name="d_original_order">Original order</string>
     <string name="d_albums_songs">%1$d albums · %2$d songs</string>
     <string name="d_recently_added">Recently added</string>

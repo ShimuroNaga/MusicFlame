@@ -10,18 +10,18 @@ import androidx.compose.runtime.mutableStateOf
  * cambia, sin necesidad de cerrar y reabrir la app.
  *
  * REEMPLAZA el [isProUnlocked] booleano único de antes: ahora que cada
- * compra en Lemon Squeezy desbloquea solo un subconjunto del catálogo (ver
+ * compra en Ko-fi desbloquea solo un subconjunto del catálogo (ver
  * LicenseRepository.isItemUnlocked/unlockedItemIds), un solo booleano ya no
  * alcanza. El valor vive en un solo mutableStateOf<Set<String>> compartido;
  * cualquier composable que lea [isItemUnlocked] se recompone automáticamente
  * en cuanto cambia, sin importar por cuál camino se haya desbloqueado
- * (cuenta dueña, o cualquiera de las licencias compradas).
+ * (cuenta dueña, o cualquiera de los productos comprados).
  *
  * Llamar a [refresh] justo después de:
  *  - Iniciar sesión con Google exitosamente (MainActivity, login por correo)
- *  - revalidateAllSilently() al abrir la app (MainActivity)
- *  - Validar una license key nueva (SettingsScreen, pago)
- *  - Quitar una o todas las licencias (SettingsScreen)
+ *  - restoreSilently() al abrir la app (MainActivity)
+ *  - Restaurar compras (SettingsScreen, pago)
+ *  - Quitar las compras guardadas (SettingsScreen)
  */
 object ProStatusHolder {
     private val unlockedIdsState = mutableStateOf<Set<String>>(emptySet())

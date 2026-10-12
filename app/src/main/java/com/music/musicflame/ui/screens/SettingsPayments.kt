@@ -135,8 +135,7 @@ import com.music.musicflame.audio.EqPresets
 import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.DeviceInfoProvider
 import com.music.musicflame.data.LicenseRepository
-import com.music.musicflame.data.LicenseStatus
-import com.music.musicflame.data.LicenseValidationResult
+import com.music.musicflame.data.RestoreResult
 import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.together.SupabaseSalas
@@ -145,28 +144,28 @@ import com.music.musicflame.widget.MusicFlameWidgetProvider
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-/** Sección "Pagos (opcional)" de Ajustes. Código movido tal cual desde SettingsScreen.kt (sin cambios de comportamiento). */
+/** Sección "Pagos (opcional)" de Ajustes: compra en la tienda de Ko-fi y "Restaurar compras" (consulta a Supabase). */
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 internal fun LazyListScope.settingsPaymentsSection(
     style: SettingsStyle,
     context: Context,
     licenseRepo: LicenseRepository,
-    licenseInputState: MutableState<String>,
-    savedLicensesState: MutableState<List<com.music.musicflame.data.SavedLicense>>,
-    isValidatingState: MutableState<Boolean>,
+    restoreEmailState: MutableState<String>,
+    purchasedState: MutableState<List<com.music.musicflame.data.KofiProduct>>,
+    isRestoringState: MutableState<Boolean>,
     errorMessageState: MutableState<String?>,
     paymentsScope: kotlinx.coroutines.CoroutineScope,
     paymentsSectionLocked: Boolean,
     unlockedIds: Set<String>
 ) {
-    var licenseInput by licenseInputState
-    var savedLicenses by savedLicensesState
-    var isValidating by isValidatingState
+    var restoreEmail by restoreEmailState
+    var purchased by purchasedState
+    var isRestoring by isRestoringState
     var errorMessage by errorMessageState
 
     item { SettingsSectionHeader(style, stringResource(R.string.settings_licencia_de_apoyo_opcional)) }
 
-    // --- PASO A PASO: cómo comprar y activar ---
+    // --- PASO A PASO: cómo comprar y restaurar ---
     item {
         Card(
             modifier = Modifier
@@ -183,18 +182,18 @@ internal fun LazyListScope.settingsPaymentsSection(
                     fontSize = 15.sp
                 )
                 Text(
-                    stringResource(R.string.settings_es_pago_unico_no_es_suscripcion_pa),
+                    stringResource(R.string.kofi_one_time),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                 )
 
                 val steps = listOf(
-                    stringResource(R.string.settings_elegi_que_comprar_un_producto_suel, com.music.musicflame.data.PaymentCatalog.ITEMS.size),
-                    stringResource(R.string.settings_toca_comprar_se_abre_el_checkout_d),
-                    stringResource(R.string.settings_paga_ahi_con_tarjeta_o_el_metodo_q),
-                    stringResource(R.string.settings_te_llega_un_correo_con_tu_license),
-                    stringResource(R.string.settings_volve_a_la_app_pega_esa_key_en_tus)
+                    stringResource(R.string.kofi_step_choose, com.music.musicflame.data.PaymentCatalog.ITEMS.size),
+                    stringResource(R.string.kofi_step_open),
+                    stringResource(R.string.kofi_step_pay),
+                    stringResource(R.string.kofi_step_email),
+                    stringResource(R.string.kofi_step_restore)
                 )
                 steps.forEachIndexed { index, step ->
                     Row(
@@ -219,14 +218,6 @@ internal fun LazyListScope.settingsPaymentsSection(
                         Text(step, fontSize = 12.sp, modifier = Modifier.weight(1f))
                     }
                 }
-
-                Spacer(Modifier.height(8.dp))
-                Text(
-                    stringResource(R.string.settings_compraste_varios_productos_sueltos),
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.padding(top = 4.dp)
-                )
             }
         }
     }
@@ -241,7 +232,7 @@ internal fun LazyListScope.settingsPaymentsSection(
         )
     }
 
-    // --- "COMPRAR TODO" (producto TODO de Lemon Squeezy) ---
+    // --- "COMPRAR TODO" (producto TODO de la tienda de Ko-fi) ---
     item {
         Card(
             modifier = Modifier
@@ -267,28 +258,10 @@ internal fun LazyListScope.settingsPaymentsSection(
                     )
                 }
 
-                if (paymentsSectionLocked) {
-                    Spacer(Modifier.height(12.dp))
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            Icons.Filled.Lock,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f),
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(Modifier.width(8.dp))
-                        Text(
-                            stringResource(R.string.settings_disponible_proximamente_esta_secci),
-                            fontSize = 12.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.8f)
-                        )
-                    }
-                }
-
                 Spacer(Modifier.height(12.dp))
 
                 val hasEverything = com.music.musicflame.data.PaymentCatalog.ITEMS.all { unlockedIds.contains(it.id) }
+                val buyAllUrl = LicenseRepository.buyAllUrl()
                 if (hasEverything) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
@@ -298,7 +271,7 @@ internal fun LazyListScope.settingsPaymentsSection(
                         )
                         Spacer(Modifier.width(8.dp))
                         Text(
-                            stringResource(R.string.settings_ya_tenes_todo_desbloqueado),
+                            stringResource(R.string.kofi_have_all),
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onTertiaryContainer
                         )
@@ -306,20 +279,25 @@ internal fun LazyListScope.settingsPaymentsSection(
                 } else {
                     Button(
                         onClick = {
-                            val intent = Intent(Intent.ACTION_VIEW, Uri.parse(com.music.musicflame.data.LicenseRepository.CHECKOUT_URL_TODO))
-                            context.startActivity(intent)
+                            if (buyAllUrl != null) {
+                                context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(buyAllUrl)))
+                            }
                         },
-                        enabled = !paymentsSectionLocked,
+                        enabled = !paymentsSectionLocked && buyAllUrl != null,
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(stringResource(R.string.settings_comprar_todo_por_1_s_mxn, com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN), fontWeight = FontWeight.Bold)
+                        Text(
+                            if (buyAllUrl != null) stringResource(R.string.settings_comprar_todo_por_1_s_mxn, com.music.musicflame.data.PaymentCatalog.TOTAL_PRICE_MXN)
+                            else stringResource(R.string.kofi_soon),
+                            fontWeight = FontWeight.Bold
+                        )
                     }
                 }
             }
         }
     }
 
-    // --- TABLA DEL CATÁLOGO: estado real por ítem + botón "Comprar" por producto ---
+    // --- TABLA DEL CATÁLOGO: estado real por producto + botón de compra ---
     item {
         Card(
             modifier = Modifier
@@ -336,23 +314,22 @@ internal fun LazyListScope.settingsPaymentsSection(
                     fontSize = 15.sp
                 )
                 Text(
-                    stringResource(R.string.settings_cada_fila_es_un_producto_real_de_l),
+                    stringResource(R.string.kofi_catalog_sub),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                 )
 
-                // Un "producto" = una entrada del mapa (no un ítem del catálogo
-                // suelto), así que si 2 ítems están agrupados aparecen en UNA
-                // sola fila con un solo botón "Comprar" (mismo checkout link).
-                com.music.musicflame.data.LicenseRepository.PRODUCT_NAME_TO_CATALOG_IDS
-                    .filterKeys { it != "TODO" }
-                    .forEach { (productName, ids) ->
-                        val itemsInProduct = com.music.musicflame.data.PaymentCatalog.ITEMS.filter { it.id in ids }
+                // Un "producto" = una entrada de KOFI_PRODUCTS (no un ítem del catálogo suelto),
+                // así que si 2 ítems están agrupados aparecen en UNA sola fila con un solo botón.
+                LicenseRepository.KOFI_PRODUCTS
+                    .filter { !it.catalogIds.contains(LicenseRepository.ALL_ITEMS_ID) }
+                    .forEach { product ->
+                        val itemsInProduct = com.music.musicflame.data.PaymentCatalog.ITEMS.filter { it.id in product.catalogIds }
                         val label = itemsInProduct.joinToString(" + ") { it.displayLabel(context) }
                         val priceMxn = itemsInProduct.sumOf { it.priceMxn }
-                        val owned = ids.all { unlockedIds.contains(it) }
-                        val checkoutUrl = com.music.musicflame.data.LicenseRepository.PRODUCT_NAME_TO_CHECKOUT_URL[productName]
+                        val owned = product.catalogIds.all { unlockedIds.contains(it) }
+                        val checkoutUrl = product.url
 
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
@@ -370,7 +347,7 @@ internal fun LazyListScope.settingsPaymentsSection(
                             Text(label, fontSize = 13.sp, modifier = Modifier.weight(1f))
                             if (owned) {
                                 Text(
-                                    stringResource(R.string.settings_ya_la_tenes),
+                                    stringResource(R.string.kofi_have_it),
                                     fontSize = 12.sp,
                                     fontWeight = FontWeight.Bold,
                                     color = MaterialTheme.colorScheme.primary
@@ -385,7 +362,10 @@ internal fun LazyListScope.settingsPaymentsSection(
                                     enabled = !paymentsSectionLocked && checkoutUrl != null,
                                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 4.dp)
                                 ) {
-                                    Text("$$priceMxn MXN", fontSize = 12.sp)
+                                    Text(
+                                        if (checkoutUrl != null) "$$priceMxn MXN" else stringResource(R.string.kofi_soon),
+                                        fontSize = 12.sp
+                                    )
                                 }
                             }
                         }
@@ -394,7 +374,7 @@ internal fun LazyListScope.settingsPaymentsSection(
         }
     }
 
-    // --- LICENCIAS GUARDADAS + CAMPO PARA PEGAR UNA NUEVA ---
+    // --- TUS COMPRAS + RESTAURAR ---
     item {
         Card(
             modifier = Modifier
@@ -407,59 +387,53 @@ internal fun LazyListScope.settingsPaymentsSection(
         ) {
             Column(modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Text(
-                    stringResource(R.string.settings_tus_licencias),
+                    stringResource(R.string.kofi_purchases_title),
                     fontWeight = FontWeight.Bold,
                     fontSize = 15.sp
                 )
                 Text(
-                    stringResource(R.string.settings_cada_compra_te_llega_por_correo_co),
+                    stringResource(R.string.kofi_purchases_sub),
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp, bottom = 12.dp)
                 )
 
-                if (savedLicenses.isEmpty()) {
+                if (purchased.isEmpty()) {
                     Text(
-                        stringResource(R.string.settings_todavia_no_activaste_ninguna_licen),
+                        stringResource(R.string.kofi_none_yet),
                         fontSize = 13.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
-                    savedLicenses.forEach { lic ->
+                    purchased.forEach { product ->
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.fillMaxWidth().padding(vertical = 6.dp)
                         ) {
                             Icon(
-                                if (lic.status == LicenseStatus.ACTIVE.name) Icons.Filled.CloudDone else Icons.Filled.Lock,
+                                Icons.Filled.CloudDone,
                                 contentDescription = null,
                                 modifier = Modifier.size(18.dp),
-                                tint = if (lic.status == LicenseStatus.ACTIVE.name) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                tint = MaterialTheme.colorScheme.primary
                             )
                             Spacer(Modifier.width(8.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    licenseRepo.labelFor(lic.unlockedItemIds),
-                                    fontSize = 13.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                                Text(
-                                    licenseRepo.mask(lic.key) + (lic.lastError?.let { " · $it" } ?: ""),
-                                    fontSize = 11.sp,
-                                    color = if (lic.lastError != null) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            TextButton(
-                                onClick = {
-                                    licenseRepo.removeLicense(lic.key)
-                                    savedLicenses = licenseRepo.getSavedLicenses()
-                                    com.music.musicflame.data.ProStatusHolder.refresh(context)
-                                },
-                                enabled = !paymentsSectionLocked
-                            ) {
-                                Text(stringResource(R.string.settings_quitar), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                            }
+                            Text(
+                                licenseRepo.labelFor(product.catalogIds),
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                modifier = Modifier.weight(1f)
+                            )
                         }
+                    }
+                    TextButton(
+                        onClick = {
+                            licenseRepo.clearPurchases()
+                            purchased = licenseRepo.recognizedProducts()
+                            com.music.musicflame.data.ProStatusHolder.refresh(context)
+                        },
+                        enabled = !paymentsSectionLocked
+                    ) {
+                        Text(stringResource(R.string.kofi_clear), color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
                     }
                 }
 
@@ -474,14 +448,14 @@ internal fun LazyListScope.settingsPaymentsSection(
 
                 Spacer(Modifier.height(16.dp))
 
-                // --- CAMPO PARA PEGAR UNA LICENSE KEY NUEVA ---
+                // Opcional: solo hace falta si pagaste en Ko-fi con un correo distinto al de tu cuenta de Google.
                 OutlinedTextField(
-                    value = licenseInput,
-                    onValueChange = { licenseInput = it },
-                    label = { Text("License key") },
-                    placeholder = { Text(stringResource(R.string.settings_pega_aqui_la_key_que_te_llego_por)) },
+                    value = restoreEmail,
+                    onValueChange = { restoreEmail = it },
+                    label = { Text(stringResource(R.string.kofi_email_label)) },
+                    placeholder = { Text(stringResource(R.string.kofi_email_hint)) },
                     singleLine = true,
-                    enabled = !isValidating && !paymentsSectionLocked,
+                    enabled = !isRestoring && !paymentsSectionLocked,
                     modifier = Modifier.fillMaxWidth()
                 )
 
@@ -489,49 +463,42 @@ internal fun LazyListScope.settingsPaymentsSection(
 
                 Button(
                     onClick = {
-                        val keyToValidate = licenseInput
-                        isValidating = true
+                        val typedEmail = restoreEmail
+                        isRestoring = true
                         errorMessage = null
                         paymentsScope.launch {
-                            when (val result = licenseRepo.validateAndAdd(keyToValidate)) {
-                                is LicenseValidationResult.Success -> {
-                                    savedLicenses = licenseRepo.getSavedLicenses()
-                                    licenseInput = ""
+                            when (val result = licenseRepo.restorePurchases(typedEmail)) {
+                                is RestoreResult.Success -> {
+                                    purchased = licenseRepo.recognizedProducts()
+                                    restoreEmail = ""
                                     errorMessage = null
-                                    // Activa la personalización comprada al instante
-                                    // en toda la app (tema, reproductor, etc.).
+                                    // Activa lo comprado al instante en toda la app (tema, reproductor, etc.).
                                     com.music.musicflame.data.ProStatusHolder.refresh(context)
                                     Toast.makeText(
                                         context,
-                                        context.getString(R.string.settings_activado_1_s_gracias_por_tu_apoyo, result.unlockedLabel),
+                                        context.getString(R.string.kofi_restored, result.unlockedLabel),
                                         Toast.LENGTH_LONG
                                     ).show()
                                 }
-                                is LicenseValidationResult.Invalid -> {
-                                    savedLicenses = licenseRepo.getSavedLicenses()
-                                    errorMessage = result.reason
-                                }
-                                LicenseValidationResult.AlreadyAdded -> {
-                                    errorMessage = context.getString(R.string.settings_esa_key_ya_esta_activada)
-                                }
-                                LicenseValidationResult.NetworkError -> {
-                                    errorMessage = context.getString(R.string.settings_sin_conexion_revisa_tu_internet_e)
-                                }
+                                RestoreResult.Unrecognized -> errorMessage = context.getString(R.string.kofi_unrecognized)
+                                RestoreResult.NothingFound -> errorMessage = context.getString(R.string.kofi_nothing_found)
+                                RestoreResult.NeedEmail -> errorMessage = context.getString(R.string.kofi_need_email)
+                                RestoreResult.NetworkError -> errorMessage = context.getString(R.string.kofi_network_error)
                             }
-                            isValidating = false
+                            isRestoring = false
                         }
                     },
-                    enabled = !isValidating && !paymentsSectionLocked && licenseInput.isNotBlank(),
+                    enabled = !isRestoring && !paymentsSectionLocked,
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    if (isValidating) {
+                    if (isRestoring) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(18.dp),
                             strokeWidth = 2.dp,
                             color = MaterialTheme.colorScheme.onPrimary
                         )
                     } else {
-                        Text(stringResource(R.string.settings_activar))
+                        Text(stringResource(R.string.kofi_restore))
                     }
                 }
             }

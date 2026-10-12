@@ -134,10 +134,8 @@ import com.music.musicflame.R
 import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.LicenseRepository
-import com.music.musicflame.data.LicenseStatus
 import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.together.SupabaseSalas
-import com.music.musicflame.data.LicenseValidationResult
 import com.music.musicflame.data.DeviceInfoProvider
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.widget.MusicFlameWidgetProvider
@@ -316,15 +314,12 @@ fun SettingsScreen(
     //
     // CAMBIO DE ARQUITECTURA (venta por ítem separado, ya NO todo-o-nada): ahora
     // el usuario puede terminar con VARIAS license keys guardadas (una por cada
-    // producto que compró en Lemon Squeezy), por eso el estado es una lista
+    // producto que compró en Ko-fi), por eso el estado es una lista
     // (savedLicenses) en vez de una sola key/status/productName como antes.
     val licenseRepo = remember { LicenseRepository(context) }
-    val licenseInputState = remember { mutableStateOf("") }
-    var licenseInput by licenseInputState
-    val savedLicensesState = remember { mutableStateOf(licenseRepo.getSavedLicenses()) }
-    var savedLicenses by savedLicensesState
-    val isValidatingState = remember { mutableStateOf(false) }
-    var isValidating by isValidatingState
+    val restoreEmailState = remember { mutableStateOf("") }
+    val purchasedState = remember { mutableStateOf(licenseRepo.recognizedProducts()) }
+    val isRestoringState = remember { mutableStateOf(false) }
     val errorMessageState = remember { mutableStateOf<String?>(null) }
     var errorMessage by errorMessageState
     val paymentsScope = rememberCoroutineScope()
@@ -337,7 +332,7 @@ fun SettingsScreen(
     // ecualizador, colores, widget vinilo, EQ Pro): true ítem por ítem, según
     // qué compró el usuario (o si es el dueño, ver LicenseRepository.isOwnerAccount).
     // Independiente de paymentsSectionLocked de arriba, que solo bloquea la UI de
-    // "pegar license key" mientras no exista la tienda real.
+    // "restaurar compras" mientras no exista la tienda real.
     // Reactivo (ver ProStatusHolder): se actualiza solo apenas se valida una
     // key o se inicia sesión con la cuenta dueña, sin esperar a reabrir esta
     // pantalla ni la app.
@@ -971,10 +966,10 @@ fun SettingsScreen(
                         )
                     }
 
-                    // PAGOS (OPCIONAL) — Licencia de apoyo vía Lemon Squeezy
+                    // PAGOS (OPCIONAL) — Licencia de apoyo vía Ko-fi
                     // CAMBIO DE ARQUITECTURA (venta por ítem separado, ya NO todo-o-nada):
                     // cada ítem (o grupo chico de 2, agrupados solo por precio mínimo de
-                    // Lemon Squeezy) es un producto propio con su propia license key. El
+                    // Ko-fi) es un producto propio con su propia license key. El
                     // usuario puede comprar solo lo que le interesa, o "TODO" de una vez.
                     // Puede terminar con VARIAS keys guardadas — ver savedLicenses arriba.
                     if (activeSection.value == "Pagos (opcional)") {
@@ -982,9 +977,9 @@ fun SettingsScreen(
                             style = settingsStyle,
                             context = context,
                             licenseRepo = licenseRepo,
-                            licenseInputState = licenseInputState,
-                            savedLicensesState = savedLicensesState,
-                            isValidatingState = isValidatingState,
+                            restoreEmailState = restoreEmailState,
+                            purchasedState = purchasedState,
+                            isRestoringState = isRestoringState,
                             errorMessageState = errorMessageState,
                             paymentsScope = paymentsScope,
                             paymentsSectionLocked = paymentsSectionLocked,

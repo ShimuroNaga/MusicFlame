@@ -28,7 +28,7 @@
     <string name="pe_locked">EQ PRO bloqueado</string>
     <string name="pe_locked_desc">Bloqueado</string>
     <string name="pe_paid_desc">El ecualizador de 10 bandas con motor propio, pre-amp, presets y normalización de volumen entre canciones es una función de pago.</string>
-    <string name="pe_license_hint">¿Ya tienes tu license key? Actívala en Ajustes → Licencia.</string>
+    <string name="pe_license_hint">¿Ya compraste? Restaura tus compras en Ajustes → Pagos.</string>
     <string name="d_original_order">Orden original</string>
     <string name="d_albums_songs">%1$d álbumes · %2$d canciones</string>
     <string name="d_recently_added">Agregadas recientemente</string>

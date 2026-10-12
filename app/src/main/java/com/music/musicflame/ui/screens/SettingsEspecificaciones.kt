@@ -135,8 +135,6 @@ import com.music.musicflame.audio.EqPresets
 import com.music.musicflame.data.AppIconManager
 import com.music.musicflame.data.DeviceInfoProvider
 import com.music.musicflame.data.LicenseRepository
-import com.music.musicflame.data.LicenseStatus
-import com.music.musicflame.data.LicenseValidationResult
 import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.together.SupabaseSalas

@@ -19,17 +19,23 @@
 
 ---
 
-## 🆕 Novedades 3.12
+## 🆕 Novedades 3.2
 
-* Selector de tipo y tamaño de letra para toda la app
-* 6 estilos nuevos de ecualizador + color personalizable
-* Nuevo widget de vinilo giratorio
-* Navegación por artista y por género
-* Guardado real de metadatos en el archivo de audio
-* Panel de formatos de audio + búsqueda de anomalías
-* Corregidos bugs de carátula (notificación, repetidas, ícono de carga)
-* Mejor rendimiento (fix de lag del modo Arcoíris y de la pantalla completa)
-* Sistema de compras para extras cosméticos
+* **Idiomas:** la app ahora está en español e inglés (selector dentro de la app)
+* **En compañía:** salas para escuchar música juntos, con sincronización de reproducción; los invitados escuchan lo que pone el anfitrión aunque no tengan el archivo (con permiso del anfitrión y notificación)
+* **Momentos y Mix:** marca tu fragmento favorito de una canción (ej. el coro), "Mezcla de Momentos" junto al Mix Diario (ahora de 40 canciones) y comparte un Momento como video vertical
+* **Ecualizador Pro de 10 bandas** con preamp, comparación A/B, presets y normalización de volumen entre canciones; más presets para el ecualizador normal
+* **Más estilos de ecualizador** (Osciloscopio, Skyline, Lluvia, Pelea de stickmen…) y modo **Arcoíris**
+* **Editor de diseño de carátula** (figura, redondeado, lados y transparencia), también en el reproductor expandido
+* **Títulos con formato** estilo Minecraft (códigos §) solo como capa visual, sin tocar el archivo
+* **Fondo propio** para el reproductor expandido, independiente del fondo de la app
+* **Hogar de Shimuro:** mascota interactiva y nuevo onboarding
+* **Accesos rápidos:** tiles de Reproducir/Pausar y Mezclar en el panel del celular, y atajos al mantener pulsado el ícono (reanudar, mezclar todo, favoritas)
+* **Copia de seguridad** de la configuración (exportar/importar `.json`) e información del dispositivo en Cuenta
+* **Playlists:** renombrar y carátula personalizada para "Lo Más Sonado" y "Por Descubrir"
+* **Compras vía Ko-fi** (se paga con PayPal) por packs de personalizaciones, con "Restaurar compras" por correo
+* Licencias de terceros dentro de la app y [política de privacidad](PRIVACY.md)
+* Correcciones: botones de la tarjeta de reproducción del sistema, ícono de la notificación, congelamientos del mini reproductor y mejoras de rendimiento
 
 ---
 
@@ -61,5 +67,13 @@ Gracias a **naofresita18** y **deivid-boop** por su ayuda en *testing* y reporte
 
 ---
 
+## 📄 Licencia y privacidad
+
+Copyright © 2026 ShimuroNaga. **Todos los derechos reservados.** El código se publica solo para consulta: no se permite copiarlo, modificarlo ni redistribuirlo sin permiso previo por escrito. Ver [LICENSE](LICENSE).
+
+Política de privacidad: [PRIVACY.md](PRIVACY.md).
+
+---
+
 > ## ⛔ Aviso de propiedad
-> MusicFlame es de código abierto **solo en este repositorio**. Prohibido resubirlo a otras tiendas o webs sin permiso previo (contáctame por correo o Discord). El rehosting no autorizado será denunciado por DMCA.
+> El código de MusicFlame es visible **solo en este repositorio**, con todos los derechos reservados. Prohibido resubirlo a otras tiendas o webs sin permiso previo (contáctame por correo o Discord). El rehosting no autorizado será denunciado por DMCA.

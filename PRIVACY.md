@@ -1,6 +1,6 @@
 # Política de privacidad de MusicFlame
 
-*Última actualización: 11 de octubre de 2026 (versión 3.13)*
+*Última actualización: 11 de octubre de 2026 (versión 3.2)*
 
 [English version below](#privacy-policy-english)
 
@@ -81,7 +81,7 @@ Si la app cambia lo que hace con los datos, se actualizará esta página y la fe
 
 # MusicFlame Privacy Policy
 
-*Last updated: October 11, 2026 (version 3.13)*
+*Last updated: October 11, 2026 (version 3.2)*
 
 MusicFlame is an Android music player independently developed by ShimuroNaga. This page explains what data the app uses, why, and how you can ask for it to be deleted. MusicFlame has no ads, does not sell your data, and does not share it with third parties for advertising.
 

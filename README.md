@@ -2,7 +2,7 @@
 
 ![Estado del Proyecto](https://img.shields.io/badge/Estado-En_Desarrollo_Activo-brightgreen)
 ![Plataforma](https://img.shields.io/badge/Plataforma-Android-blue)
-![Versión](https://img.shields.io/badge/Versión-3.12-orange)
+![Versión](https://img.shields.io/badge/Versión-3.2-orange)
 
 **MusicFlame** es un reproductor de música para Android que combina tu biblioteca local con YouTube, con foco en personalización, estética y rendimiento.
 

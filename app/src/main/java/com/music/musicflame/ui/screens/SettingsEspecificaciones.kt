@@ -151,7 +151,7 @@ internal fun LazyListScope.settingsEspecificacionesSection(
     context: Context
 ) {
     item { SettingsSectionHeader(style, stringResource(R.string.settings_sobre)) }
-    item { ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.13") }, colors = style.listItemColors); HorizontalDivider(color = style.dividerColor) }
+    item { ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.2") }, colors = style.listItemColors); HorizontalDivider(color = style.dividerColor) }
 
     // BOTÓN DE ACTUALIZACIONES (CARD)
     item {

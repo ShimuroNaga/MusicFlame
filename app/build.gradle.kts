@@ -28,8 +28,8 @@ android {
         applicationId = "com.music.musicflame"
         minSdk = 31
         targetSdk = 36
-        versionCode = 1
-        versionName = "3.13"
+        versionCode = 32
+        versionName = "3.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 

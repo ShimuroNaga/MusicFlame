@@ -3,7 +3,7 @@
     <string name="kofi_one_time">Es pago único (no es suscripción): pagas una sola vez y lo comprado es tuyo para siempre.</string>
     <string name="kofi_step_choose">Elige qué comprar: un producto suelto de la tabla de abajo, o \"Comprar TODO\" para desbloquear las %1$s personalizaciones de una vez.</string>
     <string name="kofi_step_open">Toca el botón del producto: se abre la tienda de Ko-fi en el navegador.</string>
-    <string name="kofi_step_pay">Paga ahí con el método que te ofrezca Ko-fi.</string>
+    <string name="kofi_step_pay">Solo se acepta PayPal. Si pagas con tarjeta directa y falla, entra con tu cuenta de PayPal.</string>
     <string name="kofi_step_email">Usa el mismo correo de tu cuenta de Google, o anota el que uses para el paso siguiente.</string>
     <string name="kofi_step_restore">Vuelve a la app y toca \"Restaurar compras\": se desbloquea al instante.</string>
     <string name="kofi_catalog_sub">Cada fila es un producto (pack) de la tienda de Ko-fi. El check indica si ya lo tienes.</string>

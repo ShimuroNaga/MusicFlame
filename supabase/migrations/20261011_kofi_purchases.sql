@@ -29,3 +29,9 @@ $$;
 
 revoke all on function public.get_kofi_purchases(text) from public;
 grant execute on function public.get_kofi_purchases(text) to anon, authenticated;
+
+-- La Edge Function entra con service_role: en proyectos donde las tablas nuevas no reciben
+-- permisos por defecto, sin esto falla con "permission denied for table kofi_purchases".
+-- No cambia la seguridad: anon/authenticated siguen sin acceso directo a la tabla.
+grant usage on schema public to service_role;
+grant select, insert, update, delete on table public.kofi_purchases to service_role;

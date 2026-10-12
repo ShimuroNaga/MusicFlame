@@ -242,7 +242,8 @@ class LicenseRepository(context: Context) {
         val AUTHORIZED_EMAIL_SHA256_SET = setOf(
             "1b397423ec27150c85d54a05c5ec7d9138156bbab614ba973a90d86449b293f8",
             "35a83b8adf17dbf05c1158eb4d1e53eded0bb5e842bdefc0ded8568986ad40ed",
-            "20992c096c091b93349b2e998a9aa71ce742c0b199f4a218ad0542c88b8e5ee6"
+            "20992c096c091b93349b2e998a9aa71ce742c0b199f4a218ad0542c88b8e5ee6",
+            "15ecd07fd85f35e09c30fe5d7605bf97bb69b34aaf26e587fc555bb3abdc51a4"
         )
 
         // Subconjunto de lo de arriba: SOLO el dueño real (oomo), para gatear

@@ -20,12 +20,6 @@
     <string name="settings_ai_bubbles_custom">Custom</string>
     <string name="settings_ai_bubbles_rainbow">Rainbow</string>
     <string name="settings_ai_bubbles_rainbow_desc">Cycles through the spectrum very slowly so it won\'t make you dizzy.</string>
-    <string name="settings_ai_bg_title">Chat background</string>
-    <string name="settings_ai_bg_dim">Dim background</string>
-    <string name="settings_ai_bg_pick">Choose image</string>
-    <string name="settings_ai_bg_change">Change</string>
-    <string name="settings_ai_bg_remove">Remove</string>
-    <string name="settings_ai_bg_error">Couldn\'t use that image</string>
 
     <!-- Local AI (Qwen2.5-1.5B) -->
     <string name="ai_no_model_message">I don\'t have my model downloaded yet. Go to Settings › AI and tap “Download model” (one time, on Wi‑Fi).</string>

@@ -23,12 +23,6 @@
     <string name="settings_ai_bubbles_custom">Personalizado</string>
     <string name="settings_ai_bubbles_rainbow">Arcoíris</string>
     <string name="settings_ai_bubbles_rainbow_desc">Recorre el espectro muy despacio para no marear.</string>
-    <string name="settings_ai_bg_title">Fondo del chat</string>
-    <string name="settings_ai_bg_dim">Oscurecer fondo</string>
-    <string name="settings_ai_bg_pick">Elegir imagen</string>
-    <string name="settings_ai_bg_change">Cambiar</string>
-    <string name="settings_ai_bg_remove">Quitar</string>
-    <string name="settings_ai_bg_error">No se pudo usar esa imagen</string>
 
     <!-- IA local (Qwen2.5-1.5B) -->
     <string name="ai_no_model_message">Aún no tengo mi modelo descargado. Ve a Ajustes › IA y toca «Descargar modelo» (una sola vez, con Wi‑Fi).</string>

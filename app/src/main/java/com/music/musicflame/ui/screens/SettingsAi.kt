@@ -36,7 +36,7 @@ import com.music.musicflame.ui.theme.parseCustomTextColor
 
 /**
  * Sección "IA" de Ajustes: API key, nombre de la IA, color de las burbujas del chat
- * (Adaptativo / Personalizado / Arcoíris lento) y fondo del chat. El chat se entera solo (ver AiChatScreen).
+ * (Adaptativo / Personalizado / Arcoíris lento) del chat. El chat se entera solo (ver AiChatScreen).
  */
 internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
 
@@ -168,38 +168,5 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
                 Text(stringResource(R.string.settings_ai_bubbles_rainbow_desc), fontSize = 11.sp, color = style.mediumEmphasis, modifier = Modifier.padding(start = 12.dp))
             }
         }
-    }
-
-    // ---------- Fondo del chat ----------
-    item {
-        val context = LocalContext.current
-        val ai = remember { AiChatSettings(context) }
-        var bg by remember { mutableStateOf(ai.getBackgroundUri()) }
-        var dim by remember { mutableFloatStateOf(ai.getBackgroundDim()) }
-        val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            if (uri != null) {
-                if (ai.importBackground(uri)) bg = ai.getBackgroundUri()
-                else Toast.makeText(context, context.getString(R.string.settings_ai_bg_error), Toast.LENGTH_SHORT).show()
-            }
-        }
-        SettingsSectionHeader(style, stringResource(R.string.settings_ai_bg_title))
-        Column(Modifier.padding(horizontal = 16.dp)) {
-            if (bg != null) {
-                AsyncImage(
-                    model = bg, contentDescription = null, contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxWidth().height(140.dp).clip(RoundedCornerShape(12.dp))
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(stringResource(R.string.settings_ai_bg_dim), fontSize = 12.sp, color = style.mediumEmphasis)
-                Slider(value = dim, onValueChange = { dim = it }, onValueChangeFinished = { ai.saveBackgroundDim(dim) }, valueRange = 0f..0.8f)
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = { picker.launch("image/*") }) {
-                    Text(stringResource(if (bg == null) R.string.settings_ai_bg_pick else R.string.settings_ai_bg_change), fontWeight = FontWeight.Bold)
-                }
-                if (bg != null) OutlinedButton(onClick = { ai.removeBackground(); bg = null }) { Text(stringResource(R.string.settings_ai_bg_remove)) }
-            }
-        }
-        Spacer(Modifier.height(24.dp))
     }
 }

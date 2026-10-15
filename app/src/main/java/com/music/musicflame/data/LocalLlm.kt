@@ -25,8 +25,8 @@ object LocalLlm {
     const val APPROX_SIZE_LABEL = "≈1.6 GB"
     private const val MODEL_FILE = "Qwen2.5-1.5B-Instruct_q8_ekv1280.task"
     private const val MIN_VALID_BYTES = 500L * 1024 * 1024   // un archivo menor a esto está incompleto/corrupto
-    private const val MAX_TOKENS = 1024                     // prompt + respuesta (el modelo trae ventana de 1280)
-    private const val HISTORY_CHAR_BUDGET = 1500
+    private const val MAX_TOKENS = 768                      // prompt + respuesta: menos tokens = respuesta más rápida
+    private const val HISTORY_CHAR_BUDGET = 900
 
     private fun dir(ctx: Context) = File(ctx.applicationContext.filesDir, "ai_models")
     fun modelFile(ctx: Context) = File(dir(ctx), MODEL_FILE)
@@ -87,28 +87,103 @@ object LocalLlm {
         } finally { conn.disconnect() }
     }
 
-    suspend fun reply(ctx: Context, aiName: String, nowPlaying: String?, history: List<AiMessage>): String =
-        withContext(Dispatchers.IO) {
-            mutex.withLock {
-                val llm = engine ?: LlmInference.createFromOptions(
-                    ctx.applicationContext,
-                    LlmInference.LlmInferenceOptions.builder()
-                        .setModelPath(modelFile(ctx).absolutePath)
-                        .setMaxTokens(MAX_TOKENS)
-                        .build()
-                ).also { engine = it }
-                val raw = llm.generateResponse(buildPrompt(aiName, nowPlaying, history))
-                val clean = raw.substringBefore("<|im_end|>").replace("<|im_start|>", "").trim()
-                if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
-                clean
+    private fun engineFor(ctx: Context): LlmInference = engine ?: LlmInference.createFromOptions(
+        ctx.applicationContext,
+        LlmInference.LlmInferenceOptions.builder()
+            .setModelPath(modelFile(ctx).absolutePath)
+            .setMaxTokens(MAX_TOKENS)
+            .build()
+    ).also { engine = it }
+
+    /** Carga el modelo en RAM antes de que el usuario escriba (así el primer mensaje no espera la carga). */
+    suspend fun preload(ctx: Context) = withContext(Dispatchers.IO) {
+        if (!isReady(ctx)) return@withContext
+        try { mutex.withLock { engineFor(ctx) } } catch (_: Throwable) {}
+    }
+
+    /**
+     * Responde en streaming: [onPartial] recibe el texto acumulado cada vez que el modelo suelta un trozo
+     * (se llama desde un hilo de fondo). Devuelve la respuesta final ya limpia.
+     */
+    suspend fun reply(
+        ctx: Context, aiName: String, nowPlaying: String?, history: List<AiMessage>,
+        onPartial: (String) -> Unit = {}
+    ): String = withContext(Dispatchers.IO) {
+        mutex.withLock {
+            val llm = engineFor(ctx)
+            val acc = StringBuilder()
+            val future = llm.generateResponseAsync(buildPrompt(aiName, nowPlaying, history)) { partial, _ ->
+                acc.append(partial)
+                val shown = repairText(acc.toString().substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
+                if (shown.isNotEmpty()) onPartial(shown)
             }
+            val raw = future.get()
+            val text = if (raw.isNullOrBlank()) acc.toString() else raw
+            val clean = repairText(text.substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
+            if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
+            clean
         }
+    }
+
+    // ---------- Reparación de texto: el tokenizer a veces entrega bytes UTF-8 sueltos ("Â¡" en vez de "¡") ----------
+    /** Inversa de bytes_to_unicode de GPT-2/Qwen: carácter visible -> byte original. */
+    private val byteLevelMap: Map<Char, Int> by lazy {
+        val keep = ArrayList<Int>()
+        keep.addAll(33..126); keep.addAll(161..172); keep.addAll(174..255)
+        val map = HashMap<Char, Int>()
+        var extra = 0
+        for (b in 0..255) {
+            if (b in keep) map[b.toChar()] = b else { map[(256 + extra).toChar()] = b; extra++ }
+        }
+        map
+    }
+
+    /**
+     * Si el texto trae secuencias UTF-8 "partidas" (p. ej. "Â¡Hola" o "Ã©"), las convierte al carácter real.
+     * Solo reemplaza secuencias completas y válidas; el resto del texto no se toca.
+     */
+    fun repairText(text: String): String {
+        if (text.none { it.code in 0x80..0x143 }) return text
+        val out = StringBuilder(text.length)
+        var i = 0
+        while (i < text.length) {
+            val b = byteLevelMap[text[i]]
+            val need = when (b) {
+                null -> 0
+                in 0xC2..0xDF -> 1
+                in 0xE0..0xEF -> 2
+                in 0xF0..0xF4 -> 3
+                else -> 0
+            }
+            if (need > 0 && i + need <= text.length - 1) {
+                val bytes = ByteArray(need + 1)
+                bytes[0] = b!!.toByte()
+                var ok = true
+                for (k in 1..need) {
+                    val c = byteLevelMap[text[i + k]]
+                    if (c == null || c !in 0x80..0xBF) { ok = false; break }
+                    bytes[k] = c.toByte()
+                }
+                if (ok) {
+                    val decoded = try {
+                        Charsets.UTF_8.newDecoder()
+                            .onMalformedInput(java.nio.charset.CodingErrorAction.REPORT)
+                            .onUnmappableCharacter(java.nio.charset.CodingErrorAction.REPORT)
+                            .decode(java.nio.ByteBuffer.wrap(bytes)).toString()
+                    } catch (_: Exception) { null }
+                    if (decoded != null) { out.append(decoded); i += need + 1; continue }
+                }
+            }
+            out.append(text[i]); i++
+        }
+        return out.toString()
+    }
 
     /** Formato ChatML de Qwen. El modelo es chico: system corto y solo los últimos turnos que quepan. */
     private fun buildPrompt(aiName: String, nowPlaying: String?, history: List<AiMessage>): String {
         val system = buildString {
             append("Eres $aiName, asistente de música dentro de la app MusicFlame. ")
-            append("Responde en el idioma del usuario, en 2 a 3 oraciones, sin Markdown ni listas. ")
+            append("Responde en el idioma del usuario, en máximo 2 oraciones cortas, sin Markdown ni listas. ")
             append("Si no estás seguro de un dato (año, BPM, álbum), dilo en vez de inventarlo.")
             if (!nowPlaying.isNullOrBlank()) append(" Ahora suena: \"$nowPlaying\".")
         }

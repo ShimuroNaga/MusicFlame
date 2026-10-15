@@ -44,7 +44,7 @@ class AiChatSettings(context: Context) {
         const val BUBBLE_RAINBOW_CYCLE_SECONDS = 30f
 
         // Claves que, al cambiar, deben refrescar el chat en vivo.
-        val OBSERVED_KEYS = setOf("ai_terms_accepted", "ai_name", "ai_bubble_mode", "ai_bubble_hex", "ai_bg_uri", "ai_bg_dim")
+        val OBSERVED_KEYS = setOf("ai_terms_accepted", "ai_name", "ai_bubble_mode", "ai_bubble_hex")
     }
 
     // ---------- Términos ----------
@@ -61,52 +61,14 @@ class AiChatSettings(context: Context) {
     fun getBubbleHex(): String = prefs.getString("ai_bubble_hex", "#2196F3") ?: "#2196F3"
     fun saveBubbleHex(hex: String) = prefs.edit().putString("ai_bubble_hex", hex).apply()
 
-    // ---------- Fondo del chat ----------
-    fun getBackgroundUri(): String? {
-        val uri = prefs.getString("ai_bg_uri", null) ?: return null
-        val f = fileFromUri(uri) ?: return null
-        return if (f.isFile && f.length() > 0L) uri else null
-    }
-    /** Oscurecido del fondo, 0f..0.8f, para que las burbujas se lean sobre cualquier foto. */
-    fun getBackgroundDim(): Float = prefs.getFloat("ai_bg_dim", 0.25f).coerceIn(0f, 0.8f)
-    fun saveBackgroundDim(v: Float) = prefs.edit().putFloat("ai_bg_dim", v.coerceIn(0f, 0.8f)).apply()
-
-    private fun bgDir() = File(appContext.filesDir, "ai_chat_bg")
-
-    private fun fileFromUri(uriString: String): File? {
-        return try {
-            val path = Uri.parse(uriString).path ?: return null
-            val f = File(path).canonicalFile
-            if (f.parentFile?.canonicalPath == bgDir().canonicalPath) f else null
-        } catch (e: Exception) {
-            null
-        }
-    }
-
-    /** Copia la imagen elegida a files/ai_chat_bg/ (el Uri del selector no es permanente) y la guarda como fondo. */
-    fun importBackground(source: Uri): Boolean {
-        return try {
-            val dir = bgDir()
-            if (!dir.exists() && !dir.mkdirs()) return false
-            val mime = appContext.contentResolver.getType(source)?.lowercase()
-            val ext = when (mime) { "image/png" -> "png"; "image/webp" -> "webp"; else -> "jpg" }
-            val dest = File(dir, "ai_bg_${System.currentTimeMillis()}.$ext")
-            val input = appContext.contentResolver.openInputStream(source) ?: return false
-            input.use { inp ->
-                dest.outputStream().use { out -> inp.copyTo(out) }
-            }
-            val old = prefs.getString("ai_bg_uri", null)?.let { fileFromUri(it) }
-            prefs.edit().putString("ai_bg_uri", Uri.fromFile(dest).toString()).apply()
-            old?.delete()
-            true
-        } catch (e: Exception) {
-            false
-        }
-    }
-
-    fun removeBackground() {
-        prefs.getString("ai_bg_uri", null)?.let { fileFromUri(it) }?.delete()
-        prefs.edit().remove("ai_bg_uri").apply()
+    // ---------- Limpieza del fondo de chat (opción eliminada) ----------
+    /** Borra la imagen y las claves del fondo que existían en versiones anteriores. */
+    fun purgeLegacyBackground() {
+        try {
+            File(appContext.filesDir, "ai_chat_bg").deleteRecursively()
+            if (prefs.contains("ai_bg_uri") || prefs.contains("ai_bg_dim"))
+                prefs.edit().remove("ai_bg_uri").remove("ai_bg_dim").apply()
+        } catch (_: Exception) {}
     }
 
     // ---------- Historial ----------
@@ -118,7 +80,7 @@ class AiChatSettings(context: Context) {
             val arr = JSONArray(f.readText())
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
-                AiMessage(o.getLong("id"), o.getBoolean("user"), o.getString("text"), o.optLong("t", 0L), o.optBoolean("err", false))
+                AiMessage(o.getLong("id"), o.getBoolean("user"), LocalLlm.repairText(o.getString("text")), o.optLong("t", 0L), o.optBoolean("err", false))
             }
         }
     } catch (e: Exception) { emptyList() }

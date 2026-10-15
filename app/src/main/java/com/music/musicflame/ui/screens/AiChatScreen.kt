@@ -5,6 +5,14 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.SharedPreferences
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -19,7 +27,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.ContentCopy
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -32,16 +40,12 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
 import com.music.musicflame.R
 import com.music.musicflame.data.AiChatSettings
 import com.music.musicflame.data.AiMessage
@@ -50,15 +54,13 @@ import com.music.musicflame.ui.theme.parseCustomTextColor
 import com.music.musicflame.ui.theme.rainbowColorAt
 import com.music.musicflame.ui.theme.rememberRainbowPhase
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.text.SimpleDateFormat
-import java.util.Date
-import java.util.Locale
 
 /**
- * Sexta pantalla: chat con la IA, estilo WhatsApp (encabezado con avatar + nombre + frase, burbujas con
- * "colita", hora dentro de la burbuja, fondo de chat opcional y caja de texto en píldora).
- * Colores de burbuja / nombre / fondo salen de Ajustes > IA y se refrescan en vivo.
+ * Sexta pantalla: chat con la IA (panel superior con el orbe, burbujas con esquina recta del lado de quien habla,
+ * botón de copiar dentro de la burbuja de la IA y caja de texto en píldora sobre una franja).
+ * La respuesta aparece en streaming (trozo a trozo). Colores de burbuja / nombre salen de Ajustes > IA y se refrescan en vivo.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,15 +70,13 @@ fun AiChatScreen(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    val settings = remember { AiChatSettings(context) }
+    val settings = remember { AiChatSettings(context).also { it.purgeLegacyBackground() } }
     val scope = rememberCoroutineScope()
 
     // --- Ajustes en vivo: Ajustes > IA escribe en SharedPreferences y esto se entera solo ---
     var name by remember { mutableStateOf(settings.getName()) }
     var bubbleMode by remember { mutableStateOf(settings.getBubbleMode()) }
     var bubbleHex by remember { mutableStateOf(settings.getBubbleHex()) }
-    var bgUri by remember { mutableStateOf(settings.getBackgroundUri()) }
-    var bgDim by remember { mutableFloatStateOf(settings.getBackgroundDim()) }
     var termsAccepted by remember { mutableStateOf(settings.isTermsAccepted()) }
     var termsDismissed by remember { mutableStateOf(false) }   // "Ahora no": no insistir hasta reabrir la app
     var showTermsAgain by remember { mutableStateOf(false) }
@@ -84,7 +84,6 @@ fun AiChatScreen(
         val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
             if (key in AiChatSettings.OBSERVED_KEYS) {
                 name = settings.getName(); bubbleMode = settings.getBubbleMode(); bubbleHex = settings.getBubbleHex()
-                bgUri = settings.getBackgroundUri(); bgDim = settings.getBackgroundDim()
                 termsAccepted = settings.isTermsAccepted()
             }
         }
@@ -98,10 +97,19 @@ fun AiChatScreen(
     var menuOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    LaunchedEffect(messages.size, isThinking) {
-        val extra = if (isThinking) 1 else 0
-        val last = messages.size + extra - 1
+    // Carga el modelo en segundo plano al abrir la pestaña: el primer mensaje ya no espera la carga.
+    LaunchedEffect(isActive) { if (isActive) LocalLlm.preload(context) }
+
+    // "···" solo mientras no haya llegado ningún trozo de la respuesta
+    val showTyping = isThinking && messages.lastOrNull()?.fromUser != false
+    LaunchedEffect(messages.size, showTyping) {
+        val last = messages.size + (if (showTyping) 1 else 0) - 1
         if (last >= 0) listState.animateScrollToItem(last)
+    }
+    // Mientras la respuesta va llegando, mantener la vista abajo
+    val streamLen = messages.lastOrNull()?.text?.length ?: 0
+    LaunchedEffect(streamLen) {
+        if (isThinking && messages.isNotEmpty()) listState.scrollToItem(messages.size - 1)
     }
 
     // --- Estilo de burbujas ---
@@ -122,15 +130,24 @@ fun AiChatScreen(
             return
         }
         isThinking = true
+        val replyId = System.nanoTime()
+        fun upsert(text: String, error: Boolean = false) {
+            val i = messages.indexOfFirst { it.id == replyId }
+            if (i < 0) messages.add(AiMessage(replyId, false, text, isError = error))
+            else messages[i] = messages[i].copy(text = text, isError = error)
+        }
         scope.launch {
             try {
-                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList())
-                messages.add(AiMessage(System.nanoTime(), false, answer))
+                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList()) { partial ->
+                    // callback desde hilo de fondo -> pasar al hilo principal, en orden
+                    scope.launch(Dispatchers.Main.immediate) { upsert(partial) }
+                }
+                upsert(answer)
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {   // Throwable: un modelo local puede fallar por falta de RAM (OutOfMemoryError)
                 val reason = e.message?.take(140) ?: e.javaClass.simpleName
-                messages.add(AiMessage(System.nanoTime(), false, context.getString(R.string.ai_error_message, reason), isError = true))
+                if (messages.none { it.id == replyId }) upsert(context.getString(R.string.ai_error_message, reason), error = true)
             } finally {
                 isThinking = false
                 settings.saveHistory(messages.toList())
@@ -150,47 +167,25 @@ fun AiChatScreen(
     )
 
     Box(modifier = modifier.fillMaxSize().background(scheme.surface)) {
-        // Fondo del chat (opcional) + oscurecido para que las burbujas siempre se lean
-        if (bgUri != null) {
-            AsyncImage(
-                model = bgUri, contentDescription = null,
-                modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop
-            )
-            Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha = bgDim)))
-        }
         val isEmpty = messages.isEmpty() && !isThinking
 
         Column(modifier = Modifier.fillMaxSize().imePadding()) {
-            // ---------- Encabezado tipo WhatsApp: avatar + nombre + frase ----------
-            if (!isEmpty) Surface(color = scheme.surfaceContainer.copy(alpha = if (bgUri != null) 0.88f else 1f), tonalElevation = 0.dp) {
-                Row(
-                    modifier = Modifier.fillMaxWidth().padding(start = 14.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    AiAvatar(size = 44)
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(name, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = scheme.onSurface)
+            // ---------- Panel superior: orbe de la IA centrado (como la versión anterior) ----------
+            Box(
+                modifier = Modifier.fillMaxWidth()
+                    .background(scheme.surfaceContainer)
+                    .padding(vertical = 22.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    AiAvatar(size = 84, glow = true, pulsing = isThinking)
+                    AnimatedVisibility(visible = isThinking) {
                         Text(
-                            if (isThinking) stringResource(R.string.ai_typing) else stringResource(R.string.ai_tagline),
-                            fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
-                            color = if (isThinking) scheme.primary else scheme.onSurfaceVariant
+                            stringResource(R.string.ai_typing), fontSize = 12.sp, color = scheme.primary,
+                            modifier = Modifier.padding(top = 10.dp)
                         )
                     }
-                    Box {
-                        IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, null, tint = scheme.onSurfaceVariant) }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.ai_clear_chat)) },
-                                onClick = { menuOpen = false; messages.clear(); settings.clearHistory() }
-                            )
-                        }
-                    }
                 }
-            }
-
-            // ---------- Estado vacío: avatar grande + nombre + frase, centrado ----------
-            if (isEmpty) Box(Modifier.weight(1f).fillMaxWidth()) {
                 Box(Modifier.align(Alignment.TopEnd)) {
                     IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, null, tint = scheme.onSurfaceVariant) }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
@@ -200,24 +195,19 @@ fun AiChatScreen(
                         )
                     }
                 }
-                Column(
-                    modifier = Modifier.align(Alignment.Center).padding(horizontal = 32.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    AiAvatar(size = 112)
-                    Spacer(Modifier.height(16.dp))
-                    Text(name, fontWeight = FontWeight.Bold, fontSize = 24.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = scheme.onSurface)
-                    Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.ai_tagline), fontSize = 14.sp, textAlign = TextAlign.Center, color = scheme.onSurfaceVariant)
-                }
             }
 
             // ---------- Mensajes ----------
-            if (!isEmpty) LazyColumn(
+            if (isEmpty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                Text(
+                    stringResource(R.string.ai_tagline), fontSize = 15.sp, textAlign = TextAlign.Center,
+                    color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 32.dp)
+                )
+            } else LazyColumn(
                 state = listState,
                 modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 10.dp, vertical = 10.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp)
+                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 items(messages, key = { it.id }) { msg ->
                     ChatBubble(
@@ -229,7 +219,7 @@ fun AiChatScreen(
                         }
                     )
                 }
-                if (isThinking) {
+                if (showTyping) {
                     item(key = "typing") {
                         ChatBubble(
                             msg = AiMessage(-1L, false, "···", timeMs = 0L), mode = bubbleMode,
@@ -239,67 +229,74 @@ fun AiChatScreen(
                 }
             }
 
-            // ---------- Sin aceptar términos: no se puede escribir ----------
-            if (!termsAccepted) {
-                Surface(color = scheme.surfaceContainer.copy(alpha = 0.92f), modifier = Modifier.fillMaxWidth()) {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            // ---------- Franja inferior: caja de texto en píldora + botón enviar circular ----------
+            Surface(color = scheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
+                if (!termsAccepted) {
+                    Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
                         Text(stringResource(R.string.ai_terms_required), fontSize = 13.sp, modifier = Modifier.weight(1f), color = scheme.onSurfaceVariant)
                         Button(onClick = { showTermsAgain = true }) { Text(stringResource(R.string.ai_terms_view)) }
                     }
-                }
-            } else
-            // ---------- Caja de texto en píldora + botón enviar circular ----------
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 10.dp, vertical = 8.dp),
-                verticalAlignment = Alignment.Bottom
-            ) {
-                OutlinedTextField(
-                    value = input, onValueChange = { input = it },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text(stringResource(R.string.ai_input_hint), maxLines = 1) },
-                    shape = RoundedCornerShape(28.dp),
-                    maxLines = 4,
-                    colors = OutlinedTextFieldDefaults.colors(
-                        focusedContainerColor = scheme.surfaceContainer.copy(alpha = 0.92f),
-                        unfocusedContainerColor = scheme.surfaceContainer.copy(alpha = 0.92f),
-                        unfocusedBorderColor = scheme.outline, focusedBorderColor = scheme.primary
-                    ),
-                    keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                    keyboardActions = KeyboardActions(onSend = { send() })
-                )
-                Spacer(Modifier.width(8.dp))
-                val canSend = input.isNotBlank() && !isThinking
-                FilledIconButton(
-                    onClick = { send() }, enabled = canSend,
-                    modifier = Modifier.size(56.dp),
-                    colors = IconButtonDefaults.filledIconButtonColors(
-                        containerColor = scheme.primary, contentColor = scheme.onPrimary,
-                        disabledContainerColor = scheme.surfaceContainerHighest, disabledContentColor = scheme.onSurfaceVariant
+                } else Row(
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = input, onValueChange = { input = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text(stringResource(R.string.ai_input_hint), maxLines = 1, fontSize = 17.sp) },
+                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 17.sp),
+                        shape = RoundedCornerShape(50),
+                        maxLines = 4,
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
+                            unfocusedBorderColor = scheme.onSurface.copy(alpha = 0.85f), focusedBorderColor = scheme.primary
+                        ),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
+                        keyboardActions = KeyboardActions(onSend = { send() })
                     )
-                ) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.ai_send)) }
+                    Spacer(Modifier.width(12.dp))
+                    val canSend = input.isNotBlank() && !isThinking
+                    FilledIconButton(
+                        onClick = { send() }, enabled = canSend,
+                        modifier = Modifier.size(56.dp),
+                        colors = IconButtonDefaults.filledIconButtonColors(
+                            containerColor = scheme.primary, contentColor = scheme.onPrimary,
+                            disabledContainerColor = scheme.surfaceContainerHighest, disabledContentColor = scheme.onSurfaceVariant
+                        )
+                    ) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.ai_send)) }
+                }
             }
         }
     }
 }
 
-/** Avatar de la IA: destellos dentro de un aro con degradado (colores del tema Material You). */
+/** Orbe de la IA: destellos dentro de un aro con degradado y un brillo suave detrás (colores del tema Material You). */
 @Composable
-private fun AiAvatar(size: Int) {
+private fun AiAvatar(size: Int, glow: Boolean = false, pulsing: Boolean = false) {
     val scheme = MaterialTheme.colorScheme
-    Box(
-        modifier = Modifier
-            .size(size.dp)
-            .border(2.5.dp, Brush.sweepGradient(listOf(scheme.primary, scheme.tertiary, scheme.secondary, scheme.primary)), CircleShape)
-            .padding(4.dp)
-            .clip(CircleShape)
-            .background(scheme.surfaceContainerHighest),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(Icons.Filled.AutoAwesome, null, tint = scheme.onSurface, modifier = Modifier.size((size * 0.5f).dp))
+    val pulse by rememberInfiniteTransition(label = "orb").animateFloat(
+        initialValue = 1f, targetValue = if (pulsing) 1.18f else 1f,
+        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "orbPulse"
+    )
+    Box(contentAlignment = Alignment.Center) {
+        if (glow) Box(
+            Modifier.size((size * 1.9f * pulse).dp).background(
+                Brush.radialGradient(listOf(scheme.primary.copy(alpha = 0.28f), Color.Transparent)), CircleShape
+            )
+        )
+        Box(
+            modifier = Modifier
+                .size(size.dp)
+                .border(5.dp, Brush.sweepGradient(listOf(scheme.tertiary, scheme.primary, scheme.secondary, scheme.tertiary)), CircleShape)
+                .padding(5.dp)
+                .clip(CircleShape)
+                .background(scheme.surfaceContainerHighest),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.AutoAwesome, null, tint = scheme.onSurface, modifier = Modifier.size((size * 0.46f).dp))
+        }
     }
 }
-
-private val timeFormat by lazy { SimpleDateFormat("HH:mm", Locale.getDefault()) }
 
 @Composable
 private fun ChatBubble(
@@ -312,9 +309,10 @@ private fun ChatBubble(
     val scheme = MaterialTheme.colorScheme
     val isUser = msg.fromUser
     // "Colita" tipo WhatsApp: la esquina superior del lado de quien habla es casi recta.
+    // Esquina inferior del lado de quien habla casi recta (como la versión anterior).
     val shape: Shape = RoundedCornerShape(
-        topStart = if (isUser) 18.dp else 4.dp, topEnd = if (isUser) 4.dp else 18.dp,
-        bottomStart = 18.dp, bottomEnd = 18.dp
+        topStart = 22.dp, topEnd = 22.dp,
+        bottomStart = if (isUser) 22.dp else 4.dp, bottomEnd = if (isUser) 4.dp else 22.dp
     )
 
     // Color base de la burbuja según el modo (los errores siempre usan el color de error del tema).
@@ -340,8 +338,9 @@ private fun ChatBubble(
     ) {
         Box(
             modifier = Modifier
-                .widthIn(max = 300.dp)
+                .widthIn(max = 320.dp)
                 .clip(shape)
+                .animateContentSize()
                 .drawBehind {
                     val c = if (staticColor != null) bubbleBase else {
                         val phase = rainbowPhase?.value ?: 0f
@@ -350,28 +349,16 @@ private fun ChatBubble(
                     }
                     drawRect(c)
                 }
-                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 6.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)
         ) {
             Column {
-                Text(msg.text, color = if (staticColor == null && !isUser) scheme.onSurface else textColor, fontSize = 15.sp, lineHeight = 20.sp)
-                Row(
-                    modifier = Modifier.align(Alignment.End).padding(top = 2.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    if (msg.timeMs > 0L) {
-                        Text(
-                            timeFormat.format(Date(msg.timeMs)), fontSize = 10.sp,
-                            color = (if (staticColor == null && !isUser) scheme.onSurface else textColor).copy(alpha = 0.65f)
-                        )
-                    }
-                    if (!isUser && onCopy != null) {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            Icons.Filled.ContentCopy, stringResource(R.string.ai_copy),
-                            tint = (if (staticColor == null) scheme.onSurface else textColor).copy(alpha = 0.65f),
-                            modifier = Modifier.size(16.dp).clickable { onCopy() }
-                        )
-                    }
+                Text(msg.text, color = if (staticColor == null && !isUser) scheme.onSurface else textColor, fontSize = 17.sp, lineHeight = 24.sp)
+                if (!isUser && onCopy != null) {
+                    Icon(
+                        Icons.Outlined.ContentCopy, stringResource(R.string.ai_copy),
+                        tint = (if (staticColor == null) scheme.onSurface else textColor).copy(alpha = 0.7f),
+                        modifier = Modifier.align(Alignment.End).padding(top = 14.dp).size(22.dp).clickable { onCopy() }
+                    )
                 }
             }
         }

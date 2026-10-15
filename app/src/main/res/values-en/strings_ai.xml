@@ -1,0 +1,60 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_ai">AI</string>
+    <string name="section_ai">AI</string>
+    <string name="settings_ai_section_sub">Chat, name, bubbles and background</string>
+
+    <string name="ai_tagline">Ask me about music</string>
+    <string name="ai_typing">typing…</string>
+    <string name="ai_input_hint">Ask me about music…</string>
+    <string name="ai_send">Send</string>
+    <string name="ai_copy">Copy</string>
+    <string name="ai_copied">Message copied</string>
+    <string name="ai_clear_chat">Clear chat</string>
+    <string name="ai_error_message">I couldn\'t answer: %1$s</string>
+    <string name="settings_ai_key_remove">Remove</string>
+    <string name="settings_ai_name_title">AI name</string>
+    <string name="settings_ai_name_label">Name (max. 24 characters)</string>
+    <string name="settings_ai_bubbles_title">Bubble color</string>
+    <string name="settings_ai_bubbles_adaptive">Adaptive (Material You)</string>
+    <string name="settings_ai_bubbles_custom">Custom</string>
+    <string name="settings_ai_bubbles_rainbow">Rainbow</string>
+    <string name="settings_ai_bubbles_rainbow_desc">Cycles through the spectrum very slowly so it won\'t make you dizzy.</string>
+    <string name="settings_ai_bg_title">Chat background</string>
+    <string name="settings_ai_bg_dim">Dim background</string>
+    <string name="settings_ai_bg_pick">Choose image</string>
+    <string name="settings_ai_bg_change">Change</string>
+    <string name="settings_ai_bg_remove">Remove</string>
+    <string name="settings_ai_bg_error">Couldn\'t use that image</string>
+
+    <!-- Local AI (Qwen2.5-1.5B) -->
+    <string name="ai_no_model_message">I don\'t have my model downloaded yet. Go to Settings › AI and tap “Download model” (one time, on Wi‑Fi).</string>
+    <string name="ai_terms_required">To chat, first accept the AI terms.</string>
+    <string name="ai_terms_view">View terms</string>
+    <string name="ai_terms_title">AI terms</string>
+    <string name="ai_terms_accept">Accept</string>
+    <string name="ai_terms_not_now">Not now</string>
+    <string name="ai_terms_close">Close</string>
+    <string name="ai_terms_link_model">View model</string>
+    <string name="ai_terms_link_license">Apache 2.0 license</string>
+    <string name="ai_terms_what_t">What it is</string>
+    <string name="ai_terms_what_b">The chat uses Qwen2.5‑1.5B‑Instruct, a language model from Alibaba Cloud (Qwen team), in a version converted by litert-community to run on Android with MediaPipe. It is downloaded once from Hugging Face (about 1.6 GB).</string>
+    <string name="ai_terms_privacy_t">Privacy</string>
+    <string name="ai_terms_privacy_b">In local mode the model runs on your phone without internet: your messages never leave the device. Only the model download uses internet. MusicFlame does not receive your conversations.</string>
+    <string name="ai_terms_limits_t">Limits</string>
+    <string name="ai_terms_limits_b">It is a small model and can be wrong or make things up (years, BPM, albums, lyrics). Double-check important information. Don\'t use it for medical, legal, financial or safety decisions. Provided “as is”, without warranties.</string>
+    <string name="ai_terms_device_t">Your phone</string>
+    <string name="ai_terms_device_b">It uses about 1.6 GB of storage and around 2 GB of RAM while answering. It can take several seconds, warm up the phone and use battery. You can delete the model anytime in Settings › AI.</string>
+    <string name="ai_terms_license_t">License</string>
+    <string name="ai_terms_license_b">Qwen2.5‑1.5B‑Instruct and MediaPipe are distributed under the Apache 2.0 license, which allows use and redistribution with a license notice (see Settings › Third-party licenses). MusicFlame is an independent project: it is not affiliated with or endorsed by Alibaba Cloud or Google.</string>
+    <string name="settings_ai_engine_title">AI model</string>
+    <string name="settings_ai_local_desc">Local model, Apache 2.0 license. One-time download of %1$s; works offline.</string>
+    <string name="settings_ai_local_wifi">Downloading on Wi‑Fi is recommended. If it is interrupted, it resumes where it left off.</string>
+    <string name="settings_ai_local_download">Download model</string>
+    <string name="settings_ai_local_ready">Model ready (%1$s MB on your phone)</string>
+    <string name="settings_ai_local_delete">Delete model</string>
+    <string name="settings_ai_local_delete_title">Delete the model?</string>
+    <string name="settings_ai_local_delete_body">This frees the space. You can download it again anytime.</string>
+    <string name="settings_ai_local_fail">Couldn\'t download: %1$s</string>
+    <string name="settings_ai_terms_button">View AI terms</string>
+</resources>

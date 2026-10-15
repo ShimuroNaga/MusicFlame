@@ -25,6 +25,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
@@ -314,6 +316,27 @@ class MainActivity : ComponentActivity() {
                 val albumGridColumnsState = remember { mutableStateOf(settingsRepo.getAlbumGridColumns()) }
 
                 val pagerState = rememberPagerState(pageCount = { bottomNavItems.size })
+
+                // Barra inferior deslizable (6 pantallas): su scroll sigue al pager y viceversa.
+                val navBarListState = androidx.compose.foundation.lazy.rememberLazyListState()
+                LaunchedEffect(pagerState.currentPage) {
+                    // Solo desliza la barra si la pestaña activa no se ve completa (así siempre
+                    // se ven 5 y el 6to aparece al deslizar o al ir a esa pantalla).
+                    val info = navBarListState.layoutInfo
+                    val target = info.visibleItemsInfo.firstOrNull { it.index == pagerState.currentPage }
+                    if (target == null) {
+                        navBarListState.animateScrollToItem(pagerState.currentPage)
+                    } else {
+                        val start = info.viewportStartOffset
+                        val end = info.viewportEndOffset
+                        val delta = when {
+                            target.offset < start -> (target.offset - start).toFloat()
+                            target.offset + target.size > end -> (target.offset + target.size - end).toFloat()
+                            else -> 0f
+                        }
+                        if (delta != 0f) navBarListState.animateScrollBy(delta)
+                    }
+                }
 
                 val currentSong by playerManager.currentSong
                 val isPlaying by playerManager.isPlayingState
@@ -955,34 +978,44 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
 
-                                    Row(
+                                    // Barra deslizable: con 6 pantallas ya no caben todas a la vez, así que se
+                                    // muestran 5 y el resto se alcanza deslizando (en cualquier dirección,
+                                    // con inercia, como el selector de íconos). Siempre se centra sola en la
+                                    // pantalla activa, también cuando cambias de pantalla deslizando el contenido.
+                                    BoxWithConstraints(
                                         modifier = Modifier
                                             .fillMaxWidth()
                                             .padding(top = 8.dp)
                                             .clip(RoundedCornerShape(if (useRoundCornersState.value) 24.dp else 0.dp))
                                             .background(if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainer)
-                                            .padding(vertical = 4.dp),
-                                        horizontalArrangement = Arrangement.SpaceEvenly
                                     ) {
-                                        bottomNavItems.forEachIndexed { index, screen ->
-                                            NavigationBarItem(
-                                                selected = pagerState.currentPage == index,
-                                                onClick = {
-                                                    selectedPlaylist = null
-                                                    selectedAlbum = null
-                                                    selectedArtist = null
-                                                    selectedGenre = null
-                                                    showSettings = false
-                                                    showTogether = false
-                                                    isSearchActive = false
-                                                    searchQuery = ""
-                                                    selectedSongs.clear(); manualSongSelectionMode = false
-                                                    selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                                                    coroutineScope.launch { pagerState.animateScrollToPage(index) }
-                                                },
-                                                icon = { Icon(screen.icon, stringResource(screen.labelRes)) },
-                                                label = { Text(stringResource(screen.labelRes)) }
-                                            )
+                                        val navItemWidth = maxWidth / 5f
+                                        androidx.compose.foundation.lazy.LazyRow(
+                                            state = navBarListState,
+                                            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
+                                        ) {
+                                            itemsIndexed(bottomNavItems) { index, screen ->
+                                                Row(modifier = Modifier.width(navItemWidth)) {
+                                                    NavigationBarItem(
+                                                        selected = pagerState.currentPage == index,
+                                                        onClick = {
+                                                            selectedPlaylist = null
+                                                            selectedAlbum = null
+                                                            selectedArtist = null
+                                                            selectedGenre = null
+                                                            showSettings = false
+                                                            showTogether = false
+                                                            isSearchActive = false
+                                                            searchQuery = ""
+                                                            selectedSongs.clear(); manualSongSelectionMode = false
+                                                            selectedPlaylists.clear(); manualPlaylistSelectionMode = false
+                                                            coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                                                        },
+                                                        icon = { Icon(screen.icon, stringResource(screen.labelRes)) },
+                                                        label = { Text(stringResource(screen.labelRes), maxLines = 1) }
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
@@ -1165,6 +1198,13 @@ class MainActivity : ComponentActivity() {
                                             selectionModeActive = manualSongSelectionMode,
                                             onToggleSelectionModeButton = { manualSongSelectionMode = !manualSongSelectionMode },
                                             currentPlayingSongId = currentSong?.id
+                                        )
+                                        Screen.Ai -> com.music.musicflame.ui.screens.AiChatScreen(
+                                            nowPlayingLabel = currentSong?.let { "${it.title} - ${it.artist}" },
+                                            // Los términos de la IA salen al ENTRAR a la pantalla, no al abrir la app
+                                            // (el pager mantiene todas las pantallas compuestas).
+                                            isActive = pagerState.settledPage == page && !showSettings && !showTogether,
+                                            modifier = Modifier.consumeWindowInsets(innerPadding)
                                         )
                                         Screen.Trash -> TrashScreen(
                                             onSongClick = { song, list -> songList = list; playerManager.playSong(song, list) },

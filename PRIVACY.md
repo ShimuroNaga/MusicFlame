@@ -48,6 +48,10 @@ Cuándo se borra:
 
 Solo comparte en una sala música que tengas derecho a compartir.
 
+### Chat de IA (opcional, sin conexión)
+
+El chat usa un modelo local (Qwen2.5‑1.5B, licencia Apache 2.0) que corre en tu celular: tus mensajes, el historial y el fondo elegido nunca salen del dispositivo. Lo único que usa internet es la descarga única del modelo, que se hace desde Hugging Face (se ve tu IP, como en cualquier descarga).
+
 ### Firebase Analytics
 La app incluye Firebase Analytics (Google), que recopila de forma automática datos de uso y del dispositivo: un identificador de instalación, modelo y versión de Android, país o región aproximada, e información de sesiones. Se usa para entender el uso de la app y detectar fallos. MusicFlame no agrega eventos propios con datos personales.
 
@@ -126,6 +130,10 @@ When it is deleted:
 - If the app closes unexpectedly, some data may take a while to clean up; leftover uploaded files are removed the next time you open the app.
 
 Only share music in a room that you have the right to share.
+
+### AI chat (optional, offline)
+
+The chat uses a local model (Qwen2.5‑1.5B, Apache 2.0 license) that runs on your phone: your messages, history and chosen background never leave the device. The only thing that uses internet is the one-time model download from Hugging Face (your IP address is visible, as in any download).
 
 ### Firebase Analytics
 The app includes Firebase Analytics (Google), which automatically collects usage and device data: an installation identifier, device model and Android version, approximate country or region, and session information. It is used to understand app usage and detect crashes. MusicFlame does not add its own events containing personal data.

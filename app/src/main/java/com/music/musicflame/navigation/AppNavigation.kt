@@ -4,6 +4,7 @@ import androidx.annotation.StringRes
 import com.music.musicflame.R
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Album
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Favorite
 import androidx.compose.material.icons.filled.Home
@@ -16,6 +17,7 @@ sealed class Screen(val route: String, @StringRes val labelRes: Int, val icon: I
     object Playlists : Screen("playlists", R.string.nav_playlists, Icons.Filled.List)
     object Album     : Screen("album",     R.string.nav_albums,    Icons.Filled.Album)
     object Mix       : Screen("mix",       R.string.nav_mix,    Icons.Filled.Favorite)
+    object Ai        : Screen("ai",        R.string.nav_ai,     Icons.Filled.AutoAwesome)
     object Trash     : Screen("trash",     R.string.nav_trash,  Icons.Filled.Delete)
 
     object Settings : Screen("settings", R.string.nav_settings, Icons.Filled.Settings)
@@ -26,5 +28,6 @@ val bottomNavItems = listOf(
     Screen.Playlists,
     Screen.Album,
     Screen.Mix,
+    Screen.Ai,
     Screen.Trash
 )

@@ -39,6 +39,8 @@ object ConfigExportRepository {
         "favorites_cover_uri",
         "most_played_cover_uri",
         "never_played_cover_uri",
+        "ai_bg_uri",
+        "ai_terms_accepted",
         "mix_songs",
         "last_mix_date",
         "onboarding_completed"

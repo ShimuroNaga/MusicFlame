@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_ai">IA</string>
+    <string name="section_ai">IA</string>
+    <string name="settings_ai_section_sub">Chat, nombre, burbujas y fondo</string>
+
+    <!-- Pantalla de chat -->
+    <string name="ai_tagline">Pregúntame sobre música</string>
+    <string name="ai_typing">escribiendo…</string>
+    <string name="ai_input_hint">Pregúntame sobre música…</string>
+    <string name="ai_send">Enviar</string>
+    <string name="ai_copy">Copiar</string>
+    <string name="ai_copied">Mensaje copiado</string>
+    <string name="ai_clear_chat">Vaciar chat</string>
+    <string name="ai_error_message">No pude responder: %1$s</string>
+
+    <!-- Ajustes > IA -->
+    <string name="settings_ai_key_remove">Quitar</string>
+    <string name="settings_ai_name_title">Nombre de la IA</string>
+    <string name="settings_ai_name_label">Nombre (máx. 24 letras)</string>
+    <string name="settings_ai_bubbles_title">Color de las burbujas</string>
+    <string name="settings_ai_bubbles_adaptive">Adaptativo (Material You)</string>
+    <string name="settings_ai_bubbles_custom">Personalizado</string>
+    <string name="settings_ai_bubbles_rainbow">Arcoíris</string>
+    <string name="settings_ai_bubbles_rainbow_desc">Recorre el espectro muy despacio para no marear.</string>
+    <string name="settings_ai_bg_title">Fondo del chat</string>
+    <string name="settings_ai_bg_dim">Oscurecer fondo</string>
+    <string name="settings_ai_bg_pick">Elegir imagen</string>
+    <string name="settings_ai_bg_change">Cambiar</string>
+    <string name="settings_ai_bg_remove">Quitar</string>
+    <string name="settings_ai_bg_error">No se pudo usar esa imagen</string>
+
+    <!-- IA local (Qwen2.5-1.5B) -->
+    <string name="ai_no_model_message">Aún no tengo mi modelo descargado. Ve a Ajustes › IA y toca «Descargar modelo» (una sola vez, con Wi‑Fi).</string>
+    <string name="ai_terms_required">Para chatear, primero acepta los términos de la IA.</string>
+    <string name="ai_terms_view">Ver términos</string>
+    <string name="ai_terms_title">Términos de la IA</string>
+    <string name="ai_terms_accept">Aceptar</string>
+    <string name="ai_terms_not_now">Ahora no</string>
+    <string name="ai_terms_close">Cerrar</string>
+    <string name="ai_terms_link_model">Ver modelo</string>
+    <string name="ai_terms_link_license">Licencia Apache 2.0</string>
+    <string name="ai_terms_what_t">Qué es</string>
+    <string name="ai_terms_what_b">El chat usa Qwen2.5‑1.5B‑Instruct, un modelo de lenguaje de Alibaba Cloud (equipo Qwen), en una versión convertida por litert-community para correr en Android con MediaPipe. Se descarga una sola vez desde Hugging Face (aprox. 1.6 GB).</string>
+    <string name="ai_terms_privacy_t">Privacidad</string>
+    <string name="ai_terms_privacy_b">En modo local, el modelo funciona en tu teléfono sin internet: tus mensajes no salen del dispositivo. Solo la descarga del modelo usa internet. MusicFlame no recibe tus conversaciones.</string>
+    <string name="ai_terms_limits_t">Límites</string>
+    <string name="ai_terms_limits_b">Es un modelo pequeño y puede equivocarse o inventar datos (años, BPM, álbumes, letras). Verifica la información importante. No lo uses para decisiones médicas, legales, financieras ni de seguridad. Se ofrece «tal cual», sin garantías.</string>
+    <string name="ai_terms_device_t">Tu teléfono</string>
+    <string name="ai_terms_device_b">Ocupa aprox. 1.6 GB de almacenamiento y unos 2 GB de RAM mientras responde. Puede tardar varios segundos, calentar el teléfono y gastar batería. Puedes borrar el modelo cuando quieras en Ajustes › IA.</string>
+    <string name="ai_terms_license_t">Licencia</string>
+    <string name="ai_terms_license_b">Qwen2.5‑1.5B‑Instruct y MediaPipe se distribuyen bajo licencia Apache 2.0, que permite su uso y redistribución con aviso de licencia (ver Ajustes › Licencias de terceros). MusicFlame es un proyecto independiente: no está afiliado ni avalado por Alibaba Cloud ni por Google.</string>
+    <string name="settings_ai_engine_title">Modelo de IA</string>
+    <string name="settings_ai_local_desc">Modelo local, licencia Apache 2.0. Descarga única de %1$s; funciona sin conexión.</string>
+    <string name="settings_ai_local_wifi">Recomendado descargarlo con Wi‑Fi. Si se corta, continúa donde se quedó.</string>
+    <string name="settings_ai_local_download">Descargar modelo</string>
+    <string name="settings_ai_local_ready">Modelo listo (%1$s MB en tu teléfono)</string>
+    <string name="settings_ai_local_delete">Borrar modelo</string>
+    <string name="settings_ai_local_delete_title">¿Borrar el modelo?</string>
+    <string name="settings_ai_local_delete_body">Se liberará el espacio. Podrás volver a descargarlo cuando quieras.</string>
+    <string name="settings_ai_local_fail">No se pudo descargar: %1$s</string>
+    <string name="settings_ai_terms_button">Ver términos de la IA</string>
+</resources>

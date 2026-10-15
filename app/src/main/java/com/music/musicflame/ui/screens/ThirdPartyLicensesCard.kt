@@ -55,7 +55,11 @@ private val thirdPartyLibs = listOf(
     ThirdPartyLib("Google API Client / Drive API", "Apache-2.0",
         "https://github.com/googleapis/google-api-java-client", APACHE_URL),
     ThirdPartyLib("Firebase (Auth, Realtime Database, Analytics)", "Apache-2.0",
-        "https://github.com/firebase/firebase-android-sdk", APACHE_URL)
+        "https://github.com/firebase/firebase-android-sdk", APACHE_URL),
+    ThirdPartyLib("MediaPipe Tasks GenAI (IA local)", "Apache-2.0",
+        "https://github.com/google-ai-edge/mediapipe", APACHE_URL),
+    ThirdPartyLib("Qwen2.5-1.5B-Instruct (Alibaba Cloud / Qwen team, modelo de IA local; conversión litert-community)", "Apache-2.0",
+        "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct", APACHE_URL)
 )
 
 /** Contenido de Ajustes > Licencias de terceros. */

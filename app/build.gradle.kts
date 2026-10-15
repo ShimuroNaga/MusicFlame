@@ -123,6 +123,8 @@ dependencies {
 
     // UI y Media
     implementation("androidx.compose.material:material-icons-extended:1.7.0")
+    // IA local (Qwen2.5-1.5B en el teléfono): MediaPipe LLM Inference, licencia Apache-2.0
+    implementation("com.google.mediapipe:tasks-genai:0.10.35")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")

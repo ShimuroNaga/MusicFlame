@@ -50,13 +50,14 @@ const val COLOR_MODE_RAINBOW = "Arcoiris"
  * completa (6s) no cambia aunque se actualice menos seguido que antes.
  */
 @Composable
-fun rememberRainbowPhase(): State<Float> {
+fun rememberRainbowPhase(cycleSeconds: Float = RAINBOW_CYCLE_MS / 1000f): State<Float> {
     val phase = remember { mutableStateOf(0f) }
-    LaunchedEffect(Unit) {
+    LaunchedEffect(cycleSeconds) {
+        val cycleMs = (cycleSeconds * 1000f).toLong().coerceAtLeast(1000L)
         val start = SystemClock.elapsedRealtime()
         while (isActive) {
             val elapsed = SystemClock.elapsedRealtime() - start
-            phase.value = (elapsed % RAINBOW_CYCLE_MS).toFloat() / RAINBOW_CYCLE_MS * 360f
+            phase.value = (elapsed % cycleMs).toFloat() / cycleMs * 360f
             delay(RAINBOW_TICK_MS)
         }
     }

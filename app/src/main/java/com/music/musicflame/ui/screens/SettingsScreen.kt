@@ -26,6 +26,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.filled.AccountCircle
 import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.MusicNote
@@ -777,6 +778,7 @@ fun SettingsScreen(
                                 Triple("Hogar de Shimuro", stringResource(R.string.settings_tu_mascota_interactiva), Icons.Filled.Home),
                                 Triple("Cuenta", stringResource(R.string.settings_cuenta_de_google_y_sesion), Icons.Filled.AccountCircle),
                                 Triple("Apariencia", stringResource(R.string.settings_fondo_colores_caratula_icono), Icons.Filled.Palette),
+                                Triple("IA", stringResource(R.string.settings_ai_section_sub), Icons.Filled.AutoAwesome),
                                 Triple("Canciones", stringResource(R.string.settings_manejo_de_canciones_y_reproduccion), Icons.Filled.MusicNote),
                                 Triple("Copia de seguridad", stringResource(R.string.settings_exportar_importar_tu_configuracion), Icons.Filled.Save),
                                 Triple("Especificaciones", stringResource(R.string.settings_version_comunidad), Icons.Filled.Info),
@@ -1006,6 +1008,11 @@ fun SettingsScreen(
                     // LICENCIAS DE TERCEROS
                     if (activeSection.value == "Licencias de terceros") {
                         settingsLicenseSection(settingsStyle)
+                    }
+
+                    // IA (chat): API key, nombre, burbujas y fondo
+                    if (activeSection.value == "IA") {
+                        settingsAiSection(settingsStyle)
                     }
 
                     // HOGAR DE SHIMURO
@@ -1422,6 +1429,7 @@ internal fun settingsSectionTitle(key: String): String = when (key) {
     "Hogar de Shimuro" -> stringResource(R.string.section_shimuro_home)
     "Cuenta" -> stringResource(R.string.section_account)
     "Apariencia" -> stringResource(R.string.section_appearance)
+    "IA" -> stringResource(R.string.section_ai)
     "Canciones" -> stringResource(R.string.section_songs)
     "Copia de seguridad" -> stringResource(R.string.section_backup)
     "Especificaciones" -> stringResource(R.string.section_specs)

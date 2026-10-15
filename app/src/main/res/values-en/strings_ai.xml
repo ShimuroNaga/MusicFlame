@@ -55,4 +55,7 @@
     <string name="ai_suggest_1">Recommend something similar to what\'s playing</string>
     <string name="ai_suggest_2">Tell me something interesting about music</string>
     <string name="ai_suggest_3">Which genre is best for studying?</string>
+    <string name="ai_play_all">Play all</string>
+    <string name="ai_trait_plays">%1$d plays</string>
+    <string name="ai_trait_unplayed">unplayed</string>
 </resources>

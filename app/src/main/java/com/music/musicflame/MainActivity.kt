@@ -1205,6 +1205,8 @@ class MainActivity : ComponentActivity() {
                                             // (el pager mantiene todas las pantallas compuestas).
                                             isActive = pagerState.settledPage == page && !showSettings && !showTogether,
                                             hasBackgroundImage = hasBackgroundImage,
+                                            nowPlayingSongId = currentSong?.id,
+                                            onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) },
                                             modifier = Modifier.consumeWindowInsets(innerPadding)
                                         )
                                         Screen.Trash -> TrashScreen(

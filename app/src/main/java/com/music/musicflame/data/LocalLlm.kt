@@ -25,8 +25,9 @@ object LocalLlm {
     const val APPROX_SIZE_LABEL = "≈1.6 GB"
     private const val MODEL_FILE = "Qwen2.5-1.5B-Instruct_q8_ekv1280.task"
     private const val MIN_VALID_BYTES = 500L * 1024 * 1024   // un archivo menor a esto está incompleto/corrupto
-    private const val MAX_TOKENS = 512                      // prompt + respuesta: menos tokens = KV cache más chico y respuesta más rápida
+    private const val MAX_TOKENS = 1024                     // prompt (con datos de la biblioteca) + respuesta; el modelo trae KV de 1280
     private const val HISTORY_CHAR_BUDGET = 600             // historial corto = prefill corto = primer trozo de respuesta antes
+    private const val HISTORY_CHAR_BUDGET_WITH_DATA = 280   // con datos de biblioteca en el prompt el historial se acorta más
 
     /**
      * Acelera la inferencia con la GPU del teléfono (varias veces más rápido que CPU en la mayoría de equipos).
@@ -47,6 +48,13 @@ object LocalLlm {
 
     /** Libera la RAM del modelo (se vuelve a cargar solo en el siguiente mensaje). */
     fun unload() { try { engine?.close() } catch (_: Throwable) {}; engine = null }
+
+    /**
+     * Libera el modelo (≈1.6 GB+ en RAM) cuando ya no se usa. Espera a que termine cualquier respuesta en curso
+     * (toma el mismo mutex). Es lo que evita que la app se arrastre y tenga micro-congelaciones por presión de
+     * memoria mientras el usuario escucha música en otras pestañas.
+     */
+    suspend fun unloadWhenIdle() = withContext(Dispatchers.IO) { mutex.withLock { unload() } }
 
     fun deleteModel(ctx: Context) {
         unload()
@@ -151,10 +159,12 @@ object LocalLlm {
      */
     suspend fun reply(
         ctx: Context, aiName: String, nowPlaying: String?, history: List<AiMessage>,
+        libraryBlock: String? = null,
+        lang: String = "es",
         onPartial: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val prompt = buildPrompt(aiName, nowPlaying, history)
+            val prompt = buildPrompt(aiName, nowPlaying, history, libraryBlock, lang)
             try {
                 generate(engineFor(ctx), prompt, onPartial)
             } catch (t: Throwable) {
@@ -168,11 +178,17 @@ object LocalLlm {
 
     private fun generate(llm: LlmInference, prompt: String, onPartial: (String) -> Unit): String {
         val acc = StringBuilder()
+        var lastEmit = 0L
         val future = llm.generateResponseAsync(prompt) { partial, _ ->
             acc.append(partial)
-            // repairText sale al instante (O(n) sin asignar) cuando no hay bytes sueltos que reparar.
-            val shown = repairText(acc.toString().substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
-            if (shown.isNotEmpty()) onPartial(shown)
+            // Se arma y limpia el texto SOLO ~20 veces por segundo, no en cada token (menos trabajo mientras
+            // el modelo ya está ocupando CPU/GPU, y menos recomposiciones de la UI).
+            val now = android.os.SystemClock.uptimeMillis()
+            if (now - lastEmit >= 50L) {
+                lastEmit = now
+                val shown = repairText(acc.toString().substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
+                if (shown.isNotEmpty()) onPartial(shown)
+            }
         }
         val raw = future.get()
         val text = if (raw.isNullOrBlank()) acc.toString() else raw
@@ -235,19 +251,30 @@ object LocalLlm {
         return out.toString()
     }
 
-    /** Formato ChatML de Qwen. El modelo es chico: system corto y solo los últimos turnos que quepan. */
-    private fun buildPrompt(aiName: String, nowPlaying: String?, history: List<AiMessage>): String {
+    /** Formato ChatML de Qwen. El modelo es chico: system corto, datos reales de la biblioteca y pocos turnos. */
+    private fun buildPrompt(aiName: String, nowPlaying: String?, history: List<AiMessage>, libraryBlock: String?, lang: String): String {
         val system = buildString {
-            append("Eres $aiName, asistente de música dentro de la app MusicFlame. ")
-            append("Responde en el idioma del usuario, en máximo 2 oraciones cortas, sin Markdown ni listas. ")
-            append("Si no estás seguro de un dato (año, BPM, álbum), dilo en vez de inventarlo.")
+            append("Eres $aiName, asesor musical dentro de la app MusicFlame. ")
+            append("Escribe de forma profesional, cálida y clara, sin Markdown (nada de asteriscos ni #). ")
+            // Idioma FIJO (el de la app): un modelo chico se pasa al inglés/chino si ve títulos o géneros en otro idioma.
+            if (lang == "en") append("Reply ONLY in English; keep song titles exactly as they are. Never mix languages. ")
+            else append("Responde SIEMPRE y únicamente en español, sin mezclar idiomas ni usar inglés ni chino; los títulos de canciones y los géneros déjalos tal cual. ")
+            append("REGLA CLAVE: solo menciona canciones, artistas, álbumes o años que aparezcan en los DATOS de abajo; NUNCA inventes ninguno. ")
+            append("Si no tienes el dato, dilo con naturalidad. Sin datos, responde en 2 o 3 oraciones.")
             if (!nowPlaying.isNullOrBlank()) append(" Ahora suena: \"$nowPlaying\".")
+            if (!libraryBlock.isNullOrBlank()) {
+                append("\n\nDATOS de la biblioteca del usuario:\n").append(libraryBlock)
+                append("\nEstructura del mensaje: 1) una oración de introducción; 2) una línea por cada canción de la lista, ")
+                append("numerada (1., 2., ...), con el título, el artista y en una frase corta por qué encaja (usa el motivo); ")
+                append("3) una oración final invitando a tocar una tarjeta o a pedir algo distinto. Incluye TODAS las canciones de la lista.")
+            }
         }
+        val budget = if (libraryBlock.isNullOrBlank()) HISTORY_CHAR_BUDGET else HISTORY_CHAR_BUDGET_WITH_DATA
         val turns = ArrayDeque<AiMessage>()
         var used = 0
-        for (m in history.filter { !it.isError }.asReversed()) {
-            val len = m.text.length.coerceAtMost(600)
-            if (used + len > HISTORY_CHAR_BUDGET && turns.isNotEmpty()) break
+        for (m in history.filter { !it.isError && it.text.isNotBlank() }.asReversed()) {
+            val len = m.text.length.coerceAtMost(400)
+            if (used + len > budget && turns.isNotEmpty()) break
             turns.addFirst(m); used += len
         }
         while (turns.isNotEmpty() && !turns.first().fromUser) turns.removeFirst()
@@ -255,7 +282,7 @@ object LocalLlm {
             append("<|im_start|>system\n").append(system).append("<|im_end|>\n")
             turns.forEach {
                 append("<|im_start|>").append(if (it.fromUser) "user" else "assistant").append('\n')
-                append(it.text.take(600)).append("<|im_end|>\n")
+                append(it.text.take(400)).append("<|im_end|>\n")
             }
             append("<|im_start|>assistant\n")
         }

@@ -58,4 +58,7 @@
     <string name="ai_suggest_1">Recomiéndame algo parecido a lo que suena</string>
     <string name="ai_suggest_2">Cuéntame algo curioso sobre la música</string>
     <string name="ai_suggest_3">¿Qué género me conviene para estudiar?</string>
+    <string name="ai_play_all">Reproducir todas</string>
+    <string name="ai_trait_plays">%1$d escuchas</string>
+    <string name="ai_trait_unplayed">sin escuchar</string>
 </resources>

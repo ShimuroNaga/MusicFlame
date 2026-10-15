@@ -1,10 +1,13 @@
 package com.music.musicflame.ui.screens
 
+import android.app.Activity
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
+import android.content.ContextWrapper
 import android.content.SharedPreferences
 import android.os.SystemClock
+import android.view.WindowManager
 import android.widget.Toast
 import androidx.compose.animation.Crossfade
 import androidx.compose.animation.animateColorAsState
@@ -34,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -63,13 +67,23 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.R
 import com.music.musicflame.data.AiChatSettings
 import com.music.musicflame.data.AiMessage
+import com.music.musicflame.data.AiLibraryContext
 import com.music.musicflame.data.LocalLlm
+import com.music.musicflame.data.Song
+import com.music.musicflame.data.SongLibraryHolder
+import com.music.musicflame.data.SongStat
+import com.music.musicflame.data.StatsRepository
+import com.music.musicflame.ui.components.AlbumArt
 import com.music.musicflame.ui.theme.parseCustomTextColor
 import com.music.musicflame.ui.theme.rainbowColorAt
 import com.music.musicflame.ui.theme.rememberRainbowPhase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.PI
 import kotlin.math.sin
@@ -91,6 +105,8 @@ fun AiChatScreen(
     nowPlayingLabel: String?,
     isActive: Boolean = true,
     hasBackgroundImage: Boolean = false,
+    nowPlayingSongId: Long? = null,
+    onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -120,8 +136,38 @@ fun AiChatScreen(
     var isThinking by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
-    // Carga el modelo en segundo plano al abrir la pestaña: el primer mensaje ya no espera la carga.
-    LaunchedEffect(isActive) { if (isActive) LocalLlm.preload(context) }
+    // --- Teclado ---
+    // La app es edge-to-edge (targetSdk 36) y el chat ya se acomoda con imePadding(). Con el modo por defecto
+    // (adjustUnspecified) Android ADEMÁS desplaza (pan) toda la ventana hacia arriba: el desplazamiento y el
+    // imePadding se SUMAN y la caja de texto quedaba muy arriba. Mientras esta pestaña está activa se fuerza
+    // adjustResize (sin pan, solo insets) y al salir se restaura el modo anterior para no afectar otras pantallas.
+    DisposableEffect(isActive) {
+        val window = context.findActivity()?.window
+        val previous = window?.attributes?.softInputMode
+        if (isActive && window != null) window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        onDispose { if (previous != null) window?.setSoftInputMode(previous) }
+    }
+
+    // --- Estadísticas de escuchas para las tarjetas (se leen en IO, nunca en el hilo principal) ---
+    var stats by remember { mutableStateOf<Map<Long, SongStat>>(emptyMap()) }
+    // --- Modelo: se carga al entrar a la pestaña y se LIBERA tras 90 s fuera de ella ---
+    // (el modelo ocupa >1.6 GB de RAM; dejarlo cargado mientras suena música ralentizaba toda la app).
+    LaunchedEffect(isActive) {
+        if (isActive) {
+            stats = withContext(Dispatchers.IO) { StatsRepository(context).getAllStats() }
+            LocalLlm.preload(context)
+        } else {
+            delay(90_000L)
+            LocalLlm.unloadWhenIdle()
+        }
+    }
+    val librarySongs = SongLibraryHolder.songs
+    val songsById = remember(librarySongs) { librarySongs.associateBy { it.id } }
+    val persistLock = remember { Mutex() }
+    fun persist() {
+        val snapshot = messages.toList()
+        scope.launch(Dispatchers.IO) { persistLock.withLock { settings.saveHistory(snapshot) } }   // nunca escribir a disco en el hilo principal
+    }
 
     // Puntos animados solo mientras no haya llegado ningún trozo de la respuesta
     val showTyping = isThinking && messages.lastOrNull()?.fromUser != false
@@ -136,7 +182,7 @@ fun AiChatScreen(
     }
 
     // --- Estilo de burbujas ---
-    val rainbowPhase = if (bubbleMode == AiChatSettings.MODE_RAINBOW)
+    val rainbowPhase = if (bubbleMode == AiChatSettings.MODE_RAINBOW && isActive)
         rememberRainbowPhase(AiChatSettings.BUBBLE_RAINBOW_CYCLE_SECONDS) else null
     val scheme = MaterialTheme.colorScheme
     val customColor = remember(bubbleHex) { parseCustomTextColor(bubbleHex) }
@@ -147,22 +193,38 @@ fun AiChatScreen(
         if (!termsAccepted) return
         if (override == null) input = ""
         messages.add(AiMessage(System.nanoTime(), true, text))
-        settings.saveHistory(messages.toList())
-        if (!LocalLlm.isReady(context)) {
-            messages.add(AiMessage(System.nanoTime(), false, context.getString(R.string.ai_no_model_message), isError = true))
-            return
-        }
+        persist()
         isThinking = true
         val replyId = System.nanoTime()
-        fun upsert(text: String, error: Boolean = false) {
+        fun upsert(text: String, error: Boolean = false, songIds: List<Long>? = null) {
             val i = messages.indexOfFirst { it.id == replyId }
-            if (i < 0) messages.add(AiMessage(replyId, false, text, isError = error))
+            if (i < 0) messages.add(AiMessage(replyId, false, text, isError = error, songIds = songIds ?: emptyList()))
             else messages[i] = messages[i].copy(text = text, isError = error)
         }
         val lastUiUpdate = AtomicLong(0L)
+        val librarySnapshot = SongLibraryHolder.songs
+        val lang = context.resources.configuration.locales[0].language   // idioma de la app (es/en)
+        val statsSnapshot = stats
         scope.launch {
+            var fallbackText: String? = null
             try {
-                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList()) { partial ->
+                // 1) Búsqueda en la biblioteca REAL (sin IA, instantánea): las tarjetas aparecen YA,
+                //    sin esperar al modelo, y la IA solo comenta datos verdaderos en vez de adivinar.
+                val lib = withContext(Dispatchers.Default) {
+                    AiLibraryContext.build(text, librarySnapshot, statsSnapshot, nowPlayingSongId)
+                }
+                fallbackText = lib.fallbackText
+                if (lib.picks.isNotEmpty()) upsert("", songIds = lib.picks.map { it.id })
+
+                if (!LocalLlm.isReady(context)) {
+                    val hint = context.getString(R.string.ai_no_model_message)
+                    if (lib.picks.isNotEmpty()) upsert(listOfNotNull(lib.fallbackText, hint).joinToString("\n\n"))
+                    else upsert(hint, error = true)
+                    return@launch
+                }
+
+                // 2) El modelo redacta el comentario con esos datos.
+                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList(), lib.promptBlock, lang) { partial ->
                     // callback desde hilo de fondo: se limita a ~22 fps y se pasa al hilo principal
                     val now = SystemClock.uptimeMillis()
                     if (now - lastUiUpdate.get() >= 45L) {
@@ -174,11 +236,18 @@ fun AiChatScreen(
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {   // Throwable: un modelo local puede fallar por falta de RAM (OutOfMemoryError)
-                val reason = e.message?.take(140) ?: e.javaClass.simpleName
-                if (messages.none { it.id == replyId }) upsert(context.getString(R.string.ai_error_message, reason), error = true)
+                val existing = messages.firstOrNull { it.id == replyId }
+                if (existing == null || existing.text.isBlank()) {
+                    val fb = fallbackText
+                    if (existing != null && fb != null) upsert(fb)   // hay tarjetas: se conservan con un texto simple
+                    else {
+                        val reason = e.message?.take(140) ?: e.javaClass.simpleName
+                        upsert(context.getString(R.string.ai_error_message, reason), error = true)
+                    }
+                }
             } finally {
                 isThinking = false
-                settings.saveHistory(messages.toList())
+                persist()
             }
         }
     }
@@ -200,7 +269,6 @@ fun AiChatScreen(
     val pillColor = if (hasBackgroundImage) scheme.surfaceContainer.copy(alpha = 0.88f) else scheme.surfaceContainerHigh
 
     val phrase = when {
-        isThinking -> stringResource(R.string.ai_typing)
         !nowPlayingLabel.isNullOrBlank() -> stringResource(R.string.ai_listening, nowPlayingLabel.orEmpty())
         else -> stringResource(R.string.ai_tagline)
     }
@@ -209,11 +277,12 @@ fun AiChatScreen(
         // imePadding UNA sola vez; la altura útil real se mide justo debajo (ya sin el teclado).
         Box(Modifier.fillMaxSize().imePadding()) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
-                val compact = maxHeight < 440.dp
+                // La tarjeta de la IA NO se compacta al abrir el teclado; solo en alturas absurdamente chicas (p. ej. horizontal).
+                val compact = maxHeight < 260.dp
                 val isEmpty = messages.isEmpty() && !isThinking
 
                 // Al abrir/cerrar el teclado, dejar el último mensaje a la vista
-                LaunchedEffect(compact) { if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1) }
+                LaunchedEffect(maxHeight) { if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1) }
 
                 Column(Modifier.fillMaxSize()) {
                     // ---------- Tarjeta superior: orbe + nombre + frase ----------
@@ -241,8 +310,11 @@ fun AiChatScreen(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(messages, key = { it.id }) { msg ->
+                            val picks = if (msg.songIds.isEmpty()) emptyList() else msg.songIds.mapNotNull { songsById[it] }
                             ChatBubble(
                                 msg = msg, typing = false, mode = bubbleMode, customColor = customColor, rainbowPhase = rainbowPhase,
+                                songs = picks, stats = stats, waiting = isThinking && msg.id == messages.lastOrNull()?.id && !msg.fromUser,
+                                onPlaySong = { song -> onPlaySong(song, picks) },
                                 onCopy = {
                                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                     cm.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
@@ -489,7 +561,11 @@ private fun ChatBubble(
     mode: String,
     customColor: Color,
     rainbowPhase: State<Float>?,
-    onCopy: (() -> Unit)?
+    onCopy: (() -> Unit)?,
+    songs: List<Song> = emptyList(),
+    stats: Map<Long, SongStat> = emptyMap(),
+    waiting: Boolean = false,
+    onPlaySong: ((Song) -> Unit)? = null
 ) {
     val scheme = MaterialTheme.colorScheme
     val isUser = msg.fromUser
@@ -536,8 +612,10 @@ private fun ChatBubble(
                 .padding(start = 16.dp, end = 16.dp, top = 11.dp, bottom = 11.dp)
         ) {
             if (typing) TypingDots(contentColor.copy(alpha = 0.7f)) else Column {
-                Text(msg.text, color = contentColor, fontSize = 16.sp, lineHeight = 23.sp)
-                if (!isUser && onCopy != null) {
+                if (msg.text.isBlank() && waiting) TypingDots(contentColor.copy(alpha = 0.7f))
+                else if (msg.text.isNotBlank()) Text(msg.text, color = contentColor, fontSize = 16.sp, lineHeight = 23.sp)
+                if (songs.isNotEmpty() && onPlaySong != null) SongPickCards(songs, stats, contentColor, onPlaySong)
+                if (!isUser && onCopy != null && msg.text.isNotBlank()) {
                     Icon(
                         Icons.Outlined.ContentCopy, stringResource(R.string.ai_copy),
                         tint = contentColor.copy(alpha = 0.6f),
@@ -546,5 +624,55 @@ private fun ChatBubble(
                 }
             }
         }
+    }
+}
+
+/** Busca la Activity detrás de un Context (puede venir envuelto en ContextWrapper). */
+private tailrec fun Context.findActivity(): Activity? = when (this) {
+    is Activity -> this
+    is ContextWrapper -> baseContext.findActivity()
+    else -> null
+}
+
+/**
+ * Canciones reales de la biblioteca sugeridas por la IA: portada, título, artista · álbum y sus características
+ * (género, año, duración, escuchas). Tocar una la reproduce; "Reproducir todas" pone la lista completa.
+ */
+@Composable
+private fun SongPickCards(songs: List<Song>, stats: Map<Long, SongStat>, contentColor: Color, onPlay: (Song) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(Modifier.padding(top = 8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        songs.forEach { song ->
+            val plays = stats[song.id]?.playCount ?: 0
+            val playsLabel = if (plays > 0) stringResource(R.string.ai_trait_plays, plays) else stringResource(R.string.ai_trait_unplayed)
+            val traits = remember(song.id, plays) { AiLibraryContext.baseTraits(song) }
+            Row(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp))
+                    .background(contentColor.copy(alpha = 0.10f))
+                    .clickable { onPlay(song) }
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AlbumArt(song.albumArtUri, 44.dp, 10.dp, filePath = song.path, isCustomCover = song.hasCustomCover)
+                Spacer(Modifier.width(10.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(song.title, color = contentColor, fontSize = 14.sp, fontWeight = FontWeight.SemiBold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(
+                        listOf(song.artist, song.album.takeIf { it.isNotBlank() && !it.equals("Desconocido", true) }).filterNotNull().joinToString(" · "),
+                        color = contentColor.copy(alpha = 0.75f), fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        (traits + playsLabel).joinToString(" · "),
+                        color = contentColor.copy(alpha = 0.6f), fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+                Icon(Icons.Filled.PlayArrow, null, tint = scheme.primary, modifier = Modifier.size(26.dp))
+            }
+        }
+        if (songs.size > 1) Text(
+            stringResource(R.string.ai_play_all), color = scheme.primary, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+            modifier = Modifier.align(Alignment.End).clip(RoundedCornerShape(10.dp)).clickable { onPlay(songs.first()) }
+                .padding(horizontal = 10.dp, vertical = 6.dp)
+        )
     }
 }

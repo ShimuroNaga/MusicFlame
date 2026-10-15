@@ -13,7 +13,9 @@ data class AiMessage(
     val fromUser: Boolean,
     val text: String,
     val timeMs: Long = System.currentTimeMillis(),
-    val isError: Boolean = false
+    val isError: Boolean = false,
+    /** Ids de canciones de la biblioteca que la IA sugiere; se muestran como tarjetas bajo el texto. */
+    val songIds: List<Long> = emptyList()
 )
 
 /**
@@ -80,7 +82,8 @@ class AiChatSettings(context: Context) {
             val arr = JSONArray(f.readText())
             (0 until arr.length()).map { i ->
                 val o = arr.getJSONObject(i)
-                AiMessage(o.getLong("id"), o.getBoolean("user"), LocalLlm.repairText(o.getString("text")), o.optLong("t", 0L), o.optBoolean("err", false))
+                val ids = o.optJSONArray("songs")?.let { a -> (0 until a.length()).map { k -> a.getLong(k) } } ?: emptyList()
+                AiMessage(o.getLong("id"), o.getBoolean("user"), LocalLlm.repairText(o.getString("text")), o.optLong("t", 0L), o.optBoolean("err", false), ids)
             }
         }
     } catch (e: Exception) { emptyList() }
@@ -89,7 +92,9 @@ class AiChatSettings(context: Context) {
         try {
             val arr = JSONArray()
             messages.takeLast(MAX_HISTORY).forEach {
-                arr.put(JSONObject().put("id", it.id).put("user", it.fromUser).put("text", it.text).put("t", it.timeMs).put("err", it.isError))
+                val o = JSONObject().put("id", it.id).put("user", it.fromUser).put("text", it.text).put("t", it.timeMs).put("err", it.isError)
+                if (it.songIds.isNotEmpty()) o.put("songs", JSONArray(it.songIds))
+                arr.put(o)
             }
             historyFile().writeText(arr.toString())
         } catch (e: Exception) { /* historial es best-effort */ }

@@ -54,4 +54,8 @@
     <string name="settings_ai_local_delete_body">Se liberará el espacio. Podrás volver a descargarlo cuando quieras.</string>
     <string name="settings_ai_local_fail">No se pudo descargar: %1$s</string>
     <string name="settings_ai_terms_button">Ver términos de la IA</string>
+    <string name="ai_listening">Escuchando: %1$s</string>
+    <string name="ai_suggest_1">Recomiéndame algo parecido a lo que suena</string>
+    <string name="ai_suggest_2">Cuéntame algo curioso sobre la música</string>
+    <string name="ai_suggest_3">¿Qué género me conviene para estudiar?</string>
 </resources>

@@ -51,4 +51,8 @@
     <string name="settings_ai_local_delete_body">This frees the space. You can download it again anytime.</string>
     <string name="settings_ai_local_fail">Couldn\'t download: %1$s</string>
     <string name="settings_ai_terms_button">View AI terms</string>
+    <string name="ai_listening">Listening to: %1$s</string>
+    <string name="ai_suggest_1">Recommend something similar to what\'s playing</string>
+    <string name="ai_suggest_2">Tell me something interesting about music</string>
+    <string name="ai_suggest_3">Which genre is best for studying?</string>
 </resources>

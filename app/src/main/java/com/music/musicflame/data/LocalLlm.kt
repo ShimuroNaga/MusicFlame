@@ -25,8 +25,15 @@ object LocalLlm {
     const val APPROX_SIZE_LABEL = "≈1.6 GB"
     private const val MODEL_FILE = "Qwen2.5-1.5B-Instruct_q8_ekv1280.task"
     private const val MIN_VALID_BYTES = 500L * 1024 * 1024   // un archivo menor a esto está incompleto/corrupto
-    private const val MAX_TOKENS = 768                      // prompt + respuesta: menos tokens = respuesta más rápida
-    private const val HISTORY_CHAR_BUDGET = 900
+    private const val MAX_TOKENS = 512                      // prompt + respuesta: menos tokens = KV cache más chico y respuesta más rápida
+    private const val HISTORY_CHAR_BUDGET = 600             // historial corto = prefill corto = primer trozo de respuesta antes
+
+    /**
+     * Acelera la inferencia con la GPU del teléfono (varias veces más rápido que CPU en la mayoría de equipos).
+     * Si la GPU no soporta el modelo, o el equipo se cierra al cargarla, se desactiva sola y se usa CPU
+     * (ver [engineFor]). Ponlo en false para forzar CPU siempre.
+     */
+    private const val USE_GPU = true
 
     private fun dir(ctx: Context) = File(ctx.applicationContext.filesDir, "ai_models")
     fun modelFile(ctx: Context) = File(dir(ctx), MODEL_FILE)
@@ -87,13 +94,50 @@ object LocalLlm {
         } finally { conn.disconnect() }
     }
 
-    private fun engineFor(ctx: Context): LlmInference = engine ?: LlmInference.createFromOptions(
+    @Volatile private var engineIsGpu = false
+
+    private fun enginePrefs(ctx: Context) =
+        ctx.applicationContext.getSharedPreferences("ai_engine", Context.MODE_PRIVATE)
+
+    private fun buildEngine(ctx: Context, gpu: Boolean): LlmInference = LlmInference.createFromOptions(
         ctx.applicationContext,
         LlmInference.LlmInferenceOptions.builder()
             .setModelPath(modelFile(ctx).absolutePath)
+            .setPreferredBackend(if (gpu) LlmInference.Backend.GPU else LlmInference.Backend.CPU)
             .setMaxTokens(MAX_TOKENS)
             .build()
-    ).also { engine = it }
+    )
+
+    /**
+     * Intenta GPU primero. Protección contra bucles de cierre: antes de cargar se deja una marca
+     * ("gpu_loading"); si la app muere cargando la GPU (fallo nativo, no capturable), la marca queda
+     * puesta y en el siguiente arranque la GPU se descarta para siempre en este equipo.
+     */
+    private fun engineFor(ctx: Context): LlmInference {
+        engine?.let { return it }
+        val prefs = enginePrefs(ctx)
+        if (prefs.getBoolean("gpu_loading", false))
+            prefs.edit().putBoolean("gpu_broken", true).putBoolean("gpu_loading", false).apply()
+        if (USE_GPU && !prefs.getBoolean("gpu_broken", false)) {
+            prefs.edit().putBoolean("gpu_loading", true).commit()   // commit (síncrono): debe quedar escrito antes de un posible cierre
+            try {
+                val e = buildEngine(ctx, gpu = true)
+                prefs.edit().putBoolean("gpu_loading", false).apply()
+                engineIsGpu = true
+                engine = e
+                return e
+            } catch (_: Throwable) {
+                prefs.edit().putBoolean("gpu_loading", false).putBoolean("gpu_broken", true).apply()
+            }
+        }
+        engineIsGpu = false
+        return buildEngine(ctx, gpu = false).also { engine = it }
+    }
+
+    private fun markGpuBroken(ctx: Context) {
+        enginePrefs(ctx).edit().putBoolean("gpu_broken", true).putBoolean("gpu_loading", false).apply()
+        unload()
+    }
 
     /** Carga el modelo en RAM antes de que el usuario escriba (así el primer mensaje no espera la carga). */
     suspend fun preload(ctx: Context) = withContext(Dispatchers.IO) {
@@ -110,19 +154,31 @@ object LocalLlm {
         onPartial: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
         mutex.withLock {
-            val llm = engineFor(ctx)
-            val acc = StringBuilder()
-            val future = llm.generateResponseAsync(buildPrompt(aiName, nowPlaying, history)) { partial, _ ->
-                acc.append(partial)
-                val shown = repairText(acc.toString().substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
-                if (shown.isNotEmpty()) onPartial(shown)
+            val prompt = buildPrompt(aiName, nowPlaying, history)
+            try {
+                generate(engineFor(ctx), prompt, onPartial)
+            } catch (t: Throwable) {
+                // La GPU cargó pero falló al generar (modelo/driver incompatible): reintento una vez en CPU.
+                if (t is kotlinx.coroutines.CancellationException || !engineIsGpu) throw t
+                markGpuBroken(ctx)
+                generate(engineFor(ctx), prompt, onPartial)
             }
-            val raw = future.get()
-            val text = if (raw.isNullOrBlank()) acc.toString() else raw
-            val clean = repairText(text.substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
-            if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
-            clean
         }
+    }
+
+    private fun generate(llm: LlmInference, prompt: String, onPartial: (String) -> Unit): String {
+        val acc = StringBuilder()
+        val future = llm.generateResponseAsync(prompt) { partial, _ ->
+            acc.append(partial)
+            // repairText sale al instante (O(n) sin asignar) cuando no hay bytes sueltos que reparar.
+            val shown = repairText(acc.toString().substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
+            if (shown.isNotEmpty()) onPartial(shown)
+        }
+        val raw = future.get()
+        val text = if (raw.isNullOrBlank()) acc.toString() else raw
+        val clean = repairText(text.substringBefore("<|im_end|>").replace("<|im_start|>", "")).trim()
+        if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
+        return clean
     }
 
     // ---------- Reparación de texto: el tokenizer a veces entrega bytes UTF-8 sueltos ("Â¡" en vez de "¡") ----------

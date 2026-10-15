@@ -4,15 +4,20 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.content.SharedPreferences
+import android.os.SystemClock
 import android.widget.Toast
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.StartOffset
 import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -22,28 +27,37 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.outlined.ContentCopy
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.R
@@ -56,17 +70,27 @@ import com.music.musicflame.ui.theme.rememberRainbowPhase
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import java.util.concurrent.atomic.AtomicLong
+import kotlin.math.PI
+import kotlin.math.sin
 
 /**
- * Sexta pantalla: chat con la IA (panel superior con el orbe, burbujas con esquina recta del lado de quien habla,
- * botón de copiar dentro de la burbuja de la IA y caja de texto en píldora sobre una franja).
- * La respuesta aparece en streaming (trozo a trozo). Colores de burbuja / nombre salen de Ajustes > IA y se refrescan en vivo.
+ * Pantalla de chat con la IA (6ª pestaña), según el boceto:
+ *   tarjeta superior (orbe + nombre + frase)  →  burbujas (IA a la izquierda, tú a la derecha)  →
+ *   caja de texto en píldora + botón enviar circular  →  (barra de navegación de la app).
+ *
+ * - Fondo: si la app tiene imagen de fondo, el chat es transparente y las superficies son translúcidas;
+ *   si no, usa el fondo del tema. Nunca fuerza un fondo oscuro ni dibuja una franja detrás del input.
+ * - Teclado: la zona de mensajes se adapta a la altura REAL disponible (BoxWithConstraints) y la tarjeta
+ *   superior se compacta cuando hay poco espacio, así el input nunca se sale ni deja huecos.
+ * - El orbe solo anima (suave) mientras la IA responde; el resto del tiempo no consume frames.
+ * - La respuesta llega en streaming; la UI se refresca a ~22 fps como máximo para no frenar al modelo.
  */
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiChatScreen(
     nowPlayingLabel: String?,
     isActive: Boolean = true,
+    hasBackgroundImage: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -94,13 +118,12 @@ fun AiChatScreen(
     val messages = remember { mutableStateListOf<AiMessage>().apply { addAll(settings.loadHistory()) } }
     var input by remember { mutableStateOf("") }
     var isThinking by remember { mutableStateOf(false) }
-    var menuOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
 
     // Carga el modelo en segundo plano al abrir la pestaña: el primer mensaje ya no espera la carga.
     LaunchedEffect(isActive) { if (isActive) LocalLlm.preload(context) }
 
-    // "···" solo mientras no haya llegado ningún trozo de la respuesta
+    // Puntos animados solo mientras no haya llegado ningún trozo de la respuesta
     val showTyping = isThinking && messages.lastOrNull()?.fromUser != false
     LaunchedEffect(messages.size, showTyping) {
         val last = messages.size + (if (showTyping) 1 else 0) - 1
@@ -118,11 +141,11 @@ fun AiChatScreen(
     val scheme = MaterialTheme.colorScheme
     val customColor = remember(bubbleHex) { parseCustomTextColor(bubbleHex) }
 
-    fun send() {
-        val text = input.trim()
+    fun send(override: String? = null) {
+        val text = (override ?: input).trim()
         if (text.isEmpty() || isThinking) return
         if (!termsAccepted) return
-        input = ""
+        if (override == null) input = ""
         messages.add(AiMessage(System.nanoTime(), true, text))
         settings.saveHistory(messages.toList())
         if (!LocalLlm.isReady(context)) {
@@ -136,13 +159,18 @@ fun AiChatScreen(
             if (i < 0) messages.add(AiMessage(replyId, false, text, isError = error))
             else messages[i] = messages[i].copy(text = text, isError = error)
         }
+        val lastUiUpdate = AtomicLong(0L)
         scope.launch {
             try {
                 val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList()) { partial ->
-                    // callback desde hilo de fondo -> pasar al hilo principal, en orden
-                    scope.launch(Dispatchers.Main.immediate) { upsert(partial) }
+                    // callback desde hilo de fondo: se limita a ~22 fps y se pasa al hilo principal
+                    val now = SystemClock.uptimeMillis()
+                    if (now - lastUiUpdate.get() >= 45L) {
+                        lastUiUpdate.set(now)
+                        scope.launch(Dispatchers.Main.immediate) { upsert(partial) }
+                    }
                 }
-                upsert(answer)
+                upsert(answer)   // texto final completo, siempre
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {   // Throwable: un modelo local puede fallar por falta de RAM (OutOfMemoryError)
@@ -166,134 +194,290 @@ fun AiChatScreen(
         onDismiss = { showTermsAgain = false }
     )
 
-    Box(modifier = modifier.fillMaxSize().background(scheme.surface)) {
-        val isEmpty = messages.isEmpty() && !isThinking
+    // Colores de superficie según haya o no imagen de fondo en la app.
+    val panelColor = if (hasBackgroundImage) scheme.surfaceContainer.copy(alpha = 0.80f) else scheme.primaryContainer
+    val onPanel = if (hasBackgroundImage) scheme.onSurface else scheme.onPrimaryContainer
+    val pillColor = if (hasBackgroundImage) scheme.surfaceContainer.copy(alpha = 0.88f) else scheme.surfaceContainerHigh
 
-        Column(modifier = Modifier.fillMaxSize().imePadding()) {
-            // ---------- Panel superior: orbe de la IA centrado (como la versión anterior) ----------
-            Box(
-                modifier = Modifier.fillMaxWidth()
-                    .background(scheme.surfaceContainer)
-                    .padding(vertical = 22.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    AiAvatar(size = 84, glow = true, pulsing = isThinking)
-                    AnimatedVisibility(visible = isThinking) {
-                        Text(
-                            stringResource(R.string.ai_typing), fontSize = 12.sp, color = scheme.primary,
-                            modifier = Modifier.padding(top = 10.dp)
-                        )
-                    }
-                }
-                Box(Modifier.align(Alignment.TopEnd)) {
-                    IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, null, tint = scheme.onSurfaceVariant) }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.ai_clear_chat)) },
-                            onClick = { menuOpen = false; messages.clear(); settings.clearHistory() }
-                        )
-                    }
-                }
-            }
+    val phrase = when {
+        isThinking -> stringResource(R.string.ai_typing)
+        !nowPlayingLabel.isNullOrBlank() -> stringResource(R.string.ai_listening, nowPlayingLabel.orEmpty())
+        else -> stringResource(R.string.ai_tagline)
+    }
 
-            // ---------- Mensajes ----------
-            if (isEmpty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(R.string.ai_tagline), fontSize = 15.sp, textAlign = TextAlign.Center,
-                    color = scheme.onSurfaceVariant, modifier = Modifier.padding(horizontal = 32.dp)
-                )
-            } else LazyColumn(
-                state = listState,
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-                contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-                verticalArrangement = Arrangement.spacedBy(14.dp)
-            ) {
-                items(messages, key = { it.id }) { msg ->
-                    ChatBubble(
-                        msg = msg, mode = bubbleMode, customColor = customColor, rainbowPhase = rainbowPhase,
-                        onCopy = {
-                            val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                            cm.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
-                            Toast.makeText(context, context.getString(R.string.ai_copied), Toast.LENGTH_SHORT).show()
+    Box(modifier = modifier.fillMaxSize().background(if (hasBackgroundImage) Color.Transparent else scheme.background)) {
+        // imePadding UNA sola vez; la altura útil real se mide justo debajo (ya sin el teclado).
+        Box(Modifier.fillMaxSize().imePadding()) {
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                val compact = maxHeight < 440.dp
+                val isEmpty = messages.isEmpty() && !isThinking
+
+                // Al abrir/cerrar el teclado, dejar el último mensaje a la vista
+                LaunchedEffect(compact) { if (messages.isNotEmpty()) listState.scrollToItem(messages.size - 1) }
+
+                Column(Modifier.fillMaxSize()) {
+                    // ---------- Tarjeta superior: orbe + nombre + frase ----------
+                    AiHeader(
+                        name = name, phrase = phrase, thinking = isThinking, compact = compact,
+                        panelColor = panelColor, onPanel = onPanel,
+                        onClear = { messages.clear(); settings.clearHistory() }
+                    )
+
+                    // ---------- Mensajes ----------
+                    if (isEmpty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+                        if (termsAccepted && !compact) SuggestionList(
+                            items = listOf(
+                                stringResource(R.string.ai_suggest_1),
+                                stringResource(R.string.ai_suggest_2),
+                                stringResource(R.string.ai_suggest_3)
+                            ),
+                            color = pillColor,
+                            onPick = { send(it) }
+                        )
+                    } else LazyColumn(
+                        state = listState,
+                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        items(messages, key = { it.id }) { msg ->
+                            ChatBubble(
+                                msg = msg, typing = false, mode = bubbleMode, customColor = customColor, rainbowPhase = rainbowPhase,
+                                onCopy = {
+                                    val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                    cm.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
+                                    Toast.makeText(context, context.getString(R.string.ai_copied), Toast.LENGTH_SHORT).show()
+                                }
+                            )
                         }
-                    )
-                }
-                if (showTyping) {
-                    item(key = "typing") {
-                        ChatBubble(
-                            msg = AiMessage(-1L, false, "···", timeMs = 0L), mode = bubbleMode,
-                            customColor = customColor, rainbowPhase = rainbowPhase, onCopy = null
-                        )
+                        if (showTyping) {
+                            item(key = "typing") {
+                                ChatBubble(
+                                    msg = AiMessage(-1L, false, "", timeMs = 0L), typing = true, mode = bubbleMode,
+                                    customColor = customColor, rainbowPhase = rainbowPhase, onCopy = null
+                                )
+                            }
+                        }
                     }
-                }
-            }
 
-            // ---------- Franja inferior: caja de texto en píldora + botón enviar circular ----------
-            Surface(color = scheme.surfaceContainer, modifier = Modifier.fillMaxWidth()) {
-                if (!termsAccepted) {
-                    Row(Modifier.padding(horizontal = 16.dp, vertical = 14.dp), verticalAlignment = Alignment.CenterVertically) {
-                        Text(stringResource(R.string.ai_terms_required), fontSize = 13.sp, modifier = Modifier.weight(1f), color = scheme.onSurfaceVariant)
-                        Button(onClick = { showTermsAgain = true }) { Text(stringResource(R.string.ai_terms_view)) }
-                    }
-                } else Row(
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    OutlinedTextField(
-                        value = input, onValueChange = { input = it },
-                        modifier = Modifier.weight(1f),
-                        placeholder = { Text(stringResource(R.string.ai_input_hint), maxLines = 1, fontSize = 17.sp) },
-                        textStyle = androidx.compose.ui.text.TextStyle(fontSize = 17.sp),
-                        shape = RoundedCornerShape(50),
-                        maxLines = 4,
-                        colors = OutlinedTextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent, unfocusedContainerColor = Color.Transparent,
-                            unfocusedBorderColor = scheme.onSurface.copy(alpha = 0.85f), focusedBorderColor = scheme.primary
-                        ),
-                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = { send() })
-                    )
-                    Spacer(Modifier.width(12.dp))
-                    val canSend = input.isNotBlank() && !isThinking
-                    FilledIconButton(
-                        onClick = { send() }, enabled = canSend,
-                        modifier = Modifier.size(56.dp),
-                        colors = IconButtonDefaults.filledIconButtonColors(
-                            containerColor = scheme.primary, contentColor = scheme.onPrimary,
-                            disabledContainerColor = scheme.surfaceContainerHighest, disabledContentColor = scheme.onSurfaceVariant
+                    // ---------- Caja de texto en píldora + botón enviar circular (sin franja de fondo) ----------
+                    if (!termsAccepted) {
+                        Surface(
+                            shape = RoundedCornerShape(24.dp), color = pillColor,
+                            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
+                        ) {
+                            Row(Modifier.padding(start = 18.dp, end = 8.dp, top = 6.dp, bottom = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Text(stringResource(R.string.ai_terms_required), fontSize = 13.sp, modifier = Modifier.weight(1f), color = scheme.onSurfaceVariant)
+                                Button(onClick = { showTermsAgain = true }) { Text(stringResource(R.string.ai_terms_view)) }
+                            }
+                        }
+                    } else {
+                        var focused by remember { mutableStateOf(false) }
+                        val canSend = input.isNotBlank() && !isThinking
+                        val sendColor by animateColorAsState(
+                            if (canSend || isThinking) scheme.primary else scheme.surfaceContainerHighest.copy(alpha = 0.92f),
+                            label = "sendColor"
                         )
-                    ) { Icon(Icons.AutoMirrored.Filled.Send, stringResource(R.string.ai_send)) }
+                        Row(
+                            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.Bottom
+                        ) {
+                            Surface(
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(26.dp),
+                                color = pillColor,
+                                border = BorderStroke(
+                                    if (focused) 1.5.dp else 1.dp,
+                                    if (focused) scheme.primary else scheme.outline.copy(alpha = 0.45f)
+                                )
+                            ) {
+                                Box(
+                                    Modifier.heightIn(min = 52.dp).padding(horizontal = 18.dp, vertical = 14.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    if (input.isEmpty()) Text(
+                                        stringResource(R.string.ai_input_hint), fontSize = 16.sp, maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis, color = scheme.onSurfaceVariant.copy(alpha = 0.8f)
+                                    )
+                                    BasicTextField(
+                                        value = input, onValueChange = { input = it },
+                                        modifier = Modifier.fillMaxWidth().onFocusChanged { focused = it.isFocused },
+                                        textStyle = TextStyle(color = scheme.onSurface, fontSize = 16.sp, lineHeight = 22.sp),
+                                        cursorBrush = SolidColor(scheme.primary),
+                                        maxLines = 4,
+                                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences, imeAction = ImeAction.Send),
+                                        keyboardActions = KeyboardActions(onSend = { send() })
+                                    )
+                                }
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Box(
+                                modifier = Modifier.size(52.dp).clip(CircleShape).background(sendColor)
+                                    .clickable(enabled = canSend) { send() },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                if (isThinking) CircularProgressIndicator(
+                                    modifier = Modifier.size(22.dp), strokeWidth = 2.5.dp, color = scheme.onPrimary
+                                ) else Icon(
+                                    Icons.AutoMirrored.Filled.Send, stringResource(R.string.ai_send),
+                                    tint = if (canSend) scheme.onPrimary else scheme.onSurfaceVariant,
+                                    modifier = Modifier.size(22.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 }
 
-/** Orbe de la IA: destellos dentro de un aro con degradado y un brillo suave detrás (colores del tema Material You). */
+/**
+ * Tarjeta superior. Normal: orbe centrado con nombre y frase debajo (como el boceto).
+ * Compacta (poco espacio, p. ej. teclado abierto): orbe pequeño a la izquierda y texto a su lado.
+ */
 @Composable
-private fun AiAvatar(size: Int, glow: Boolean = false, pulsing: Boolean = false) {
+private fun AiHeader(
+    name: String, phrase: String, thinking: Boolean, compact: Boolean,
+    panelColor: Color, onPanel: Color, onClear: () -> Unit
+) {
+    var menuOpen by remember { mutableStateOf(false) }
+    Surface(
+        shape = RoundedCornerShape(28.dp), color = panelColor,
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).animateContentSize()
+    ) {
+        Box {
+            if (compact) Row(
+                Modifier.fillMaxWidth().padding(start = 16.dp, end = 52.dp, top = 10.dp, bottom = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                AiAvatar(size = 40.dp, thinking = thinking)
+                Spacer(Modifier.width(12.dp))
+                Column {
+                    Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = onPanel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Crossfade(targetState = phrase, label = "phrase") {
+                        Text(it, fontSize = 13.sp, color = onPanel.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    }
+                }
+            } else Column(
+                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 18.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                AiAvatar(size = 76.dp, thinking = thinking)
+                Spacer(Modifier.height(10.dp))
+                Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = onPanel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Crossfade(targetState = phrase, label = "phrase") {
+                    Text(
+                        it, fontSize = 14.sp, color = onPanel.copy(alpha = 0.78f), textAlign = TextAlign.Center,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+            Box(Modifier.align(Alignment.TopEnd)) {
+                IconButton(onClick = { menuOpen = true }) { Icon(Icons.Filled.MoreVert, null, tint = onPanel.copy(alpha = 0.8f)) }
+                DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.ai_clear_chat)) },
+                        onClick = { menuOpen = false; onClear() }
+                    )
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Orbe de la IA. Quieto = aro con degradado + brillo suave. Respondiendo = "respira" (escala ±5 %),
+ * el aro gira despacio y el brillo late. La animación solo corre mientras [thinking] es true y se lee
+ * dentro de graphicsLayer/drawBehind (no recompone nada).
+ */
+@Composable
+private fun AiAvatar(size: Dp, thinking: Boolean) {
     val scheme = MaterialTheme.colorScheme
-    val pulse by rememberInfiniteTransition(label = "orb").animateFloat(
-        initialValue = 1f, targetValue = if (pulsing) 1.18f else 1f,
-        animationSpec = infiniteRepeatable(tween(900, easing = FastOutSlowInEasing), RepeatMode.Reverse), label = "orbPulse"
-    )
-    Box(contentAlignment = Alignment.Center) {
-        if (glow) Box(
-            Modifier.size((size * 1.9f * pulse).dp).background(
-                Brush.radialGradient(listOf(scheme.primary.copy(alpha = 0.28f), Color.Transparent)), CircleShape
-            )
-        )
+    val active = animateFloatAsState(if (thinking) 1f else 0f, tween(400), label = "orbActive")
+    val phase = remember { mutableFloatStateOf(0f) }   // 0..1 cada 4.8 s
+    LaunchedEffect(thinking) {
+        if (thinking) {
+            val start = withFrameNanos { it }
+            while (true) {
+                withFrameNanos { now -> phase.floatValue = ((now - start) / 4_800_000_000.0).toFloat() % 1f }
+            }
+        }
+    }
+    fun breath(): Float = (sin(phase.floatValue * 2f * PI.toFloat() * 2f) + 1f) / 2f   // 0..1, una respiración cada 2.4 s
+
+    Box(
+        modifier = Modifier.size(size * 1.5f).graphicsLayer {
+            val s = 1f + 0.05f * active.value * breath()
+            scaleX = s; scaleY = s
+        },
+        contentAlignment = Alignment.Center
+    ) {
+        // brillo
         Box(
-            modifier = Modifier
-                .size(size.dp)
-                .border(5.dp, Brush.sweepGradient(listOf(scheme.tertiary, scheme.primary, scheme.secondary, scheme.tertiary)), CircleShape)
-                .padding(5.dp)
-                .clip(CircleShape)
-                .background(scheme.surfaceContainerHighest),
+            Modifier.matchParentSize().drawBehind {
+                val a = 0.16f + 0.16f * active.value * breath()
+                val r = this.size.minDimension / 2f
+                drawCircle(Brush.radialGradient(listOf(scheme.primary.copy(alpha = a), Color.Transparent), radius = r), radius = r)
+            }
+        )
+        // aro (gira solo mientras responde)
+        Box(
+            Modifier.size(size)
+                .graphicsLayer { rotationZ = phase.floatValue * 360f * active.value }
+                .border(4.dp, Brush.sweepGradient(listOf(scheme.tertiary, scheme.primary, scheme.secondary, scheme.tertiary)), CircleShape)
+        )
+        // centro (no gira)
+        Box(
+            Modifier.size(size - 10.dp).clip(CircleShape).background(scheme.surface),
             contentAlignment = Alignment.Center
         ) {
-            Icon(Icons.Filled.AutoAwesome, null, tint = scheme.onSurface, modifier = Modifier.size((size * 0.46f).dp))
+            Icon(Icons.Filled.AutoAwesome, null, tint = scheme.primary, modifier = Modifier.size(size * 0.42f))
+        }
+    }
+}
+
+/** Atajos de conversación cuando el chat está vacío. */
+@Composable
+private fun SuggestionList(items: List<String>, color: Color, onPick: (String) -> Unit) {
+    val scheme = MaterialTheme.colorScheme
+    Column(
+        Modifier.fillMaxWidth().padding(horizontal = 28.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        items.forEach { text ->
+            Surface(
+                shape = RoundedCornerShape(20.dp), color = color,
+                border = BorderStroke(1.dp, scheme.outline.copy(alpha = 0.3f)),
+                modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable { onPick(text) }
+            ) {
+                Text(
+                    text, fontSize = 14.sp, color = scheme.onSurface, textAlign = TextAlign.Center,
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun TypingDots(color: Color) {
+    val t = rememberInfiniteTransition(label = "dots")
+    Row(
+        Modifier.height(24.dp),
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(3) { i ->
+            val a by t.animateFloat(
+                initialValue = 0.25f, targetValue = 1f,
+                animationSpec = infiniteRepeatable(
+                    tween(500, easing = FastOutSlowInEasing), RepeatMode.Reverse, initialStartOffset = StartOffset(i * 160)
+                ),
+                label = "dot$i"
+            )
+            Box(Modifier.size(8.dp).graphicsLayer { alpha = a }.clip(CircleShape).background(color))
         }
     }
 }
@@ -301,6 +485,7 @@ private fun AiAvatar(size: Int, glow: Boolean = false, pulsing: Boolean = false)
 @Composable
 private fun ChatBubble(
     msg: AiMessage,
+    typing: Boolean,
     mode: String,
     customColor: Color,
     rainbowPhase: State<Float>?,
@@ -308,8 +493,7 @@ private fun ChatBubble(
 ) {
     val scheme = MaterialTheme.colorScheme
     val isUser = msg.fromUser
-    // "Colita" tipo WhatsApp: la esquina superior del lado de quien habla es casi recta.
-    // Esquina inferior del lado de quien habla casi recta (como la versión anterior).
+    // Esquina inferior del lado de quien habla casi recta ("colita").
     val shape: Shape = RoundedCornerShape(
         topStart = 22.dp, topEnd = 22.dp,
         bottomStart = if (isUser) 22.dp else 4.dp, bottomEnd = if (isUser) 4.dp else 22.dp
@@ -331,6 +515,7 @@ private fun ChatBubble(
         (staticColor?.luminance() ?: 0f) > 0.5f -> Color(0xFF101010)
         else -> Color.White
     }
+    val contentColor = if (staticColor == null && !isUser) scheme.onSurface else textColor
 
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -340,7 +525,6 @@ private fun ChatBubble(
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .clip(shape)
-                .animateContentSize()
                 .drawBehind {
                     val c = if (staticColor != null) bubbleBase else {
                         val phase = rainbowPhase?.value ?: 0f
@@ -349,15 +533,15 @@ private fun ChatBubble(
                     }
                     drawRect(c)
                 }
-                .padding(start = 16.dp, end = 16.dp, top = 12.dp, bottom = 12.dp)
+                .padding(start = 16.dp, end = 16.dp, top = 11.dp, bottom = 11.dp)
         ) {
-            Column {
-                Text(msg.text, color = if (staticColor == null && !isUser) scheme.onSurface else textColor, fontSize = 17.sp, lineHeight = 24.sp)
+            if (typing) TypingDots(contentColor.copy(alpha = 0.7f)) else Column {
+                Text(msg.text, color = contentColor, fontSize = 16.sp, lineHeight = 23.sp)
                 if (!isUser && onCopy != null) {
                     Icon(
                         Icons.Outlined.ContentCopy, stringResource(R.string.ai_copy),
-                        tint = (if (staticColor == null) scheme.onSurface else textColor).copy(alpha = 0.7f),
-                        modifier = Modifier.align(Alignment.End).padding(top = 14.dp).size(22.dp).clickable { onCopy() }
+                        tint = contentColor.copy(alpha = 0.6f),
+                        modifier = Modifier.align(Alignment.End).padding(top = 10.dp).size(20.dp).clickable { onCopy() }
                     )
                 }
             }

@@ -1204,6 +1204,7 @@ class MainActivity : ComponentActivity() {
                                             // Los términos de la IA salen al ENTRAR a la pantalla, no al abrir la app
                                             // (el pager mantiene todas las pantallas compuestas).
                                             isActive = pagerState.settledPage == page && !showSettings && !showTogether,
+                                            hasBackgroundImage = hasBackgroundImage,
                                             modifier = Modifier.consumeWindowInsets(innerPadding)
                                         )
                                         Screen.Trash -> TrashScreen(

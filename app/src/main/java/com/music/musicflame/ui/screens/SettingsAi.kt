@@ -28,6 +28,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
 import com.music.musicflame.R
 import com.music.musicflame.data.AiChatSettings
+import com.music.musicflame.data.AiModel
 import com.music.musicflame.data.LocalLlm
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
@@ -40,13 +41,13 @@ import com.music.musicflame.ui.theme.parseCustomTextColor
  */
 internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
 
-    // ---------- Motor de IA + modelo local ----------
+    // ---------- Motor de IA + modelo local (solo UNO descargado a la vez) ----------
     item {
         val context = LocalContext.current
-        val ai = remember { AiChatSettings(context) }
         val scope = rememberCoroutineScope()
-        var ready by remember { mutableStateOf(LocalLlm.isReady(context)) }
-        var progress by remember { mutableStateOf<Float?>(null) }   // null = sin descarga en curso
+        var installed by remember { mutableStateOf(LocalLlm.installed(context)) }
+        var downloading by remember { mutableStateOf<AiModel?>(null) }   // null = sin descarga en curso
+        var progress by remember { mutableStateOf(0f) }
         var job by remember { mutableStateOf<Job?>(null) }
         var showTerms by remember { mutableStateOf(false) }
         var confirmDelete by remember { mutableStateOf(false) }
@@ -56,50 +57,60 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
             onDismissRequest = { confirmDelete = false },
             title = { Text(stringResource(R.string.settings_ai_local_delete_title)) },
             text = { Text(stringResource(R.string.settings_ai_local_delete_body)) },
-            confirmButton = { TextButton(onClick = { LocalLlm.deleteModel(context); ready = false; confirmDelete = false }) { Text(stringResource(R.string.settings_ai_key_remove)) } },
+            confirmButton = { TextButton(onClick = { LocalLlm.deleteModel(context); installed = null; confirmDelete = false }) { Text(stringResource(R.string.settings_ai_key_remove)) } },
             dismissButton = { TextButton(onClick = { confirmDelete = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
 
         SettingsSectionHeader(style, stringResource(R.string.settings_ai_engine_title))
         Column(Modifier.padding(horizontal = 16.dp)) {
-            Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
-                Column(Modifier.padding(16.dp)) {
-                    Text(LocalLlm.MODEL_NAME, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)
-                    Text(stringResource(R.string.settings_ai_local_desc, LocalLlm.APPROX_SIZE_LABEL), fontSize = 12.sp, color = style.mediumEmphasis)
-                    Spacer(Modifier.height(10.dp))
-                    val p = progress
-                    when {
-                        p != null -> {
-                            LinearProgressIndicator(progress = { p }, modifier = Modifier.fillMaxWidth())
-                            Spacer(Modifier.height(4.dp))
-                            Text("${(p * 100).toInt()}%", fontSize = 12.sp, color = style.mediumEmphasis)
-                            OutlinedButton(onClick = { job?.cancel(); progress = null }) { Text(stringResource(R.string.action_cancel)) }
-                        }
-                        ready -> {
-                            Text(stringResource(R.string.settings_ai_local_ready, LocalLlm.sizeOnDiskMb(context).toString()), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
-                            OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.settings_ai_local_delete)) }
-                        }
-                        else -> {
-                            Text(stringResource(R.string.settings_ai_local_wifi), fontSize = 12.sp, color = style.mediumEmphasis)
-                            Spacer(Modifier.height(6.dp))
-                            Button(onClick = {
-                                progress = 0f
-                                job = scope.launch {
-                                    try {
-                                        LocalLlm.download(context) { progress = it }
-                                        ready = LocalLlm.isReady(context)
-                                    } catch (e: CancellationException) {
-                                        throw e
-                                    } catch (e: Exception) {
-                                        Toast.makeText(context, context.getString(R.string.settings_ai_local_fail, e.message ?: ""), Toast.LENGTH_LONG).show()
-                                    } finally { progress = null }
-                                }
-                            }) { Text(stringResource(R.string.settings_ai_local_download), fontWeight = FontWeight.Bold) }
+            Text(stringResource(R.string.settings_ai_models_hint), fontSize = 12.sp, color = style.mediumEmphasis)
+            Spacer(Modifier.height(8.dp))
+            AiModel.values().forEach { m ->
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(m.displayName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)
+                        Text(stringResource(R.string.settings_ai_model_meta, m.sizeLabel, m.licenseName), fontSize = 12.sp, color = style.mediumEmphasis)
+                        Spacer(Modifier.height(4.dp))
+                        Text(stringResource(m.descRes), fontSize = 12.sp, color = style.mediumEmphasis)
+                        Spacer(Modifier.height(10.dp))
+                        when {
+                            downloading == m -> {
+                                LinearProgressIndicator(progress = { progress }, modifier = Modifier.fillMaxWidth())
+                                Spacer(Modifier.height(4.dp))
+                                Text("${(progress * 100).toInt()}%", fontSize = 12.sp, color = style.mediumEmphasis)
+                                OutlinedButton(onClick = { job?.cancel(); downloading = null }) { Text(stringResource(R.string.action_cancel)) }
+                            }
+                            installed == m -> {
+                                Text(stringResource(R.string.settings_ai_local_ready, LocalLlm.sizeOnDiskMb(context).toString()), fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                                OutlinedButton(onClick = { confirmDelete = true }) { Text(stringResource(R.string.settings_ai_local_delete)) }
+                            }
+                            installed != null || downloading != null -> {
+                                // Ya hay otro modelo (o una descarga en curso): este queda bloqueado hasta borrar el actual.
+                                Text(stringResource(R.string.settings_ai_model_locked), fontSize = 12.sp, color = style.mediumEmphasis)
+                            }
+                            else -> {
+                                Text(stringResource(R.string.settings_ai_local_wifi), fontSize = 12.sp, color = style.mediumEmphasis)
+                                Spacer(Modifier.height(6.dp))
+                                Button(onClick = {
+                                    progress = 0f
+                                    downloading = m
+                                    job = scope.launch {
+                                        try {
+                                            LocalLlm.download(context, m) { progress = it }
+                                            installed = LocalLlm.installed(context)
+                                        } catch (e: CancellationException) {
+                                            throw e
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, context.getString(R.string.settings_ai_local_fail, e.message ?: ""), Toast.LENGTH_LONG).show()
+                                        } finally { downloading = null }
+                                    }
+                                }) { Text(stringResource(R.string.settings_ai_local_download), fontWeight = FontWeight.Bold) }
+                            }
                         }
                     }
                 }
+                Spacer(Modifier.height(8.dp))
             }
-            Spacer(Modifier.height(8.dp))
             TextButton(onClick = { showTerms = true }) { Text(stringResource(R.string.settings_ai_terms_button)) }
         }
     }

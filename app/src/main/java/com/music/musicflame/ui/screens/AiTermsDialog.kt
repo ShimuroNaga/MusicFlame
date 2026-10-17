@@ -6,12 +6,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.R
+import com.music.musicflame.data.AiModel
+import com.music.musicflame.data.LocalLlm
 
 /**
  * Términos de la IA local. Se muestra solo la primera vez que el usuario entra a la pantalla de IA
@@ -21,6 +24,7 @@ import com.music.musicflame.R
 @Composable
 fun AiTermsDialog(onAccept: (() -> Unit)?, onDismiss: () -> Unit) {
     val uri = LocalUriHandler.current
+    val model = LocalLlm.installed(LocalContext.current) ?: AiModel.QWEN25_15B   // enlaces del modelo descargado
     @Composable fun Block(title: Int, body: Int) {
         Text(stringResource(title), fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(2.dp))
@@ -38,8 +42,8 @@ fun AiTermsDialog(onAccept: (() -> Unit)?, onDismiss: () -> Unit) {
                 Block(R.string.ai_terms_device_t, R.string.ai_terms_device_b)
                 Block(R.string.ai_terms_license_t, R.string.ai_terms_license_b)
                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { runCatching { uri.openUri("https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct") } }) { Text(stringResource(R.string.ai_terms_link_model), fontSize = 12.sp) }
-                    TextButton(onClick = { runCatching { uri.openUri("https://www.apache.org/licenses/LICENSE-2.0") } }) { Text(stringResource(R.string.ai_terms_link_license), fontSize = 12.sp) }
+                    TextButton(onClick = { runCatching { uri.openUri(model.modelPageUrl) } }) { Text(stringResource(R.string.ai_terms_link_model), fontSize = 12.sp) }
+                    TextButton(onClick = { runCatching { uri.openUri(model.licenseUrl) } }) { Text(stringResource(R.string.ai_terms_link_license), fontSize = 12.sp) }
                 }
             }
         },

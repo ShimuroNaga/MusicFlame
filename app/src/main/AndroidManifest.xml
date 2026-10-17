@@ -27,6 +27,10 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MusicFlame">
 
+        <!-- LiteRT-LM (Gemma 4 / Qwen3): permite usar la GPU del teléfono; si no existe se usa CPU -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
         <!-- FileProvider para compartir el video generado (carátula + fragmento de audio)
              con cualquier app (Instagram, WhatsApp, Telegram, etc.) vía ACTION_SEND, sin
              exponer rutas de archivo crudas. -->

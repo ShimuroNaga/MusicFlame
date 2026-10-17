@@ -33,17 +33,17 @@
     <string name="ai_terms_not_now">Ahora no</string>
     <string name="ai_terms_close">Cerrar</string>
     <string name="ai_terms_link_model">Ver modelo</string>
-    <string name="ai_terms_link_license">Licencia Apache 2.0</string>
+    <string name="ai_terms_link_license">Licencia del modelo</string>
     <string name="ai_terms_what_t">Qué es</string>
-    <string name="ai_terms_what_b">El chat usa Qwen2.5‑1.5B‑Instruct, un modelo de lenguaje de Alibaba Cloud (equipo Qwen), en una versión convertida por litert-community para correr en Android con MediaPipe. Se descarga una sola vez desde Hugging Face (aprox. 1.6 GB).</string>
+    <string name="ai_terms_what_b">El chat usa un modelo de lenguaje pequeño que tú eliges en Ajustes › IA (Qwen2.5 1.5B, Gemma 3 1B, Gemma 4 E2B o Qwen3 0.6B). Corre en tu teléfono con MediaPipe o LiteRT-LM de Google. Se descarga una sola vez (de Hugging Face o de GitHub) y solo puedes tener uno descargado a la vez.</string>
     <string name="ai_terms_privacy_t">Privacidad</string>
     <string name="ai_terms_privacy_b">En modo local, el modelo funciona en tu teléfono sin internet: tus mensajes no salen del dispositivo. Solo la descarga del modelo usa internet. MusicFlame no recibe tus conversaciones.</string>
     <string name="ai_terms_limits_t">Límites</string>
     <string name="ai_terms_limits_b">Es un modelo pequeño y puede equivocarse o inventar datos (años, BPM, álbumes, letras). Verifica la información importante. No lo uses para decisiones médicas, legales, financieras ni de seguridad. Se ofrece «tal cual», sin garantías.</string>
     <string name="ai_terms_device_t">Tu teléfono</string>
-    <string name="ai_terms_device_b">Ocupa aprox. 1.6 GB de almacenamiento y unos 2 GB de RAM mientras responde. Puede tardar varios segundos, calentar el teléfono y gastar batería. Puedes borrar el modelo cuando quieras en Ajustes › IA.</string>
+    <string name="ai_terms_device_b">Ocupa entre unos 0.5 y 2.6 GB de almacenamiento según el modelo, y bastante RAM mientras responde (más con los modelos grandes). Puede tardar varios segundos, calentar el teléfono y gastar batería. Puedes borrar el modelo cuando quieras en Ajustes › IA.</string>
     <string name="ai_terms_license_t">Licencia</string>
-    <string name="ai_terms_license_b">Qwen2.5‑1.5B‑Instruct y MediaPipe se distribuyen bajo licencia Apache 2.0, que permite su uso y redistribución con aviso de licencia (ver Ajustes › Licencias de terceros). MusicFlame es un proyecto independiente: no está afiliado ni avalado por Alibaba Cloud ni por Google.</string>
+    <string name="ai_terms_license_b">Qwen2.5, Qwen3 y Gemma 4 se distribuyen bajo licencia Apache 2.0. Gemma 3 se ofrece bajo los Términos de Uso de Gemma (ai.google.dev/gemma/terms), que incluyen su política de uso prohibido. MediaPipe y LiteRT-LM son Apache 2.0. Todas permiten su uso y redistribución con aviso de licencia (ver Ajustes › Licencias de terceros). MusicFlame es un proyecto independiente: no está afiliado ni avalado por Alibaba Cloud ni por Google.</string>
     <string name="settings_ai_engine_title">Modelo de IA</string>
     <string name="settings_ai_local_desc">Modelo local, licencia Apache 2.0. Descarga única de %1$s; funciona sin conexión.</string>
     <string name="settings_ai_local_wifi">Recomendado descargarlo con Wi‑Fi. Si se corta, continúa donde se quedó.</string>
@@ -61,4 +61,13 @@
     <string name="ai_play_all">Reproducir todas</string>
     <string name="ai_trait_plays">%1$d escuchas</string>
     <string name="ai_trait_unplayed">sin escuchar</string>
+
+    <!-- Selector de modelos -->
+    <string name="settings_ai_models_hint">Elige un modelo. Solo puedes tener uno descargado a la vez: para cambiar, borra el actual y descarga otro.</string>
+    <string name="settings_ai_model_meta">%1$s · %2$s</string>
+    <string name="settings_ai_model_locked">Borra el modelo descargado para poder usar este.</string>
+    <string name="ai_model_desc_qwen25">El modelo de siempre de la app: equilibrado y sin sorpresas.</string>
+    <string name="ai_model_desc_gemma3">Ligero y de Google: buen equilibrio entre tamaño y calidad. Se descarga de GitHub porque el repositorio original exige iniciar sesión.</string>
+    <string name="ai_model_desc_gemma4">El de mejor calidad, pero el más pesado y lento: descarga grande y necesita un teléfono potente (recomendado 6 GB de RAM o más). En procesadores modestos tarda bastante.</string>
+    <string name="ai_model_desc_qwen3">El más ligero y rápido (versión sin razonamiento), ideal como modo ahorro. Se equivoca más, sobre todo con el idioma.</string>
 </resources>

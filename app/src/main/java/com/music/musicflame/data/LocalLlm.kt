@@ -1,11 +1,15 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Conversation
 import com.google.ai.edge.litertlm.ConversationConfig
 import com.google.ai.edge.litertlm.Contents
 import com.google.ai.edge.litertlm.Engine
 import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.ExperimentalApi
+import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.music.musicflame.R
@@ -19,6 +23,7 @@ import java.io.File
 import java.io.RandomAccessFile
 import java.net.HttpURLConnection
 import java.net.URL
+import java.util.concurrent.atomic.AtomicBoolean
 
 /** Motor que ejecuta cada modelo. MediaPipe lee .task; LiteRT-LM lee .litertlm. */
 enum class AiEngineKind { MEDIAPIPE, LITERT_LM }
@@ -27,7 +32,11 @@ enum class AiEngineKind { MEDIAPIPE, LITERT_LM }
  * Modelos de IA local que el usuario puede elegir. SOLO UNO descargado a la vez: para cambiar de modelo
  * hay que borrar el actual (ver [LocalLlm.download]).
  *
- * Licencias: Qwen2.5-1.5B, Qwen3-0.6B y Gemma 4 son Apache-2.0. Gemma 3 va con los Términos de Uso de Gemma
+ * Se quitaron Qwen2.5-1.5B y Qwen3-0.6B: eran lentos (Qwen2.5 en q8 pesa 1.6 GB) o demasiado tontos
+ * (Qwen3 0.6B se equivoca de idioma y de tema). Gemma 4 E2B es el recomendado (con MTP corre mucho más
+ * rápido) y Gemma 3 1B queda como opción ligera.
+ *
+ * Licencias: Gemma 4 es Apache-2.0. Gemma 3 va con los Términos de Uso de Gemma
  * (https://ai.google.dev/gemma/terms) + su política de uso prohibido; su repositorio de Hugging Face exige sesión,
  * por eso se descarga de un archivo que TÚ hospedas (ver [GEMMA3_URL]).
  */
@@ -42,28 +51,8 @@ enum class AiModel(
     val modelPageUrl: String,
     val licenseName: String,
     val licenseUrl: String,
-    val descRes: Int,
-    /** El tokenizer de Qwen2.5 en MediaPipe a veces entrega bytes UTF-8 sueltos ("Â¡"); solo ese necesita reparación. */
-    val needsByteRepair: Boolean = false,
-    /** Qwen3 "sin pensar" no define rol system en su plantilla: las reglas se mandan dentro del mensaje del usuario. */
-    val systemInUser: Boolean = false
+    val descRes: Int
 ) {
-    QWEN25_15B(
-        "qwen25_15b", "Qwen2.5-1.5B-Instruct",
-        "https://huggingface.co/litert-community/Qwen2.5-1.5B-Instruct/resolve/main/Qwen2.5-1.5B-Instruct_multi-prefill-seq_q8_ekv1280.task",
-        "Qwen2.5-1.5B-Instruct_q8_ekv1280.task",   // mismo nombre de siempre: quien ya lo tiene descargado no pierde nada
-        "≈1.6 GB", 500L * 1024 * 1024, AiEngineKind.MEDIAPIPE,
-        "https://huggingface.co/Qwen/Qwen2.5-1.5B-Instruct", "Apache-2.0", "https://www.apache.org/licenses/LICENSE-2.0",
-        R.string.ai_model_desc_qwen25, needsByteRepair = true
-    ),
-    GEMMA3_1B(
-        "gemma3_1b", "Gemma 3 1B IT",
-        LocalLlm.GEMMA3_URL,
-        "gemma3-1b-it-int4.task",
-        "≈555 MB", 300L * 1024 * 1024, AiEngineKind.MEDIAPIPE,
-        "https://huggingface.co/google/gemma-3-1b-it", "Gemma Terms of Use", "https://ai.google.dev/gemma/terms",
-        R.string.ai_model_desc_gemma3
-    ),
     GEMMA4_E2B(
         "gemma4_e2b", "Gemma 4 E2B",
         "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
@@ -72,14 +61,13 @@ enum class AiModel(
         "https://huggingface.co/google/gemma-4-E2B-it", "Apache-2.0", "https://www.apache.org/licenses/LICENSE-2.0",
         R.string.ai_model_desc_gemma4
     ),
-    QWEN3_06B(
-        "qwen3_06b", "Qwen3 0.6B",
-        // Versión "sin pensar" (nothink): responde directo, sin <think>, y es ~2x más rápida en CPU.
-        "https://huggingface.co/litert-community/Qwen3-0.6B-int4/resolve/main/qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
-        "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
-        "≈330 MB", 200L * 1024 * 1024, AiEngineKind.LITERT_LM,
-        "https://huggingface.co/Qwen/Qwen3-0.6B", "Apache-2.0", "https://www.apache.org/licenses/LICENSE-2.0",
-        R.string.ai_model_desc_qwen3, systemInUser = true
+    GEMMA3_1B(
+        "gemma3_1b", "Gemma 3 1B IT",
+        LocalLlm.GEMMA3_URL,
+        "gemma3-1b-it-int4.task",
+        "≈555 MB", 300L * 1024 * 1024, AiEngineKind.MEDIAPIPE,
+        "https://huggingface.co/google/gemma-3-1b-it", "Gemma Terms of Use", "https://ai.google.dev/gemma/terms",
+        R.string.ai_model_desc_gemma3
     )
 }
 
@@ -97,9 +85,19 @@ object LocalLlm {
     const val GEMMA3_URL =
         "https://github.com/ShimuroNaga/MusicFlame/releases/download/ai-models/gemma3-1b-it-int4.task"
 
-    private const val MAX_TOKENS = 1024                     // prompt (con datos de la biblioteca) + respuesta
-    private const val HISTORY_CHAR_BUDGET = 600             // historial corto = prefill corto = primer trozo de respuesta antes
-    private const val HISTORY_CHAR_BUDGET_WITH_DATA = 280   // con datos de biblioteca en el prompt el historial se acorta más
+    private const val MAX_TOKENS = 1024                     // (MediaPipe) prompt + respuesta
+    private const val HISTORY_CHAR_BUDGET = 800             // historial corto = prefill corto = primer trozo de respuesta antes
+    private const val HISTORY_CHAR_BUDGET_WITH_DATA = 400   // con datos de biblioteca en el prompt el historial se acorta más
+
+    /** LiteRT-LM: se reutiliza la misma conversación (el motor conserva el contexto) y se reinicia al pasar estos límites. */
+    private const val CONV_MAX_TURNS = 6
+    private const val CONV_MAX_TOKENS = 1500
+
+    /** MTP (decodificación especulativa de Gemma 4): hasta ~2x más rápido. Si el modelo no lo soporta, se reintenta sin MTP. */
+    private const val USE_MTP = true
+
+    /** Si la GPU falla, se vuelve a intentar pasado este tiempo (antes se descartaba para siempre y la IA se quedaba en CPU). */
+    private const val GPU_RETRY_MS = 3L * 24 * 60 * 60 * 1000
 
     /** Intenta GPU primero; si el equipo no la soporta se desactiva sola y se usa CPU. false = forzar CPU. */
     private const val USE_GPU = true
@@ -111,7 +109,21 @@ object LocalLlm {
     fun isReady(ctx: Context, m: AiModel): Boolean = modelFile(ctx, m).let { it.isFile && it.length() > m.minBytes }
 
     /** El modelo descargado (solo puede haber uno) o null si no hay ninguno. */
-    fun installed(ctx: Context): AiModel? = AiModel.values().firstOrNull { isReady(ctx, it) }
+    fun installed(ctx: Context): AiModel? {
+        purgeLegacy(ctx)
+        return AiModel.values().firstOrNull { isReady(ctx, it) }
+    }
+
+    /** Modelos que ya no existen en la app (Qwen): se borran una vez por sesión para liberar 0.3–1.6 GB. */
+    private val legacyPurged = AtomicBoolean(false)
+    private val LEGACY_FILES = listOf(
+        "Qwen2.5-1.5B-Instruct_q8_ekv1280.task",
+        "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm"
+    )
+    private fun purgeLegacy(ctx: Context) {
+        if (!legacyPurged.compareAndSet(false, true)) return
+        try { LEGACY_FILES.forEach { File(dir(ctx), it).delete(); File(dir(ctx), "$it.part").delete() } } catch (_: Throwable) {}
+    }
     fun isReady(ctx: Context): Boolean = installed(ctx) != null
     fun sizeOnDiskMb(ctx: Context): Long = installed(ctx)?.let { modelFile(ctx, it).length() / (1024 * 1024) } ?: 0L
 
@@ -120,8 +132,19 @@ object LocalLlm {
     @Volatile private var ltEngine: Engine? = null
     @Volatile private var engineIsGpu = false
 
+    // Conversación reutilizada de LiteRT-LM (solo se toca con el mutex tomado).
+    private var ltConv: Conversation? = null
+    private var ltConvLang: String? = null
+    private var ltConvTurns = 0
+
+    private fun closeConv() {
+        try { ltConv?.close() } catch (_: Throwable) {}
+        ltConv = null; ltConvLang = null; ltConvTurns = 0
+    }
+
     /** Libera la RAM del modelo (se vuelve a cargar solo en el siguiente mensaje). */
     fun unload() {
+        closeConv()
         try { mpEngine?.close() } catch (_: Throwable) {}
         try { ltEngine?.close() } catch (_: Throwable) {}
         mpEngine = null; ltEngine = null
@@ -196,36 +219,58 @@ object LocalLlm {
             .build()
     )
 
+    @OptIn(ExperimentalApi::class)
     private suspend fun buildLt(ctx: Context, m: AiModel, gpu: Boolean): Engine {
-        val e = Engine(
-            EngineConfig(
-                modelPath = modelFile(ctx, m).absolutePath,
-                backend = if (gpu) Backend.GPU() else Backend.CPU(),
-                cacheDir = ctx.applicationContext.cacheDir.path   // acelera la 2.ª carga
+        suspend fun create(mtp: Boolean?): Engine {
+            ExperimentalFlags.enableSpeculativeDecoding = mtp   // se lee al crear el Engine
+            val e = Engine(
+                EngineConfig(
+                    modelPath = modelFile(ctx, m).absolutePath,
+                    backend = if (gpu) Backend.GPU() else Backend.CPU(),
+                    cacheDir = ctx.applicationContext.cacheDir.path   // acelera la 2.ª carga
+                )
             )
-        )
-        try { e.initialize() } catch (t: Throwable) { try { e.close() } catch (_: Throwable) {}; throw t }
-        return e
+            try { e.initialize() } catch (t: Throwable) { try { e.close() } catch (_: Throwable) {}; throw t }
+            return e
+        }
+        val prefs = enginePrefs(ctx)
+        val stamp = modelFile(ctx, m).lastModified()
+        // MTP necesita un modelo descargado después de mayo de 2026. Si falla, se carga normal y se recuerda
+        // para ESTE archivo (si el usuario lo vuelve a descargar, se reintenta MTP).
+        if (USE_MTP && prefs.getLong("lt_mtp_broken_stamp", -1L) != stamp) {
+            try { return create(true) } catch (_: Throwable) {}
+            val e = create(null)
+            prefs.edit().putLong("lt_mtp_broken_stamp", stamp).apply()
+            return e
+        }
+        return create(null)
+    }
+
+    private fun gpuBroken(prefs: SharedPreferences, bk: String): Boolean =
+        prefs.getBoolean(bk, false) && System.currentTimeMillis() - prefs.getLong(bk + "_at", 0L) < GPU_RETRY_MS
+
+    private fun setGpuBroken(prefs: SharedPreferences, bk: String, lk: String) {
+        prefs.edit().putBoolean(bk, true).putLong(bk + "_at", System.currentTimeMillis()).putBoolean(lk, false).apply()
     }
 
     /**
      * Intenta GPU primero. Protección contra bucles de cierre: antes de cargar se deja una marca ("loading");
      * si la app muere cargando la GPU (fallo nativo, no capturable), la marca queda puesta y en el siguiente
-     * arranque la GPU se descarta para siempre en este equipo (por motor).
+     * arranque la GPU se descarta (por motor) durante [GPU_RETRY_MS]; después se vuelve a intentar.
      */
     private suspend fun <T> loadWithGpuFallback(ctx: Context, m: AiModel, build: suspend (Boolean) -> T): T {
         val prefs = enginePrefs(ctx)
         val lk = loadingKey(m); val bk = brokenKey(m)
-        if (prefs.getBoolean(lk, false)) prefs.edit().putBoolean(bk, true).putBoolean(lk, false).apply()
-        if (USE_GPU && !prefs.getBoolean(bk, false)) {
+        if (prefs.getBoolean(lk, false)) setGpuBroken(prefs, bk, lk)
+        if (USE_GPU && !gpuBroken(prefs, bk)) {
             prefs.edit().putBoolean(lk, true).commit()   // commit (síncrono): debe quedar escrito antes de un posible cierre
             try {
                 val e = build(true)
-                prefs.edit().putBoolean(lk, false).apply()
+                prefs.edit().putBoolean(lk, false).putBoolean(bk, false).apply()
                 engineIsGpu = true
                 return e
             } catch (_: Throwable) {
-                prefs.edit().putBoolean(lk, false).putBoolean(bk, true).apply()
+                setGpuBroken(prefs, bk, lk)
             }
         }
         engineIsGpu = false
@@ -239,7 +284,7 @@ object LocalLlm {
         ltEngine ?: loadWithGpuFallback(ctx, m) { gpu -> buildLt(ctx, m, gpu) }.also { ltEngine = it }
 
     private fun markGpuBroken(ctx: Context, m: AiModel) {
-        enginePrefs(ctx).edit().putBoolean(brokenKey(m), true).putBoolean(loadingKey(m), false).apply()
+        setGpuBroken(enginePrefs(ctx), brokenKey(m), loadingKey(m))
         unload()
     }
 
@@ -254,20 +299,24 @@ object LocalLlm {
     /**
      * Responde en streaming: [onPartial] recibe el texto acumulado cada vez que el modelo suelta un trozo
      * (se llama desde un hilo de fondo). Devuelve la respuesta final ya limpia.
+     * [librarySummary] = resumen corto y fijo de la biblioteca (siempre va en el prompt, así el modelo nunca
+     * se queda "sin datos" ante un simple saludo).
      */
     suspend fun reply(
         ctx: Context, aiName: String, nowPlaying: String?, history: List<AiMessage>,
         libraryBlock: String? = null,
         lang: String = "es",
+        librarySummary: String? = null,
         onPartial: (String) -> Unit = {}
     ): String = withContext(Dispatchers.IO) {
         val m = installed(ctx) ?: throw IllegalStateException("modelo no descargado")
         mutex.withLock {
-            val system = buildSystem(aiName, nowPlaying, libraryBlock, lang)
+            val system = buildSystem(aiName, lang)
+            val context = buildUserContext(nowPlaying, librarySummary, libraryBlock, lang)
             val turns = buildTurns(history, if (libraryBlock.isNullOrBlank()) HISTORY_CHAR_BUDGET else HISTORY_CHAR_BUDGET_WITH_DATA)
             suspend fun run(): String = when (m.engine) {
-                AiEngineKind.MEDIAPIPE -> generateMp(mpEngineFor(ctx, m), m, promptFor(m, system, turns), onPartial)
-                AiEngineKind.LITERT_LM -> generateLt(ltEngineFor(ctx, m), system, turns, m.systemInUser, lang, onPartial)
+                AiEngineKind.MEDIAPIPE -> generateMp(mpEngineFor(ctx, m), promptFor(system, context, turns, lang), onPartial)
+                AiEngineKind.LITERT_LM -> generateLt(ltEngineFor(ctx, m), system, context, turns, lang, onPartial)
             }
             try {
                 run()
@@ -281,13 +330,10 @@ object LocalLlm {
     }
 
     // ---------- MediaPipe (.task) ----------
-    private fun cleanMp(m: AiModel, raw: String): String {
-        val t = raw.substringBefore("<|im_end|>").substringBefore("<end_of_turn>")
-            .replace("<|im_start|>", "").replace("<start_of_turn>", "")
-        return (if (m.needsByteRepair) repairText(t) else t).trim()
-    }
+    private fun cleanMp(raw: String): String =
+        raw.substringBefore("<end_of_turn>").replace("<start_of_turn>", "").trim()
 
-    private fun generateMp(llm: LlmInference, m: AiModel, prompt: String, onPartial: (String) -> Unit): String {
+    private fun generateMp(llm: LlmInference, prompt: String, onPartial: (String) -> Unit): String {
         val acc = StringBuilder()
         var lastEmit = 0L
         val future = llm.generateResponseAsync(prompt) { partial, _ ->
@@ -296,12 +342,12 @@ object LocalLlm {
             val now = android.os.SystemClock.uptimeMillis()
             if (now - lastEmit >= 50L) {
                 lastEmit = now
-                val shown = cleanMp(m, acc.toString())
+                val shown = cleanMp(acc.toString())
                 if (shown.isNotEmpty()) onPartial(shown)
             }
         }
         val raw = future.get()
-        val clean = cleanMp(m, if (raw.isNullOrBlank()) acc.toString() else raw)
+        val clean = cleanMp(if (raw.isNullOrBlank()) acc.toString() else raw)
         if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
         return clean
     }
@@ -312,29 +358,47 @@ object LocalLlm {
     private fun cleanLt(raw: String): String =
         RE_THINK.replace(raw, "").replace("<end_of_turn>", "").replace("<|im_end|>", "").trim()
 
+    /**
+     * Se REUTILIZA la conversación entre mensajes: el motor conserva el contexto (no hay que reenviar el
+     * historial ni volver a procesar el prompt de sistema, que es fijo). Los datos que cambian en cada mensaje
+     * (qué suena, biblioteca) van dentro del mensaje del usuario. La conversación se reinicia al empezar un
+     * chat nuevo, al cambiar de idioma, tras [CONV_MAX_TURNS] turnos o si el contexto pasa de [CONV_MAX_TOKENS].
+     */
     private suspend fun generateLt(
-        engine: Engine, system: String, turns: List<Turn>, systemInUser: Boolean, lang: String, onPartial: (String) -> Unit
+        engine: Engine, system: String, context: String, turns: List<Turn>, lang: String, onPartial: (String) -> Unit
     ): String {
         val last = turns.last().text   // buildTurns garantiza que el último turno es del usuario
         val prior = turns.dropLast(1)
         val uLabel = if (lang == "en") "User" else "Usuario"
         val aLabel = if (lang == "en") "Assistant" else "Asistente"
-        // Sin initialMessages (la API cambia entre versiones): el historial corto va como texto dentro del mensaje.
-        val userText = buildString {
-            if (systemInUser) append(system).append("\n\n")
-            if (prior.isNotEmpty()) {
-                append(if (lang == "en") "Conversation so far:\n" else "Conversación hasta ahora:\n")
-                prior.forEach { append(if (it.user) uLabel else aLabel).append(": ").append(it.text).append('\n') }
-                append(if (lang == "en") "\nCurrent user message:\n" else "\nMensaje actual del usuario:\n")
-            }
-            append(last)
-        }
         val sampler = SamplerConfig(topK = 40, topP = 0.9, temperature = 0.6)   // baja temperatura = inventa menos
-        val config = if (systemInUser) ConversationConfig(samplerConfig = sampler)
-                     else ConversationConfig(systemInstruction = Contents.of(system), samplerConfig = sampler)
-        val acc = StringBuilder()
-        var lastEmit = 0L
-        engine.createConversation(config).use { conversation ->
+
+        fun needsReset(c: Conversation): Boolean =
+            ltConvLang != lang || prior.isEmpty() || ltConvTurns >= CONV_MAX_TURNS ||
+                try { c.getTokenCount() > CONV_MAX_TOKENS } catch (_: Throwable) { true }
+
+        suspend fun attempt(): String {
+            ltConv?.let { if (needsReset(it)) closeConv() }
+            var fresh = false
+            val conversation = ltConv ?: run {
+                fresh = true
+                engine.createConversation(ConversationConfig(systemInstruction = Contents.of(system), samplerConfig = sampler))
+                    .also { ltConv = it; ltConvLang = lang; ltConvTurns = 0 }
+            }
+            val withHistory = fresh && prior.isNotEmpty()
+            val userText = buildString {
+                if (withHistory) {
+                    // Conversación nueva con chat previo: el historial corto va como texto.
+                    append(if (lang == "en") "Conversation so far:\n" else "Conversación hasta ahora:\n")
+                    prior.forEach { append(if (it.user) uLabel else aLabel).append(": ").append(it.text).append('\n') }
+                    append('\n')
+                }
+                if (context.isNotBlank()) append(context).append("\n\n")
+                if (withHistory || context.isNotBlank()) append(if (lang == "en") "User message:\n" else "Mensaje del usuario:\n")
+                append(last)
+            }
+            val acc = StringBuilder()
+            var lastEmit = 0L
             conversation.sendMessageAsync(userText).collect { msg ->
                 acc.append(msg.toString())
                 val now = android.os.SystemClock.uptimeMillis()
@@ -344,10 +408,20 @@ object LocalLlm {
                     if (shown.isNotEmpty()) onPartial(shown)
                 }
             }
+            ltConvTurns++
+            val clean = cleanLt(acc.toString())
+            if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
+            return clean
         }
-        val clean = cleanLt(acc.toString())
-        if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
-        return clean
+
+        val reused = ltConv != null
+        return try {
+            attempt()
+        } catch (t: Throwable) {
+            closeConv()   // tras cualquier fallo o cancelación el contexto queda a medias: se descarta
+            if (t is kotlinx.coroutines.CancellationException || !reused) throw t
+            attempt()     // contexto lleno o conversación dañada: una vez más con conversación nueva
+        }
     }
 
     // ---------- Reparación de texto: el tokenizer a veces entrega bytes UTF-8 sueltos ("Â¡" en vez de "¡") ----------
@@ -408,41 +482,40 @@ object LocalLlm {
     private class Turn(val user: Boolean, val text: String)
 
     /**
-     * Prompt de sistema. Un modelo chico se confunde con instrucciones ambiguas: antes respondía cosas raras
-     * con un saludo porque nada le decía que contestara directo a lo último que escribió el usuario.
-     * Ahora las reglas van numeradas, cortas, y la 1 prohíbe saludar de nuevo.
+     * Prompt de sistema FIJO y corto (un modelo chico se confunde con muchas reglas). Como no cambia entre
+     * mensajes, LiteRT-LM lo procesa una sola vez por conversación. Lo que cambia va en [buildUserContext].
      */
-    private fun buildSystem(aiName: String, nowPlaying: String?, libraryBlock: String?, lang: String): String = buildString {
+    private fun buildSystem(aiName: String, lang: String): String =
         if (lang == "en") {
-            append("You are $aiName, the music assistant inside the MusicFlame app. You talk to someone listening to music on their phone.\n")
-            append("Rules:\n")
-            append("1. Answer directly what the user just wrote. Do not greet or introduce yourself unless the user greets you first; then greet in ONE short sentence.\n")
-            append("2. Reply ONLY in English and never mix languages. Keep song titles and genres exactly as they are.\n")
-            append("3. Plain text, no Markdown (no asterisks, no #). At most 3 sentences, except when listing songs.\n")
-            append("4. Only mention songs, artists, albums or years that appear in the DATA below; NEVER invent any. If you don't have the data, say so in one sentence.\n")
-            append("5. If the question is not about music, answer briefly (1-2 sentences) and offer help with music. Never answer with a greeting instead.")
+            "You are $aiName, the music assistant inside the MusicFlame app, talking to someone listening to music on their phone.\n" +
+            "Rules:\n" +
+            "1. Answer directly what the user just wrote, in English, in plain text (no Markdown), in at most 3 sentences. Do not greet unless the user greets you first (then one short sentence).\n" +
+            "2. Only mention songs, artists or albums that appear in the DATA; never invent any.\n" +
+            "3. If the question is not about music, answer in 1-2 sentences and offer help with music."
         } else {
-            append("Eres $aiName, el asistente musical de la app MusicFlame. Hablas con una persona que escucha música en su teléfono.\n")
-            append("Reglas:\n")
-            append("1. Responde directamente a lo último que escribió el usuario. No saludes ni te presentes, salvo que el usuario te salude primero; entonces saluda en UNA sola frase corta.\n")
-            append("2. Responde SIEMPRE y únicamente en español, sin mezclar idiomas ni usar inglés ni chino. Los títulos de canciones y los géneros déjalos tal cual.\n")
-            append("3. Texto plano, sin Markdown (nada de asteriscos ni #). Máximo 3 oraciones, salvo cuando listes canciones.\n")
-            append("4. Solo menciona canciones, artistas, álbumes o años que aparezcan en los DATOS de abajo; NUNCA inventes ninguno. Si no tienes el dato, dilo en una frase.\n")
-            append("5. Si la pregunta no trata de música, responde breve (1 o 2 oraciones) y ofrece ayuda con música. Nunca respondas con un saludo en lugar de contestar.")
+            "Eres $aiName, el asistente musical de la app MusicFlame, y hablas con alguien que escucha música en su teléfono.\n" +
+            "Reglas:\n" +
+            "1. Contesta directo a lo último que escribió el usuario, en español, en texto plano (sin Markdown) y en máximo 3 oraciones. No saludes salvo que te saluden primero (entonces, una frase corta).\n" +
+            "2. Solo menciona canciones, artistas o álbumes que aparezcan en los DATOS; nunca inventes ninguno.\n" +
+            "3. Si la pregunta no es de música, responde en 1 o 2 oraciones y ofrece ayuda con música."
         }
-        if (!nowPlaying.isNullOrBlank()) append(if (lang == "en") "\nNow playing: \"$nowPlaying\"." else "\nAhora suena: \"$nowPlaying\".")
-        if (!libraryBlock.isNullOrBlank()) {
-            if (lang == "en") {
-                append("\n\nDATA from the user's library:\n").append(libraryBlock)
-                append("\nMessage structure: 1) one introductory sentence; 2) one line per song in the list, numbered (1., 2., ...), ")
-                append("with title, artist and a short phrase on why it fits (use the reason); 3) one closing sentence inviting the user to tap a card or ask for something different. Include ALL the songs in the list.")
-            } else {
-                append("\n\nDATOS de la biblioteca del usuario:\n").append(libraryBlock)
-                append("\nEstructura del mensaje: 1) una oración de introducción; 2) una línea por cada canción de la lista, ")
-                append("numerada (1., 2., ...), con el título, el artista y en una frase corta por qué encaja (usa el motivo); ")
-                append("3) una oración final invitando a tocar una tarjeta o a pedir algo distinto. Incluye TODAS las canciones de la lista.")
-            }
+
+    /**
+     * Datos que cambian en cada mensaje: qué suena, resumen fijo de la biblioteca (para que el modelo nunca
+     * se quede "sin datos") y, si el usuario pidió algo concreto, la selección ya calculada por la app.
+     * Las tarjetas ya muestran las canciones, así que se le pide una respuesta CORTA (generar es lo más lento).
+     */
+    private fun buildUserContext(nowPlaying: String?, summary: String?, block: String?, lang: String): String {
+        val en = lang == "en"
+        val parts = ArrayList<String>(4)
+        if (!nowPlaying.isNullOrBlank()) parts += if (en) "Now playing: \"$nowPlaying\"." else "Ahora suena: \"$nowPlaying\"."
+        if (!summary.isNullOrBlank()) parts += (if (en) "DATA - user's library: " else "DATOS - biblioteca del usuario: ") + summary
+        if (!block.isNullOrBlank()) {
+            parts += (if (en) "DATA for this request:\n" else "DATOS para esta petición:\n") + block
+            parts += if (en) "The chosen songs are shown separately as cards: do NOT list them. Comment on the selection in one or two short sentences and invite the user to tap a card."
+                     else "Las canciones elegidas se muestran aparte como tarjetas: NO las enumeres. Comenta la selección en una o dos frases cortas e invita a tocar una tarjeta."
         }
+        return parts.joinToString("\n")
     }
 
     /** Historial recortado por presupuesto, que empieza y termina en turno del usuario y alterna roles. */
@@ -468,24 +541,18 @@ object LocalLlm {
         return out
     }
 
-    /** Solo MediaPipe: el prompt se arma a mano con la plantilla de cada familia de modelos. */
-    private fun promptFor(m: AiModel, system: String, turns: List<Turn>): String = when (m) {
-        AiModel.GEMMA3_1B -> buildString {
-            // Gemma no tiene rol "system": las reglas van al inicio del primer turno del usuario. Sin <bos>: MediaPipe lo agrega.
-            turns.forEachIndexed { i, t ->
-                append("<start_of_turn>").append(if (t.user) "user" else "model").append('\n')
-                if (i == 0) append(system).append("\n\n")
-                append(t.text).append("<end_of_turn>\n")
+    /** Solo MediaPipe (Gemma 3): el prompt se arma a mano con su plantilla, sin estado entre mensajes. */
+    private fun promptFor(system: String, context: String, turns: List<Turn>, lang: String): String = buildString {
+        // Gemma no tiene rol "system": las reglas van al inicio del primer turno del usuario. Sin <bos>: MediaPipe lo agrega.
+        // Los datos del momento van pegados al ÚLTIMO mensaje para que el modelo no los pierda de vista.
+        turns.forEachIndexed { i, t ->
+            append("<start_of_turn>").append(if (t.user) "user" else "model").append('\n')
+            if (i == 0) append(system).append("\n\n")
+            if (i == turns.lastIndex && context.isNotBlank()) {
+                append(context).append("\n\n").append(if (lang == "en") "User message:\n" else "Mensaje del usuario:\n")
             }
-            append("<start_of_turn>model\n")
+            append(t.text).append("<end_of_turn>\n")
         }
-        else -> buildString {   // ChatML (Qwen)
-            append("<|im_start|>system\n").append(system).append("<|im_end|>\n")
-            turns.forEach {
-                append("<|im_start|>").append(if (it.user) "user" else "assistant").append('\n')
-                append(it.text).append("<|im_end|>\n")
-            }
-            append("<|im_start|>assistant\n")
-        }
+        append("<start_of_turn>model\n")
     }
 }

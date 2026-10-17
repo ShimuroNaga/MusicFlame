@@ -166,6 +166,50 @@ object AiLibraryContext {
         return LibraryHelp(picks, block.toString().trim(), fallback)
     }
 
+    // ---------- Resumen fijo de la biblioteca ----------
+    @Volatile private var summaryFor: List<Song>? = null
+    @Volatile private var summaryLang: String? = null
+    @Volatile private var summaryBase: String? = null
+
+    /**
+     * Resumen MUY corto de la biblioteca (cuántas canciones, artistas y géneros más comunes, lo más escuchado).
+     * Va siempre en el prompt: así la IA conoce al usuario aunque solo diga "hola" y no tiene que adivinar.
+     * La parte estática se cachea mientras no cambie la lista de canciones; lo más escuchado se recalcula (barato).
+     */
+    fun summary(songs: List<Song>, stats: Map<Long, SongStat>, lang: String): String? {
+        if (songs.isEmpty()) return null
+        val en = lang == "en"
+        if (summaryFor !== songs || summaryLang != lang || summaryBase == null) {
+            fun known(v: String?) = !v.isNullOrBlank() && !v.equals("unknown", true) && !v.equals("desconocido", true) && !v.equals("<unknown>", true)
+            val artists = songs.asSequence().map { it.artist }.filter { known(it) }
+                .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(5)
+            val genres = songs.asSequence().mapNotNull { it.genre }.filter { known(it) }
+                .groupingBy { it }.eachCount().entries.sortedByDescending { it.value }.take(3)
+            summaryBase = buildString {
+                append(if (en) "${songs.size} songs." else "${songs.size} canciones.")
+                if (artists.isNotEmpty()) {
+                    append(if (en) " Most songs by: " else " Más canciones de: ")
+                    append(artists.joinToString(", ") { "${it.key} (${it.value})" }).append('.')
+                }
+                if (genres.isNotEmpty()) {
+                    append(if (en) " Common genres: " else " Géneros frecuentes: ")
+                    append(genres.joinToString(", ") { it.key }).append('.')
+                }
+            }
+            summaryFor = songs; summaryLang = lang
+        }
+        val top = stats.entries.asSequence().filter { it.value.playCount > 0 }
+            .sortedByDescending { it.value.playCount }.take(3)
+            .mapNotNull { e -> songs.firstOrNull { it.id == e.key } }.toList()
+        return buildString {
+            append(summaryBase)
+            if (top.isNotEmpty()) {
+                append(if (en) " Most played: " else " Más escuchadas: ")
+                append(top.joinToString(", ") { "«${it.title}» - ${it.artist}" }).append('.')
+            }
+        }
+    }
+
     // ---------- Búsquedas ----------
     private fun findMentionedSong(text: String, ents: List<Entry>): Song? {
         val textTokens = tokens(text)

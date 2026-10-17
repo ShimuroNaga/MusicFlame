@@ -24,7 +24,7 @@ import com.music.musicflame.data.LocalLlm
 @Composable
 fun AiTermsDialog(onAccept: (() -> Unit)?, onDismiss: () -> Unit) {
     val uri = LocalUriHandler.current
-    val model = LocalLlm.installed(LocalContext.current) ?: AiModel.QWEN25_15B   // enlaces del modelo descargado
+    val model = LocalLlm.installed(LocalContext.current) ?: AiModel.GEMMA4_E2B   // enlaces del modelo descargado
     @Composable fun Block(title: Int, body: Int) {
         Text(stringResource(title), fontWeight = FontWeight.Bold, fontSize = 14.sp)
         Spacer(Modifier.height(2.dp))

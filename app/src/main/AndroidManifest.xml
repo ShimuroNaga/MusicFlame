@@ -27,7 +27,7 @@
         android:supportsRtl="true"
         android:theme="@style/Theme.MusicFlame">
 
-        <!-- LiteRT-LM (Gemma 4 / Qwen3): permite usar la GPU del teléfono; si no existe se usa CPU -->
+        <!-- LiteRT-LM (Gemma 4): permite usar la GPU del teléfono; si no existe se usa CPU -->
         <uses-native-library android:name="libvndksupport.so" android:required="false" />
         <uses-native-library android:name="libOpenCL.so" android:required="false" />
 

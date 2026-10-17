@@ -213,6 +213,8 @@ fun AiChatScreen(
                 val lib = withContext(Dispatchers.Default) {
                     AiLibraryContext.build(text, librarySnapshot, statsSnapshot, nowPlayingSongId)
                 }
+                // Resumen fijo (cuántas canciones, artistas y géneros top): la IA siempre conoce la biblioteca.
+                val summary = withContext(Dispatchers.Default) { AiLibraryContext.summary(librarySnapshot, statsSnapshot, lang) }
                 fallbackText = lib.fallbackText
                 if (lib.picks.isNotEmpty()) upsert("", songIds = lib.picks.map { it.id })
 
@@ -224,7 +226,7 @@ fun AiChatScreen(
                 }
 
                 // 2) El modelo redacta el comentario con esos datos.
-                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList(), lib.promptBlock, lang) { partial ->
+                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList(), lib.promptBlock, lang, librarySummary = summary) { partial ->
                     // callback desde hilo de fondo: se limita a ~22 fps y se pasa al hilo principal
                     val now = SystemClock.uptimeMillis()
                     if (now - lastUiUpdate.get() >= 45L) {

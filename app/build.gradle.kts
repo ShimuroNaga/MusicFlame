@@ -80,6 +80,11 @@ android {
             )
             // --- CAMBIADO: antes usaba signingConfigs.getByName("debug") ---
             signingConfig = signingConfigs.getByName("release")
+
+            // Solo en el APK release: se empaquetan las librerías nativas para teléfonos (64 y 32 bits) y se
+            // dejan fuera x86/x86_64 (solo emuladores y algunas tablets Intel). Antes iban las 4 arquitecturas.
+            // El debug conserva todas para que el emulador siga funcionando.
+            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
     }
 

@@ -24,7 +24,7 @@
     <string name="settings_ai_bubbles_rainbow">Arcoíris</string>
     <string name="settings_ai_bubbles_rainbow_desc">Recorre el espectro muy despacio para no marear.</string>
 
-    <!-- IA local (Gemma 4 / Gemma 3) -->
+    <!-- IA local (Gemma 4) -->
     <string name="ai_no_model_message">Aún no tengo mi modelo descargado. Ve a Ajustes › IA y toca «Descargar modelo» (una sola vez, con Wi‑Fi).</string>
     <string name="ai_terms_required">Para chatear, primero acepta los términos de la IA.</string>
     <string name="ai_terms_view">Ver términos</string>
@@ -35,15 +35,15 @@
     <string name="ai_terms_link_model">Ver modelo</string>
     <string name="ai_terms_link_license">Licencia del modelo</string>
     <string name="ai_terms_what_t">Qué es</string>
-    <string name="ai_terms_what_b">El chat usa un modelo de lenguaje pequeño que tú eliges en Ajustes › IA (Gemma 4 E2B o Gemma 3 1B). Corre en tu teléfono con MediaPipe o LiteRT-LM de Google. Se descarga una sola vez (de Hugging Face o de GitHub) y solo puedes tener uno descargado a la vez.</string>
+    <string name="ai_terms_what_b">El chat usa un modelo de lenguaje pequeño que descargas en Ajustes › IA (Gemma 4 E2B). Corre en tu teléfono con LiteRT-LM de Google. Se descarga una sola vez, de Hugging Face.</string>
     <string name="ai_terms_privacy_t">Privacidad</string>
     <string name="ai_terms_privacy_b">En modo local, el modelo funciona en tu teléfono sin internet: tus mensajes no salen del dispositivo. Solo la descarga del modelo usa internet. MusicFlame no recibe tus conversaciones.</string>
     <string name="ai_terms_limits_t">Límites</string>
     <string name="ai_terms_limits_b">Es un modelo pequeño y puede equivocarse o inventar datos (años, BPM, álbumes, letras). Verifica la información importante. No lo uses para decisiones médicas, legales, financieras ni de seguridad. Se ofrece «tal cual», sin garantías.</string>
     <string name="ai_terms_device_t">Tu teléfono</string>
-    <string name="ai_terms_device_b">Ocupa entre unos 0.5 y 2.6 GB de almacenamiento según el modelo, y bastante RAM mientras responde (más con los modelos grandes). Puede tardar varios segundos, calentar el teléfono y gastar batería. Puedes borrar el modelo cuando quieras en Ajustes › IA.</string>
+    <string name="ai_terms_device_b">Ocupa unos 2.6 GB de almacenamiento y bastante RAM mientras responde. Puede tardar varios segundos, calentar el teléfono y gastar batería. Puedes borrar el modelo cuando quieras en Ajustes › IA.</string>
     <string name="ai_terms_license_t">Licencia</string>
-    <string name="ai_terms_license_b">Gemma 4 se distribuye bajo licencia Apache 2.0. Gemma 3 se ofrece bajo los Términos de Uso de Gemma (ai.google.dev/gemma/terms), que incluyen su política de uso prohibido. MediaPipe y LiteRT-LM son Apache 2.0. Todas permiten su uso y redistribución con aviso de licencia (ver Ajustes › Licencias de terceros). MusicFlame es un proyecto independiente: no está afiliado ni avalado por Google.</string>
+    <string name="ai_terms_license_b">Gemma 4 y LiteRT-LM se distribuyen bajo licencia Apache 2.0, que permite su uso y redistribución con aviso de licencia (ver Ajustes › Licencias de terceros). MusicFlame es un proyecto independiente: no está afiliado ni avalado por Google.</string>
     <string name="settings_ai_engine_title">Modelo de IA</string>
     <string name="settings_ai_local_desc">Modelo local, licencia Apache 2.0. Descarga única de %1$s; funciona sin conexión.</string>
     <string name="settings_ai_local_wifi">Recomendado descargarlo con Wi‑Fi. Si se corta, continúa donde se quedó.</string>
@@ -66,6 +66,5 @@
     <string name="settings_ai_models_hint">Elige un modelo. Solo puedes tener uno descargado a la vez: para cambiar, borra el actual y descarga otro.</string>
     <string name="settings_ai_model_meta">%1$s · %2$s</string>
     <string name="settings_ai_model_locked">Borra el modelo descargado para poder usar este.</string>
-    <string name="ai_model_desc_gemma3">Opción ligera de Google (≈555 MB) para teléfonos modestos. Responde más simple que Gemma 4. Se descarga de GitHub porque el repositorio original exige iniciar sesión.</string>
     <string name="ai_model_desc_gemma4">El recomendado: el más inteligente y, con aceleración MTP, rápido en teléfonos con GPU decente. Descarga grande (≈2.6 GB); recomendado 6 GB de RAM o más. Si lo descargaste antes de mayo de 2026, bórralo y vuelve a descargarlo para activar la aceleración.</string>
 </resources>

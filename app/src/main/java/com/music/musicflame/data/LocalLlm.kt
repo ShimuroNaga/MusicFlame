@@ -11,7 +11,6 @@ import com.google.ai.edge.litertlm.EngineConfig
 import com.google.ai.edge.litertlm.ExperimentalApi
 import com.google.ai.edge.litertlm.ExperimentalFlags
 import com.google.ai.edge.litertlm.SamplerConfig
-import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.music.musicflame.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.currentCoroutineContext
@@ -25,20 +24,13 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.concurrent.atomic.AtomicBoolean
 
-/** Motor que ejecuta cada modelo. MediaPipe lee .task; LiteRT-LM lee .litertlm. */
-enum class AiEngineKind { MEDIAPIPE, LITERT_LM }
-
 /**
  * Modelos de IA local que el usuario puede elegir. SOLO UNO descargado a la vez: para cambiar de modelo
  * hay que borrar el actual (ver [LocalLlm.download]).
  *
- * Se quitaron Qwen2.5-1.5B y Qwen3-0.6B: eran lentos (Qwen2.5 en q8 pesa 1.6 GB) o demasiado tontos
- * (Qwen3 0.6B se equivoca de idioma y de tema). Gemma 4 E2B es el recomendado (con MTP corre mucho más
- * rápido) y Gemma 3 1B queda como opción ligera.
- *
- * Licencias: Gemma 4 es Apache-2.0. Gemma 3 va con los Términos de Uso de Gemma
- * (https://ai.google.dev/gemma/terms) + su política de uso prohibido; su repositorio de Hugging Face exige sesión,
- * por eso se descarga de un archivo que TÚ hospedas (ver [GEMMA3_URL]).
+ * Se quitaron Qwen2.5-1.5B, Qwen3-0.6B y Gemma 3 1B (555 MB): eran lentos, demasiado tontos o añadían un
+ * segundo motor (MediaPipe) al APK. Solo queda Gemma 4 E2B (con MTP corre mucho más rápido), Apache-2.0.
+ * Para una IA ligera existe la IA online (Groq) con la API key del usuario.
  */
 enum class AiModel(
     val id: String,
@@ -47,7 +39,6 @@ enum class AiModel(
     val fileName: String,
     val sizeLabel: String,
     val minBytes: Long,
-    val engine: AiEngineKind,
     val modelPageUrl: String,
     val licenseName: String,
     val licenseUrl: String,
@@ -57,17 +48,9 @@ enum class AiModel(
         "gemma4_e2b", "Gemma 4 E2B",
         "https://huggingface.co/litert-community/gemma-4-E2B-it-litert-lm/resolve/main/gemma-4-E2B-it.litertlm",
         "gemma-4-E2B-it.litertlm",
-        "≈2.6 GB", 1500L * 1024 * 1024, AiEngineKind.LITERT_LM,
+        "≈2.6 GB", 1500L * 1024 * 1024,
         "https://huggingface.co/google/gemma-4-E2B-it", "Apache-2.0", "https://www.apache.org/licenses/LICENSE-2.0",
         R.string.ai_model_desc_gemma4
-    ),
-    GEMMA3_1B(
-        "gemma3_1b", "Gemma 3 1B IT",
-        LocalLlm.GEMMA3_URL,
-        "gemma3-1b-it-int4.task",
-        "≈555 MB", 300L * 1024 * 1024, AiEngineKind.MEDIAPIPE,
-        "https://huggingface.co/google/gemma-3-1b-it", "Gemma Terms of Use", "https://ai.google.dev/gemma/terms",
-        R.string.ai_model_desc_gemma3
     )
 }
 
@@ -76,16 +59,6 @@ enum class AiModel(
  * a files/ai_models y se borran desde Ajustes › IA.
  */
 object LocalLlm {
-    /**
-     * Gemma 3 1B: el repositorio oficial está "gated" (exige aceptar la licencia con sesión de Hugging Face),
-     * así que una URL directa no funciona. Descarga gemma3-1b-it-int4.task desde
-     * https://huggingface.co/litert-community/Gemma3-1B-IT y súbelo como asset de un Release de GitHub
-     * (tag "ai-models"); la URL queda así. Cambia el usuario/tag si usas otro.
-     */
-    const val GEMMA3_URL =
-        "https://github.com/ShimuroNaga/MusicFlame/releases/download/ai-models/gemma3-1b-it-int4.task"
-
-    private const val MAX_TOKENS = 1024                     // (MediaPipe) prompt + respuesta
     private const val HISTORY_CHAR_BUDGET = 800             // historial corto = prefill corto = primer trozo de respuesta antes
     private const val HISTORY_CHAR_BUDGET_WITH_DATA = 400   // con datos de biblioteca en el prompt el historial se acorta más
 
@@ -114,11 +87,12 @@ object LocalLlm {
         return AiModel.values().firstOrNull { isReady(ctx, it) }
     }
 
-    /** Modelos que ya no existen en la app (Qwen): se borran una vez por sesión para liberar 0.3–1.6 GB. */
+    /** Modelos que ya no existen en la app (Qwen, Gemma 3): se borran una vez por sesión para liberar 0.3–1.6 GB. */
     private val legacyPurged = AtomicBoolean(false)
     private val LEGACY_FILES = listOf(
         "Qwen2.5-1.5B-Instruct_q8_ekv1280.task",
-        "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm"
+        "qwen3_0.6b_nothink_q4_block32_ekv1280.litertlm",
+        "gemma3-1b-it-int4.task"
     )
     private fun purgeLegacy(ctx: Context) {
         if (!legacyPurged.compareAndSet(false, true)) return
@@ -128,7 +102,6 @@ object LocalLlm {
     fun sizeOnDiskMb(ctx: Context): Long = installed(ctx)?.let { modelFile(ctx, it).length() / (1024 * 1024) } ?: 0L
 
     private val mutex = Mutex()
-    @Volatile private var mpEngine: LlmInference? = null
     @Volatile private var ltEngine: Engine? = null
     @Volatile private var engineIsGpu = false
 
@@ -145,9 +118,8 @@ object LocalLlm {
     /** Libera la RAM del modelo (se vuelve a cargar solo en el siguiente mensaje). */
     fun unload() {
         closeConv()
-        try { mpEngine?.close() } catch (_: Throwable) {}
         try { ltEngine?.close() } catch (_: Throwable) {}
-        mpEngine = null; ltEngine = null
+        ltEngine = null
     }
 
     /** Libera el modelo cuando ya no se usa; espera a que termine cualquier respuesta en curso (mismo mutex). */
@@ -206,18 +178,9 @@ object LocalLlm {
     private fun enginePrefs(ctx: Context) =
         ctx.applicationContext.getSharedPreferences("ai_engine", Context.MODE_PRIVATE)
 
-    // Claves de "GPU rota" por motor (las de MediaPipe conservan el nombre antiguo).
-    private fun loadingKey(m: AiModel) = if (m.engine == AiEngineKind.MEDIAPIPE) "gpu_loading" else "lt_gpu_loading"
-    private fun brokenKey(m: AiModel) = if (m.engine == AiEngineKind.MEDIAPIPE) "gpu_broken" else "lt_gpu_broken"
-
-    private fun buildMp(ctx: Context, m: AiModel, gpu: Boolean): LlmInference = LlmInference.createFromOptions(
-        ctx.applicationContext,
-        LlmInference.LlmInferenceOptions.builder()
-            .setModelPath(modelFile(ctx, m).absolutePath)
-            .setPreferredBackend(if (gpu) LlmInference.Backend.GPU else LlmInference.Backend.CPU)
-            .setMaxTokens(MAX_TOKENS)
-            .build()
-    )
+    // Claves de "GPU rota" (el parámetro se conserva por compatibilidad con las llamadas existentes).
+    private fun loadingKey(@Suppress("UNUSED_PARAMETER") m: AiModel) = "lt_gpu_loading"
+    private fun brokenKey(@Suppress("UNUSED_PARAMETER") m: AiModel) = "lt_gpu_broken"
 
     @OptIn(ExperimentalApi::class)
     private suspend fun buildLt(ctx: Context, m: AiModel, gpu: Boolean): Engine {
@@ -277,9 +240,6 @@ object LocalLlm {
         return build(false)
     }
 
-    private suspend fun mpEngineFor(ctx: Context, m: AiModel): LlmInference =
-        mpEngine ?: loadWithGpuFallback(ctx, m) { gpu -> buildMp(ctx, m, gpu) }.also { mpEngine = it }
-
     private suspend fun ltEngineFor(ctx: Context, m: AiModel): Engine =
         ltEngine ?: loadWithGpuFallback(ctx, m) { gpu -> buildLt(ctx, m, gpu) }.also { ltEngine = it }
 
@@ -292,7 +252,7 @@ object LocalLlm {
     suspend fun preload(ctx: Context) = withContext(Dispatchers.IO) {
         val m = installed(ctx) ?: return@withContext
         try {
-            mutex.withLock { if (m.engine == AiEngineKind.MEDIAPIPE) mpEngineFor(ctx, m) else ltEngineFor(ctx, m) }
+            mutex.withLock { ltEngineFor(ctx, m) }
         } catch (_: Throwable) {}
     }
 
@@ -314,10 +274,7 @@ object LocalLlm {
             val system = buildSystem(aiName, lang)
             val context = buildUserContext(nowPlaying, librarySummary, libraryBlock, lang)
             val turns = buildTurns(history, if (libraryBlock.isNullOrBlank()) HISTORY_CHAR_BUDGET else HISTORY_CHAR_BUDGET_WITH_DATA)
-            suspend fun run(): String = when (m.engine) {
-                AiEngineKind.MEDIAPIPE -> generateMp(mpEngineFor(ctx, m), promptFor(system, context, turns, lang), onPartial)
-                AiEngineKind.LITERT_LM -> generateLt(ltEngineFor(ctx, m), system, context, turns, lang, onPartial)
-            }
+            suspend fun run(): String = generateLt(ltEngineFor(ctx, m), system, context, turns, lang, onPartial)
             try {
                 run()
             } catch (t: Throwable) {
@@ -327,29 +284,6 @@ object LocalLlm {
                 run()
             }
         }
-    }
-
-    // ---------- MediaPipe (.task) ----------
-    private fun cleanMp(raw: String): String =
-        raw.substringBefore("<end_of_turn>").replace("<start_of_turn>", "").trim()
-
-    private fun generateMp(llm: LlmInference, prompt: String, onPartial: (String) -> Unit): String {
-        val acc = StringBuilder()
-        var lastEmit = 0L
-        val future = llm.generateResponseAsync(prompt) { partial, _ ->
-            acc.append(partial)
-            // Se arma y limpia el texto SOLO ~20 veces por segundo, no en cada token.
-            val now = android.os.SystemClock.uptimeMillis()
-            if (now - lastEmit >= 50L) {
-                lastEmit = now
-                val shown = cleanMp(acc.toString())
-                if (shown.isNotEmpty()) onPartial(shown)
-            }
-        }
-        val raw = future.get()
-        val clean = cleanMp(if (raw.isNullOrBlank()) acc.toString() else raw)
-        if (clean.isEmpty()) throw IllegalStateException("respuesta vacía")
-        return clean
     }
 
     // ---------- LiteRT-LM (.litertlm): la plantilla de chat la aplica el propio motor ----------
@@ -479,13 +413,13 @@ object LocalLlm {
     }
 
     // ---------- Prompt ----------
-    private class Turn(val user: Boolean, val text: String)
+    internal class Turn(val user: Boolean, val text: String)
 
     /**
      * Prompt de sistema FIJO y corto (un modelo chico se confunde con muchas reglas). Como no cambia entre
      * mensajes, LiteRT-LM lo procesa una sola vez por conversación. Lo que cambia va en [buildUserContext].
      */
-    private fun buildSystem(aiName: String, lang: String): String =
+    internal fun buildSystem(aiName: String, lang: String): String =
         if (lang == "en") {
             "You are $aiName, the music assistant inside the MusicFlame app, talking to someone listening to music on their phone.\n" +
             "Rules:\n" +
@@ -505,7 +439,7 @@ object LocalLlm {
      * se quede "sin datos") y, si el usuario pidió algo concreto, la selección ya calculada por la app.
      * Las tarjetas ya muestran las canciones, así que se le pide una respuesta CORTA (generar es lo más lento).
      */
-    private fun buildUserContext(nowPlaying: String?, summary: String?, block: String?, lang: String): String {
+    internal fun buildUserContext(nowPlaying: String?, summary: String?, block: String?, lang: String): String {
         val en = lang == "en"
         val parts = ArrayList<String>(4)
         if (!nowPlaying.isNullOrBlank()) parts += if (en) "Now playing: \"$nowPlaying\"." else "Ahora suena: \"$nowPlaying\"."
@@ -519,7 +453,7 @@ object LocalLlm {
     }
 
     /** Historial recortado por presupuesto, que empieza y termina en turno del usuario y alterna roles. */
-    private fun buildTurns(history: List<AiMessage>, budget: Int): List<Turn> {
+    internal fun buildTurns(history: List<AiMessage>, budget: Int): List<Turn> {
         val picked = ArrayDeque<AiMessage>()
         var used = 0
         for (m in history.filter { !it.isError && it.text.isNotBlank() }.asReversed()) {
@@ -539,20 +473,5 @@ object LocalLlm {
         }
         if (out.isEmpty()) throw IllegalStateException("sin mensaje del usuario")
         return out
-    }
-
-    /** Solo MediaPipe (Gemma 3): el prompt se arma a mano con su plantilla, sin estado entre mensajes. */
-    private fun promptFor(system: String, context: String, turns: List<Turn>, lang: String): String = buildString {
-        // Gemma no tiene rol "system": las reglas van al inicio del primer turno del usuario. Sin <bos>: MediaPipe lo agrega.
-        // Los datos del momento van pegados al ÚLTIMO mensaje para que el modelo no los pierda de vista.
-        turns.forEachIndexed { i, t ->
-            append("<start_of_turn>").append(if (t.user) "user" else "model").append('\n')
-            if (i == 0) append(system).append("\n\n")
-            if (i == turns.lastIndex && context.isNotBlank()) {
-                append(context).append("\n\n").append(if (lang == "en") "User message:\n" else "Mensaje del usuario:\n")
-            }
-            append(t.text).append("<end_of_turn>\n")
-        }
-        append("<start_of_turn>model\n")
     }
 }

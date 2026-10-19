@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Settings > AI: choose offline or online -->
+    <string name="settings_ai_mode_title">Which AI to use?</string>
+    <string name="settings_ai_mode_hint">Pick one; you can switch any time. The other one stays saved.</string>
+    <string name="settings_ai_mode_offline">Offline AI</string>
+    <string name="settings_ai_mode_offline_sub">Runs on your phone, with no internet and nothing sent out. Needs a downloaded model (below).</string>
+    <string name="settings_ai_mode_online">Online AI (Groq)</string>
+    <string name="settings_ai_mode_online_sub">Faster and smarter. Needs internet and your own free Groq API key.</string>
+
+    <string name="settings_ai_online_title">Online AI — Groq</string>
+    <string name="settings_ai_key_saved">API key saved (encrypted on your phone)</string>
+    <string name="settings_ai_key_missing">Your API key is missing</string>
+    <string name="settings_ai_key_label">Groq API key</string>
+    <string name="settings_ai_key_hint">Usually starts with gsk_</string>
+    <string name="settings_ai_key_save">Save</string>
+    <string name="settings_ai_key_howto">How to get my key</string>
+    <string name="settings_ai_key_ok">Key saved and verified ✓</string>
+    <string name="settings_ai_key_invalid">Groq did not accept that key. Check that it is complete.</string>
+    <string name="settings_ai_key_saved_no_check">Key saved, but I couldn\'t verify it (no internet?).</string>
+    <string name="settings_ai_key_save_fail">The key could not be saved on this phone.</string>
+    <string name="settings_ai_online_model_title">Model</string>
+    <string name="settings_ai_online_model_120b">The smartest. A bit slower, but still fast.</string>
+    <string name="settings_ai_online_model_20b">Faster, slightly less accurate.</string>
+    <string name="settings_ai_online_usage_title">Today\'s usage</string>
+    <string name="settings_ai_online_fallback">If the daily quota runs out or there is no internet, MusicFlame switches to the offline AI by itself (if you already downloaded it).</string>
+    <string name="settings_ai_online_terms_button">Online AI terms and privacy</string>
+
+    <!-- Usage bar -->
+    <string name="ai_online_usage_line">Today: %1$s / %2$s tokens · ≈%3$s requests left</string>
+    <string name="ai_online_usage_reset">Approximate counter; resets ≈ %1$s (your phone\'s time)</string>
+
+    <!-- Chat errors -->
+    <string name="ai_online_err_no_key">You haven\'t added your Groq API key yet. Go to Settings › AI › Online AI and tap “How to get my key”.</string>
+    <string name="ai_online_err_invalid_key">Groq rejected your API key (it may be mistyped or deleted). Check it in Settings › AI.</string>
+    <string name="ai_online_err_rate_limit">Your free Groq quota is used up for now. Come back later (it resets every day) or switch to the offline AI in Settings › AI.</string>
+    <string name="ai_online_err_rate_limit_wait">You\'re going too fast: Groq asks you to wait %1$s s before trying again.</string>
+    <string name="ai_online_err_network">Can\'t reach Groq. Check your internet connection.</string>
+    <string name="ai_online_err_server">Groq is having problems right now. Try again in a while.</string>
+    <string name="ai_online_err_other">I couldn\'t answer with the online AI: %1$s</string>
+    <string name="ai_online_fallback_notice">(The online AI isn\'t available right now; I\'m answering with the offline AI.)</string>
+
+    <!-- How to get my key -->
+    <string name="ai_online_help_title">How to get your Groq API key</string>
+    <string name="ai_online_help_intro">It\'s free, needs no credit card and takes about 2 minutes.</string>
+    <string name="ai_online_help_step1">1. Tap “Open Groq page” (console.groq.com/keys) and sign in or create your account (with email or Google).</string>
+    <string name="ai_online_help_step2">2. Tap “Create API Key”.</string>
+    <string name="ai_online_help_step3">3. Give it a name (for example MusicFlame) and create it.</string>
+    <string name="ai_online_help_step4">4. Copy it right then: Groq shows it only once and it starts with gsk_. Come back to MusicFlame, paste it into “Groq API key” and tap Save.</string>
+    <string name="ai_online_help_note">If you lose it, delete that key in Groq and create another. Never share your key.</string>
+    <string name="ai_online_help_open">Open Groq page</string>
+
+    <!-- Online AI terms -->
+    <string name="ai_online_terms_title">Online AI terms</string>
+    <string name="ai_online_terms_what_t">What is it?</string>
+    <string name="ai_online_terms_what_b">In online mode, the chat sends your messages to Groq (groq.com), a service that runs open AI models (OpenAI\'s GPT-OSS) on its servers and returns the answer. It uses YOUR own free Groq account and API key.</string>
+    <string name="ai_online_terms_sent_t">What leaves your phone</string>
+    <string name="ai_online_terms_sent_b">Your message, the latest chat messages, the name of the song that is playing and a short summary of songs from your library related to your question (title, artist, genre…). Your audio files, your Google account and other app data are not sent. MusicFlame has no server of its own and does not receive your conversations: they go straight from your phone to Groq. What Groq does with them is governed by its terms and privacy policy (links below). Don\'t type sensitive data.</string>
+    <string name="ai_online_terms_key_t">Your API key</string>
+    <string name="ai_online_terms_key_b">It is stored encrypted on this phone. It is not included in backups or in “Export settings”. It is personal: don\'t share or publish it.</string>
+    <string name="ai_online_terms_limits_t">Limits and errors</string>
+    <string name="ai_online_terms_limits_b">Groq\'s free plan has per-minute and per-day limits. The usage bar is an estimate from the app\'s own counter; Groq\'s count is the one that matters. If they run out, or there is no internet, MusicFlame can switch to the offline AI if you downloaded it. Like any AI, it can make mistakes or invent facts.</string>
+    <string name="ai_online_terms_license_t">Model and license</string>
+    <string name="ai_online_terms_license_b">GPT-OSS models (OpenAI), Apache-2.0 license, run by Groq. MusicFlame is not affiliated with Groq or OpenAI.</string>
+    <string name="ai_online_terms_link_privacy">Groq privacy</string>
+    <string name="ai_online_terms_link_terms">Groq terms</string>
+</resources>

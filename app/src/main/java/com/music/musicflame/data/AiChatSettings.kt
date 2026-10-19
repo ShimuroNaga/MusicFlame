@@ -46,12 +46,26 @@ class AiChatSettings(context: Context) {
         const val BUBBLE_RAINBOW_CYCLE_SECONDS = 30f
 
         // Claves que, al cambiar, deben refrescar el chat en vivo.
-        val OBSERVED_KEYS = setOf("ai_terms_accepted", "ai_name", "ai_bubble_mode", "ai_bubble_hex")
+        val OBSERVED_KEYS = setOf(
+            "ai_terms_accepted", "ai_name", "ai_bubble_mode", "ai_bubble_hex",
+            "ai_use_online", "ai_online_model", "ai_online_terms_accepted"
+        )
     }
 
     // ---------- Términos ----------
     fun isTermsAccepted(): Boolean = prefs.getBoolean("ai_terms_accepted", false)
     fun saveTermsAccepted(v: Boolean) = prefs.edit().putBoolean("ai_terms_accepted", v).apply()
+
+    // ---------- IA online (Groq) ----------
+    // La API key NO vive aquí (este SharedPreferences se exporta con la configuración): ver OnlineAiStore.
+    /** true = el chat usa la IA online; false (por defecto) = la IA offline descargada. */
+    fun isOnlineMode(): Boolean = prefs.getBoolean("ai_use_online", false)
+    fun saveOnlineMode(v: Boolean) = prefs.edit().putBoolean("ai_use_online", v).apply()
+    fun getOnlineModel(): OnlineModel = OnlineModel.fromId(prefs.getString("ai_online_model", null))
+    fun saveOnlineModel(m: OnlineModel) = prefs.edit().putString("ai_online_model", m.id).apply()
+    /** Aviso de privacidad del modo online (los mensajes salen del teléfono hacia Groq). Va en EXCLUDED_KEYS del export. */
+    fun isOnlineTermsAccepted(): Boolean = prefs.getBoolean("ai_online_terms_accepted", false)
+    fun saveOnlineTermsAccepted(v: Boolean) = prefs.edit().putBoolean("ai_online_terms_accepted", v).apply()
 
     // ---------- Nombre ----------
     fun getName(): String = (prefs.getString("ai_name", DEFAULT_NAME) ?: DEFAULT_NAME).ifBlank { DEFAULT_NAME }

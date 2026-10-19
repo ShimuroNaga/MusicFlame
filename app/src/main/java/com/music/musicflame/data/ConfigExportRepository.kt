@@ -41,6 +41,7 @@ object ConfigExportRepository {
         "never_played_cover_uri",
         "ai_bg_uri",
         "ai_terms_accepted",
+        "ai_online_terms_accepted",
         "mix_songs",
         "last_mix_date",
         "onboarding_completed"

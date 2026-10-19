@@ -30,6 +30,12 @@ import com.music.musicflame.R
 import com.music.musicflame.data.AiChatSettings
 import com.music.musicflame.data.AiModel
 import com.music.musicflame.data.LocalLlm
+import com.music.musicflame.data.OnlineAiStore
+import com.music.musicflame.data.OnlineErrorKind
+import com.music.musicflame.data.OnlineLlm
+import com.music.musicflame.data.OnlineModel
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -40,6 +46,139 @@ import com.music.musicflame.ui.theme.parseCustomTextColor
  * (Adaptativo / Personalizado / Arcoíris lento) del chat. El chat se entera solo (ver AiChatScreen).
  */
 internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
+
+    // ---------- ¿Qué IA usar? Offline (modelo descargado) u Online (Groq con la key del usuario) ----------
+    item {
+        val context = LocalContext.current
+        val scope = rememberCoroutineScope()
+        val ai = remember { AiChatSettings(context) }
+        val store = remember { OnlineAiStore(context) }
+        var online by remember { mutableStateOf(ai.isOnlineMode()) }
+        var model by remember { mutableStateOf(ai.getOnlineModel()) }
+        var hasKey by remember { mutableStateOf(false) }
+        var keyInput by remember { mutableStateOf("") }
+        var busy by remember { mutableStateOf(false) }
+        var showConsent by remember { mutableStateOf(false) }
+        var showOnlineTerms by remember { mutableStateOf(false) }
+        var showKeyHelp by remember { mutableStateOf(false) }
+
+        // La key vive cifrada: consultarla abre el Keystore, así que se hace en IO y no al componer.
+        LaunchedEffect(Unit) { hasKey = withContext(Dispatchers.IO) { store.hasApiKey() } }
+
+        if (showConsent) AiOnlineTermsDialog(
+            onAccept = { ai.saveOnlineTermsAccepted(true); ai.saveOnlineMode(true); online = true; showConsent = false },
+            onDismiss = { showConsent = false }
+        )
+        if (showOnlineTerms) AiOnlineTermsDialog(onAccept = null, onDismiss = { showOnlineTerms = false })
+        if (showKeyHelp) AiOnlineKeyHelpDialog(onDismiss = { showKeyHelp = false })
+
+        SettingsSectionHeader(style, stringResource(R.string.settings_ai_mode_title))
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Text(stringResource(R.string.settings_ai_mode_hint), fontSize = 12.sp, color = style.mediumEmphasis)
+            Spacer(Modifier.height(6.dp))
+            AiModeRow(
+                selected = !online, style = style,
+                title = stringResource(R.string.settings_ai_mode_offline),
+                subtitle = stringResource(R.string.settings_ai_mode_offline_sub)
+            ) { online = false; ai.saveOnlineMode(false) }
+            AiModeRow(
+                selected = online, style = style,
+                title = stringResource(R.string.settings_ai_mode_online),
+                subtitle = stringResource(R.string.settings_ai_mode_online_sub)
+            ) {
+                // Antes de mandar nada a internet, el usuario acepta el aviso de privacidad (una sola vez).
+                if (ai.isOnlineTermsAccepted()) { online = true; ai.saveOnlineMode(true) } else showConsent = true
+            }
+
+            if (online) {
+                Spacer(Modifier.height(12.dp))
+                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                    Column(Modifier.padding(16.dp)) {
+                        Text(stringResource(R.string.settings_ai_online_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)
+                        Spacer(Modifier.height(2.dp))
+                        Text(
+                            stringResource(if (hasKey) R.string.settings_ai_key_saved else R.string.settings_ai_key_missing),
+                            fontSize = 13.sp,
+                            color = if (hasKey) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                        )
+                        Spacer(Modifier.height(10.dp))
+                        OutlinedTextField(
+                            value = keyInput,
+                            onValueChange = { keyInput = it.filter { c -> !c.isWhitespace() } },   // pegar con salto de línea/espacios no la rompe
+                            singleLine = true, modifier = Modifier.fillMaxWidth(),
+                            visualTransformation = PasswordVisualTransformation(),
+                            label = { Text(stringResource(R.string.settings_ai_key_label)) },
+                            supportingText = { Text(stringResource(R.string.settings_ai_key_hint)) }
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Button(
+                                enabled = keyInput.isNotBlank() && !busy,
+                                onClick = {
+                                    val k = keyInput
+                                    busy = true
+                                    scope.launch {
+                                        val saved = withContext(Dispatchers.IO) { store.saveApiKey(k) }
+                                        if (!saved) {
+                                            Toast.makeText(context, context.getString(R.string.settings_ai_key_save_fail), Toast.LENGTH_LONG).show()
+                                            busy = false
+                                            return@launch
+                                        }
+                                        hasKey = true; keyInput = ""
+                                        // Comprueba la key al instante (no gasta tokens). Si Groq dice que no sirve, no se queda guardada.
+                                        val problem = OnlineLlm.verifyKey(k)
+                                        if (problem == OnlineErrorKind.INVALID_KEY) {
+                                            withContext(Dispatchers.IO) { store.clearApiKey() }
+                                            hasKey = false
+                                        }
+                                        Toast.makeText(
+                                            context,
+                                            context.getString(when (problem) {
+                                                null -> R.string.settings_ai_key_ok
+                                                OnlineErrorKind.INVALID_KEY -> R.string.settings_ai_key_invalid
+                                                else -> R.string.settings_ai_key_saved_no_check
+                                            }),
+                                            Toast.LENGTH_LONG
+                                        ).show()
+                                        busy = false
+                                    }
+                                }
+                            ) { Text(stringResource(R.string.settings_ai_key_save), fontWeight = FontWeight.Bold) }
+                            if (hasKey) OutlinedButton(
+                                enabled = !busy,
+                                onClick = {
+                                    scope.launch {
+                                        withContext(Dispatchers.IO) { store.clearApiKey() }
+                                        hasKey = false
+                                    }
+                                }
+                            ) { Text(stringResource(R.string.settings_ai_key_remove)) }
+                        }
+                        TextButton(onClick = { showKeyHelp = true }) { Text(stringResource(R.string.settings_ai_key_howto)) }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(stringResource(R.string.settings_ai_online_model_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = style.highEmphasis)
+                        OnlineModel.values().forEach { m ->
+                            AiModeRow(
+                                selected = model == m, style = style, title = m.displayName,
+                                subtitle = stringResource(
+                                    if (m == OnlineModel.GPT_OSS_120B) R.string.settings_ai_online_model_120b else R.string.settings_ai_online_model_20b
+                                )
+                            ) { model = m; ai.saveOnlineModel(m) }
+                        }
+
+                        Spacer(Modifier.height(8.dp))
+                        Text(stringResource(R.string.settings_ai_online_usage_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = style.highEmphasis)
+                        Spacer(Modifier.height(6.dp))
+                        AiUsageBar(model = model)
+                        Spacer(Modifier.height(6.dp))
+                        Text(stringResource(R.string.settings_ai_online_fallback), fontSize = 12.sp, color = style.mediumEmphasis)
+                        TextButton(onClick = { showOnlineTerms = true }) { Text(stringResource(R.string.settings_ai_online_terms_button)) }
+                    }
+                }
+            }
+        }
+    }
 
     // ---------- Motor de IA + modelo local (solo UNO descargado a la vez) ----------
     item {
@@ -178,6 +317,19 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
             if (mode == AiChatSettings.MODE_RAINBOW) {
                 Text(stringResource(R.string.settings_ai_bubbles_rainbow_desc), fontSize = 11.sp, color = style.mediumEmphasis, modifier = Modifier.padding(start = 12.dp))
             }
+        }
+    }
+}
+
+/** Fila con radio + título + descripción corta (modo de IA y modelo online). */
+@Composable
+private fun AiModeRow(selected: Boolean, style: SettingsStyle, title: String, subtitle: String, onClick: () -> Unit) {
+    Row(Modifier.fillMaxWidth().clickable(onClick = onClick).padding(vertical = 6.dp), verticalAlignment = Alignment.Top) {
+        RadioButton(selected = selected, onClick = onClick)
+        Spacer(Modifier.width(8.dp))
+        Column(Modifier.padding(top = 2.dp)) {
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
+            Text(subtitle, fontSize = 12.sp, color = style.mediumEmphasis)
         }
     }
 }

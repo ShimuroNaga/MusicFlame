@@ -69,6 +69,9 @@ import com.music.musicflame.data.AiChatSettings
 import com.music.musicflame.data.AiMessage
 import com.music.musicflame.data.AiLibraryContext
 import com.music.musicflame.data.LocalLlm
+import com.music.musicflame.data.OnlineAiException
+import com.music.musicflame.data.OnlineErrorKind
+import com.music.musicflame.data.OnlineLlm
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongLibraryHolder
 import com.music.musicflame.data.SongStat
@@ -118,6 +121,12 @@ fun AiChatScreen(
     var bubbleMode by remember { mutableStateOf(settings.getBubbleMode()) }
     var bubbleHex by remember { mutableStateOf(settings.getBubbleHex()) }
     var termsAccepted by remember { mutableStateOf(settings.isTermsAccepted()) }
+    // IA online (Groq): el modo y el aviso de privacidad también se leen en vivo desde Ajustes > IA.
+    var onlineMode by remember { mutableStateOf(settings.isOnlineMode()) }
+    var onlineModel by remember { mutableStateOf(settings.getOnlineModel()) }
+    var onlineTermsAccepted by remember { mutableStateOf(settings.isOnlineTermsAccepted()) }
+    // Cada modo exige SU aviso: el offline (modelo local) o el online (los mensajes salen hacia Groq).
+    val activeTermsAccepted = if (onlineMode) onlineTermsAccepted else termsAccepted
     var termsDismissed by remember { mutableStateOf(false) }   // "Ahora no": no insistir hasta reabrir la app
     var showTermsAgain by remember { mutableStateOf(false) }
     DisposableEffect(settings) {
@@ -125,6 +134,8 @@ fun AiChatScreen(
             if (key in AiChatSettings.OBSERVED_KEYS) {
                 name = settings.getName(); bubbleMode = settings.getBubbleMode(); bubbleHex = settings.getBubbleHex()
                 termsAccepted = settings.isTermsAccepted()
+                onlineMode = settings.isOnlineMode(); onlineModel = settings.getOnlineModel()
+                onlineTermsAccepted = settings.isOnlineTermsAccepted()
             }
         }
         settings.prefs.registerOnSharedPreferenceChangeListener(listener)
@@ -152,10 +163,11 @@ fun AiChatScreen(
     var stats by remember { mutableStateOf<Map<Long, SongStat>>(emptyMap()) }
     // --- Modelo: se carga al entrar a la pestaña y se LIBERA tras 90 s fuera de ella ---
     // (el modelo ocupa >1.6 GB de RAM; dejarlo cargado mientras suena música ralentizaba toda la app).
-    LaunchedEffect(isActive) {
+    LaunchedEffect(isActive, onlineMode) {
         if (isActive) {
             stats = withContext(Dispatchers.IO) { StatsRepository(context).getAllStats() }
-            LocalLlm.preload(context)
+            // En modo online el modelo local no hace falta: se libera su RAM y solo se vuelve a cargar si se usa de respaldo.
+            if (onlineMode) LocalLlm.unloadWhenIdle() else LocalLlm.preload(context)
         } else {
             delay(90_000L)
             LocalLlm.unloadWhenIdle()
@@ -190,7 +202,7 @@ fun AiChatScreen(
     fun send(override: String? = null) {
         val text = (override ?: input).trim()
         if (text.isEmpty() || isThinking) return
-        if (!termsAccepted) return
+        if (!activeTermsAccepted) return
         if (override == null) input = ""
         messages.add(AiMessage(System.nanoTime(), true, text))
         persist()
@@ -218,28 +230,54 @@ fun AiChatScreen(
                 fallbackText = lib.fallbackText
                 if (lib.picks.isNotEmpty()) upsert("", songIds = lib.picks.map { it.id })
 
-                if (!LocalLlm.isReady(context)) {
+                if (!onlineMode && !LocalLlm.isReady(context)) {
                     val hint = context.getString(R.string.ai_no_model_message)
                     if (lib.picks.isNotEmpty()) upsert(listOfNotNull(lib.fallbackText, hint).joinToString("\n\n"))
                     else upsert(hint, error = true)
                     return@launch
                 }
 
-                // 2) El modelo redacta el comentario con esos datos.
-                val answer = LocalLlm.reply(context, name, nowPlayingLabel, messages.toList(), lib.promptBlock, lang, librarySummary = summary) { partial ->
+                // 2) El modelo redacta el comentario con esos datos (online o local según el modo elegido).
+                val history = messages.toList()
+                var prefix = ""   // aviso que se antepone si la IA online falla y responde la offline de respaldo
+                fun onPartial(partial: String) {
                     // callback desde hilo de fondo: se limita a ~22 fps y se pasa al hilo principal
                     val now = SystemClock.uptimeMillis()
                     if (now - lastUiUpdate.get() >= 45L) {
                         lastUiUpdate.set(now)
-                        scope.launch(Dispatchers.Main.immediate) { upsert(partial) }
+                        val shown = prefix + partial
+                        scope.launch(Dispatchers.Main.immediate) { upsert(shown) }
                     }
                 }
-                upsert(answer)   // texto final completo, siempre
+                val answer = if (onlineMode) {
+                    try {
+                        OnlineLlm.reply(context, name, nowPlayingLabel, history, lib.promptBlock, lang, librarySummary = summary, onPartial = ::onPartial)
+                    } catch (e: OnlineAiException) {
+                        // Sin internet, cuota agotada o Groq caído: si hay modelo offline descargado, responde ese.
+                        val canFallBack = e.kind in setOf(OnlineErrorKind.RATE_LIMIT, OnlineErrorKind.NETWORK, OnlineErrorKind.SERVER) &&
+                            LocalLlm.isReady(context)
+                        if (!canFallBack) throw e
+                        prefix = context.getString(R.string.ai_online_fallback_notice) + "\n\n"
+                        upsert(prefix.trim())
+                        LocalLlm.reply(context, name, nowPlayingLabel, history, lib.promptBlock, lang, librarySummary = summary, onPartial = ::onPartial)
+                    }
+                } else {
+                    LocalLlm.reply(context, name, nowPlayingLabel, history, lib.promptBlock, lang, librarySummary = summary, onPartial = ::onPartial)
+                }
+                upsert(prefix + answer)   // texto final completo, siempre
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Throwable) {   // Throwable: un modelo local puede fallar por falta de RAM (OutOfMemoryError)
                 val existing = messages.firstOrNull { it.id == replyId }
-                if (existing == null || existing.text.isBlank()) {
+                if (e is OnlineAiException) {
+                    // Error de la IA online: se explica con un texto claro (y se conservan las tarjetas si las hay).
+                    if (existing == null || existing.text.isBlank()) {
+                        val why = onlineErrorText(context, e)
+                        val fb = fallbackText
+                        if (existing != null && fb != null) upsert(listOf(fb, why).joinToString("\n\n"))
+                        else upsert(why, error = true)
+                    }
+                } else if (existing == null || existing.text.isBlank()) {
                     val fb = fallbackText
                     if (existing != null && fb != null) upsert(fb)   // hay tarjetas: se conservan con un texto simple
                     else {
@@ -254,16 +292,24 @@ fun AiChatScreen(
         }
     }
 
-    if (isActive && !termsAccepted && !termsDismissed) {
-        AiTermsDialog(
+    if (isActive && !activeTermsAccepted && !termsDismissed) {
+        if (onlineMode) AiOnlineTermsDialog(
+            onAccept = { settings.saveOnlineTermsAccepted(true); onlineTermsAccepted = true },
+            onDismiss = { termsDismissed = true }
+        ) else AiTermsDialog(
             onAccept = { settings.saveTermsAccepted(true); termsAccepted = true },
             onDismiss = { termsDismissed = true }
         )
     }
-    if (showTermsAgain) AiTermsDialog(
-        onAccept = { settings.saveTermsAccepted(true); termsAccepted = true; showTermsAgain = false },
-        onDismiss = { showTermsAgain = false }
-    )
+    if (showTermsAgain) {
+        if (onlineMode) AiOnlineTermsDialog(
+            onAccept = { settings.saveOnlineTermsAccepted(true); onlineTermsAccepted = true; showTermsAgain = false },
+            onDismiss = { showTermsAgain = false }
+        ) else AiTermsDialog(
+            onAccept = { settings.saveTermsAccepted(true); termsAccepted = true; showTermsAgain = false },
+            onDismiss = { showTermsAgain = false }
+        )
+    }
 
     // Colores de superficie según haya o no imagen de fondo en la app.
     val panelColor = if (hasBackgroundImage) scheme.surfaceContainer.copy(alpha = 0.80f) else scheme.primaryContainer
@@ -293,10 +339,15 @@ fun AiChatScreen(
                         panelColor = panelColor, onPanel = onPanel,
                         onClear = { messages.clear(); settings.clearHistory() }
                     )
+                    // Barra fina de tokens de hoy, solo en modo online (se actualiza sola con cada respuesta).
+                    if (onlineMode && activeTermsAccepted) AiUsageBar(
+                        model = onlineModel, compact = true,
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 2.dp)
+                    )
 
                     // ---------- Mensajes ----------
                     if (isEmpty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        if (termsAccepted && !compact) SuggestionList(
+                        if (activeTermsAccepted && !compact) SuggestionList(
                             items = listOf(
                                 stringResource(R.string.ai_suggest_1),
                                 stringResource(R.string.ai_suggest_2),
@@ -335,7 +386,7 @@ fun AiChatScreen(
                     }
 
                     // ---------- Caja de texto en píldora + botón enviar circular (sin franja de fondo) ----------
-                    if (!termsAccepted) {
+                    if (!activeTermsAccepted) {
                         Surface(
                             shape = RoundedCornerShape(24.dp), color = pillColor,
                             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp)
@@ -677,4 +728,16 @@ private fun SongPickCards(songs: List<Song>, stats: Map<Long, SongStat>, content
                 .padding(horizontal = 10.dp, vertical = 6.dp)
         )
     }
+}
+
+/** Texto claro (en el idioma de la app) para cada tipo de error de la IA online. */
+private fun onlineErrorText(context: Context, e: OnlineAiException): String = when (e.kind) {
+    OnlineErrorKind.NO_KEY -> context.getString(R.string.ai_online_err_no_key)
+    OnlineErrorKind.INVALID_KEY -> context.getString(R.string.ai_online_err_invalid_key)
+    OnlineErrorKind.RATE_LIMIT ->
+        if (e.retryAfterSec != null && e.retryAfterSec in 1..120) context.getString(R.string.ai_online_err_rate_limit_wait, e.retryAfterSec.toString())
+        else context.getString(R.string.ai_online_err_rate_limit)
+    OnlineErrorKind.NETWORK -> context.getString(R.string.ai_online_err_network)
+    OnlineErrorKind.SERVER -> context.getString(R.string.ai_online_err_server)
+    OnlineErrorKind.OTHER -> context.getString(R.string.ai_online_err_other, e.message?.take(140) ?: "")
 }

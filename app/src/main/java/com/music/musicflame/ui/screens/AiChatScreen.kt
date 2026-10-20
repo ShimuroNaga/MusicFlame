@@ -9,7 +9,12 @@ import android.content.SharedPreferences
 import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.Crossfade
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.animateContentSize
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -46,12 +51,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -66,6 +73,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.R
 import com.music.musicflame.data.AiChatSettings
+import com.music.musicflame.data.AiCommand
+import com.music.musicflame.data.AiCommands
+import com.music.musicflame.data.PlaylistRepository
 import com.music.musicflame.data.AiMessage
 import com.music.musicflame.data.AiLibraryContext
 import com.music.musicflame.data.LocalLlm
@@ -91,6 +101,12 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.math.PI
 import kotlin.math.sin
 
+/** Playlist armada por /playlist que espera el "sí" del usuario antes de guardarse. */
+private class PendingPlaylist(val name: String, val songs: List<Song>)
+
+/** Pregunta de /quiz esperando respuesta (las opciones ya vienen barajadas). */
+private class PendingQuiz(val options: List<String>, val correct: Int, val why: String)
+
 /**
  * Pantalla de chat con la IA (6ª pestaña), según el boceto:
  *   tarjeta superior (orbe + nombre + frase)  →  burbujas (IA a la izquierda, tú a la derecha)  →
@@ -110,6 +126,8 @@ fun AiChatScreen(
     hasBackgroundImage: Boolean = false,
     nowPlayingSongId: Long? = null,
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
+    /** Se llama cuando un comando guarda una playlist, para que la pestaña Playlists se refresque. */
+    onPlaylistsChanged: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -146,6 +164,11 @@ fun AiChatScreen(
     var input by remember { mutableStateOf("") }
     var isThinking by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+    // --- Comandos "/": menú, selector de canciones y acciones que esperan una respuesta del usuario ---
+    var slashOpen by remember { mutableStateOf(false) }
+    var pickerFor by remember { mutableStateOf<AiCommand?>(null) }
+    var pendingPlaylist by remember { mutableStateOf<PendingPlaylist?>(null) }
+    var pendingQuiz by remember { mutableStateOf<PendingQuiz?>(null) }
 
     // --- Teclado ---
     // La app es edge-to-edge (targetSdk 36) y el chat ya se acomoda con imePadding(). Con el modo por defecto
@@ -187,6 +210,11 @@ fun AiChatScreen(
         val last = messages.size + (if (showTyping) 1 else 0) - 1
         if (last >= 0) listState.animateScrollToItem(last)
     }
+    // Al aparecer la confirmación de playlist o las opciones del quiz, dejarlas a la vista
+    LaunchedEffect(pendingPlaylist, pendingQuiz) {
+        val extra = (if (pendingPlaylist != null) 1 else 0) + (if (pendingQuiz != null) 1 else 0)
+        if (extra > 0) listState.animateScrollToItem(messages.size + extra - 1)
+    }
     // Mientras la respuesta va llegando, mantener la vista abajo
     val streamLen = messages.lastOrNull()?.text?.length ?: 0
     LaunchedEffect(streamLen) {
@@ -199,10 +227,202 @@ fun AiChatScreen(
     val scheme = MaterialTheme.colorScheme
     val customColor = remember(bubbleHex) { parseCustomTextColor(bubbleHex) }
 
+    // ---------- Comandos "/" (solo IA online) ----------
+    fun upsertReply(replyId: Long, text: String, error: Boolean = false, songIds: List<Long>? = null) {
+        val i = messages.indexOfFirst { it.id == replyId }
+        if (i < 0) messages.add(AiMessage(replyId, false, text, isError = error, songIds = songIds ?: emptyList()))
+        else messages[i] = messages[i].copy(text = text, isError = error, songIds = songIds ?: messages[i].songIds)
+    }
+
+    fun runCommand(text: String, preselected: List<Song>?) {
+        pendingPlaylist = null; pendingQuiz = null
+        messages.add(AiMessage(System.nanoTime(), true, text))
+        persist()
+        val replyId = System.nanoTime()
+        val lang = context.resources.configuration.locales[0].language
+        val parsed = AiCommands.parse(text)
+        if (parsed == null) {
+            upsertReply(replyId, context.getString(R.string.ai_cmd_unknown, AiCommands.labels(lang)))
+            persist(); return
+        }
+        if (!onlineMode) {
+            upsertReply(replyId, context.getString(R.string.ai_cmd_online_only))
+            persist(); return
+        }
+        val library = SongLibraryHolder.songs
+        val statsSnapshot = stats
+        val nowId = nowPlayingSongId
+        val aiName = name
+        val args = parsed.args
+        val needsLibrary = parsed.cmd in setOf(AiCommand.ANALYZE, AiCommand.OPINION, AiCommand.PLAYLIST, AiCommand.WRAPPED, AiCommand.ROAST, AiCommand.QUIZ)
+        if (library.isEmpty() && needsLibrary) {
+            upsertReply(replyId, context.getString(R.string.ai_cmd_no_library))
+            persist(); return
+        }
+        isThinking = true
+        val lastUi = AtomicLong(0L)
+        fun streamTo(partial: String) {
+            val now = SystemClock.uptimeMillis()
+            if (now - lastUi.get() >= 45L) {
+                lastUi.set(now)
+                scope.launch(Dispatchers.Main.immediate) { upsertReply(replyId, partial) }
+            }
+        }
+        scope.launch {
+            try {
+                when (parsed.cmd) {
+                    AiCommand.ANALYZE, AiCommand.OPINION -> {
+                        val res = if (preselected != null) AiCommands.Resolved(preselected.take(AiCommands.MAX_SONGS), emptyList(), false)
+                        else withContext(Dispatchers.Default) { AiCommands.resolveSongs(args, library) }
+                        if (res.songs.isEmpty()) {
+                            val extra = if (res.notFound.isNotEmpty()) "\n" + context.getString(R.string.ai_cmd_not_found, res.notFound.joinToString(", ")) else ""
+                            upsertReply(replyId, context.getString(R.string.ai_cmd_need_songs) + extra, error = true)
+                            return@launch
+                        }
+                        val req = if (parsed.cmd == AiCommand.ANALYZE) AiCommands.analyze(aiName, lang, res.songs, statsSnapshot)
+                        else AiCommands.opinion(aiName, lang, res.songs, statsSnapshot)
+                        val answer = OnlineLlm.command(context, req.system, req.user, req.maxTokens, req.temperature, ::streamTo)
+                        val notes = ArrayList<String>(2)
+                        if (res.notFound.isNotEmpty()) notes += context.getString(R.string.ai_cmd_not_found, res.notFound.joinToString(", "))
+                        if (res.truncated) notes += context.getString(R.string.ai_cmd_too_many, AiCommands.MAX_SONGS)
+                        upsertReply(replyId, (listOf(answer) + notes).joinToString("\n\n"))
+                    }
+                    AiCommand.TELL -> {
+                        val subject = AiCommands.tellSubject(args, library, statsSnapshot, nowId, lang)
+                        subject.song?.let { upsertReply(replyId, "", songIds = listOf(it.id)) }
+                        val req = AiCommands.tell(aiName, lang, subject)
+                        upsertReply(replyId, OnlineLlm.command(context, req.system, req.user, req.maxTokens, req.temperature, ::streamTo))
+                    }
+                    AiCommand.WRAPPED, AiCommand.ROAST -> {
+                        val data = withContext(Dispatchers.Default) { AiCommands.wrappedData(library, statsSnapshot, lang) }
+                        if (parsed.cmd == AiCommand.WRAPPED && !data.hasPlays) {
+                            upsertReply(replyId, context.getString(R.string.ai_cmd_wrapped_empty))
+                            return@launch
+                        }
+                        val req = if (parsed.cmd == AiCommand.WRAPPED) {
+                            upsertReply(replyId, "", songIds = data.topSongs.map { it.id })
+                            AiCommands.wrapped(aiName, lang, data)
+                        } else {
+                            val summary = withContext(Dispatchers.Default) { AiLibraryContext.summary(library, statsSnapshot, lang) }
+                            AiCommands.roast(aiName, lang, summary, data)
+                        }
+                        upsertReply(replyId, OnlineLlm.command(context, req.system, req.user, req.maxTokens, req.temperature, ::streamTo))
+                    }
+                    AiCommand.DUEL -> {
+                        val pair = AiCommands.splitDuel(args)
+                        if (pair == null) {
+                            upsertReply(replyId, context.getString(R.string.ai_cmd_duel_need), error = true)
+                            return@launch
+                        }
+                        val sides = withContext(Dispatchers.Default) {
+                            AiCommands.duelSide(pair.first, library, statsSnapshot, lang) to AiCommands.duelSide(pair.second, library, statsSnapshot, lang)
+                        }
+                        val ids = (sides.first.songs + sides.second.songs).map { it.id }
+                        if (ids.isNotEmpty()) upsertReply(replyId, "", songIds = ids)
+                        val req = AiCommands.duel(aiName, lang, sides.first, sides.second)
+                        upsertReply(replyId, OnlineLlm.command(context, req.system, req.user, req.maxTokens, req.temperature, ::streamTo))
+                    }
+                    AiCommand.PLAYLIST -> {
+                        val cands = withContext(Dispatchers.Default) { AiCommands.playlistCandidates(args, library, statsSnapshot) }
+                        val req = AiCommands.playlist(aiName, lang, args, cands)
+                        val raw = OnlineLlm.command(context, req.system, req.user, req.maxTokens, req.temperature)
+                        val result = AiCommands.parsePlaylist(raw, cands)
+                        if (result == null) {
+                            upsertReply(replyId, context.getString(R.string.ai_cmd_parse_fail), error = true)
+                            return@launch
+                        }
+                        upsertReply(
+                            replyId,
+                            context.getString(R.string.ai_cmd_playlist_ready, result.name, result.songs.size, result.why).trim(),
+                            songIds = result.songs.map { it.id }
+                        )
+                        pendingPlaylist = PendingPlaylist(result.name, result.songs)   // se pregunta antes de guardar nada
+                    }
+                    AiCommand.QUIZ -> {
+                        val req = AiCommands.quiz(aiName, lang, library, statsSnapshot)
+                        val raw = OnlineLlm.command(context, req.system, req.user, req.maxTokens, req.temperature)
+                        val quiz = AiCommands.parseQuiz(raw)
+                        if (quiz == null) {
+                            upsertReply(replyId, context.getString(R.string.ai_cmd_parse_fail), error = true)
+                            return@launch
+                        }
+                        upsertReply(replyId, quiz.question)
+                        pendingQuiz = PendingQuiz(quiz.options, quiz.correct, quiz.why)
+                    }
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Throwable) {
+                val why = if (e is OnlineAiException) onlineErrorText(context, e)
+                else context.getString(R.string.ai_error_message, e.message?.take(140) ?: e.javaClass.simpleName)
+                val existing = messages.firstOrNull { it.id == replyId }
+                if (existing == null || existing.text.isBlank()) upsertReply(replyId, why, error = true)
+                else upsertReply(replyId, existing.text + "\n\n" + why)   // se conserva lo que ya había llegado
+            } finally {
+                isThinking = false
+                persist()
+            }
+        }
+    }
+
+    fun answerQuiz(i: Int) {
+        val q = pendingQuiz ?: return
+        pendingQuiz = null
+        val now = System.nanoTime()
+        messages.add(AiMessage(now, true, "${'A' + i}) ${q.options[i]}"))
+        val head = if (i == q.correct) context.getString(R.string.ai_cmd_quiz_correct)
+        else context.getString(R.string.ai_cmd_quiz_wrong, "${'A' + q.correct}) ${q.options[q.correct]}")
+        val body = listOfNotNull(head, q.why.takeIf { it.isNotBlank() }, context.getString(R.string.ai_cmd_quiz_again)).joinToString("\n\n")
+        messages.add(AiMessage(now + 1, false, body))
+        persist()
+    }
+
+    fun savePendingPlaylist() {
+        val p = pendingPlaylist ?: return
+        pendingPlaylist = null
+        scope.launch {
+            val created = withContext(Dispatchers.IO) { PlaylistRepository(context).createPlaylistWithSongs(p.name, p.songs.map { it.id }) }
+            messages.add(AiMessage(System.nanoTime(), false, context.getString(R.string.ai_cmd_playlist_saved, created.name, created.songIds.size)))
+            persist()
+            onPlaylistsChanged()
+        }
+    }
+
+    fun discardPendingPlaylist() {
+        pendingPlaylist = null
+        messages.add(AiMessage(System.nanoTime(), false, context.getString(R.string.ai_cmd_playlist_discarded)))
+        persist()
+    }
+
+    /** Toca un comando del menú: abre el selector, lo ejecuta o lo deja escrito para completar el argumento. */
+    fun pickCommand(cmd: AiCommand, send: (String) -> Unit) {
+        val lang = context.resources.configuration.locales[0].language
+        slashOpen = false
+        if (!onlineMode) {
+            input = ""
+            Toast.makeText(context, context.getString(R.string.ai_cmd_online_only), Toast.LENGTH_LONG).show()
+            return
+        }
+        when {
+            cmd.usesPicker -> { input = ""; pickerFor = cmd }
+            cmd.runsAlone -> { input = ""; send("/" + cmd.label(lang)) }
+            else -> input = "/" + cmd.label(lang) + " "
+        }
+    }
+
     fun send(override: String? = null) {
         val text = (override ?: input).trim()
         if (text.isEmpty() || isThinking) return
         if (!activeTermsAccepted) return
+        if (text.startsWith("/")) {
+            val parsedCmd = AiCommands.parse(text)
+            input = ""; slashOpen = false
+            // /analiza y /opinion sin canciones: se abre el selector en vez de mandar un mensaje vacío.
+            if (parsedCmd != null && parsedCmd.cmd.usesPicker && parsedCmd.args.isBlank() && onlineMode) pickerFor = parsedCmd.cmd
+            else runCommand(text, null)
+            return
+        }
+        pendingPlaylist = null; pendingQuiz = null
         if (override == null) input = ""
         messages.add(AiMessage(System.nanoTime(), true, text))
         persist()
@@ -311,10 +531,32 @@ fun AiChatScreen(
         )
     }
 
-    // Colores de superficie según haya o no imagen de fondo en la app.
-    val panelColor = if (hasBackgroundImage) scheme.surfaceContainer.copy(alpha = 0.80f) else scheme.primaryContainer
-    val onPanel = if (hasBackgroundImage) scheme.onSurface else scheme.onPrimaryContainer
-    val pillColor = if (hasBackgroundImage) scheme.surfaceContainer.copy(alpha = 0.88f) else scheme.surfaceContainerHigh
+    pickerFor?.let { cmd ->
+        SongPickerDialog(
+            songs = librarySongs, max = AiCommands.MAX_SONGS,
+            onConfirm = { picked ->
+                pickerFor = null
+                val pickLang = context.resources.configuration.locales[0].language
+                // Los títulos escritos en el mensaje son solo para que el historial se lea bien: las canciones ya vienen elegidas.
+                runCommand("/" + cmd.label(pickLang) + " " + picked.joinToString("; ") { it.title }, picked)
+            },
+            onDismiss = { pickerFor = null }
+        )
+    }
+
+    // Colores de superficie: mismo diseño "cristal" con o sin imagen de fondo.
+    // Mismo diseño "cristal" con o sin imagen: superficies translúcidas + borde fino. Con imagen son un poco más
+    // opacas y hay un velo detrás de todo el chat (ver abajo), así el texto siempre se lee.
+    val panelColor = scheme.surfaceContainer.copy(alpha = if (hasBackgroundImage) 0.78f else 0.92f)
+    val onPanel = scheme.onSurface
+    val pillColor = scheme.surfaceContainerHigh.copy(alpha = if (hasBackgroundImage) 0.90f else 0.97f)
+    val lang = context.resources.configuration.locales[0].language
+    val showPanel = activeTermsAccepted && ((slashOpen && input.isEmpty()) || (input.startsWith("/") && !input.any { it.isWhitespace() }))
+    val panelCommands = remember(input, slashOpen, lang) {
+        val q = input.removePrefix("/").lowercase()
+        if (!input.startsWith("/") || q.isEmpty()) AiCommand.values().toList()
+        else AiCommand.values().filter { c -> c.label(lang).startsWith(q) || c.aliases.any { it.startsWith(q) } }
+    }
 
     val phrase = when {
         !nowPlayingLabel.isNullOrBlank() -> stringResource(R.string.ai_listening, nowPlayingLabel.orEmpty())
@@ -322,6 +564,19 @@ fun AiChatScreen(
     }
 
     Box(modifier = modifier.fillMaxSize().background(if (hasBackgroundImage) Color.Transparent else scheme.background)) {
+        // Ambiente detrás del chat. Con imagen de fondo: velo degradado del color del tema (más marcado arriba, donde
+        // está la tarjeta, y abajo, donde está la caja de texto) para que se lea sobre cualquier foto.
+        // Sin imagen: un resplandor suave del color principal para que no se vea plano.
+        Box(
+            Modifier.matchParentSize().drawBehind {
+                if (hasBackgroundImage) {
+                    drawRect(Brush.verticalGradient(listOf(scheme.background.copy(alpha = 0.55f), scheme.background.copy(alpha = 0.30f), scheme.background.copy(alpha = 0.62f))))
+                } else {
+                    drawRect(Brush.radialGradient(listOf(scheme.primary.copy(alpha = 0.16f), Color.Transparent), center = Offset(size.width / 2f, 0f), radius = size.width * 1.2f))
+                    drawRect(Brush.radialGradient(listOf(scheme.tertiary.copy(alpha = 0.08f), Color.Transparent), center = Offset(size.width, size.height), radius = size.width))
+                }
+            }
+        )
         // imePadding UNA sola vez; la altura útil real se mide justo debajo (ya sin el teclado).
         Box(Modifier.fillMaxSize().imePadding()) {
             BoxWithConstraints(Modifier.fillMaxSize()) {
@@ -337,7 +592,9 @@ fun AiChatScreen(
                     AiHeader(
                         name = name, phrase = phrase, thinking = isThinking, compact = compact,
                         panelColor = panelColor, onPanel = onPanel,
-                        onClear = { messages.clear(); settings.clearHistory() }
+                        statusText = if (onlineMode) stringResource(R.string.ai_status_online, onlineModel.displayName) else stringResource(R.string.ai_status_local),
+                        statusOnline = onlineMode,
+                        onClear = { messages.clear(); settings.clearHistory(); pendingPlaylist = null; pendingQuiz = null }
                     )
                     // Barra fina de tokens de hoy, solo en modo online (se actualiza sola con cada respuesta).
                     if (onlineMode && activeTermsAccepted) AiUsageBar(
@@ -347,15 +604,8 @@ fun AiChatScreen(
 
                     // ---------- Mensajes ----------
                     if (isEmpty) Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
-                        if (activeTermsAccepted && !compact) SuggestionList(
-                            items = listOf(
-                                stringResource(R.string.ai_suggest_1),
-                                stringResource(R.string.ai_suggest_2),
-                                stringResource(R.string.ai_suggest_3)
-                            ),
-                            color = pillColor,
-                            onPick = { send(it) }
-                        )
+                        // Solo una línea discreta (los atajos ahora son los comandos "/"), y solo con la IA online.
+                        if (activeTermsAccepted && onlineMode && !compact) EmptyCommandHint(color = pillColor)
                     } else LazyColumn(
                         state = listState,
                         modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -366,7 +616,7 @@ fun AiChatScreen(
                             val picks = if (msg.songIds.isEmpty()) emptyList() else msg.songIds.mapNotNull { songsById[it] }
                             ChatBubble(
                                 msg = msg, typing = false, mode = bubbleMode, customColor = customColor, rainbowPhase = rainbowPhase,
-                                songs = picks, stats = stats, waiting = isThinking && msg.id == messages.lastOrNull()?.id && !msg.fromUser,
+                                glass = hasBackgroundImage, songs = picks, stats = stats, waiting = isThinking && msg.id == messages.lastOrNull()?.id && !msg.fromUser,
                                 onPlaySong = { song -> onPlaySong(song, picks) },
                                 onCopy = {
                                     val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
@@ -374,6 +624,16 @@ fun AiChatScreen(
                                     Toast.makeText(context, context.getString(R.string.ai_copied), Toast.LENGTH_SHORT).show()
                                 }
                             )
+                        }
+                        pendingPlaylist?.let { _ ->
+                            item(key = "pending_playlist") {
+                                PlaylistConfirmCard(color = pillColor, onSave = { savePendingPlaylist() }, onDiscard = { discardPendingPlaylist() })
+                            }
+                        }
+                        pendingQuiz?.let { quiz ->
+                            item(key = "pending_quiz") {
+                                QuizOptionsCard(options = quiz.options, color = pillColor, onPick = { answerQuiz(it) })
+                            }
                         }
                         if (showTyping) {
                             item(key = "typing") {
@@ -403,14 +663,41 @@ fun AiChatScreen(
                             if (canSend || isThinking) scheme.primary else scheme.surfaceContainerHighest.copy(alpha = 0.92f),
                             label = "sendColor"
                         )
+                        AnimatedVisibility(
+                            visible = showPanel && panelCommands.isNotEmpty(),
+                            enter = fadeIn() + expandVertically(), exit = fadeOut() + shrinkVertically()
+                        ) {
+                            CommandPanel(
+                                commands = panelCommands, lang = lang, online = onlineMode, color = pillColor,
+                                onPick = { pickCommand(it) { t -> send(t) } }
+                            )
+                        }
                         Row(
                             modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, top = 6.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.Bottom
                         ) {
+                            // Botón "/": abre/cierra el menú de comandos (visible también sin IA online; ahí avisa que la requiere).
+                            Box(
+                                modifier = Modifier.size(52.dp).clip(CircleShape)
+                                    .background(if (showPanel) scheme.primary else pillColor)
+                                    .border(1.dp, if (showPanel) scheme.primary else scheme.outline.copy(alpha = 0.45f), CircleShape)
+                                    .clickable {
+                                        if (showPanel) { slashOpen = false; if (input.startsWith("/")) input = "" }
+                                        else slashOpen = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    "/", fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                                    color = if (showPanel) scheme.onPrimary else scheme.primary.copy(alpha = if (onlineMode) 1f else 0.55f)
+                                )
+                            }
+                            Spacer(Modifier.width(8.dp))
                             Surface(
                                 modifier = Modifier.weight(1f),
                                 shape = RoundedCornerShape(26.dp),
                                 color = pillColor,
+                                shadowElevation = 3.dp,
                                 border = BorderStroke(
                                     if (focused) 1.5.dp else 1.dp,
                                     if (focused) scheme.primary else scheme.outline.copy(alpha = 0.45f)
@@ -437,7 +724,10 @@ fun AiChatScreen(
                             }
                             Spacer(Modifier.width(10.dp))
                             Box(
-                                modifier = Modifier.size(52.dp).clip(CircleShape).background(sendColor)
+                                modifier = Modifier.size(52.dp).clip(CircleShape).background(
+                                        if (canSend || isThinking) Brush.linearGradient(listOf(scheme.primary, lerp(scheme.primary, scheme.tertiary, 0.55f)))
+                                        else SolidColor(sendColor)
+                                    )
                                     .clickable(enabled = canSend) { send() },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -458,44 +748,55 @@ fun AiChatScreen(
 }
 
 /**
- * Tarjeta superior. Normal: orbe centrado con nombre y frase debajo (como el boceto).
- * Compacta (poco espacio, p. ej. teclado abierto): orbe pequeño a la izquierda y texto a su lado.
+ * Tarjeta superior en formato "cristal": orbe a la izquierda, nombre + frase + estado (online/en tu teléfono) a su lado.
+ * Ocupa mucho menos alto que antes, así queda más sitio para la conversación. Con poco espacio todo se encoge.
  */
 @Composable
 private fun AiHeader(
     name: String, phrase: String, thinking: Boolean, compact: Boolean,
-    panelColor: Color, onPanel: Color, onClear: () -> Unit
+    panelColor: Color, onPanel: Color, statusText: String, statusOnline: Boolean, onClear: () -> Unit
 ) {
+    val scheme = MaterialTheme.colorScheme
     var menuOpen by remember { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(28.dp), color = panelColor,
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(listOf(scheme.primary.copy(alpha = 0.55f), scheme.outline.copy(alpha = 0.18f), scheme.tertiary.copy(alpha = 0.40f)))
+        ),
         modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 8.dp).animateContentSize()
     ) {
-        Box {
-            if (compact) Row(
-                Modifier.fillMaxWidth().padding(start = 16.dp, end = 52.dp, top = 10.dp, bottom = 10.dp),
+        Box(
+            Modifier.background(
+                Brush.horizontalGradient(listOf(scheme.primary.copy(alpha = 0.18f), scheme.tertiary.copy(alpha = 0.06f), Color.Transparent))
+            )
+        ) {
+            Row(
+                Modifier.fillMaxWidth().padding(start = 14.dp, end = 52.dp, top = if (compact) 8.dp else 12.dp, bottom = if (compact) 8.dp else 12.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                AiAvatar(size = 40.dp, thinking = thinking)
-                Spacer(Modifier.width(12.dp))
-                Column {
-                    Text(name, fontSize = 17.sp, fontWeight = FontWeight.Bold, color = onPanel, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                AiAvatar(size = if (compact) 34.dp else 44.dp, thinking = thinking)
+                Spacer(Modifier.width(if (compact) 10.dp else 14.dp))
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        name, fontSize = if (compact) 17.sp else 20.sp, fontWeight = FontWeight.Bold, color = onPanel,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
                     Crossfade(targetState = phrase, label = "phrase") {
                         Text(it, fontSize = 13.sp, color = onPanel.copy(alpha = 0.78f), maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
-                }
-            } else Column(
-                Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 18.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                AiAvatar(size = 76.dp, thinking = thinking)
-                Spacer(Modifier.height(10.dp))
-                Text(name, fontSize = 20.sp, fontWeight = FontWeight.Bold, color = onPanel, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Crossfade(targetState = phrase, label = "phrase") {
-                    Text(
-                        it, fontSize = 14.sp, color = onPanel.copy(alpha = 0.78f), textAlign = TextAlign.Center,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis
-                    )
+                    if (!compact) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            Modifier.clip(RoundedCornerShape(50)).background(onPanel.copy(alpha = 0.08f))
+                                .padding(horizontal = 9.dp, vertical = 3.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(Modifier.size(7.dp).clip(CircleShape).background(if (statusOnline) Color(0xFF34C759) else scheme.outline))
+                            Spacer(Modifier.width(6.dp))
+                            Text(statusText, fontSize = 11.sp, color = onPanel.copy(alpha = 0.8f), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        }
+                    }
                 }
             }
             Box(Modifier.align(Alignment.TopEnd)) {
@@ -562,30 +863,6 @@ private fun AiAvatar(size: Dp, thinking: Boolean) {
     }
 }
 
-/** Atajos de conversación cuando el chat está vacío. */
-@Composable
-private fun SuggestionList(items: List<String>, color: Color, onPick: (String) -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    Column(
-        Modifier.fillMaxWidth().padding(horizontal = 28.dp),
-        verticalArrangement = Arrangement.spacedBy(10.dp),
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        items.forEach { text ->
-            Surface(
-                shape = RoundedCornerShape(20.dp), color = color,
-                border = BorderStroke(1.dp, scheme.outline.copy(alpha = 0.3f)),
-                modifier = Modifier.clip(RoundedCornerShape(20.dp)).clickable { onPick(text) }
-            ) {
-                Text(
-                    text, fontSize = 14.sp, color = scheme.onSurface, textAlign = TextAlign.Center,
-                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp)
-                )
-            }
-        }
-    }
-}
-
 @Composable
 private fun TypingDots(color: Color) {
     val t = rememberInfiniteTransition(label = "dots")
@@ -618,6 +895,7 @@ private fun ChatBubble(
     songs: List<Song> = emptyList(),
     stats: Map<Long, SongStat> = emptyMap(),
     waiting: Boolean = false,
+    glass: Boolean = false,
     onPlaySong: ((Song) -> Unit)? = null
 ) {
     val scheme = MaterialTheme.colorScheme
@@ -655,13 +933,25 @@ private fun ChatBubble(
                 .widthIn(max = 320.dp)
                 .clip(shape)
                 .drawBehind {
-                    val c = if (staticColor != null) bubbleBase else {
-                        val phase = rainbowPhase?.value ?: 0f
-                        val base = rainbowColorAt(phase, spreadFraction = if (isUser) 0f else 0.5f)
-                        if (isUser) base else base.copy(alpha = 0.30f).compositeOver(scheme.surfaceContainerHigh)
+                    if (isUser && staticColor != null && !msg.isError && mode != AiChatSettings.MODE_CUSTOM) {
+                        // Adaptativo: tus burbujas llevan un degradado sutil del color del tema.
+                        drawRect(
+                            Brush.linearGradient(
+                                listOf(scheme.primary, lerp(scheme.primary, scheme.tertiary, 0.55f)),
+                                start = Offset.Zero, end = Offset(size.width, size.height)
+                            )
+                        )
+                    } else {
+                        val c = if (staticColor != null) bubbleBase else {
+                            val phase = rainbowPhase?.value ?: 0f
+                            val base = rainbowColorAt(phase, spreadFraction = if (isUser) 0f else 0.5f)
+                            if (isUser) base else base.copy(alpha = 0.30f).compositeOver(scheme.surfaceContainerHigh)
+                        }
+                        // Con imagen de fondo las burbujas de la IA son un poco translúcidas (efecto cristal).
+                        drawRect(if (!isUser && glass && !msg.isError) c.copy(alpha = c.alpha * 0.9f) else c)
                     }
-                    drawRect(c)
                 }
+                .then(if (isUser) Modifier else Modifier.border(1.dp, scheme.outline.copy(alpha = 0.22f), shape))
                 .padding(start = 16.dp, end = 16.dp, top = 11.dp, bottom = 11.dp)
         ) {
             if (typing) TypingDots(contentColor.copy(alpha = 0.7f)) else Column {

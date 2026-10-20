@@ -210,6 +210,58 @@ object AiLibraryContext {
         }
     }
 
+    // ---------- API pública para los comandos del chat (/analiza, /duelo, /playlist...) ----------
+    /** Texto normalizado (minúsculas, sin acentos ni símbolos). */
+    fun normalize(s: String): String = norm(s)
+
+    /** Busca UNA canción por texto libre (título, o "artista título"). null si no hay coincidencia fiable. */
+    fun findSong(query: String, songs: List<Song>): Song? {
+        val q = norm(query)
+        if (q.length < 2 || songs.isEmpty()) return null
+        val ents = entries(songs)
+        ents.firstOrNull { it.title == q }?.let { return it.song }
+        findMentionedSong(q, ents)?.let { return it }
+        if (q.length >= 3) {
+            ents.filter { it.title.startsWith("$q ") || " $q " in " ${it.title} " }
+                .minByOrNull { it.title.length }?.let { return it.song }
+        }
+        return null
+    }
+
+    /** Nombre (tal como está en la biblioteca) del artista que coincide con el texto, o null. */
+    fun findArtist(query: String, songs: List<Song>): String? {
+        val q = norm(query)
+        if (q.length < 2 || songs.isEmpty()) return null
+        val ents = entries(songs)
+        val hits = ents.filter { it.artist == q }.ifEmpty {
+            ents.filter { it.artist.length >= 3 && (" ${it.artist} " in " $q " || " $q " in " ${it.artist} ") }
+        }
+        return hits.groupingBy { it.song.artist }.eachCount().maxByOrNull { it.value }?.key
+    }
+
+    /** Canciones que encajan con un tema (artista, género, palabras del título o ánimo), de más a menos afines. */
+    fun matchTheme(theme: String, songs: List<Song>): List<Song> {
+        val t = norm(theme)
+        if (t.isEmpty() || songs.isEmpty()) return emptyList()
+        val toks = tokens(t).filter { it !in STOP && it.length >= 3 }
+        val mood = MOODS.firstOrNull { (kw, _) -> kw.any { t.contains(it) } }?.second
+        val scored = ArrayList<Pair<Song, Int>>()
+        for (e in entries(songs)) {
+            var sc = 0
+            for (k in toks) {
+                if (k in e.titleTokens) sc += 2
+                if (e.artist.contains(k)) sc += 3
+                if (e.album.contains(k)) sc += 1
+                val g = e.genre
+                if (g != null && g.contains(k)) sc += 3
+            }
+            val g = e.genre
+            if (mood != null && g != null && mood.any { g.contains(it) }) sc += 2
+            if (sc > 0) scored.add(e.song to sc)
+        }
+        return scored.sortedByDescending { it.second }.map { it.first }
+    }
+
     // ---------- Búsquedas ----------
     private fun findMentionedSong(text: String, ents: List<Entry>): Song? {
         val textTokens = tokens(text)

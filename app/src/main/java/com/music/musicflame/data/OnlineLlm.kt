@@ -93,18 +93,45 @@ object OnlineLlm {
         }
     }
 
+    /**
+     * Comandos del chat (/analiza, /playlist...): misma conexión y mismo conteo de tokens que [reply], pero con
+     * prompt propio, sin historial y con más tokens de salida. [onPartial] recibe el texto acumulado (hilo de fondo).
+     */
+    suspend fun command(
+        ctx: Context, system: String, user: String, maxTokens: Int, temperature: Double = 0.6,
+        onPartial: (String) -> Unit = {}
+    ): String = withContext(Dispatchers.IO) {
+        val store = OnlineAiStore(ctx)
+        val key = store.getApiKey() ?: throw OnlineAiException(OnlineErrorKind.NO_KEY, "sin API key")
+        val model = AiChatSettings(ctx).getOnlineModel()
+        val messages = JSONArray()
+            .put(JSONObject().put("role", "system").put("content", system))
+            .put(JSONObject().put("role", "user").put("content", user))
+        val promptChars = system.length + user.length
+        try {
+            stream(store, key, model, messages, promptChars, optionalParams = true, onPartial, maxTokens, temperature)
+        } catch (e: BadRequest) {
+            try {
+                stream(store, key, model, messages, promptChars, optionalParams = false, onPartial, maxTokens, temperature)
+            } catch (e2: BadRequest) {
+                throw OnlineAiException(OnlineErrorKind.OTHER, e2.detail)
+            }
+        }
+    }
+
     private class BadRequest(val detail: String) : Exception(detail)
 
     private suspend fun stream(
         store: OnlineAiStore, key: String, model: OnlineModel, messages: JSONArray, promptChars: Int,
-        optionalParams: Boolean, onPartial: (String) -> Unit
+        optionalParams: Boolean, onPartial: (String) -> Unit,
+        maxTokens: Int = MAX_COMPLETION_TOKENS, temperature: Double = 0.6
     ): String {
         val body = JSONObject()
             .put("model", model.id)
             .put("messages", messages)
             .put("stream", true)
-            .put("temperature", 0.6)
-            .put("max_completion_tokens", MAX_COMPLETION_TOKENS)
+            .put("temperature", temperature)
+            .put("max_completion_tokens", maxTokens)
         if (optionalParams) {
             body.put("stream_options", JSONObject().put("include_usage", true))
             if (model.usesReasoningEffort) body.put("reasoning_effort", "low")

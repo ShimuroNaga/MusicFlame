@@ -52,9 +52,6 @@
     <string name="settings_ai_local_fail">Couldn\'t download: %1$s</string>
     <string name="settings_ai_terms_button">View AI terms</string>
     <string name="ai_listening">Listening to: %1$s</string>
-    <string name="ai_suggest_1">Recommend something similar to what\'s playing</string>
-    <string name="ai_suggest_2">Tell me something interesting about music</string>
-    <string name="ai_suggest_3">Which genre is best for studying?</string>
     <string name="ai_play_all">Play all</string>
     <string name="ai_trait_plays">%1$d plays</string>
     <string name="ai_trait_unplayed">unplayed</string>
@@ -64,4 +61,44 @@
     <string name="settings_ai_model_meta">%1$s · %2$s</string>
     <string name="settings_ai_model_locked">Delete the downloaded model to use this one.</string>
     <string name="ai_model_desc_gemma4">The recommended one: the smartest and, with MTP acceleration, fast on phones with a decent GPU. Large download (≈2.6 GB); 6 GB of RAM or more recommended. If you downloaded it before May 2026, delete it and download it again to enable the acceleration.</string>
+
+    <!-- Chat commands (/) -->
+    <string name="ai_cmd_open">Commands</string>
+    <string name="ai_cmd_empty_hint">Type / to see commands</string>
+    <string name="ai_cmd_online_only">Commands need the online AI (Groq). Turn it on in Settings › AI.</string>
+    <string name="ai_cmd_unknown">I don\'t know that command. Try: %1$s</string>
+    <string name="ai_cmd_analyze_desc">Analyze up to 10 songs from your library</string>
+    <string name="ai_cmd_tell_desc">A fun fact about the playing song, one of yours or a topic</string>
+    <string name="ai_cmd_opinion_desc">Opinion and a 1-10 score for up to 10 songs</string>
+    <string name="ai_cmd_playlist_desc">Build a playlist from your library (I ask before saving it)</string>
+    <string name="ai_cmd_wrapped_desc">Summary of what you listen to most</string>
+    <string name="ai_cmd_roast_desc">A friendly roast of your taste</string>
+    <string name="ai_cmd_quiz_desc">4-option trivia with your songs</string>
+    <string name="ai_cmd_duel_desc">Compare two songs or artists</string>
+    <string name="ai_cmd_arg_songs">&lt;songs&gt;</string>
+    <string name="ai_cmd_arg_theme">&lt;theme&gt;</string>
+    <string name="ai_cmd_arg_ab">A vs B</string>
+    <string name="ai_cmd_picker_title">Pick up to %1$d songs</string>
+    <string name="ai_cmd_picker_search">Search song…</string>
+    <string name="ai_cmd_picker_confirm">Done (%1$d)</string>
+    <string name="ai_cmd_picker_empty">No results</string>
+    <string name="ai_cmd_cancel">Cancel</string>
+    <string name="ai_cmd_no_library">Your library is empty: add some music first.</string>
+    <string name="ai_cmd_need_songs">Tell me which songs: type them separated by commas or pick them from the list.</string>
+    <string name="ai_cmd_not_found">Not found in your library: %1$s</string>
+    <string name="ai_cmd_too_many">I only use %1$d songs; I took the first ones.</string>
+    <string name="ai_cmd_duel_need">Use the format: /duel A vs B</string>
+    <string name="ai_cmd_wrapped_empty">You have no listening history yet: play some music and come back.</string>
+    <string name="ai_cmd_parse_fail">I couldn\'t build the answer, please try again.</string>
+    <string name="ai_cmd_playlist_ready">I built \"%1$s\" with %2$d songs. %3$s</string>
+    <string name="ai_cmd_playlist_ask">Should I save it to your playlists?</string>
+    <string name="ai_cmd_playlist_save">Save playlist</string>
+    <string name="ai_cmd_playlist_discard">No, thanks</string>
+    <string name="ai_cmd_playlist_saved">Done, I saved \"%1$s\" with %2$d songs to your playlists.</string>
+    <string name="ai_cmd_playlist_discarded">Ok, I didn\'t save it.</string>
+    <string name="ai_cmd_quiz_correct">Correct!</string>
+    <string name="ai_cmd_quiz_wrong">Close. The right answer was: %1$s</string>
+    <string name="ai_cmd_quiz_again">Type /quiz for another question.</string>
+    <string name="ai_status_online">Online · %1$s</string>
+    <string name="ai_status_local">On your phone</string>
 </resources>

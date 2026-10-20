@@ -55,9 +55,6 @@
     <string name="settings_ai_local_fail">No se pudo descargar: %1$s</string>
     <string name="settings_ai_terms_button">Ver términos de la IA</string>
     <string name="ai_listening">Escuchando: %1$s</string>
-    <string name="ai_suggest_1">Recomiéndame algo parecido a lo que suena</string>
-    <string name="ai_suggest_2">Cuéntame algo curioso sobre la música</string>
-    <string name="ai_suggest_3">¿Qué género me conviene para estudiar?</string>
     <string name="ai_play_all">Reproducir todas</string>
     <string name="ai_trait_plays">%1$d escuchas</string>
     <string name="ai_trait_unplayed">sin escuchar</string>
@@ -67,4 +64,44 @@
     <string name="settings_ai_model_meta">%1$s · %2$s</string>
     <string name="settings_ai_model_locked">Borra el modelo descargado para poder usar este.</string>
     <string name="ai_model_desc_gemma4">El recomendado: el más inteligente y, con aceleración MTP, rápido en teléfonos con GPU decente. Descarga grande (≈2.6 GB); recomendado 6 GB de RAM o más. Si lo descargaste antes de mayo de 2026, bórralo y vuelve a descargarlo para activar la aceleración.</string>
+
+    <!-- Comandos del chat (/) -->
+    <string name="ai_cmd_open">Comandos</string>
+    <string name="ai_cmd_empty_hint">Escribe / para ver comandos</string>
+    <string name="ai_cmd_online_only">Los comandos requieren IA online (Groq). Actívala en Ajustes › IA.</string>
+    <string name="ai_cmd_unknown">No conozco ese comando. Prueba con: %1$s</string>
+    <string name="ai_cmd_analyze_desc">Analiza hasta 10 canciones de tu biblioteca</string>
+    <string name="ai_cmd_tell_desc">Un dato curioso de la canción que suena, una tuya o un tema</string>
+    <string name="ai_cmd_opinion_desc">Opina y califica del 1 al 10 hasta 10 canciones</string>
+    <string name="ai_cmd_playlist_desc">Arma una playlist con tu biblioteca (te pregunto antes de guardarla)</string>
+    <string name="ai_cmd_wrapped_desc">Resumen de lo que más escuchas</string>
+    <string name="ai_cmd_roast_desc">Una burla amistosa de tus gustos</string>
+    <string name="ai_cmd_quiz_desc">Trivia de 4 opciones con tus canciones</string>
+    <string name="ai_cmd_duel_desc">Compara dos canciones o artistas</string>
+    <string name="ai_cmd_arg_songs">&lt;canciones&gt;</string>
+    <string name="ai_cmd_arg_theme">&lt;tema&gt;</string>
+    <string name="ai_cmd_arg_ab">A vs B</string>
+    <string name="ai_cmd_picker_title">Elige hasta %1$d canciones</string>
+    <string name="ai_cmd_picker_search">Buscar canción…</string>
+    <string name="ai_cmd_picker_confirm">Listo (%1$d)</string>
+    <string name="ai_cmd_picker_empty">Sin resultados</string>
+    <string name="ai_cmd_cancel">Cancelar</string>
+    <string name="ai_cmd_no_library">Tu biblioteca está vacía: agrega música primero.</string>
+    <string name="ai_cmd_need_songs">Dime qué canciones: escríbelas separadas por coma o elígelas de la lista.</string>
+    <string name="ai_cmd_not_found">No encontré en tu biblioteca: %1$s</string>
+    <string name="ai_cmd_too_many">Solo uso %1$d canciones; tomé las primeras.</string>
+    <string name="ai_cmd_duel_need">Usa el formato: /duelo A vs B</string>
+    <string name="ai_cmd_wrapped_empty">Aún no tienes escuchas registradas: reproduce algo de música y vuelve.</string>
+    <string name="ai_cmd_parse_fail">No pude armar la respuesta, inténtalo de nuevo.</string>
+    <string name="ai_cmd_playlist_ready">Armé «%1$s» con %2$d canciones. %3$s</string>
+    <string name="ai_cmd_playlist_ask">¿La guardo en tus playlists?</string>
+    <string name="ai_cmd_playlist_save">Guardar playlist</string>
+    <string name="ai_cmd_playlist_discard">No, gracias</string>
+    <string name="ai_cmd_playlist_saved">Listo, guardé «%1$s» con %2$d canciones en tus playlists.</string>
+    <string name="ai_cmd_playlist_discarded">Ok, no la guardé.</string>
+    <string name="ai_cmd_quiz_correct">¡Correcto!</string>
+    <string name="ai_cmd_quiz_wrong">Casi. La correcta era: %1$s</string>
+    <string name="ai_cmd_quiz_again">Escribe /quiz para otra pregunta.</string>
+    <string name="ai_status_online">Online · %1$s</string>
+    <string name="ai_status_local">En tu teléfono</string>
 </resources>

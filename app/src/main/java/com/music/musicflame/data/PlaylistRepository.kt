@@ -109,6 +109,17 @@ class PlaylistRepository(context: Context) {
         savePlaylists(playlists)
     }
 
+    /** Crea una playlist ya con canciones (la usa el comando /playlist del chat, tras confirmar el usuario). */
+    fun createPlaylistWithSongs(name: String, songIds: List<Long>): Playlist {
+        val playlists = getAllPlaylists().toMutableList()
+        var id = System.currentTimeMillis()
+        while (playlists.any { it.id == id.toString() }) id++
+        val created = Playlist(id = id.toString(), name = name.trim().ifBlank { "MusicFlame IA" }, songIds = songIds.distinct())
+        playlists.add(created)
+        savePlaylists(playlists)
+        return created
+    }
+
     fun deletePlaylist(id: String) {
         val playlists = getAllPlaylists().filter { it.id != id && !it.isDefault }
         savePlaylists(playlists)

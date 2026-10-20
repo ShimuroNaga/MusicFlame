@@ -1207,6 +1207,7 @@ class MainActivity : ComponentActivity() {
                                             hasBackgroundImage = hasBackgroundImage,
                                             nowPlayingSongId = currentSong?.id,
                                             onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) },
+                                            onPlaylistsChanged = { playlistsRefreshTrigger++ },
                                             modifier = Modifier.consumeWindowInsets(innerPadding)
                                         )
                                         Screen.Trash -> TrashScreen(

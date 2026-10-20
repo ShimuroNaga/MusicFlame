@@ -56,7 +56,8 @@ import com.music.musicflame.R
  * Estructura en la base de datos:
  *   rooms/{code}/meta     { hostUid, hostName, createdAt, controllerUid }
  *   rooms/{code}/members/{uid} { name, online, joinedAt }
- *   rooms/{code}/owners/{uid}  { name, since }          (1 a 2 propietarios; el anfitrión es uno)
+ *   rooms/{code}/owners/{uid}  { name, since }          (hasta MAX_OWNERS propietarios; el anfitrión es uno)
+ *   rooms/{code}/banned/{uid}  = true                    (expulsados: no pueden volver a ESTA sala)
  *   rooms/{code}/queue/{id}    { title, artist, duration, addedBy, addedByName, pos, addedAt }
  *   rooms/{code}/skipVotes/{uid} = trackId              (votos para saltar la canción actual)
  *   rooms/{code}/state    { title, artist, duration, isPlaying, positionMs, updatedAt, filePath,
@@ -87,7 +88,9 @@ class TogetherManager(
         /** Clave de la canción que a este invitado le falta (la que suena en la sala), si aplica. */
         val missing: String? = null,
         /** Icono de la persona (JPEG pequeño en base64), si lo puso en Ajustes → Cuenta. */
-        val avatar: String? = null
+        val avatar: String? = null,
+        /** Hora (del servidor) en que entró; decide quién sobra si la sala se pasa de MAX_MEMBERS. */
+        val joinedAt: Long = 0L
     )
 
     /** Pregunta que se le muestra al anfitrión cuando a alguien le falta la canción. */
@@ -186,6 +189,8 @@ class TogetherManager(
     var iVotedSkip by mutableStateOf(false)
         private set
 
+    private var overflowJob: Job? = null
+
     private fun myUid(): String? = try { auth.currentUser?.uid } catch (_: Throwable) { null }
     val isOwner: Boolean get() = myUid()?.let { me -> owners.any { it.uid == me } || (owners.isEmpty() && isHost) } == true
     val isController: Boolean get() = controllerUid != null && controllerUid == myUid()
@@ -219,7 +224,8 @@ class TogetherManager(
     /** La UI lo asigna para mostrar Toasts. */
     var onToast: ((String) -> Unit)? = null
 
-    val roomLink: String? get() = roomCode?.let { "musicflame://sala/$it" }
+    /** Enlace https (tocable en WhatsApp, etc.); la página docs/sala/ abre la app con musicflame://sala/CODIGO. */
+    val roomLink: String? get() = roomCode?.let { WEB_LINK_BASE + it }
     val onlineCount: Int get() = members.count { it.online }
 
     // ---------- Internos ----------
@@ -378,6 +384,11 @@ class TogetherManager(
                     toast(appContext.getString(R.string.tgm_room_not_found))
                     return@launch
                 }
+                if (isBanned(code, user.uid)) {
+                    status = Status.IDLE; statusDetail = ""
+                    toast(appContext.getString(R.string.tgm_banned_here))
+                    return@launch
+                }
                 hostUid = meta.child("hostUid").getValue(String::class.java)
                 persistRoom(code, hostUid == user.uid)
                 attach(code, user.uid)
@@ -402,6 +413,11 @@ class TogetherManager(
                 val meta = db.getReference("rooms/$code/meta").get().await()
                 if (!meta.exists()) {
                     toast(appContext.getString(R.string.tgm_room_gone))
+                    leaveInternal(removeRemote = false)
+                    return@launch
+                }
+                if (isBanned(code, user.uid)) {
+                    toast(appContext.getString(R.string.tgm_banned_here))
                     leaveInternal(removeRemote = false)
                     return@launch
                 }
@@ -449,6 +465,11 @@ class TogetherManager(
                 val meta = db.getReference("rooms/$code/meta").get().await()
                 if (!meta.exists()) {
                     toast(appContext.getString(R.string.tgm_room_gone))
+                    leaveInternal(removeRemote = false)
+                    return@launch
+                }
+                if (isBanned(code, user.uid)) {
+                    toast(appContext.getString(R.string.tgm_banned_here))
                     leaveInternal(removeRemote = false)
                     return@launch
                 }
@@ -566,10 +587,27 @@ class TogetherManager(
                             online = true,
                             isHost = id == hostUid,
                             missing = c.child("missing").getValue(String::class.java),
-                            avatar = c.child("avatar").getValue(String::class.java)
+                            avatar = c.child("avatar").getValue(String::class.java),
+                            joinedAt = (c.child("joinedAt").value as? Number)?.toLong() ?: 0L
                         )
                     }.sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.name.lowercase() })
                     members.clear(); members.addAll(list)
+                    // Tope de MAX_MEMBERS conectados: sobran los que entraron al final (el anfitrión nunca).
+                    val over = TogetherQueueLogic.overflowUids(
+                        list.map { TogetherQueueLogic.OnlineEntry(it.uid, it.joinedAt, it.isHost) }, MAX_MEMBERS
+                    )
+                    if (over.isNotEmpty()) {
+                        if (uid in over) {
+                            scope.launch {
+                                toast(appContext.getString(R.string.tgm_room_full, MAX_MEMBERS))
+                                leaveInternal(removeRemote = true)
+                            }
+                            return
+                        }
+                        // Respaldo: quien cumple las reglas se sale solo (arriba). Si pasado un margen sigue
+                        // sobrando alguien (cliente modificado), el anfitrión lo saca y lo bloquea.
+                        if (isHost) scheduleOverflowEnforcement(code)
+                    }
                     if (status == Status.CONNECTING) {
                         status = Status.CONNECTED; statusDetail = ""
                     }
@@ -577,7 +615,7 @@ class TogetherManager(
                     evaluateIdle(); evaluateTakeover(); evaluatePromotion(); recomputeVotes()
                 }
                 override fun onCancelled(e: DatabaseError) {
-                    fail(e.toException(), appContext.getString(R.string.tgm_no_permission))
+                    scope.launch { handleMembersCancelled(code, uid, e) }
                 }
             }
             ref.addValueEventListener(membersListener!!)
@@ -678,6 +716,7 @@ class TogetherManager(
     }
 
     private fun detach() {
+        overflowJob?.cancel(); overflowJob = null
         publishJobs.forEach { it.cancel() }; publishJobs.clear()
         metaListener?.let { metaRef?.removeEventListener(it) }
         membersListener?.let { membersRef?.removeEventListener(it) }
@@ -1000,8 +1039,8 @@ class TogetherManager(
             myQueuedSongs[id] = song
             ref.setValue(
                 mapOf(
-                    "title" to song.title,
-                    "artist" to song.artist,
+                    "title" to song.title.take(200),
+                    "artist" to song.artist.take(200),
                     "duration" to song.duration,
                     "addedBy" to me,
                     "addedByName" to displayName(),
@@ -1176,6 +1215,69 @@ class TogetherManager(
         db.getReference("rooms/$code/owners/$uid").removeValue()
         if (theirQueue.isNotEmpty()) db.getReference("rooms/$code/queue").updateChildren(theirQueue)
         db.getReference("rooms/$code/skipVotes/$uid").removeValue()
+    }
+
+    /**
+     * Expulsar: la persona sale de la sala y ya no puede volver a entrar a ESTA sala
+     * (a las demás sí). Solo el anfitrión; las reglas de Firebase también lo exigen.
+     */
+    fun kickMember(uid: String) {
+        val code = roomCode ?: return
+        if (!isHost || uid == myUid()) return
+        val name = members.firstOrNull { it.uid == uid }?.name ?: return
+        val updates = HashMap<String, Any?>()
+        updates["banned/$uid"] = true
+        updates["members/$uid"] = null
+        updates["owners/$uid"] = null
+        queue.filter { it.addedBy == uid }.forEach { updates["queue/${it.id}"] = null }
+        if (controllerUid == uid) {
+            // Era quien controlaba la música: la sala queda libre y sigue el siguiente de la cola.
+            updates["state"] = null
+            updates["skipVotes"] = null
+            updates["meta/controllerUid"] = null
+        } else {
+            updates["skipVotes/$uid"] = null
+        }
+        db.getReference("rooms/$code").updateChildren(updates)
+            .addOnSuccessListener { toast(appContext.getString(R.string.tgq_kicked_toast, name)) }
+            .addOnFailureListener { fail(it) }
+    }
+
+    /** Espera un margen (para no tocar a quien se está saliendo solo) y expulsa a los que aún sobran. */
+    private fun scheduleOverflowEnforcement(code: String) {
+        if (overflowJob?.isActive == true) return
+        overflowJob = scope.launch {
+            delay(OVERFLOW_GRACE_MS)
+            if (roomCode != code || !isHost) return@launch
+            val still = TogetherQueueLogic.overflowUids(
+                members.map { TogetherQueueLogic.OnlineEntry(it.uid, it.joinedAt, it.isHost) }, MAX_MEMBERS
+            )
+            if (still.isEmpty()) return@launch
+            val updates = HashMap<String, Any?>()
+            still.forEach { extra ->
+                updates["banned/$extra"] = true
+                updates["members/$extra"] = null
+                updates["owners/$extra"] = null
+                updates["skipVotes/$extra"] = null
+            }
+            try { db.getReference("rooms/$code").updateChildren(updates).await() } catch (t: Throwable) {
+                Log.w(TAG, "No se pudo aplicar el tope de miembros", t)
+            }
+        }
+    }
+
+    private suspend fun isBanned(code: String, uid: String): Boolean =
+        try { db.getReference("rooms/$code/banned/$uid").get().await().exists() } catch (_: Throwable) { false }
+
+    /** Al expulsarme pierdo el permiso de lectura: Firebase cancela el listener y aquí lo distingo de un fallo real. */
+    private suspend fun handleMembersCancelled(code: String, uid: String, e: DatabaseError) {
+        if (roomCode != code) return
+        if (isBanned(code, uid)) {
+            toast(appContext.getString(R.string.tgm_kicked_you))
+            leaveInternal(removeRemote = false)
+        } else {
+            fail(e.toException(), appContext.getString(R.string.tgm_no_permission))
+        }
     }
 
     /** Cambio de anfitrión: el elegido pasa a ser propietario (si no lo era) y anfitrión. */
@@ -1448,7 +1550,7 @@ class TogetherManager(
             ?: throw IllegalStateException(appContext.getString(R.string.tgm_firebase_signin_failed))
     }
 
-    private fun displayName() = userName.trim().ifBlank { appContext.getString(R.string.tgm_guest) }
+    private fun displayName() = userName.trim().take(40).ifBlank { appContext.getString(R.string.tgm_guest) }
 
     private fun defaultName(): String =
         GoogleSignIn.getLastSignedInAccount(appContext)?.displayName ?: appContext.getString(R.string.tgm_guest)
@@ -1489,11 +1591,14 @@ class TogetherManager(
         const val MAX_MEMBERS = 8
         /** Instancia activa, para que los botones de la notificación lleguen al manager. */
         @Volatile var current: TogetherManager? = null
-        const val MAX_OWNERS = 2                  // anfitrión + 1 propietario más
+        const val MAX_OWNERS = 4                  // máximo 4 propietarios: el anfitrión + 3 más
+        /** Página que abre la app con el código (ver docs/sala/index.html; hay que activar GitHub Pages). */
+        const val WEB_LINK_BASE = "https://shimuronaga.github.io/MusicFlame/sala/#"
         private const val PUBLISH_EVERY_MS = 3000L
         private const val DRIFT_LIMIT_MS = 1500L
         private const val TAKEOVER_GRACE_MS = 8000L    // espera antes de relevar a un controlador caído
         private const val PROMOTION_GRACE_MS = 8000L   // espera antes de ascender si el anfitrión se cae
+        private const val OVERFLOW_GRACE_MS = 5000L    // margen antes de expulsar a quien sobra del tope de miembros
 
         /** Acepta el código solo o el enlace musicflame://sala/ABC123. */
         fun parseCode(input: String): String =

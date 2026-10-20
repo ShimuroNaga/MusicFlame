@@ -80,4 +80,15 @@ class TogetherQueueLogicTest {
         assertNull(Q.oldestOnlineOwner(since, setOf("host"), exclude = "host"))
         assertNull(Q.oldestOnlineOwner(emptyMap(), emptySet()))
     }
+
+    @Test
+    fun fullRoomKeepsHostAndFirstJoiners() {
+        val people = (1..9).map { Q.OnlineEntry("u$it", it * 100L, isHost = it == 5) }
+        // Con 9 y tope 8 sobra solo el último en entrar (u9); el anfitrión (u5) nunca.
+        assertEquals(setOf("u9"), Q.overflowUids(people, 8))
+        assertEquals(emptySet<String>(), Q.overflowUids(people.take(8), 8))
+        // Aunque el anfitrión haya entrado al final, no sobra.
+        val hostLast = (1..9).map { Q.OnlineEntry("u$it", it * 100L, isHost = it == 9) }
+        assertEquals(setOf("u8"), Q.overflowUids(hostLast, 8))
+    }
 }

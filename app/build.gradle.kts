@@ -170,4 +170,7 @@ dependencies {
     implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.firebase:firebase-auth")
+
+    // QR de invitación a la sala (En compañía): solo el generador, sin cámara.
+    implementation("com.google.zxing:core:3.5.3")
 }

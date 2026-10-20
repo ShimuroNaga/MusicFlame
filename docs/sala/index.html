@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MusicFlame · Escuchar en compañía</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#14110f;color:#f4efe9;font-family:system-ui,sans-serif;text-align:center}
+  main{max-width:420px;padding:28px}
+  h1{font-size:22px;margin:0 0 6px}
+  p{opacity:.8;line-height:1.5}
+  .code{font-size:38px;font-weight:800;letter-spacing:6px;margin:18px 0;color:#ff8a3d}
+  a.btn{display:block;margin:10px 0;padding:14px;border-radius:14px;text-decoration:none;font-weight:700}
+  a.open{background:#ff8a3d;color:#1a0f08}
+  a.dl{border:1px solid #ff8a3d;color:#ff8a3d}
+  small{opacity:.6}
+</style>
+</head>
+<body>
+<main>
+  <h1>🔥 MusicFlame</h1>
+  <p id="msg">Te invitaron a escuchar música juntos. / You were invited to listen together.</p>
+  <div class="code" id="code"></div>
+  <a class="btn open" id="open" href="#" hidden>Abrir en MusicFlame / Open in MusicFlame</a>
+  <a class="btn dl" href="https://github.com/ShimuroNaga/MusicFlame/releases">Descargar la app / Get the app</a>
+  <small>Si ya la tienes, abre MusicFlame → En compañía y pega el código. / Already installed? Open MusicFlame → Together and paste the code.</small>
+</main>
+<script>
+  // El código va en el # de la URL (…/sala/#ABC123). Solo letras y números, para no inyectar nada.
+  var c = (location.hash || "").replace(/^#/, "").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8);
+  if (c.length >= 4) {
+    document.getElementById("code").textContent = c;
+    var a = document.getElementById("open");
+    a.href = "musicflame://sala/" + c;
+    a.hidden = false;
+    setTimeout(function () { location.href = a.href; }, 600);
+  }
+</script>
+</body>
+</html>

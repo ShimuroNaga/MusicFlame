@@ -26,4 +26,16 @@
     <string name="tgq_make_owner">Make owner</string>
     <string name="tgq_remove_owner">Remove owner</string>
     <string name="tgq_make_host">Make this person the host</string>
+    <string name="tgq_kick_member">Remove from room</string>
+    <string name="tgq_kick_title">Remove %1$s?</string>
+    <string name="tgq_kick_text">They won\'t be able to join this room again, but they can join other rooms.</string>
+    <string name="tgq_kick_confirm">Remove</string>
+    <string name="tgq_kicked_toast">%1$s was removed from the room</string>
+    <string name="tgm_kicked_you">The host removed you from the room</string>
+    <string name="tgm_banned_here">You can\'t join this room: the host removed you</string>
+    <string name="tgm_room_full">The room is full (maximum %1$d people)</string>
+    <string name="tg_qr">QR</string>
+    <string name="tg_qr_title">Join with QR</string>
+    <string name="tg_qr_hint">Ask them to scan it with their phone camera: it opens the link and takes them to the room.</string>
+    <string name="tg_qr_error">Couldn\'t create the QR</string>
 </resources>

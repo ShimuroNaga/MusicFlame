@@ -58,6 +58,19 @@ object TogetherQueueLogic {
     fun firstPlayableIndex(addedBy: List<String>, online: Set<String>, exclude: String? = null): Int =
         addedBy.indexOfFirst { it in online && it != exclude }
 
+    /** Una persona conectada en la sala (para el tope de miembros). */
+    data class OnlineEntry(val uid: String, val joinedAt: Long, val isHost: Boolean)
+
+    /**
+     * Quiénes sobran si hay más de [max] personas conectadas: se quedan el anfitrión y los que
+     * entraron primero; salen los últimos. Todos los teléfonos llegan al mismo resultado.
+     */
+    fun overflowUids(online: List<OnlineEntry>, max: Int): Set<String> =
+        if (online.size <= max) emptySet()
+        else online
+            .sortedWith(compareBy<OnlineEntry>({ !it.isHost }, { it.joinedAt }, { it.uid }))
+            .drop(max).map { it.uid }.toSet()
+
     /** Propietario conectado más antiguo (para el ascenso automático). Empata por uid. */
     fun oldestOnlineOwner(since: Map<String, Long>, online: Set<String>, exclude: String? = null): String? =
         since.entries

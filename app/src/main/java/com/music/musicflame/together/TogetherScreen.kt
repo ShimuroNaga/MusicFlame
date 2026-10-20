@@ -207,12 +207,19 @@ fun TogetherScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     RoomCodeChips(accent = accent, code = manager.roomCode ?: "")
+                    var showQr by remember { mutableStateOf(false) }
+                    if (showQr) {
+                        RoomQrDialog(link = manager.roomLink.orEmpty(), code = manager.roomCode.orEmpty()) { showQr = false }
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                         QuickAction(accent, Icons.Filled.ContentCopy, stringResource(R.string.tg_code), Modifier.weight(1f)) {
                             copy(context, context.getString(R.string.tg_code), manager.roomCode.orEmpty())
                         }
                         QuickAction(accent, Icons.Filled.Link, stringResource(R.string.tg_link), Modifier.weight(1f)) {
                             copy(context, context.getString(R.string.tg_link), manager.roomLink.orEmpty())
+                        }
+                        QuickAction(accent, Icons.Filled.QrCode2, stringResource(R.string.tg_qr), Modifier.weight(1f)) {
+                            showQr = true
                         }
                         QuickAction(accent, Icons.Filled.Share, stringResource(R.string.tg_invite), Modifier.weight(1f)) {
                             share(context, manager)
@@ -439,6 +446,7 @@ fun TogetherScreen(
                         if (manager.isHost && m.uid != manager.currentUid) {
                             var menuOpen by remember { mutableStateOf(false) }
                             val isOwnerMember = manager.owners.any { it.uid == m.uid }
+                            var confirmKick by remember { mutableStateOf(false) }
                             Box {
                                 IconButton(onClick = { menuOpen = true }) {
                                     Icon(Icons.Filled.MoreVert, stringResource(R.string.tgq_member_menu), tint = accent.value)
@@ -461,6 +469,26 @@ fun TogetherScreen(
                                         text = { Text(stringResource(R.string.tgq_make_host)) },
                                         leadingIcon = { Icon(Icons.Filled.SwapHoriz, null) },
                                         onClick = { menuOpen = false; manager.transferHost(m.uid) }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.tgq_kick_member), color = MaterialTheme.colorScheme.error) },
+                                        leadingIcon = { Icon(Icons.Filled.Block, null, tint = MaterialTheme.colorScheme.error) },
+                                        onClick = { menuOpen = false; confirmKick = true }
+                                    )
+                                }
+                                if (confirmKick) {
+                                    AlertDialog(
+                                        onDismissRequest = { confirmKick = false },
+                                        title = { Text(stringResource(R.string.tgq_kick_title, m.name)) },
+                                        text = { Text(stringResource(R.string.tgq_kick_text)) },
+                                        confirmButton = {
+                                            TextButton(onClick = { confirmKick = false; manager.kickMember(m.uid) }) {
+                                                Text(stringResource(R.string.tgq_kick_confirm))
+                                            }
+                                        },
+                                        dismissButton = {
+                                            TextButton(onClick = { confirmKick = false }) { Text(stringResource(R.string.action_cancel)) }
+                                        }
                                     )
                                 }
                             }
@@ -556,6 +584,39 @@ private fun TogetherHero(
             )
         }
     }
+}
+
+/** QR con el enlace https de la sala: se escanea con la cámara del teléfono y abre la página que lleva a la app. */
+@Composable
+private fun RoomQrDialog(link: String, code: String, onDismiss: () -> Unit) {
+    val bmp = remember(link) { TogetherQr.bitmap(link) }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.tg_qr_title)) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
+                if (bmp != null) {
+                    androidx.compose.foundation.Image(
+                        bitmap = bmp.asImageBitmap(),
+                        contentDescription = stringResource(R.string.tg_qr_title),
+                        modifier = Modifier.size(240.dp).clip(RoundedCornerShape(12.dp))
+                    )
+                } else {
+                    Text(stringResource(R.string.tg_qr_error), color = MaterialTheme.colorScheme.error)
+                }
+                Spacer(Modifier.height(10.dp))
+                Text(code, fontSize = 22.sp, fontWeight = FontWeight.ExtraBold, letterSpacing = 4.sp)
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    stringResource(R.string.tg_qr_hint),
+                    fontSize = 12.sp,
+                    textAlign = TextAlign.Center,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.tg_got_it)) } }
+    )
 }
 
 /** Código de la sala: una casilla por carácter, todas del mismo ancho para que quepan siempre. */

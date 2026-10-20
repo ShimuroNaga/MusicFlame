@@ -27,7 +27,18 @@
 
         "members": {
           ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
-          "$uid": { ".write": "auth != null && $uid === auth.uid" }
+          // Cada quien escribe lo suyo, salvo que el anfitrión lo haya expulsado de esta sala.
+          "$uid": {
+            ".write": "auth != null && $uid === auth.uid && !root.child('rooms/' + $code + '/banned/' + $uid).exists()",
+            "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "avatar": { ".validate": "newData.isString() && newData.val().length <= 60000" }
+          }
+        },
+
+        // Expulsados de ESTA sala: solo el anfitrión los añade (permiso de la sala); cada quien puede
+        // leer únicamente si él mismo está expulsado (así la app avisa en vez de fallar en silencio).
+        "banned": {
+          "$uid": { ".read": "auth != null && $uid === auth.uid" }
         },
 
         // Propietarios: los añade/quita el anfitrión; cada quien puede renunciar a lo suyo.
@@ -50,6 +61,9 @@
             ".write": "auth != null && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && ((!data.exists() && newData.child('addedBy').val() === auth.uid) || data.child('addedBy').val() === auth.uid)",
             ".validate": "newData.hasChildren(['title', 'addedBy', 'addedByName', 'pos'])",
             "title": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "artist": { ".validate": "newData.isString() && newData.val().length <= 200" },
+            "duration": { ".validate": "newData.isNumber()" },
+            "addedByName": { ".validate": "newData.isString() && newData.val().length <= 60" },
             "pos": {
               ".write": "auth != null && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && data.exists()",
               ".validate": "newData.isNumber()"

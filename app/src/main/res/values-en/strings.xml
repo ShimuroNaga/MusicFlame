@@ -367,4 +367,10 @@
     <string name="main_n_of_m_exported">%1$d of %2$d exported to Downloads</string>
     <string name="nav_albums">Albums</string>
     <string name="nav_settings">Settings</string>
+    <string name="settings_together_icon_title">Together icon</string>
+    <string name="settings_together_icon_desc">Others will see it in the room. Tap to pick and adjust the image.</string>
+    <string name="settings_together_icon_remove">Remove icon</string>
+    <string name="avatar_editor_title">Edit image</string>
+    <string name="avatar_editor_scale">Scale</string>
+    <string name="avatar_editor_load_failed">Couldn\'t open the image</string>
 </resources>

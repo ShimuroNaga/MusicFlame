@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.ui.input.pointer.pointerInput
@@ -414,7 +415,7 @@ fun TogetherScreen(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
-                        MemberAvatar(accent = accent, name = m.name, online = m.online)
+                        MemberAvatar(accent = accent, name = m.name, online = m.online, avatar = m.avatar)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -822,10 +823,11 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
     }
 }
 
-/** Avatar circular con la inicial del nombre; apagado (gris) si la persona está desconectada. */
+/** Avatar circular: icono de la persona si lo puso; si no, la inicial. Gris si está desconectada. */
 @Composable
-private fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatarSize: Dp = 42.dp) {
+private fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatar: String? = null, avatarSize: Dp = 42.dp) {
     val initial = name.trim().firstOrNull()?.uppercase() ?: "?"
+    val image = remember(avatar) { TogetherAvatar.decode(avatar)?.asImageBitmap() }
     Box(
         modifier = Modifier
             .size(avatarSize)
@@ -836,12 +838,21 @@ private fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, av
             .border(1.5.dp, if (online) accent.value else Color.Gray.copy(alpha = 0.5f), CircleShape),
         contentAlignment = Alignment.Center
     ) {
-        Text(
-            initial,
-            fontWeight = FontWeight.Bold,
-            fontSize = 18.sp,
-            color = if (online) accent.value else Color.Gray
-        )
+        if (image != null) {
+            androidx.compose.foundation.Image(
+                bitmap = image,
+                contentDescription = name,
+                contentScale = androidx.compose.ui.layout.ContentScale.Crop,
+                modifier = Modifier.fillMaxSize().clip(CircleShape)
+            )
+        } else {
+            Text(
+                initial,
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp,
+                color = if (online) accent.value else Color.Gray
+            )
+        }
     }
 }
 

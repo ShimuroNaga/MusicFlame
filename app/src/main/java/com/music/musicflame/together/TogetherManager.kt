@@ -85,7 +85,9 @@ class TogetherManager(
         val online: Boolean,
         val isHost: Boolean,
         /** Clave de la canción que a este invitado le falta (la que suena en la sala), si aplica. */
-        val missing: String? = null
+        val missing: String? = null,
+        /** Icono de la persona (JPEG pequeño en base64), si lo puso en Ajustes → Cuenta. */
+        val avatar: String? = null
     )
 
     /** Pregunta que se le muestra al anfitrión cuando a alguien le falta la canción. */
@@ -301,6 +303,15 @@ class TogetherManager(
         val code = roomCode ?: return
         val uid = auth.currentUser?.uid ?: return
         if (status == Status.CONNECTED) db.getReference("rooms/$code/members/$uid/name").setValue(userName.ifBlank { appContext.getString(R.string.tgm_guest) })
+    }
+
+    /** Publica (o quita) mi icono en la sala abierta. Lo llama TogetherAvatar al guardar/borrar. */
+    fun refreshAvatar() {
+        val code = roomCode ?: return
+        val uid = auth.currentUser?.uid ?: return
+        if (status != Status.CONNECTED) return
+        val b64 = TogetherAvatar.load(appContext)
+        db.getReference("rooms/$code/members/$uid/avatar").setValue(b64)
     }
 
     /** "+ Crear sala". */
@@ -554,7 +565,8 @@ class TogetherManager(
                             name = c.child("name").getValue(String::class.java) ?: appContext.getString(R.string.tgm_guest),
                             online = true,
                             isHost = id == hostUid,
-                            missing = c.child("missing").getValue(String::class.java)
+                            missing = c.child("missing").getValue(String::class.java),
+                            avatar = c.child("avatar").getValue(String::class.java)
                         )
                     }.sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.name.lowercase() })
                     members.clear(); members.addAll(list)
@@ -861,7 +873,8 @@ class TogetherManager(
             mapOf(
                 "name" to displayName(),
                 "online" to true,
-                "joinedAt" to ServerValue.TIMESTAMP
+                "joinedAt" to ServerValue.TIMESTAMP,
+                "avatar" to TogetherAvatar.load(appContext)
             )
         ).addOnFailureListener {
             fail(it, appContext.getString(R.string.tgm_join_failed, MAX_MEMBERS))

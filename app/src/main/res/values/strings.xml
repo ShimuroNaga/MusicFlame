@@ -367,4 +367,10 @@
     <string name="main_n_of_m_exported">%1$d de %2$d exportadas a Descargas</string>
     <string name="nav_albums">Álbumes</string>
     <string name="nav_settings">Ajustes</string>
+    <string name="settings_together_icon_title">Icono de En compañía</string>
+    <string name="settings_together_icon_desc">Los demás lo verán en la sala. Toca para elegir y ajustar la imagen.</string>
+    <string name="settings_together_icon_remove">Quitar icono</string>
+    <string name="avatar_editor_title">Editar imagen</string>
+    <string name="avatar_editor_scale">Escala</string>
+    <string name="avatar_editor_load_failed">No se pudo abrir la imagen</string>
 </resources>

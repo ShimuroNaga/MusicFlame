@@ -114,6 +114,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -227,6 +228,68 @@ internal fun LazyListScope.settingsAccountSection(
         }
 
         HorizontalDivider(color = style.dividerColor)
+    }
+
+    // ICONO DE "EN COMPAÑÍA": se muestra a los demás en la sala (editor de recorte estilo Discord)
+    item {
+        var avatarB64 by remember { mutableStateOf(com.music.musicflame.together.TogetherAvatar.load(context)) }
+        val avatarBitmap = remember(avatarB64) {
+            com.music.musicflame.together.TogetherAvatar.decode(avatarB64)?.asImageBitmap()
+        }
+        var pickedUri by remember { mutableStateOf<Uri?>(null) }
+        val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+            if (uri != null) pickedUri = uri
+        }
+
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_together_icon_title)) },
+            supportingContent = { Text(stringResource(R.string.settings_together_icon_desc)) },
+            trailingContent = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (avatarBitmap != null) {
+                        IconButton(onClick = {
+                            com.music.musicflame.together.TogetherAvatar.clear(context)
+                            avatarB64 = null
+                        }) {
+                            Icon(Icons.Filled.Delete, stringResource(R.string.settings_together_icon_remove), tint = style.mediumEmphasis)
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (avatarBitmap != null) {
+                            Image(
+                                bitmap = avatarBitmap,
+                                contentDescription = stringResource(R.string.settings_together_icon_title),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        } else {
+                            Icon(Icons.Filled.Add, null, tint = style.trailingColor)
+                        }
+                    }
+                }
+            },
+            colors = style.listItemColors,
+            modifier = Modifier.clickable { picker.launch("image/*") }
+        )
+        HorizontalDivider(color = style.dividerColor)
+
+        pickedUri?.let { uri ->
+            com.music.musicflame.ui.components.AvatarCropDialog(
+                uri = uri,
+                onDismiss = { pickedUri = null },
+                onConfirm = { bmp ->
+                    com.music.musicflame.together.TogetherAvatar.save(context, bmp)
+                    avatarB64 = com.music.musicflame.together.TogetherAvatar.load(context)
+                    pickedUri = null
+                }
+            )
+        }
     }
 
     item {

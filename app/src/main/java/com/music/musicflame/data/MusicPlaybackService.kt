@@ -38,6 +38,7 @@ import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
 import com.music.musicflame.audio.VolumeNormalizationAnalyzer
+import com.music.musicflame.audio.VolumeNormalizationAudioProcessor
 import com.music.musicflame.widget.MusicFlameVinylWidgetProvider
 import com.music.musicflame.widget.MusicFlameWidgetProvider
 import com.music.musicflame.widget.WidgetPrefs
@@ -97,6 +98,8 @@ class MusicPlaybackService : MediaSessionService() {
     // bandas. Ahora mismo el gate está hardcodeado dentro de la propia clase para pruebas
     // (FORCE_ENABLED_FOR_TESTING); todavía NO está conectado a LicenseRepository.
     private val proEqualizerAudioProcessor = ProBiquadEqualizerAudioProcessor()
+    // Normalización de volumen entre canciones (gratis, switch propio en Ajustes > Canciones).
+    private val volumeNormalizationProcessor = VolumeNormalizationAudioProcessor()
 
     // FIX "el EQ Pro se apaga/prende solo": antes la licencia se leía de ProStatusHolder, que
     // SOLO la llena la UI (MainActivity/Theme/Ajustes). Si Android recrea este servicio sin
@@ -203,7 +206,7 @@ class MusicPlaybackService : MediaSessionService() {
                 return DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor))
+                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor, volumeNormalizationProcessor))
                     .build()
             }
         }
@@ -229,7 +232,28 @@ class MusicPlaybackService : MediaSessionService() {
             proEqualizerAudioProcessor.setBandGainDb(i, sharedPrefs.getFloat("pro_eq_band_$i", 0f))
         }
         proEqualizerAudioProcessor.setPreAmpGainDb(sharedPrefs.getFloat("pro_eq_preamp", 0f))
+        // Normalización de volumen: independiente del Pro. Si el usuario acaba de prenderla o
+        // apagarla en Ajustes, esto lo recoge en el siguiente cambio de canción o broadcast.
+        val normEnabled = sharedPrefs.getBoolean("volume_normalization_enabled", false)
+        val wasEnabled = normalizationWasEnabled
+        volumeNormalizationProcessor.setEnabled(normEnabled)
+        if (normEnabled && !wasEnabled && ::player.isInitialized) applyVolumeNormalizationForCurrentSong()
+        normalizationWasEnabled = normEnabled
     }
+
+    // SOLO DIAGNÓSTICO (la UI lo muestra únicamente a la cuenta dueña, bajo "Normalizar
+    // volumen" en Ajustes > Canciones): deja escrito qué ajuste lleva la canción actual.
+    private fun publishNormalizationStatus(status: String) {
+        val title = player.currentMediaItem?.mediaMetadata?.title?.toString().orEmpty()
+        val text = if (title.isNotEmpty()) "$status · $title" else status
+        sharedPrefs.edit().putString("volume_normalization_status", text).apply()
+    }
+
+    private fun formatGainDb(gainDb: Float): String =
+        String.format(java.util.Locale.US, "%+.1f dB", gainDb)
+
+    // Último valor visto del switch, para disparar el análisis al instante cuando se prende.
+    private var normalizationWasEnabled = false
 
     /**
      * true si el EQ Pro debe tener el escenario COMPLETO para él solo: el usuario tiene Pro
@@ -244,7 +268,7 @@ class MusicPlaybackService : MediaSessionService() {
 
     /**
      * ETAPA 2 — aplica (o dispara el cálculo de) el gain de normalización de volumen de la
-     * canción que acaba de empezar a sonar.
+     * canción que acaba de empezar a sonar (solo si el switch "Normalizar volumen" está activo).
      *
      * Si ya está en caché, se aplica de inmediato (sin ningún trabajo de fondo). Si no está
      * en caché, se deja el EQ Pro en 0 dB de normalización mientras se analiza en segundo
@@ -256,28 +280,44 @@ class MusicPlaybackService : MediaSessionService() {
      * ahora — evitaría "pisarle" su propio gain).
      */
     private fun applyVolumeNormalizationForCurrentSong() {
+        val normEnabled = sharedPrefs.getBoolean("volume_normalization_enabled", false)
+        normalizationWasEnabled = normEnabled
+        volumeNormalizationProcessor.setEnabled(normEnabled)
+        if (!normEnabled) {
+            volumeNormalizationProcessor.setGainDb(0f)
+            publishNormalizationStatus("Apagado")
+            return
+        }
         val songId = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
         val filePath = SongLibraryHolder.songs.find { it.id == songId }?.path
         if (filePath.isNullOrEmpty()) return
 
         val cachedGainDb = volumeNormalizationCacheRepo.get(filePath)
         if (cachedGainDb != null) {
-            proEqualizerAudioProcessor.setNormalizationGainDb(cachedGainDb)
+            volumeNormalizationProcessor.setGainDb(cachedGainDb)
+            publishNormalizationStatus("Ajuste ${formatGainDb(cachedGainDb)} (guardado)")
             return
         }
 
-        proEqualizerAudioProcessor.setNormalizationGainDb(0f)
+        volumeNormalizationProcessor.setGainDb(0f)
+        publishNormalizationStatus("Analizando…")
 
         serviceScope.launch {
             val gainDb = withContext(Dispatchers.IO) {
                 VolumeNormalizationAnalyzer.analyze(filePath)
-            } ?: return@launch
+            }
+
+            val stillSameSong = player.currentMediaItem?.mediaId?.toLongOrNull() == songId
+            if (gainDb == null) {
+                if (stillSameSong) publishNormalizationStatus("No se pudo analizar el archivo")
+                return@launch
+            }
 
             volumeNormalizationCacheRepo.set(filePath, gainDb)
 
-            val stillSameSong = player.currentMediaItem?.mediaId?.toLongOrNull() == songId
             if (stillSameSong) {
-                proEqualizerAudioProcessor.setNormalizationGainDb(gainDb)
+                volumeNormalizationProcessor.setGainDb(gainDb)
+                publishNormalizationStatus("Ajuste ${formatGainDb(gainDb)} (nuevo)")
             }
         }
     }

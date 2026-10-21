@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_normalizar_volumen">Normalize volume</string>
+    <string name="settings_normalizar_volumen_desc">Evens out loudness between songs so none is much louder or quieter than the rest. The first time, each song is analyzed in the background.</string>
+</resources>

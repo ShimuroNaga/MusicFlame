@@ -158,6 +158,7 @@ internal fun LazyListScope.settingsSongsSection(
     showAnomalyScanDialog: MutableState<Boolean>,
     playInBackground: MutableState<Boolean>,
     pauseOnDisconnect: MutableState<Boolean>,
+    volumeNormalizationEnabled: MutableState<Boolean>,
     eqPresetSelected: MutableState<String>,
     isIgnoringBatteryState: MutableState<Boolean>,
     hasFileAccessPermissionState: MutableState<Boolean>,
@@ -318,6 +319,48 @@ internal fun LazyListScope.settingsSongsSection(
             colors = style.listItemColors
         )
         HorizontalDivider(color = style.dividerColor)
+    }
+
+    item {
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_normalizar_volumen)) },
+            supportingContent = { Text(stringResource(R.string.settings_normalizar_volumen_desc)) },
+            trailingContent = {
+                Switch(
+                    checked = volumeNormalizationEnabled.value,
+                    onCheckedChange = {
+                        volumeNormalizationEnabled.value = it
+                        settingsRepo.saveVolumeNormalizationEnabled(it)
+                        // Aplica ya a la canción que suena (el servicio también lo relee solo).
+                        context.sendBroadcast(android.content.Intent("com.music.musicflame.UPDATE_EQ").setPackage(context.packageName))
+                    }
+                )
+            },
+            colors = style.listItemColors
+        )
+        HorizontalDivider(color = style.dividerColor)
+    }
+
+    // SOLO DUEÑO: muestra el ajuste en dB que el servicio le puso a la canción actual.
+    item {
+        val isOwner = remember { com.music.musicflame.data.LicenseRepository(context).isOwnerAccount() }
+        if (isOwner) {
+            var normStatus by remember { mutableStateOf("") }
+            LaunchedEffect(Unit) {
+                val sp = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                while (true) {
+                    normStatus = sp.getString("volume_normalization_status", null)
+                        ?: "Sin datos todavía (pon una canción)"
+                    kotlinx.coroutines.delay(1000)
+                }
+            }
+            ListItem(
+                headlineContent = { Text("Diagnóstico de volumen (solo dueño)") },
+                supportingContent = { Text(normStatus) },
+                colors = style.listItemColors
+            )
+            HorizontalDivider(color = style.dividerColor)
+        }
     }
 
     item {

@@ -44,6 +44,9 @@ object VolumeNormalizationAnalyzer {
     private const val MAX_GAIN_DB = 12f
     private const val MIN_GAIN_DB = -12f
 
+    /** Margen (dB) que se deja entre el pico más alto y 0 dBFS al subir volumen. */
+    private const val PEAK_MARGIN_DB = 1f
+
     /** Tope de cuánto audio (desde el inicio) se decodifica para el análisis. */
     private const val MAX_ANALYSIS_DURATION_US = 30_000_000L // 30s
 
@@ -77,6 +80,7 @@ object VolumeNormalizationAnalyzer {
 
             var sumSquares = 0.0
             var sampleCount = 0L
+            var peak = 0f
             var sawInputEos = false
             var sawOutputEos = false
             val bufferInfo = MediaCodec.BufferInfo()
@@ -109,6 +113,8 @@ object VolumeNormalizationAnalyzer {
                             while (outBuffer.remaining() >= 2) {
                                 val sample = outBuffer.short.toFloat() / 32768f
                                 sumSquares += (sample * sample).toDouble()
+                                val absSample = if (sample < 0f) -sample else sample
+                                if (absSample > peak) peak = absSample
                                 sampleCount++
                             }
                         }
@@ -126,7 +132,14 @@ object VolumeNormalizationAnalyzer {
             if (rms <= 0.0) return null
 
             val measuredDbfs = 20.0 * log10(rms)
-            val gainDb = (TARGET_RMS_DBFS - measuredDbfs).toFloat()
+            var gainDb = (TARGET_RMS_DBFS - measuredDbfs).toFloat()
+            // Anticlipping: si hay que SUBIR el volumen, nunca más de lo que deja el pico más
+            // alto medido (con 1 dB de margen), para no distorsionar canciones bajitas pero
+            // con picos fuertes. Bajar el volumen no tiene este problema.
+            if (gainDb > 0f && peak > 0f) {
+                val headroomDb = (-20.0 * log10(peak.toDouble())).toFloat() - PEAK_MARGIN_DB
+                gainDb = minOf(gainDb, headroomDb.coerceAtLeast(0f))
+            }
             return gainDb.coerceIn(MIN_GAIN_DB, MAX_GAIN_DB)
         } catch (e: Exception) {
             return null

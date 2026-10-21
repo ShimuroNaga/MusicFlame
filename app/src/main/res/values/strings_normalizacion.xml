@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_normalizar_volumen">Normalizar volumen</string>
+    <string name="settings_normalizar_volumen_desc">Nivela el volumen entre canciones para que no haya unas muy fuertes y otras muy bajitas. La primera vez analiza cada canción en segundo plano.</string>
+</resources>

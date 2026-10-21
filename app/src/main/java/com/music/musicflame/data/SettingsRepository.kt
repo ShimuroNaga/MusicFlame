@@ -175,6 +175,11 @@ class SettingsRepository(context: Context) {
     fun getPauseOnDisconnect(): Boolean = prefs.getBoolean("pause_on_disconnect", true)
     fun savePauseOnDisconnect(enabled: Boolean) = prefs.edit().putBoolean("pause_on_disconnect", enabled).apply()
 
+    // Normalizar volumen entre canciones (gratis). Default apagado: la primera vez analiza el
+    // audio de cada canción en segundo plano y gasta un poco de CPU/batería.
+    fun getVolumeNormalizationEnabled(): Boolean = prefs.getBoolean("volume_normalization_enabled", false)
+    fun saveVolumeNormalizationEnabled(enabled: Boolean) = prefs.edit().putBoolean("volume_normalization_enabled", enabled).apply()
+
     // --- ECUALIZADOR Y AUDIO PRO ---
     fun getEqPresetSelected(): String = prefs.getString("eq_preset_selected", "Flat") ?: "Flat"
     fun saveEqPresetSelected(preset: String) = prefs.edit().putString("eq_preset_selected", preset).apply()

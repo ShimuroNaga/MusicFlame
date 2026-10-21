@@ -24,11 +24,10 @@ import kotlin.math.sin
  * - Pre-amp (ganancia maestra): un gain aplicado a la señal de ENTRADA, antes de las 10
  *   bandas — sirve para que el usuario compense de un jalón si sus 10 bandas combinadas
  *   dejaron la canción muy bajita o para darle un "empuje" general.
- * - Normalización de volumen entre canciones: un gain lineal adicional (calculado fuera de
- *   esta clase, por VolumeNormalizationAnalyzer) que se aplica DESPUÉS del EQ, sobre la señal
- *   ya filtrada.
+ * - (La normalización de volumen entre canciones ya NO vive aquí: ahora es gratis y está en
+ *   VolumeNormalizationAudioProcessor, que va después de este en la cadena.)
  * - Bypass A/B: botón "con EQ / sin EQ" — con bypass activo, el PCM pasa de largo sin tocar
- *   (ni pre-amp, ni EQ, ni normalización).
+ *   (ni pre-amp ni EQ).
  *
  * GATE POR LICENCIA:
  * El processor SIEMPRE queda "instalado" en el pipeline de ExoPlayer (ver onConfigure) — no
@@ -67,11 +66,6 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
         const val MAX_PREAMP_GAIN_DB = 12f
         const val MIN_PREAMP_GAIN_DB = -12f
 
-        // Rango de seguridad para el gain de normalización (ver setNormalizationGainDb).
-        // VolumeNormalizationAnalyzer ya recorta a este mismo rango, esto es un segundo
-        // cinturón de seguridad por si algún día se llama desde otro lado.
-        private const val MAX_NORMALIZATION_GAIN_DB = 12f
-        private const val MIN_NORMALIZATION_GAIN_DB = -12f
     }
 
     // Todas las bandas arrancan en 0 dB (flat) — con el EQ "plano" el Pro debe sonar
@@ -80,13 +74,8 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
     private val bandGainsDb = FloatArray(BAND_COUNT) { 0f }
 
     // Pre-amp / ganancia maestra, aplicada a la entrada ANTES del EQ. En lineal (no en dB)
-    // por lo mismo que normalizationGainLinear: evitar un pow() por cada muestra.
+    // para evitar un pow() por cada muestra.
     @Volatile private var preAmpGainLinear: Float = 1f
-
-    // Gain de normalización de volumen, en lineal, aplicado DESPUÉS del EQ. @Volatile porque
-    // se escribe desde el hilo principal/una coroutine (MusicPlaybackService, al cambiar de
-    // canción) y se lee desde el hilo de audio interno de ExoPlayer.
-    @Volatile private var normalizationGainLinear: Float = 1f
 
     // ¿La cuenta activa tiene el EQ Pro desbloqueado (compra o dueño)? Arranca en false
     // (fail-safe): hasta que MusicPlaybackService confirme la licencia, no se filtra nada.
@@ -156,18 +145,8 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
     }
 
     /**
-     * Fija el gain de normalización de volumen (en dB) de la canción actual. Se recorta a
-     * [-12, 12] dB. Pasar 0f equivale a "sin normalización" (gain neutro). Pensado para que
-     * MusicPlaybackService lo llame cada vez que cambia de canción.
-     */
-    fun setNormalizationGainDb(gainDb: Float) {
-        val clamped = gainDb.coerceIn(MIN_NORMALIZATION_GAIN_DB, MAX_NORMALIZATION_GAIN_DB)
-        normalizationGainLinear = 10.0.pow(clamped / 20.0).toFloat()
-    }
-
-    /**
      * Activa/desactiva el bypass A/B pedido por el usuario. Con esto activo (o sin licencia),
-     * el audio sale exactamente igual que entra (ni pre-amp, ni EQ, ni normalización).
+     * el audio sale exactamente igual que entra (ni pre-amp ni EQ).
      */
     fun setBypassed(enabled: Boolean) {
         abBypassRequested = enabled
@@ -244,7 +223,7 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
 
         if (effectiveBypass) {
             // Sin licencia Pro, o bypass A/B pedido por el usuario: copiamos el PCM tal cual,
-            // sin pasar por pre-amp, EQ ni normalización. Copia directa de bytes, sin
+            // sin pasar por pre-amp ni EQ. Copia directa de bytes, sin
             // decodificar muestra por muestra: la señal que sale es BIT A BIT la misma que
             // entra — cero overhead de cómputo más allá del copy.
             val outputBuffer = replaceOutputBuffer(remaining)
@@ -265,7 +244,6 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
 
         val coeffs = bandCoeffs
         val preAmp = preAmpGainLinear
-        val normGain = normalizationGainLinear
         for (frame in 0 until frameCount) {
             for (ch in 0 until channelCount) {
                 // Pre-amp: se aplica a la entrada, ANTES de las 10 bandas.
@@ -274,10 +252,6 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
                 for (band in 0 until BAND_COUNT) {
                     sample = states[band].process(sample, coeffs[band])
                 }
-                // Normalización de volumen: se aplica DESPUÉS del EQ, sobre la señal ya
-                // filtrada, así compensa el volumen real que va a sonar (con el EQ y el
-                // pre-amp puestos), no el volumen "crudo" del archivo.
-                sample *= normGain
                 val clamped = (sample * 32768f).roundToInt().coerceIn(-32768, 32767)
                 outputBuffer.putShort(clamped.toShort())
             }
@@ -292,7 +266,7 @@ class ProBiquadEqualizerAudioProcessor : BaseAudioProcessor() {
     override fun onFlush() {
         // Limpia la memoria de los filtros (x1,x2,y1,y2) para no arrastrar un "eco" del
         // audio anterior al hacer seek o cambiar de canción. NO toca bandGainsDb, preamp,
-        // normalizationGainLinear, proLicensed ni abBypassRequested: esos son ajustes del
+        // proLicensed ni abBypassRequested: esos son ajustes del
         // usuario/de la canción actual, no memoria interna del filtro, y deben sobrevivir a
         // un flush.
         for (states in channelStates) {

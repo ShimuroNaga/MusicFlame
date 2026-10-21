@@ -20,7 +20,9 @@ import org.json.JSONObject
  */
 class VolumeNormalizationCacheRepository(context: Context) {
     private val prefs = context.getSharedPreferences("volume_normalization_cache", Context.MODE_PRIVATE)
-    private val KEY_MAP = "gain_db_map"
+    // v2: los valores viejos ("gain_db_map") no tenían protección anticlipping; se ignoran y se
+    // re-analizan solos la próxima vez que suene cada canción.
+    private val KEY_MAP = "gain_db_map_v2"
 
     companion object {
         @Volatile private var cache: MutableMap<String, Float>? = null

@@ -415,6 +415,7 @@ fun SettingsScreen(
 
     val playInBackground = remember { mutableStateOf(settingsRepo.getPlayInBackground()) }
     val pauseOnDisconnect = remember { mutableStateOf(settingsRepo.getPauseOnDisconnect()) }
+    val volumeNormalizationEnabled = remember { mutableStateOf(settingsRepo.getVolumeNormalizationEnabled()) }
     val eqPresetSelected = remember { mutableStateOf(settingsRepo.getEqPresetSelected()) }
     // Igual que en el wizard de bienvenida: "Negro" y "Blanco" se fusionaron en una sola
     // opción "Adaptativo", porque MusicFlameTheme siempre auto-corrige el texto contra la
@@ -951,6 +952,7 @@ fun SettingsScreen(
                             showAnomalyScanDialog = showAnomalyScanDialog,
                             playInBackground = playInBackground,
                             pauseOnDisconnect = pauseOnDisconnect,
+                            volumeNormalizationEnabled = volumeNormalizationEnabled,
                             eqPresetSelected = eqPresetSelected,
                             isIgnoringBatteryState = isIgnoringBatteryState,
                             hasFileAccessPermissionState = hasFileAccessPermissionState,

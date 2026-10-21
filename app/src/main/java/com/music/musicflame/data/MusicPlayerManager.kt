@@ -231,6 +231,7 @@ class MusicPlayerManager(private val context: Context) {
             1 -> R.drawable.ic_shuffle
             2 -> R.drawable.ic_autorenew
             3 -> R.drawable.ic_autoplay
+            4 -> R.drawable.ic_autorenew_shuffle
             else -> R.drawable.ic_straight_arrow
         }
 
@@ -425,15 +426,8 @@ class MusicPlayerManager(private val context: Context) {
 
     // NUEVO: Método que averigua el estado actual real de Media3 y actualiza el icono
     private fun syncCycleModeState(controller: Player) {
-        if (controller.shuffleModeEnabled) {
-            _cycleMode.intValue = 1 // Aleatorio
-        } else {
-            when (controller.repeatMode) {
-                Player.REPEAT_MODE_ALL -> _cycleMode.intValue = 2 // Repetir todas
-                Player.REPEAT_MODE_ONE -> _cycleMode.intValue = 3 // Repetir una
-                else -> _cycleMode.intValue = 0 // Normal (Flecha derecha)
-            }
-        }
+        // 0 Normal, 1 Aleatorio, 2 Repetir todo, 3 Repetir una, 4 Mezclar y repetir todo
+        _cycleMode.intValue = PlaybackCycle.stateOf(controller)
     }
 
     // NUEVO: Averigua qué canción está sonando ahora en el reproductor y actualiza el estado reactivo.
@@ -564,6 +558,8 @@ class MusicPlayerManager(private val context: Context) {
         mediaController?.apply {
             playbackHistory.clear()
             setMediaItems(mediaItems, start, 0)
+            // Highlights no es una lista con identidad propia: sin "repetir todo" ni "mezclar y repetir".
+            PlaybackCycle.coerceForContext(this, false)
             prepare()
             play()
             _currentSong.value = songs[start]
@@ -571,6 +567,7 @@ class MusicPlayerManager(private val context: Context) {
         }
         _highlightsActive.value = true
         PlaybackContextTracker.clearActivePlaylist(context)
+        PlaybackContextTracker.setListContext(context, false)
     }
 
     // NUEVO: playlistId/playlistKind son opcionales y solo los pasa la pantalla de
@@ -580,7 +577,16 @@ class MusicPlayerManager(private val context: Context) {
     // que por el valor por defecto null se limpia el tracker automáticamente: el
     // Tile de Mezclar sabe así si debe remezclar la playlist activa o solo activar
     // el modo aleatorio normal.
-    fun playSong(song: Song, songList: List<Song>, playlistId: String? = null, playlistKind: PlaylistKind? = null) {
+    // fromListContext: true cuando la canción se toca desde el detalle de un Álbum, Artista o
+    // Género (las Playlists ya se detectan por playlistId). Habilita en el botón cíclico los
+    // modos "Repetir todo" y "Mezclar y repetir todo"; desde cualquier otra pantalla no existen.
+    fun playSong(
+        song: Song,
+        songList: List<Song>,
+        playlistId: String? = null,
+        playlistKind: PlaylistKind? = null,
+        fromListContext: Boolean = false
+    ) {
         if (playInterceptor?.invoke(song) == true) return
         currentPlaylist = songList
         // Cualquier reproducción normal sale del modo Highlights.
@@ -590,6 +596,11 @@ class MusicPlayerManager(private val context: Context) {
 
         val startIndex = songList.indexOf(song)
 
+        // Contexto de lista: se guarda ANTES de tocar el controller para que el servicio y la
+        // notificación ya lo vean al reaccionar al cambio de modo.
+        val listContext = fromListContext || (playlistId != null && playlistKind != null)
+        PlaybackContextTracker.setListContext(context, listContext)
+
         // Antes de arrancar la nueva canción, volcamos el tiempo escuchado que
         // quedó pendiente de la que estaba sonando (si había alguna).
         flushListenedTime()
@@ -598,6 +609,9 @@ class MusicPlayerManager(private val context: Context) {
             val indexToPlay = if (startIndex >= 0) startIndex else 0
             playbackHistory.clear()
             setMediaItems(mediaItems, indexToPlay, 0)
+            // Si había "Repetir todo"/"Mezclar y repetir todo" de una lista y ahora suena algo que
+            // no es de una lista, esos modos se bajan solos (Normal / Aleatorio).
+            PlaybackCycle.coerceForContext(this, listContext)
             prepare()
             play()
             // FIX atajos de app: actualiza el mini-reproductor al instante con la canción que
@@ -622,6 +636,21 @@ class MusicPlayerManager(private val context: Context) {
         } else {
             PlaybackContextTracker.clearActivePlaylist(context)
         }
+    }
+
+    // Para re-armar la cola DESDE el reproductor completo (deslizar la carátula, tocar la Cola,
+    // salir de Highlights): conserva el contexto actual (playlist activa y si es lista), en vez
+    // de resetearlo como hace playSong() con sus valores por defecto. Sin esto, deslizar de
+    // canción en una playlist/álbum apagaría "Repetir todo" y "Mezclar y repetir todo".
+    fun playSongKeepingContext(song: Song, songList: List<Song>) {
+        val active = PlaybackContextTracker.getActivePlaylist(context)
+        playSong(
+            song,
+            songList,
+            playlistId = active?.first,
+            playlistKind = active?.second,
+            fromListContext = PlaybackContextTracker.isListContext(context)
+        )
     }
 
     // Lista con la que se llamó al último playSong() (la usa MainActivity para mantener
@@ -745,26 +774,13 @@ class MusicPlayerManager(private val context: Context) {
     // El comportamiento desde la UI ahora está sincronizado
     fun toggleCycleMode() {
         val controller = mediaController ?: return
-        val nextMode = (_cycleMode.intValue + 1) % 4
-
-        when (nextMode) {
-            0 -> {
-                controller.shuffleModeEnabled = false
-                controller.repeatMode = Player.REPEAT_MODE_OFF
-            }
-            1 -> {
-                controller.shuffleModeEnabled = true
-                controller.repeatMode = Player.REPEAT_MODE_OFF
-            }
-            2 -> {
-                controller.shuffleModeEnabled = false
-                controller.repeatMode = Player.REPEAT_MODE_ALL
-            }
-            3 -> {
-                controller.shuffleModeEnabled = false
-                controller.repeatMode = Player.REPEAT_MODE_ONE
-            }
-        }
+        // "Repetir todo" y "Mezclar y repetir todo" solo se ofrecen si lo que suena viene de una
+        // lista (Playlist, Álbum, Artista o Género); desde Canciones/Mix/IA se saltan.
+        val nextMode = PlaybackCycle.next(
+            PlaybackCycle.stateOf(controller),
+            PlaybackContextTracker.isListContext(context)
+        )
+        PlaybackCycle.apply(controller, nextMode)
     }
 
     fun seekTo(positionMs: Long) {

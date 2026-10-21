@@ -1220,7 +1220,8 @@ class MainActivity : ComponentActivity() {
                                             onArtistClick = { selectedArtist = it },
                                             selectedGenre = selectedGenre,
                                             onGenreClick = { selectedGenre = it },
-                                            onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) },
+                                            // Álbum/Artista/Género: son "listas" -> habilitan Repetir todo y Mezclar y repetir todo.
+                                            onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list, fromListContext = true) },
                                             selectedSongs = selectedSongs,
                                             onToggleSelection = onToggleSong,
                                             selectionModeActive = manualSongSelectionMode,

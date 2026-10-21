@@ -233,7 +233,7 @@ fun FullScreenPlayer(
         if (!pagerState.isScrollInProgress) {
             val targetSong = effectiveSongList.getOrNull(pagerState.currentPage)
             if (targetSong != null && targetSong.id != song.id) {
-                playerManager.playSong(targetSong, effectiveSongList)
+                playerManager.playSongKeepingContext(targetSong, effectiveSongList)
             }
         }
     }
@@ -403,7 +403,7 @@ fun FullScreenPlayer(
     fun toggleHighlights() {
         if (highlightsActive) {
             // Salir: sigue con esas mismas canciones completas.
-            playerManager.playSong(song, effectiveSongList)
+            playerManager.playSongKeepingContext(song, effectiveSongList)
             toast(context.getString(R.string.fp_highlights_off))
             return
         }
@@ -1480,7 +1480,7 @@ fun FullScreenPlayer(
                         hasBackgroundImage = effectiveHasBg,
                         onClose = { showQueueScreen = false },
                         onSongClick = { clickedSong ->
-                            playerManager.playSong(clickedSong, playerManager.queue)
+                            playerManager.playSongKeepingContext(clickedSong, playerManager.queue)
                         }
                     )
                 }

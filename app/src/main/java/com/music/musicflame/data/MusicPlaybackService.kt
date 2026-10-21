@@ -644,24 +644,18 @@ class MusicPlaybackService : MediaSessionService() {
                 }
                 CUSTOM_COMMAND_CYCLE_MODE -> {
                     // 1. Averiguamos en qué estado estamos actualmente
-                    val currentCycleState = if (player.shuffleModeEnabled) 1 else {
-                        when (player.repeatMode) {
-                            Player.REPEAT_MODE_ALL -> 2
-                            Player.REPEAT_MODE_ONE -> 3
-                            else -> 0
-                        }
-                    }
+                    val currentCycleState = PlaybackCycle.stateOf(player)
 
-                    // 2. Pasamos al siguiente estado (0, 1, 2, 3 -> vuelve a 0)
-                    val nextState = (currentCycleState + 1) % 4
+                    // 2. Pasamos al siguiente estado. "Repetir todo" y "Mezclar y repetir todo"
+                    //    solo existen si lo que suena viene de una lista (Playlist/Álbum/
+                    //    Artista/Género); si no, el ciclo los salta (ver PlaybackCycle).
+                    val nextState = PlaybackCycle.next(
+                        currentCycleState,
+                        PlaybackContextTracker.isListContext(this@MusicPlaybackService)
+                    )
 
                     // 3. Aplicamos la orden al reproductor
-                    when (nextState) {
-                        0 -> { player.shuffleModeEnabled = false; player.repeatMode = Player.REPEAT_MODE_OFF }
-                        1 -> { player.shuffleModeEnabled = true; player.repeatMode = Player.REPEAT_MODE_OFF }
-                        2 -> { player.shuffleModeEnabled = false; player.repeatMode = Player.REPEAT_MODE_ALL }
-                        3 -> { player.shuffleModeEnabled = false; player.repeatMode = Player.REPEAT_MODE_ONE }
-                    }
+                    PlaybackCycle.apply(player, nextState)
                     layoutNeedsUpdate = true
                 }
             }
@@ -696,13 +690,7 @@ class MusicPlaybackService : MediaSessionService() {
             .build()
 
         // 2. Botón Cíclico Único (Calculamos el estado actual)
-        val cycleState = if (player.shuffleModeEnabled) 1 else {
-            when (player.repeatMode) {
-                Player.REPEAT_MODE_ALL -> 2
-                Player.REPEAT_MODE_ONE -> 3
-                else -> 0
-            }
-        }
+        val cycleState = PlaybackCycle.stateOf(player)
 
         // Le damos icono y texto en base al orden: Normal -> Aleatorio -> Repetir Todo -> Repetir Una
         val (cycleIcon, cycleTitle) = when (cycleState) {
@@ -710,6 +698,7 @@ class MusicPlaybackService : MediaSessionService() {
             1 -> Pair(R.drawable.ic_shuffle, getString(R.string.pb_cycle_shuffle))
             2 -> Pair(R.drawable.ic_autorenew, getString(R.string.pb_cycle_repeat_all))
             3 -> Pair(R.drawable.ic_autoplay, getString(R.string.pb_cycle_repeat_one))
+            4 -> Pair(R.drawable.ic_autorenew_shuffle, getString(R.string.pb_cycle_shuffle_repeat_all))
             else -> Pair(R.drawable.ic_straight_arrow, getString(R.string.pb_cycle_normal))
         }
 

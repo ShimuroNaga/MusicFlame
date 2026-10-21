@@ -16,6 +16,23 @@ object PlaybackContextTracker {
     private const val PREFS_NAME = "playback_context"
     private const val KEY_PLAYLIST_ID = "active_playlist_id"
     private const val KEY_PLAYLIST_KIND = "active_playlist_kind"
+    private const val KEY_LIST_CONTEXT = "list_context"
+
+    /**
+     * true si lo que suena viene de una lista con identidad propia (Playlist, Álbum, Artista
+     * o Género). Solo en ese caso el botón cíclico ofrece "Repetir todo" y "Mezclar y repetir
+     * todo" (ver [PlaybackCycle]). Se guarda en SharedPreferences por la misma razón que lo
+     * demás: la notificación y los Tiles leen esto cuando la Activity ya no existe.
+     */
+    fun setListContext(context: Context, isListContext: Boolean) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+            .putBoolean(KEY_LIST_CONTEXT, isListContext)
+            .apply()
+    }
+
+    fun isListContext(context: Context): Boolean =
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .getBoolean(KEY_LIST_CONTEXT, false)
 
     fun setActivePlaylist(context: Context, playlistId: String, kind: PlaylistKind) {
         context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()

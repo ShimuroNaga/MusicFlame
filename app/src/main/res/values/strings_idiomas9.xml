@@ -65,6 +65,7 @@
     <string name="pb_cycle_shuffle">Aleatorio</string>
     <string name="pb_cycle_repeat_all">Repetir todo</string>
     <string name="pb_cycle_repeat_one">Repetir una</string>
+    <string name="pb_cycle_shuffle_repeat_all">Mezclar y repetir todo</string>
     <string name="common_unknown_artist">Artista desconocido</string>
     <string name="genre_none">Sin género</string>
     <string name="cd_default_name">Mi diseño</string>

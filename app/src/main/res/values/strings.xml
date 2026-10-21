@@ -342,6 +342,8 @@
     <string name="main_edit_cover_all">Editar carátula de todas</string>
     <string name="main_move_to_trash">Mover a papelera</string>
     <string name="main_rename">Renombrar</string>
+    <string name="main_remove_from_this_playlist">Quitar de esta playlist</string>
+    <string name="main_n_removed_from_playlist">%1$d quitadas de la playlist</string>
     <string name="main_export_m3u">Exportar a M3U</string>
     <string name="main_search_mode">Modo de búsqueda</string>
     <string name="main_local_device">Dispositivo local</string>

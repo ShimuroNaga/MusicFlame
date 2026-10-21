@@ -143,6 +143,17 @@ class PlaylistRepository(context: Context) {
         savePlaylists(playlists)
     }
 
+    // Quita canciones de una playlist (solo de la lista; no toca el archivo ni la papelera).
+    fun removeSongsFromPlaylist(playlistId: String, songIds: Set<Long>) {
+        if (songIds.isEmpty()) return
+        val playlists = getAllPlaylists().map { playlist ->
+            if (playlist.id == playlistId) {
+                playlist.copy(songIds = playlist.songIds.filter { it !in songIds })
+            } else playlist
+        }
+        savePlaylists(playlists)
+    }
+
     // Renombra una playlist creada por el usuario (REGULAR). No aplica a Favoritos
     // ni a las playlists inteligentes (Lo Más Sonado / Por Descubrir), que no viven aquí.
     fun renamePlaylist(playlistId: String, newName: String) {

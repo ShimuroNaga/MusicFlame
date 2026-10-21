@@ -164,7 +164,8 @@ fun PlaylistDetailScreen(
     // SOLUCIÓN AL ORDENAMIENTO: Guardamos el orden original explícitamente.
     val originalOrder = remember { mutableListOf<Long>() }
 
-    LaunchedEffect(Unit) {
+    // Se recarga cuando cambian los ids de la playlist (p. ej. al quitar canciones desde la selección)
+    LaunchedEffect(playlist.songIds) {
         SongLibraryHolder.ensureLoaded(context)
         val allSongs = SongLibraryHolder.songs
         val songIds = when (kind) {

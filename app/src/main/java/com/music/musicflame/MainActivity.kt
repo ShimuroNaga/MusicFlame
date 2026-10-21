@@ -713,6 +713,34 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                     )
                                                 }
+                                                // --- QUITAR DE ESTA PLAYLIST (solo dentro del detalle de una playlist normal o Favoritos) ---
+                                                val openPlaylist = selectedPlaylist
+                                                if (openPlaylist != null && selectedSongs.isNotEmpty() &&
+                                                    (selectedPlaylistKind == PlaylistKind.REGULAR || selectedPlaylistKind == PlaylistKind.FAVORITES)
+                                                ) {
+                                                    DropdownMenuItem(
+                                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistRemove, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_remove_from_this_playlist)) } },
+                                                        onClick = {
+                                                            showSelectionMenu = false
+                                                            val idsToRemove = selectedSongs.map { it.id }.toSet()
+                                                            val count = idsToRemove.size
+                                                            if (selectedPlaylistKind == PlaylistKind.FAVORITES) {
+                                                                idsToRemove.forEach { favoritesRepo.removeFavorite(it) }
+                                                                favoriteIds = favoritesRepo.getAllFavoriteIds()
+                                                                val intent = android.content.Intent("com.music.musicflame.FAVORITES_CHANGED")
+                                                                intent.setPackage(packageName)
+                                                                sendBroadcast(intent)
+                                                            } else {
+                                                                playlistRepo.removeSongsFromPlaylist(openPlaylist.id, idsToRemove)
+                                                            }
+                                                            // Cambiar songIds hace que PlaylistDetailScreen recargue su lista al instante
+                                                            selectedPlaylist = openPlaylist.copy(songIds = openPlaylist.songIds.filter { it !in idsToRemove })
+                                                            playlistsRefreshTrigger++
+                                                            Toast.makeText(context, context.getString(R.string.main_n_removed_from_playlist, count), Toast.LENGTH_SHORT).show()
+                                                            selectedSongs.clear(); manualSongSelectionMode = false
+                                                        }
+                                                    )
+                                                }
                                                 DropdownMenuItem(
                                                     text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_move_to_trash)) } },
                                                     onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }

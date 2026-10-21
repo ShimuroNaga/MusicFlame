@@ -19,7 +19,7 @@ import kotlin.math.sin
  * catalogId: id en PaymentCatalog.ITEMS que hay que consultar con
  *            LicenseRepository.isItemUnlocked/ProStatusHolder.isItemUnlocked
  *            para saber si este estilo está desbloqueado; null = gratis
- *            (BARS es el único estilo gratis).
+ *            (BARS y MIRRORED_BARS son los estilos gratis).
  */
 enum class EqualizerStyle(@StringRes val displayNameRes: Int, @StringRes val descriptionRes: Int, val catalogId: String?) {
     BARS(
@@ -30,7 +30,13 @@ enum class EqualizerStyle(@StringRes val displayNameRes: Int, @StringRes val des
     MIRRORED_BARS(
         R.string.pay_it_mirrored,
         R.string.eqs_d_mirrored,
-        catalogId = "eq_style_mirrored"
+        // Ahora GRATIS (antes era de pago); su lugar de pago lo toma MIRRORED_WAVE.
+        catalogId = null
+    ),
+    MIRRORED_WAVE(
+        R.string.pay_it_mirrored_wave,
+        R.string.eqs_d_mirrored_wave,
+        catalogId = "eq_style_mirrored_wave"
     ),
     WATER_WAVE(
         R.string.pay_it_wave,

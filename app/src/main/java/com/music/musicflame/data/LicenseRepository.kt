@@ -273,7 +273,7 @@ class LicenseRepository(context: Context) {
             ),
             KofiProduct(
                 "Pack 1 de ecualizadores", "https://ko-fi.com/s/c213993c41",
-                listOf("eq_style_mirrored", "eq_style_wave", "eq_style_pulse", "eq_style_particles", "eq_style_thin"),
+                listOf("eq_style_mirrored_wave", "eq_style_wave", "eq_style_pulse", "eq_style_particles", "eq_style_thin"),
                 nameRes = R.string.kofi_prod_eq_pack1, priceMxn = 25
             ),
             KofiProduct(

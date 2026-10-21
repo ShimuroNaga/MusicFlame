@@ -40,7 +40,6 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.zIndex
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
@@ -552,7 +551,9 @@ fun FullScreenPlayer(
     // para el mismo audioSessionId, se duplicaría la captura FFT en cada frame
     // sin necesidad; con un solo EqualizerLevelsState compartido, ambas filas
     // dibujan a partir de los mismos niveles ya calculados una sola vez.
-    val mirroredEqualizerSpectrum = if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS) {
+    val isMirroredStyle = equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS ||
+        equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_WAVE
+    val mirroredEqualizerSpectrum = if (isMirroredStyle) {
         com.music.musicflame.ui.components.rememberAudioSpectrum(
             audioSessionId = playerManager.audioSessionId.value,
             isPlaying = isPlaying,
@@ -616,7 +617,7 @@ fun FullScreenPlayer(
         // PRIMERO, o sea queda DETRÁS de los hijos siguientes. Queda encima
         // del fondo sólido (se ve) pero debajo de la carátula/letras/botones
         // (no los tapa).
-        if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS && mirroredEqualizerSpectrum != null) {
+        if (isMirroredStyle && mirroredEqualizerSpectrum != null) {
             // FIX (cuadro negro que tapaba la mitad derecha de la fila de arriba):
             // antes el Canvas se dimensionaba con .fillMaxWidth().fillMaxHeight(0.16f)
             // directamente sobre sí mismo, dentro del Box exterior. En ciertos casos
@@ -630,7 +631,9 @@ fun FullScreenPlayer(
             // alto) y el Canvas usa .matchParentSize(), que copia el tamaño YA
             // RESUELTO de ese Box en vez de resolver su propio tamaño — así queda
             // garantizado que siempre llega de punta a punta, sin importar qué esté
-            // pasando alrededor. zIndex explícito para dejar bien firme el orden:
+            // pasando alrededor. SIN zIndex a propósito: un zIndex positivo lo subía por
+            // encima de TODO lo demás (incluida la pantalla de la Cola, que tiene fondo
+            // opaco); sin él, el orden de declaración lo deja atrás, como la fila de abajo:
             // detrás de las letras/carátula (que se declaran después, más adelante
             // en este mismo árbol) pero por delante del fondo sólido.
             Box(
@@ -642,7 +645,6 @@ fun FullScreenPlayer(
                     // segundo protagonista — el protagonista sigue siendo la fila de
                     // abajo, igual que en el resto de los estilos.
                     .fillMaxHeight(0.16f)
-                    .zIndex(1f)
             ) {
                 EqualizerRainbowColor(
                     mode = equalizerColorMode,
@@ -650,13 +652,23 @@ fun FullScreenPlayer(
                     adaptiveColor = equalizerAdaptiveColor,
                     alpha = if (showLyrics) 0.28f else 0.55f
                 ) { color ->
-                    com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
-                        spectrum = mirroredEqualizerSpectrum,
-                        color = color,
-                        modifier = Modifier
-                            .matchParentSize()
-                            .padding(horizontal = 8.dp)
-                    )
+                    if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_WAVE) {
+                        com.music.musicflame.ui.components.MirroredWaveTopRowCanvas(
+                            spectrum = mirroredEqualizerSpectrum,
+                            color = color,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .padding(horizontal = 8.dp)
+                        )
+                    } else {
+                        com.music.musicflame.ui.components.MirroredBarsTopRowCanvas(
+                            spectrum = mirroredEqualizerSpectrum,
+                            color = color,
+                            modifier = Modifier
+                                .matchParentSize()
+                                .padding(horizontal = 8.dp)
+                        )
+                    }
                 }
             }
         }
@@ -734,7 +746,7 @@ fun FullScreenPlayer(
             // que ahora pasa por acá igual que BARS/WATER_WAVE/etc. — usa
             // MirroredBarsEqualizerCanvas por dentro (ver EqualizerCanvas), que ya
             // dibuja las dos filas con su hueco en el medio dentro de una sola caja.
-            if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_BARS) {
+            if (isMirroredStyle) {
                 // DOBLE ESPEJADO — fila de ABAJO: vuelve a vivir en su propia caja
                 // independiente (como al principio), pero en la MISMA posición que
                 // el resto de los estilos usa (26% de alto, pegada al borde de
@@ -748,15 +760,24 @@ fun FullScreenPlayer(
                     adaptiveColor = equalizerAdaptiveColor,
                     alpha = if (showLyrics) 0.28f else 0.55f
                 ) { color ->
-                    com.music.musicflame.ui.components.BarsEqualizerCanvas(
-                        spectrum = mirroredEqualizerSpectrum!!,
-                        color = color,
-                        modifier = Modifier
-                            .align(Alignment.BottomCenter)
-                            .fillMaxWidth()
-                            .fillMaxHeight(0.26f)
-                            .padding(horizontal = 8.dp)
-                    )
+                    val bottomRowModifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .fillMaxWidth()
+                        .fillMaxHeight(0.26f)
+                        .padding(horizontal = 8.dp)
+                    if (equalizerStyle == com.music.musicflame.ui.components.EqualizerStyle.MIRRORED_WAVE) {
+                        com.music.musicflame.ui.components.WaterWaveEqualizerCanvas(
+                            spectrum = mirroredEqualizerSpectrum!!,
+                            color = color,
+                            modifier = bottomRowModifier
+                        )
+                    } else {
+                        com.music.musicflame.ui.components.BarsEqualizerCanvas(
+                            spectrum = mirroredEqualizerSpectrum!!,
+                            color = color,
+                            modifier = bottomRowModifier
+                        )
+                    }
                 }
             } else if (equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.PULSE_CIRCLE &&
                 equalizerStyle != com.music.musicflame.ui.components.EqualizerStyle.CONCENTRIC_RIPPLES

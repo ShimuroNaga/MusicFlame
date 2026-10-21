@@ -44,7 +44,7 @@ object PaymentCatalog {
     }
 
     val ITEMS: List<Item> = listOf(
-        Item("eq_style_mirrored", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_mirrored),
+        Item("eq_style_mirrored_wave", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_mirrored_wave),
         Item("eq_style_wave", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_wave),
         Item("eq_style_pulse", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_pulse),
         Item("eq_style_particles", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_particles),

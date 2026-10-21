@@ -10,6 +10,7 @@
     <string name="pay_sec_pro_eq">PRO equalizer</string>
     <string name="pay_it_mirrored">Mirrored double</string>
     <string name="pay_it_wave">Water waves</string>
+    <string name="pay_it_mirrored_wave">Mirrored double (water waves)</string>
     <string name="pay_it_pulse">Pulsing circle</string>
     <string name="pay_it_particles">Particles</string>
     <string name="pay_it_thin">Thin bars</string>
@@ -59,6 +60,7 @@
     <string name="eqs_d_bars">The classic equalizer: vertical spectrum-style bars.</string>
     <string name="eqs_d_mirrored">Two rows of mirrored bars, top and bottom, symmetrical.</string>
     <string name="eqs_d_wave">A continuous, flowing wave, oscilloscope-style.</string>
+    <string name="eqs_d_mirrored_wave">Two mirrored water waves, top and bottom, symmetrical.</string>
     <string name="eqs_d_pulse">A ring that pulses in size with the audio intensity.</string>
     <string name="eqs_d_particles">Dots that jump and bounce with every frequency.</string>
     <string name="eqs_d_thin">Ultra-thin version, Spotify Canvas style.</string>

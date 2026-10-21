@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.drawscope.translate
 import androidx.compose.ui.graphics.lerp as lerpColor
 import kotlin.math.cos
@@ -42,6 +43,7 @@ fun EqualizerCanvas(
     when (style) {
         EqualizerStyle.BARS -> BarsEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.MIRRORED_BARS -> MirroredBarsEqualizerCanvas(spectrum, color, modifier)
+        EqualizerStyle.MIRRORED_WAVE -> MirroredWaveEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.WATER_WAVE -> WaterWaveEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.PULSE_CIRCLE -> PulseCircleEqualizerCanvas(spectrum, color, modifier)
         EqualizerStyle.PARTICLES -> ParticlesEqualizerCanvas(spectrum, color, modifier)
@@ -169,56 +171,122 @@ fun WaterWaveEqualizerCanvas(
     color: Color,
     modifier: Modifier = Modifier
 ) {
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        spectrum.tick
+
+        drawWaterWave(spectrum, color, size.width, size.height)
+    }
+}
+
+/**
+ * Dibujo de la ola de agua, sacado a una función de DrawScope para reutilizarlo
+ * tal cual en el estilo normal ([WaterWaveEqualizerCanvas]) y en el doble espejado
+ * de ondas de agua. Dibuja dentro del rectángulo (0,0)-(w,h) del origen actual del
+ * DrawScope, con la línea base pegada al borde de ABAJO de ese rectángulo; para
+ * la ola espejada de arriba se llama dentro de un scale(1, -1).
+ */
+private fun DrawScope.drawWaterWave(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    w: Float,
+    h: Float
+) {
     val barCount = spectrum.barCount
+    val baseline = h
+    val amplitude = h * 0.9f
+
+    val points = FloatArray(barCount + 1)
+    for (i in 0 until barCount) {
+        points[i] = spectrum.displayLevels[i].coerceIn(0f, 1f)
+    }
+    points[barCount] = points[barCount - 1]
+
+    fun xAt(i: Int) = (i.toFloat() / barCount) * w
+    fun yAt(i: Int) = baseline - points[i.coerceIn(0, barCount - 1)] * amplitude
+
+    val path = Path().apply {
+        moveTo(0f, baseline)
+        lineTo(xAt(0), yAt(0))
+        for (i in 0 until barCount - 1) {
+            val midX = (xAt(i) + xAt(i + 1)) / 2f
+            val midY = (yAt(i) + yAt(i + 1)) / 2f
+            quadraticTo(xAt(i), yAt(i), midX, midY)
+        }
+        lineTo(xAt(barCount - 1), yAt(barCount - 1))
+        lineTo(w, baseline)
+        close()
+    }
+
+    // Relleno principal (más transparente, "cuerpo" de la ola).
+    drawPath(path, color = color.copy(alpha = color.alpha * 0.35f))
+
+    // Contorno de la ola: la línea que marca la "cresta" del agua.
+    val outline = Path().apply {
+        moveTo(xAt(0), yAt(0))
+        for (i in 0 until barCount - 1) {
+            val midX = (xAt(i) + xAt(i + 1)) / 2f
+            val midY = (yAt(i) + yAt(i + 1)) / 2f
+            quadraticTo(xAt(i), yAt(i), midX, midY)
+        }
+        lineTo(xAt(barCount - 1), yAt(barCount - 1))
+    }
+    drawPath(
+        outline,
+        color = color,
+        style = Stroke(width = 6f, cap = StrokeCap.Round)
+    )
+}
+
+// --- 4b-bis) DOBLE ESPEJADO (ONDAS DE AGUA) ---
+// Lo mismo que el doble espejado de barras, pero cada fila es la ola de agua:
+// una ola abajo (nace del borde inferior) y su espejo arriba (nace del borde
+// superior y "mira hacia abajo"), con el mismo hueco fijo en el medio
+// (MIRROR_GAP_FRACTION). Este Canvas autocontenido se usa en el selector de
+// Ajustes y en cualquier lugar que dibuje por EqualizerCanvas; en
+// FullScreenPlayer las dos filas viven en cajas separadas pegadas a sus bordes
+// reales (igual que MIRRORED_BARS), usando WaterWaveEqualizerCanvas abajo y
+// [MirroredWaveTopRowCanvas] arriba.
+@Composable
+fun MirroredWaveEqualizerCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
     Canvas(modifier = modifier) {
         @Suppress("UNUSED_EXPRESSION")
         spectrum.tick
 
         val w = size.width
-        val h = size.height
-        val baseline = h
-        val amplitude = h * 0.9f
+        val gap = size.height * MIRROR_GAP_FRACTION
+        val rowH = (size.height - gap) / 2f
 
-        val points = FloatArray(barCount + 1)
-        for (i in 0 until barCount) {
-            points[i] = spectrum.displayLevels[i].coerceIn(0f, 1f)
+        // Fila de ABAJO: la ola normal, pegada al borde inferior.
+        translate(top = size.height - rowH) {
+            drawWaterWave(spectrum, color, w, rowH)
         }
-        points[barCount] = points[barCount - 1]
-
-        fun xAt(i: Int) = (i.toFloat() / barCount) * w
-        fun yAt(i: Int) = baseline - points[i.coerceIn(0, barCount - 1)] * amplitude
-
-        val path = Path().apply {
-            moveTo(0f, baseline)
-            lineTo(xAt(0), yAt(0))
-            for (i in 0 until barCount - 1) {
-                val midX = (xAt(i) + xAt(i + 1)) / 2f
-                val midY = (yAt(i) + yAt(i + 1)) / 2f
-                quadraticTo(xAt(i), yAt(i), midX, midY)
-            }
-            lineTo(xAt(barCount - 1), yAt(barCount - 1))
-            lineTo(w, baseline)
-            close()
+        // Fila de ARRIBA: la misma ola volteada, pegada al borde superior.
+        scale(scaleX = 1f, scaleY = -1f, pivot = Offset(w / 2f, rowH / 2f)) {
+            drawWaterWave(spectrum, color.copy(alpha = color.alpha * 0.7f), w, rowH)
         }
+    }
+}
 
-        // Relleno principal (más transparente, "cuerpo" de la ola).
-        drawPath(path, color = color.copy(alpha = color.alpha * 0.35f))
+// FILA DE ARRIBA del doble espejado de ondas, para pantalla completa: la ola
+// de agua con el origen en el borde SUPERIOR del canvas (volteada).
+@Composable
+fun MirroredWaveTopRowCanvas(
+    spectrum: EqualizerLevelsState,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        @Suppress("UNUSED_EXPRESSION")
+        spectrum.tick
 
-        // Contorno de la ola: la línea que marca la "cresta" del agua.
-        val outline = Path().apply {
-            moveTo(xAt(0), yAt(0))
-            for (i in 0 until barCount - 1) {
-                val midX = (xAt(i) + xAt(i + 1)) / 2f
-                val midY = (yAt(i) + yAt(i + 1)) / 2f
-                quadraticTo(xAt(i), yAt(i), midX, midY)
-            }
-            lineTo(xAt(barCount - 1), yAt(barCount - 1))
+        scale(scaleX = 1f, scaleY = -1f, pivot = Offset(size.width / 2f, size.height / 2f)) {
+            drawWaterWave(spectrum, color, size.width, size.height)
         }
-        drawPath(
-            outline,
-            color = color,
-            style = Stroke(width = 6f, cap = StrokeCap.Round)
-        )
     }
 }
 

@@ -10,6 +10,7 @@
     <string name="pay_sec_pro_eq">Ecualizador PRO</string>
     <string name="pay_it_mirrored">Doble espejado</string>
     <string name="pay_it_wave">Ondas de agua</string>
+    <string name="pay_it_mirrored_wave">Doble espejado (ondas de agua)</string>
     <string name="pay_it_pulse">Círculo pulsante</string>
     <string name="pay_it_particles">Partículas</string>
     <string name="pay_it_thin">Barras finas</string>
@@ -59,6 +60,7 @@
     <string name="eqs_d_bars">El ecualizador de siempre: barras verticales tipo espectro.</string>
     <string name="eqs_d_mirrored">Dos filas de barras reflejadas, arriba y abajo, simétricas.</string>
     <string name="eqs_d_wave">Una onda continua y fluida, tipo osciloscopio.</string>
+    <string name="eqs_d_mirrored_wave">Dos ondas de agua reflejadas, arriba y abajo, simétricas.</string>
     <string name="eqs_d_pulse">Un aro que late de tamaño según la intensidad del audio.</string>
     <string name="eqs_d_particles">Puntos que saltan y rebotan con cada frecuencia.</string>
     <string name="eqs_d_thin">Versión ultra delgada, estilo Spotify Canvas.</string>

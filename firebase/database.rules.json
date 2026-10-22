@@ -80,13 +80,17 @@
           ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
           "$id": {
             ".write": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists() && ((!data.exists() && newData.child('uid').val() === auth.uid && ((newData.child('type').val() === 'sys' && root.child('rooms/' + $code + '/owners/' + auth.uid).exists()) || (!newData.child('type').exists() && !root.child('rooms/' + $code + '/chatMuted/' + auth.uid).exists()))) || (data.exists() && !newData.exists() && data.child('type').val() !== 'sys' && (data.child('uid').val() === auth.uid || root.child('rooms/' + $code + '/owners/' + auth.uid).exists())))",
-            ".validate": "newData.hasChildren(['uid', 'at', 'text']) && ((newData.child('type').val() === 'sys' && newData.child('event').exists()) || (!newData.child('type').exists() && !newData.child('event').exists()))",
+            ".validate": "newData.hasChildren(['uid', 'at', 'text']) && ((newData.child('type').val() === 'sys' && newData.child('event').exists()) || (!newData.child('type').exists() && !newData.child('event').exists())) && (!newData.child('replyId').exists() || (newData.child('type').val() !== 'sys' && newData.hasChildren(['replyId', 'replyUid', 'replyName', 'replyText'])))",
             "uid": { ".validate": "newData.isString()" },
             "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
             "text": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 300" },
             "at": { ".validate": "newData.isNumber()" },
             "type": { ".validate": "newData.val() === 'sys'" },
             "event": { ".validate": "newData.val() === 'mute' || newData.val() === 'unmute'" },
+            "replyId": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 64" },
+            "replyUid": { ".validate": "newData.isString() && newData.val().length <= 128" },
+            "replyName": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "replyText": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 100" },
             "$other": { ".validate": false }
           }
         },

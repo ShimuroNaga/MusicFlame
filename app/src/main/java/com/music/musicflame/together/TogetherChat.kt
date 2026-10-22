@@ -12,6 +12,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -23,7 +24,9 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.Reply
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.outlined.Forum
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,13 +37,20 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.stringResource
@@ -51,11 +61,15 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.music.musicflame.R
 import java.util.Calendar
 import java.util.Date
+import kotlin.math.roundToInt
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 private const val CHAT_INPUT_MAX = 300
 
@@ -113,7 +127,8 @@ internal fun ChatsButton(accent: State<Color>, unread: Int, onClick: () -> Unit)
  * Chat de la sala, a PANTALLA COMPLETA. MainActivity oculta su barra superior e inferior mientras
  * [TogetherManager.chatScreenOpen] es true, así que aquí se manejan los insets: la barra de arriba
  * cubre la barra de estado y la de abajo sube con el teclado.
- * Solo texto. Mantener presionado un mensaje: Copiar / Borrar / (propietarios) Expulsar del chat o Perdonar.
+ * Solo texto. Mantener presionado un mensaje: Responder / Copiar / Borrar / (propietarios) Expulsar del chat o Perdonar.
+ * Responder también se hace deslizando el mensaje hacia la derecha (como WhatsApp).
  */
 @Composable
 internal fun TogetherChatPanel(
@@ -127,6 +142,21 @@ internal fun TogetherChatPanel(
     var draft by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val messages = manager.chat
+    val scope = rememberCoroutineScope()
+
+    // Mensaje al que se está respondiendo (null = mensaje normal) y el que se resalta al tocar una cita.
+    var replyingTo by remember { mutableStateOf<TogetherManager.ChatMessage?>(null) }
+    var highlightId by remember { mutableStateOf<String?>(null) }
+    val inputFocus = remember { FocusRequester() }
+    LaunchedEffect(replyingTo?.id) { if (replyingTo != null) runCatching { inputFocus.requestFocus() } }
+    LaunchedEffect(highlightId) { if (highlightId != null) { delay(1200); highlightId = null } }
+    val goneText = stringResource(R.string.tgc_reply_gone)
+    fun jumpTo(id: String) {
+        val i = messages.indexOfFirst { it.id == id }
+        if (i < 0) { Toast.makeText(context, goneText, Toast.LENGTH_SHORT).show(); return }
+        highlightId = id
+        scope.launch { listState.animateScrollToItem(i) }
+    }
 
     BackHandler(onBack = onBack)
 
@@ -201,6 +231,10 @@ internal fun TogetherChatPanel(
                                     mine = mine,
                                     showHeader = startsGroup,
                                     time = timeFormat.format(Date(msg.at)),
+                                    highlighted = highlightId == msg.id,
+                                    canReply = !manager.iAmChatMuted,
+                                    onReply = { replyingTo = msg },
+                                    onJumpTo = { jumpTo(it) },
                                     onCopy = {
                                         val cm = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                                         cm.setPrimaryClip(ClipData.newPlainText("chat", msg.text))
@@ -231,8 +265,16 @@ internal fun TogetherChatPanel(
                     modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp)
                 )
             } else {
-                fun send() { if (manager.sendChat(draft)) draft = "" }
+                fun send() { if (manager.sendChat(draft, replyingTo)) { draft = ""; replyingTo = null } }
                 val canSend = draft.isNotBlank() && manager.status == TogetherManager.Status.CONNECTED
+                replyingTo?.let { r ->
+                    ReplyPreviewBar(
+                        name = if (r.uid == manager.currentUid) stringResource(R.string.tgc_you) else r.name,
+                        text = r.text,
+                        accent = accent,
+                        onClose = { replyingTo = null }
+                    )
+                }
                 Row(
                     modifier = Modifier.fillMaxWidth().padding(start = 10.dp, end = 10.dp, top = 8.dp, bottom = 8.dp),
                     verticalAlignment = Alignment.Bottom,
@@ -257,7 +299,7 @@ internal fun TogetherChatPanel(
                             disabledIndicatorColor = Color.Transparent,
                             cursorColor = accent.value
                         ),
-                        modifier = Modifier.weight(1f)
+                        modifier = Modifier.weight(1f).focusRequester(inputFocus)
                     )
                     val sendBg = accent.value.copy(alpha = if (canSend) 1f else 0.3f)
                     Box(
@@ -422,6 +464,10 @@ private fun ChatBubbleRow(
     mine: Boolean,
     showHeader: Boolean,
     time: String,
+    highlighted: Boolean,
+    canReply: Boolean,
+    onReply: () -> Unit,
+    onJumpTo: (String) -> Unit,
     onCopy: () -> Unit
 ) {
     val cs = MaterialTheme.colorScheme
@@ -441,8 +487,70 @@ private fun ChatBubbleRow(
     val textColor = if (mine) onAccent(accent.value) else cs.onSurface
     val timeColor = textColor.copy(alpha = 0.65f)
 
+    // Deslizar a la derecha para responder (como WhatsApp): la burbuja se desplaza con resistencia y,
+    // al pasar el umbral, vibra y aparece el icono de responder; al soltar se manda a la caja de escribir.
+    val density = LocalDensity.current
+    val haptic = LocalHapticFeedback.current
+    val maxDragPx = with(density) { 72.dp.toPx() }
+    val triggerPx = with(density) { 56.dp.toPx() }
+    var dragPx by remember { mutableStateOf(0f) }
+    var dragging by remember { mutableStateOf(false) }
+    var passed by remember { mutableStateOf(false) }
+    val shownDrag by animateFloatAsState(
+        targetValue = dragPx,
+        animationSpec = if (dragging) snap<Float>() else androidx.compose.animation.core.spring<Float>(),
+        label = "chatSwipe"
+    )
+    val highlightAlpha by animateFloatAsState(if (highlighted) 0.28f else 0f, label = "chatHighlight")
+    val replyMsgId = msg.replyId
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = topPad)
+            .then(
+                if (canReply) Modifier.pointerInput(msg.id) {
+                    detectHorizontalDragGestures(
+                        onDragStart = { dragging = true; passed = false },
+                        onHorizontalDrag = { change, delta ->
+                            change.consume()
+                            dragPx = (dragPx + delta * 0.6f).coerceIn(0f, maxDragPx)
+                            val nowPassed = dragPx >= triggerPx
+                            if (nowPassed && !passed) haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                            passed = nowPassed
+                        },
+                        onDragEnd = {
+                            val fire = dragPx >= triggerPx
+                            dragging = false; dragPx = 0f; passed = false
+                            if (fire) onReply()
+                        },
+                        onDragCancel = { dragging = false; dragPx = 0f; passed = false }
+                    )
+                } else Modifier
+            )
+    ) {
+        // Icono que aparece detrás al deslizar.
+        Box(
+            modifier = Modifier
+                .align(Alignment.CenterStart)
+                .padding(start = 12.dp)
+                .size(32.dp)
+                .alpha((shownDrag / triggerPx).coerceIn(0f, 1f))
+                .clip(CircleShape)
+                .background(accent.value.copy(alpha = 0.25f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.Reply,
+                contentDescription = null,
+                tint = accent.value,
+                modifier = Modifier.size(18.dp)
+            )
+        }
     Row(
-        modifier = Modifier.fillMaxWidth().padding(top = topPad),
+        modifier = Modifier
+            .fillMaxWidth()
+            .offset { IntOffset(shownDrag.roundToInt(), 0) },
         horizontalArrangement = if (mine) Arrangement.End else Arrangement.Start,
         verticalAlignment = Alignment.Top
     ) {
@@ -460,10 +568,13 @@ private fun ChatBubbleRow(
                 modifier = Modifier
                     .clip(shape)
                     .background(bubbleColor)
+                    .background(textColor.copy(alpha = highlightAlpha))
                     .pointerInput(msg.id) {
                         detectTapGestures(onLongPress = { menuOpen = true })
                     }
                     .padding(horizontal = 12.dp, vertical = 7.dp)
+                    // Con cita, la cita ocupa todo el ancho de la burbuja.
+                    .then(if (replyMsgId != null) Modifier.width(IntrinsicSize.Max) else Modifier)
             ) {
                 if (!mine && showHeader) {
                     Text(
@@ -473,6 +584,17 @@ private fun ChatBubbleRow(
                         color = NameColors[(msg.uid.hashCode() and 0x7fffffff) % NameColors.size],
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+                if (replyMsgId != null) {
+                    val quotedMine = msg.replyUid == manager.currentUid
+                    ReplyQuote(
+                        name = if (quotedMine) stringResource(R.string.tgc_you) else (msg.replyName ?: ""),
+                        text = msg.replyText ?: "",
+                        barColor = if (mine) textColor.copy(alpha = 0.85f)
+                        else NameColors[((msg.replyUid ?: "").hashCode() and 0x7fffffff) % NameColors.size],
+                        textColor = textColor,
+                        onClick = { onJumpTo(replyMsgId) }
                     )
                 }
                 Text(msg.text, fontSize = 15.sp, color = textColor)
@@ -485,6 +607,12 @@ private fun ChatBubbleRow(
             }
 
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                if (canReply) {
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.tgc_reply)) },
+                        onClick = { menuOpen = false; onReply() }
+                    )
+                }
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.tgc_copy)) },
                     onClick = { menuOpen = false; onCopy() }
@@ -512,6 +640,77 @@ private fun ChatBubbleRow(
             } else {
                 Spacer(Modifier.size(34.dp))
             }
+        }
+    }
+    }
+}
+
+/** Cita dentro de la burbuja: barra de color + autor + texto (2 líneas). Tocarla salta al mensaje original. */
+@Composable
+private fun ReplyQuote(name: String, text: String, barColor: Color, textColor: Color, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .padding(top = 2.dp, bottom = 5.dp)
+            .fillMaxWidth()
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(8.dp))
+            .background(textColor.copy(alpha = 0.12f))
+            .clickable(onClick = onClick)
+    ) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(barColor))
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 4.dp)) {
+            Text(
+                name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = barColor,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text,
+                fontSize = 13.sp,
+                color = textColor.copy(alpha = 0.85f),
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+    }
+}
+
+/** Barra sobre la caja de escribir: "Respondiendo a X" + el texto citado + botón para cancelar. */
+@Composable
+private fun ReplyPreviewBar(name: String, text: String, accent: State<Color>, onClose: () -> Unit) {
+    val cs = MaterialTheme.colorScheme
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(start = 10.dp, end = 10.dp, top = 8.dp)
+            .height(IntrinsicSize.Min)
+            .clip(RoundedCornerShape(14.dp))
+            .background(cs.surfaceVariant.copy(alpha = 0.55f)),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.width(4.dp).fillMaxHeight().background(accent.value))
+        Column(Modifier.weight(1f).padding(horizontal = 10.dp, vertical = 6.dp)) {
+            Text(
+                stringResource(R.string.tgc_replying_to, name),
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = accent.value,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text,
+                fontSize = 13.sp,
+                color = cs.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        IconButton(onClick = onClose) {
+            Icon(Icons.Filled.Close, contentDescription = stringResource(R.string.tgc_reply_cancel), modifier = Modifier.size(20.dp))
         }
     }
 }

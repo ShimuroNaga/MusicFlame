@@ -21,4 +21,9 @@
     <string name="tgc_notif_title_many">%1$d new messages in the room</string>
     <string name="tgc_members_online">%1$d in the room</string>
     <string name="tgc_today">Today</string>
+    <string name="tgc_reply">Reply</string>
+    <string name="tgc_you">You</string>
+    <string name="tgc_replying_to">Replying to %1$s</string>
+    <string name="tgc_reply_cancel">Cancel reply</string>
+    <string name="tgc_reply_gone">The original message is no longer available</string>
 </resources>

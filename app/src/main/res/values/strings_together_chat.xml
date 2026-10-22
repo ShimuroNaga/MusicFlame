@@ -21,4 +21,9 @@
     <string name="tgc_notif_title_many">%1$d mensajes nuevos en la sala</string>
     <string name="tgc_members_online">%1$d en la sala</string>
     <string name="tgc_today">Hoy</string>
+    <string name="tgc_reply">Responder</string>
+    <string name="tgc_you">Tú</string>
+    <string name="tgc_replying_to">Respondiendo a %1$s</string>
+    <string name="tgc_reply_cancel">Cancelar respuesta</string>
+    <string name="tgc_reply_gone">El mensaje original ya no está</string>
 </resources>

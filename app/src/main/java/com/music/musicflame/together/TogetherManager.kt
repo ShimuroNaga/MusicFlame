@@ -200,7 +200,13 @@ class TogetherManager(
         val text: String,
         val at: Long,
         val isSystem: Boolean = false,
-        val event: String? = null
+        val event: String? = null,
+        /** Si es una respuesta: id, autor y texto (recortado) del mensaje citado. Se guarda una copia del texto
+         *  para que la cita siga viéndose aunque el original se borre o salga de los últimos CHAT_LIMIT. */
+        val replyId: String? = null,
+        val replyUid: String? = null,
+        val replyName: String? = null,
+        val replyText: String? = null
     )
 
     val chat = mutableStateListOf<ChatMessage>()
@@ -745,7 +751,11 @@ class TogetherManager(
                             text = text,
                             at = (c.child("at").value as? Number)?.toLong() ?: serverNow(),
                             isSystem = c.child("type").getValue(String::class.java) == "sys",
-                            event = c.child("event").getValue(String::class.java)
+                            event = c.child("event").getValue(String::class.java),
+                            replyId = c.child("replyId").getValue(String::class.java),
+                            replyUid = c.child("replyUid").getValue(String::class.java),
+                            replyName = c.child("replyName").getValue(String::class.java),
+                            replyText = c.child("replyText").getValue(String::class.java)
                         )
                     }
                     val known = chat.map { it.id }.toHashSet()
@@ -1338,8 +1348,11 @@ class TogetherManager(
         toast(appContext.getString(if (denied) R.string.tgm_firebase_denied else R.string.tgm_no_internet))
     }
 
-    /** Envía [text] al chat de la sala. Devuelve true si se mandó (para que la UI limpie la caja). */
-    fun sendChat(text: String): Boolean {
+    /**
+     * Envía [text] al chat de la sala. Si [replyTo] no es null, el mensaje va como respuesta a ese mensaje
+     * (se guarda quién lo escribió y una copia recortada de su texto). Devuelve true si se mandó.
+     */
+    fun sendChat(text: String, replyTo: ChatMessage? = null): Boolean {
         val code = roomCode ?: return false
         val me = myUid() ?: return false
         if (status != Status.CONNECTED) return false
@@ -1349,9 +1362,18 @@ class TogetherManager(
         val now = SystemClock.elapsedRealtime()
         if (now - lastChatSentAt < CHAT_MIN_INTERVAL_MS) return false   // anti-spam
         lastChatSentAt = now
-        db.getReference("rooms/$code/chat").push().setValue(
-            mapOf("uid" to me, "name" to displayName(), "text" to t, "at" to ServerValue.TIMESTAMP)
-        ).addOnFailureListener { chatFailed(it) }
+        val msg = HashMap<String, Any>()
+        msg["uid"] = me
+        msg["name"] = displayName()
+        msg["text"] = t
+        msg["at"] = ServerValue.TIMESTAMP
+        if (replyTo != null && !replyTo.isSystem && replyTo.text.isNotEmpty()) {
+            msg["replyId"] = replyTo.id
+            msg["replyUid"] = replyTo.uid
+            msg["replyName"] = replyTo.name.take(40)
+            msg["replyText"] = replyTo.text.take(CHAT_REPLY_PREVIEW_CHARS)
+        }
+        db.getReference("rooms/$code/chat").push().setValue(msg).addOnFailureListener { chatFailed(it) }
         return true
     }
 
@@ -1759,6 +1781,7 @@ class TogetherManager(
         @Volatile var current: TogetherManager? = null
         private const val CHAT_LIMIT = 100              // mensajes que se cargan/muestran
         private const val CHAT_MAX_CHARS = 300
+        private const val CHAT_REPLY_PREVIEW_CHARS = 100   // tope de la cita (igual en firebase/database.rules.json)
         private const val CHAT_MIN_INTERVAL_MS = 700L
         const val MAX_OWNERS = 4                  // máximo 4 propietarios: el anfitrión + 3 más
         /** Página que abre la app con el código (ver docs/sala/index.html; hay que activar GitHub Pages). */

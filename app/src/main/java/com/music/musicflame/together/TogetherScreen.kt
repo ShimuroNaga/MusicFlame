@@ -56,15 +56,58 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import com.music.musicflame.R
 
-/** Pantalla "En compañía". Se abre desde el botón junto a Configuración. */
+/**
+ * Pantalla "En compañía". Se abre desde el botón junto a Configuración.
+ * Envuelve todo en el color de TEXTO elegido en Ajustes > Apariencia > "Color de texto de En compañía"
+ * (Adaptativo = el color de texto que ya usa la app, Personalizado o Arcoíris). Así el encabezado, los
+ * botones y la barra del chat lo siguen sin tocar cada Text uno por uno.
+ */
 @Composable
 fun TogetherScreen(
+    manager: TogetherManager,
+    modifier: Modifier = Modifier
+) {
+    val ctx = LocalContext.current
+    val repo = remember { com.music.musicflame.data.SettingsRepository(ctx) }
+    val textColor by rememberTogetherTextColor(
+        mode = remember { repo.getTogetherTextColorMode() },
+        hex = remember { repo.getTogetherTextCustomColorHex() }
+    )
+    CompositionLocalProvider(
+        LocalContentColor provides textColor,
+        com.music.musicflame.ui.theme.LocalAppTextColor provides textColor
+    ) {
+        TogetherScreenContent(manager = manager, modifier = modifier)
+    }
+}
+
+/** Color de texto de "En compañía". Adaptativo = color de texto actual de la app (LocalAppTextColor). */
+@Composable
+private fun rememberTogetherTextColor(mode: String, hex: String): State<Color> {
+    val adaptive = com.music.musicflame.ui.theme.LocalAppTextColor.current
+    val phase = if (mode == com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW)
+        com.music.musicflame.ui.theme.rememberRainbowPhase() else null
+    return remember(mode, hex, adaptive, phase) {
+        derivedStateOf {
+            when {
+                phase != null -> com.music.musicflame.ui.theme.rainbowColorAt(phase.value)
+                mode == "Personalizado" -> com.music.musicflame.ui.theme.parseCustomTextColor(hex)
+                else -> adaptive
+            }
+        }
+    }
+}
+
+@Composable
+private fun TogetherScreenContent(
     manager: TogetherManager,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var joinInput by remember { mutableStateOf("") }
     var showInfo by remember { mutableStateOf(false) }
+    // Chat de la sala: pantalla completa dentro de esta misma pantalla (estado en el manager para que MainActivity oculte sus barras).
+    DisposableEffect(Unit) { onDispose { manager.chatScreenOpen = false } }
     val inRoom = manager.roomCode != null
     val connected = manager.status == TogetherManager.Status.CONNECTED
     val busy by manager.busy
@@ -86,6 +129,25 @@ fun TogetherScreen(
         }
     }
 
+    // Si llegaste desde la notificación del chat, abre el chat directo (solo si ya hay conexión).
+    LaunchedEffect(manager.openChatRequested, connected, manager.status) {
+        if (manager.openChatRequested) {
+            if (connected) { manager.chatScreenOpen = true; manager.openChatRequested = false }
+            else if (manager.status != TogetherManager.Status.CONNECTING) manager.openChatRequested = false
+        }
+    }
+    LaunchedEffect(inRoom) { if (!inRoom) manager.chatScreenOpen = false }
+
+    if (manager.chatScreenOpen && inRoom) {
+        TogetherChatPanel(
+            manager = manager,
+            accent = accent,
+            onBack = { manager.chatScreenOpen = false },
+            modifier = modifier
+        )
+        return
+    }
+
     LazyColumn(
         modifier = modifier.fillMaxSize().padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp),
@@ -97,7 +159,10 @@ fun TogetherScreen(
                 accent = accent,
                 showInfo = showInfo,
                 onToggleInfo = { showInfo = !showInfo },
-                infoText = stringResource(R.string.tg_info, TogetherManager.MAX_MEMBERS)
+                infoText = stringResource(R.string.tg_info, TogetherManager.MAX_MEMBERS),
+                // Botón "Chats" arriba a la derecha (solo dentro de una sala)
+                chatUnread = manager.chatUnread,
+                onOpenChat = if (inRoom) ({ manager.chatScreenOpen = true }) else null
             )
         }
 
@@ -136,7 +201,7 @@ fun TogetherScreen(
             item {
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                     HorizontalDivider(modifier = Modifier.weight(1f))
-                    Text(stringResource(R.string.tg_or_join), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.tg_or_join), fontSize = 12.sp, color = LocalContentColor.current.copy(alpha = 0.7f))
                     HorizontalDivider(modifier = Modifier.weight(1f))
                 }
             }
@@ -144,7 +209,7 @@ fun TogetherScreen(
             item {
                 Card(
                     shape = RoundedCornerShape(24.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), contentColor = LocalContentColor.current),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -204,7 +269,7 @@ fun TogetherScreen(
                     Text(
                         if (manager.isHost) stringResource(R.string.tg_your_room_host) else stringResource(R.string.tg_room),
                         fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = LocalContentColor.current.copy(alpha = 0.7f)
                     )
                     RoomCodeChips(accent = accent, code = manager.roomCode ?: "")
                     var showQr by remember { mutableStateOf(false) }
@@ -240,11 +305,11 @@ fun TogetherScreen(
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     StatusPill(label = label, color = colorProvider, pulsing = connected || manager.status == TogetherManager.Status.CONNECTING)
                     if (manager.statusDetail.isNotBlank()) {
-                        Text(manager.statusDetail, fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(manager.statusDetail, fontSize = 12.sp, color = LocalContentColor.current.copy(alpha = 0.7f))
                     }
                     if (connected && manager.onlineCount < 2) {
                         Text(stringResource(R.string.tg_waiting_more), fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            color = LocalContentColor.current.copy(alpha = 0.7f))
                     }
                     manager.missingSongText?.let {
                         if (connected && !manager.isController) {
@@ -272,7 +337,7 @@ fun TogetherScreen(
                     val playingText = manager.nowPlayingText
                     Card(
                         shape = RoundedCornerShape(22.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)),
+                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f), contentColor = LocalContentColor.current),
                         modifier = Modifier.fillMaxWidth().animateContentSize()
                     ) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -292,14 +357,14 @@ fun TogetherScreen(
                                         Text(
                                             stringResource(R.string.tgq_you_control_hint),
                                             fontSize = 12.sp,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = LocalContentColor.current.copy(alpha = 0.7f)
                                         )
                                         if (playingText != null) {
                                             Spacer(Modifier.height(4.dp))
                                             Text(playingText, fontWeight = FontWeight.SemiBold, maxLines = 2, overflow = TextOverflow.Ellipsis)
                                         }
                                     } else {
-                                        Text(stringResource(R.string.tg_now_playing), fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text(stringResource(R.string.tg_now_playing), fontSize = 12.sp, color = LocalContentColor.current.copy(alpha = 0.7f))
                                         Text(
                                             playingText ?: if (manager.isOwner) stringResource(R.string.tgq_pick_a_song) else stringResource(R.string.tg_waiting_host),
                                             fontWeight = FontWeight.SemiBold,
@@ -354,7 +419,7 @@ fun TogetherScreen(
                         Text(
                             stringResource(R.string.tgq_queue_empty),
                             fontSize = 12.sp,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = LocalContentColor.current.copy(alpha = 0.7f)
                         )
                     }
                 } else {
@@ -363,7 +428,7 @@ fun TogetherScreen(
                             Text(
                                 stringResource(R.string.tgq_queue_hint_owner),
                                 fontSize = 11.sp,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                color = LocalContentColor.current.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(bottom = 6.dp)
                             )
                         }
@@ -415,7 +480,7 @@ fun TogetherScreen(
             items(manager.members, key = { it.uid }) { m ->
                 Card(
                     shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f), contentColor = LocalContentColor.current),
                     modifier = Modifier.fillMaxWidth().animateContentSize()
                 ) {
                     Row(
@@ -439,7 +504,7 @@ fun TogetherScreen(
                                     else -> stringResource(R.string.tg_member_online)
                                 },
                                 fontSize = 12.sp,
-                                color = if (m.online) accent.value else MaterialTheme.colorScheme.onSurfaceVariant
+                                color = if (m.online) accent.value else LocalContentColor.current.copy(alpha = 0.7f)
                             )
                         }
                         // Solo el anfitrión administra propietarios (no sobre sí mismo).
@@ -510,7 +575,9 @@ private fun TogetherHero(
     accent: State<Color>,
     showInfo: Boolean,
     onToggleInfo: () -> Unit,
-    infoText: String
+    infoText: String,
+    chatUnread: Int = 0,
+    onOpenChat: (() -> Unit)? = null
 ) {
     val shape = RoundedCornerShape(28.dp)
     val t = rememberInfiniteTransition(label = "heroRings")
@@ -536,6 +603,11 @@ private fun TogetherHero(
             .animateContentSize(),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        if (onOpenChat != null) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                ChatsButton(accent = accent, unread = chatUnread, onClick = onOpenChat)
+            }
+        }
         Box(
             modifier = Modifier
                 .size(120.dp)
@@ -568,7 +640,7 @@ private fun TogetherHero(
             stringResource(R.string.tg_tagline),
             fontSize = 13.sp,
             textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            color = LocalContentColor.current.copy(alpha = 0.7f)
         )
         TextButton(onClick = onToggleInfo, colors = ButtonDefaults.textButtonColors(contentColor = accent.value)) {
             Text(stringResource(R.string.tg_how_it_works), fontWeight = FontWeight.SemiBold)
@@ -580,7 +652,7 @@ private fun TogetherHero(
                 infoText,
                 fontSize = 13.sp,
                 textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                color = LocalContentColor.current.copy(alpha = 0.7f)
             )
         }
     }
@@ -611,7 +683,7 @@ private fun RoomQrDialog(link: String, code: String, onDismiss: () -> Unit) {
                     stringResource(R.string.tg_qr_hint),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = LocalContentColor.current.copy(alpha = 0.7f)
                 )
             }
         },
@@ -801,7 +873,8 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
                 Card(
                     shape = RoundedCornerShape(18.dp),
                     colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dragging) 0.8f else 0.35f)
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (dragging) 0.8f else 0.35f),
+                        contentColor = LocalContentColor.current
                     ),
                     modifier = Modifier
                         .fillMaxWidth()
@@ -854,7 +927,7 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
                                     fontSize = 12.sp,
                                     maxLines = 1,
                                     overflow = TextOverflow.Ellipsis,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    color = LocalContentColor.current.copy(alpha = 0.7f)
                                 )
                             }
                             Text(
@@ -873,7 +946,7 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
                         if (canReorder) {
                             Icon(
                                 Icons.Filled.DragHandle, null,
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                tint = LocalContentColor.current.copy(alpha = 0.7f),
                                 modifier = Modifier.padding(start = 2.dp)
                             )
                         }
@@ -886,7 +959,7 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
 
 /** Avatar circular: icono de la persona si lo puso; si no, la inicial. Gris si está desconectada. */
 @Composable
-private fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatar: String? = null, avatarSize: Dp = 42.dp) {
+internal fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatar: String? = null, avatarSize: Dp = 42.dp) {
     val initial = name.trim().firstOrNull()?.uppercase() ?: "?"
     val image = remember(avatar) { TogetherAvatar.decode(avatar)?.asImageBitmap() }
     Box(
@@ -939,7 +1012,7 @@ private fun rememberTogetherAccent(mode: String, hex: String): State<Color> {
 }
 
 /** Texto/ícono legible sobre el color de acento (negro sobre claros, blanco sobre oscuros). */
-private fun onAccent(c: Color): Color = if (c.luminance() > 0.5f) Color.Black else Color.White
+internal fun onAccent(c: Color): Color = if (c.luminance() > 0.5f) Color.Black else Color.White
 
 @Composable
 private fun AccentButton(

@@ -223,6 +223,7 @@ fun SettingsScreen(
     val fullPlayerBgModePref = remember { mutableStateOf(settingsRepo.getFullPlayerBgMode()) }
     val fullPlayerBgIsGifPref = remember { mutableStateOf(settingsRepo.isFullPlayerBgGif()) }
     val showTogetherColorDialog = remember { mutableStateOf(false) }
+    val showTogetherTextColorDialog = remember { mutableStateOf(false) }
     val showLyricsColorDialog = remember { mutableStateOf(false) }
     val showNowPlayingColorDialog = remember { mutableStateOf(false) }
 
@@ -255,6 +256,9 @@ fun SettingsScreen(
     // Color de acento de la pantalla "En compañía".
     val togetherColorModePref = remember { mutableStateOf(settingsRepo.getTogetherColorMode()) }
     val togetherCustomColorHexPref = remember { mutableStateOf(settingsRepo.getTogetherCustomColorHex()) }
+    // Color de TEXTO de "En compañía" (encabezado, botones, chat).
+    val togetherTextColorModePref = remember { mutableStateOf(settingsRepo.getTogetherTextColorMode()) }
+    val togetherTextCustomColorHexPref = remember { mutableStateOf(settingsRepo.getTogetherTextCustomColorHex()) }
     // Color propio del texto de la letra sincronizada (catálogo, punto 2):
     // "Blanco", "Negro" o "Personalizado" (lyricsCustomColorHexPref). Mismo
     // patrón que equalizerColorModePref/equalizerCustomColorHexPref de arriba;
@@ -906,6 +910,7 @@ fun SettingsScreen(
                             fullPlayerBgModePref = fullPlayerBgModePref,
                             fullPlayerBgIsGifPref = fullPlayerBgIsGifPref,
                             showTogetherColorDialog = showTogetherColorDialog,
+                            showTogetherTextColorDialog = showTogetherTextColorDialog,
                             showNowPlayingColorDialog = showNowPlayingColorDialog,
                             appTheme = appTheme,
                             amoledMode = amoledMode,
@@ -921,6 +926,8 @@ fun SettingsScreen(
                             momentsCustomColorHexPref = momentsCustomColorHexPref,
                             togetherColorModePref = togetherColorModePref,
                             togetherCustomColorHexPref = togetherCustomColorHexPref,
+                            togetherTextColorModePref = togetherTextColorModePref,
+                            togetherTextCustomColorHexPref = togetherTextCustomColorHexPref,
                             nowPlayingColorModePref = nowPlayingColorModePref,
                             nowPlayingCustomColorHexPref = nowPlayingCustomColorHexPref,
                             albumArtShapePref = albumArtShapePref,
@@ -1185,6 +1192,14 @@ fun SettingsScreen(
             showTogetherColorDialog = showTogetherColorDialog,
             togetherColorModePref = togetherColorModePref,
             togetherCustomColorHexPref = togetherCustomColorHexPref
+        )
+
+        SettingsTogetherTextColorDialog(
+            style = settingsStyle,
+            settingsRepo = settingsRepo,
+            showTogetherTextColorDialog = showTogetherTextColorDialog,
+            togetherTextColorModePref = togetherTextColorModePref,
+            togetherTextCustomColorHexPref = togetherTextCustomColorHexPref
         )
 
         SettingsLyricsColorDialog(

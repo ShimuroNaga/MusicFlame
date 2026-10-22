@@ -165,6 +165,7 @@ internal fun LazyListScope.settingsAppearanceSection(
     fullPlayerBgModePref: MutableState<String>,
     fullPlayerBgIsGifPref: MutableState<Boolean>,
     showTogetherColorDialog: MutableState<Boolean>,
+    showTogetherTextColorDialog: MutableState<Boolean>,
     showNowPlayingColorDialog: MutableState<Boolean>,
     appTheme: MutableState<String>,
     amoledMode: MutableState<Boolean>,
@@ -180,6 +181,8 @@ internal fun LazyListScope.settingsAppearanceSection(
     momentsCustomColorHexPref: MutableState<String>,
     togetherColorModePref: MutableState<String>,
     togetherCustomColorHexPref: MutableState<String>,
+    togetherTextColorModePref: MutableState<String>,
+    togetherTextCustomColorHexPref: MutableState<String>,
     nowPlayingColorModePref: MutableState<String>,
     nowPlayingCustomColorHexPref: MutableState<String>,
     albumArtShapePref: MutableState<com.music.musicflame.AlbumArtShapeType>,
@@ -465,6 +468,30 @@ internal fun LazyListScope.settingsAppearanceSection(
             },
             colors = style.listItemColors,
             modifier = Modifier.clickable { showTogetherColorDialog.value = true }
+        )
+        HorizontalDivider(color = style.dividerColor)
+    }
+
+    item {
+        // NUEVO: color de TEXTO de "En compañía" (encabezado, botones y chat), aparte del color de acento.
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.settings_color_texto_en_compania)) },
+            supportingContent = {
+                Text(
+                    when (togetherTextColorModePref.value) {
+                        "Personalizado" -> stringResource(R.string.settings_personalizado_1_s, togetherTextCustomColorHexPref.value)
+                        com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW -> stringResource(R.string.settings_arcoiris_en_movimiento)
+                        else -> stringResource(R.string.settings_adaptativo_color_de_texto)
+                    }
+                )
+            },
+            trailingContent = {
+                TextButton(onClick = { showTogetherTextColorDialog.value = true }) {
+                    Text(stringResource(R.string.action_change), fontWeight = FontWeight.ExtraBold, color = style.trailingColor)
+                }
+            },
+            colors = style.listItemColors,
+            modifier = Modifier.clickable { showTogetherTextColorDialog.value = true }
         )
         HorizontalDivider(color = style.dividerColor)
     }

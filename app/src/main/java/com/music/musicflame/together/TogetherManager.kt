@@ -6,6 +6,7 @@ import android.util.Log
 import androidx.compose.runtime.State
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
@@ -16,6 +17,7 @@ import com.google.firebase.database.DataSnapshot
 import com.google.firebase.database.DatabaseError
 import com.google.firebase.database.DatabaseReference
 import com.google.firebase.database.MutableData
+import com.google.firebase.database.Query
 import com.google.firebase.database.Transaction
 import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ServerValue
@@ -188,6 +190,43 @@ class TogetherManager(
         private set
     var iVotedSkip by mutableStateOf(false)
         private set
+
+    // ---------- Chat de la sala ----------
+    /** Un mensaje del chat. Si [isSystem], es un aviso discreto ([event] = "mute"/"unmute", [text] = nombre afectado). */
+    data class ChatMessage(
+        val id: String,
+        val uid: String,
+        val name: String,
+        val text: String,
+        val at: Long,
+        val isSystem: Boolean = false,
+        val event: String? = null
+    )
+
+    val chat = mutableStateListOf<ChatMessage>()
+    private val chatMutedUids = mutableStateListOf<String>()
+    /** Iconos vistos en la sala (uid -> base64), para que los mensajes de quien ya se fue conserven su icono. */
+    val chatAvatars = mutableStateMapOf<String, String>()
+    /** true mientras el panel del chat está abierto (no se avisa ni se cuentan no leídos). */
+    var chatVisible by mutableStateOf(false)
+        private set
+    var chatUnread by mutableStateOf(0)
+        private set
+    /** La notificación del chat pide abrir el chat directamente (lo consume TogetherScreen). */
+    var openChatRequested by mutableStateOf(false)
+    /** true mientras el chat está a pantalla completa: MainActivity oculta sus barras y el chat trae las suyas. */
+    var chatScreenOpen by mutableStateOf(false)
+
+    private var chatQuery: Query? = null
+    private var chatListener: ValueEventListener? = null
+    private var chatMutedRef: DatabaseReference? = null
+    private var chatMutedListener: ValueEventListener? = null
+    private var chatBaselineDone = false
+    private val chatUnreadLines = ArrayList<String>()
+    private var lastChatSentAt = 0L
+
+    val iAmChatMuted: Boolean get() = myUid()?.let { it in chatMutedUids } == true
+    fun isChatMuted(uid: String): Boolean = uid in chatMutedUids
 
     private var overflowJob: Job? = null
 
@@ -592,6 +631,7 @@ class TogetherManager(
                         )
                     }.sortedWith(compareByDescending<Member> { it.isHost }.thenBy { it.name.lowercase() })
                     members.clear(); members.addAll(list)
+                    list.forEach { m -> m.avatar?.let { a -> chatAvatars[m.uid] = a } }
                     // Tope de MAX_MEMBERS conectados: sobran los que entraron al final (el anfitrión nunca).
                     val over = TogetherQueueLogic.overflowUids(
                         list.map { TogetherQueueLogic.OnlineEntry(it.uid, it.joinedAt, it.isHost) }, MAX_MEMBERS
@@ -688,6 +728,52 @@ class TogetherManager(
             ref.addValueEventListener(votesListener!!)
         }
 
+        // 6b) Chat de la sala: últimos CHAT_LIMIT mensajes + lista de expulsados del chat.
+        chatBaselineDone = false
+        chatQuery = db.getReference("rooms/$code/chat").limitToLast(CHAT_LIMIT).also { q ->
+            chatListener = object : ValueEventListener {
+                override fun onDataChange(s: DataSnapshot) {
+                    val me = myUid()
+                    val list = s.children.mapNotNull { c ->
+                        val id = c.key ?: return@mapNotNull null
+                        val sender = c.child("uid").getValue(String::class.java) ?: return@mapNotNull null
+                        val text = c.child("text").getValue(String::class.java) ?: return@mapNotNull null
+                        ChatMessage(
+                            id = id,
+                            uid = sender,
+                            name = c.child("name").getValue(String::class.java) ?: "",
+                            text = text,
+                            at = (c.child("at").value as? Number)?.toLong() ?: serverNow(),
+                            isSystem = c.child("type").getValue(String::class.java) == "sys",
+                            event = c.child("event").getValue(String::class.java)
+                        )
+                    }
+                    val known = chat.map { it.id }.toHashSet()
+                    // El primer snapshot es el historial: no cuenta como "nuevo".
+                    val fresh = if (chatBaselineDone) list.filter { it.id !in known && !it.isSystem && it.uid != me } else emptyList()
+                    chat.clear(); chat.addAll(list)
+                    chatBaselineDone = true
+                    if (fresh.isNotEmpty() && !chatVisible) onChatArrived(fresh)
+                }
+                override fun onCancelled(e: DatabaseError) {
+                    Log.w(TAG, "chat cancelled: ${e.message}")
+                }
+            }
+            q.addValueEventListener(chatListener!!)
+        }
+        chatMutedRef = db.getReference("rooms/$code/chatMuted").also { ref ->
+            chatMutedListener = object : ValueEventListener {
+                override fun onDataChange(s: DataSnapshot) {
+                    val wasMuted = iAmChatMuted
+                    val ids = s.children.mapNotNull { it.key }
+                    chatMutedUids.clear(); chatMutedUids.addAll(ids)
+                    if (!wasMuted && iAmChatMuted) toast(appContext.getString(R.string.tgc_you_muted))
+                }
+                override fun onCancelled(e: DatabaseError) {}
+            }
+            ref.addValueEventListener(chatMutedListener!!)
+        }
+
         // 7) Estado de reproducción. Todos lo escuchan; solo el controlador lo publica.
         stateRef = db.getReference("rooms/$code/state")
         stateListener = object : ValueEventListener {
@@ -725,6 +811,13 @@ class TogetherManager(
         ownersListener?.let { ownersRef?.removeEventListener(it) }
         queueListener?.let { queueRef?.removeEventListener(it) }
         votesListener?.let { votesRef?.removeEventListener(it) }
+        chatListener?.let { chatQuery?.removeEventListener(it) }
+        chatMutedListener?.let { chatMutedRef?.removeEventListener(it) }
+        chatListener = null; chatQuery = null; chatMutedListener = null; chatMutedRef = null
+        chatBaselineDone = false
+        chat.clear(); chatMutedUids.clear(); chatAvatars.clear()
+        chatUnread = 0; chatUnreadLines.clear()
+        TogetherNotifications.cancelChat(appContext)
         metaListener = null; membersListener = null; stateListener = null; connectedListener = null
         ownersListener = null; queueListener = null; votesListener = null
         metaRef = null; membersRef = null; stateRef = null; connectedRef = null
@@ -1221,6 +1314,79 @@ class TogetherManager(
      * Expulsar: la persona sale de la sala y ya no puede volver a entrar a ESTA sala
      * (a las demás sí). Solo el anfitrión; las reglas de Firebase también lo exigen.
      */
+    // ================= Chat =================
+
+    /** La pantalla del chat avisa si está abierta: al abrirla se borran los no leídos y la notificación. */
+    fun setChatOpen(visible: Boolean) {
+        chatVisible = visible
+        if (visible) {
+            chatUnread = 0; chatUnreadLines.clear()
+            TogetherNotifications.cancelChat(appContext)
+        }
+    }
+
+    private fun onChatArrived(fresh: List<ChatMessage>) {
+        chatUnread += fresh.size
+        fresh.forEach { chatUnreadLines.add("${it.name}: ${it.text}") }
+        while (chatUnreadLines.size > 5) chatUnreadLines.removeAt(0)
+        TogetherNotifications.showChat(appContext, chatUnread, chatUnreadLines.toList())
+    }
+
+    private fun chatFailed(t: Throwable) {
+        Log.w(TAG, "Chat", t)
+        val denied = t.message?.contains("permission denied", true) == true
+        toast(appContext.getString(if (denied) R.string.tgm_firebase_denied else R.string.tgm_no_internet))
+    }
+
+    /** Envía [text] al chat de la sala. Devuelve true si se mandó (para que la UI limpie la caja). */
+    fun sendChat(text: String): Boolean {
+        val code = roomCode ?: return false
+        val me = myUid() ?: return false
+        if (status != Status.CONNECTED) return false
+        val t = text.trim().take(CHAT_MAX_CHARS)
+        if (t.isEmpty()) return false
+        if (iAmChatMuted) { toast(appContext.getString(R.string.tgc_you_muted)); return false }
+        val now = SystemClock.elapsedRealtime()
+        if (now - lastChatSentAt < CHAT_MIN_INTERVAL_MS) return false   // anti-spam
+        lastChatSentAt = now
+        db.getReference("rooms/$code/chat").push().setValue(
+            mapOf("uid" to me, "name" to displayName(), "text" to t, "at" to ServerValue.TIMESTAMP)
+        ).addOnFailureListener { chatFailed(it) }
+        return true
+    }
+
+    /** Cada quien borra lo suyo; los propietarios pueden borrar cualquier mensaje (no los avisos del sistema). */
+    fun canDeleteChat(m: ChatMessage): Boolean = !m.isSystem && (m.uid == myUid() || isOwner)
+
+    fun deleteChat(m: ChatMessage) {
+        val code = roomCode ?: return
+        if (!canDeleteChat(m)) return
+        db.getReference("rooms/$code/chat/${m.id}").removeValue().addOnFailureListener { chatFailed(it) }
+    }
+
+    /** Un propietario puede expulsar/perdonar del chat a quien no sea propietario ni él mismo. */
+    fun canModerateChat(m: ChatMessage): Boolean =
+        isOwner && !m.isSystem && m.uid != myUid() && m.uid != hostUid && owners.none { it.uid == m.uid }
+
+    /** Expulsa (muted = true) o perdona (false) a [m].uid del chat y deja un aviso discreto. */
+    fun setChatMuted(m: ChatMessage, muted: Boolean) {
+        val code = roomCode ?: return
+        val me = myUid() ?: return
+        if (!canModerateChat(m)) return
+        val key = db.getReference("rooms/$code/chat").push().key ?: return
+        val updates = HashMap<String, Any?>()
+        updates["chatMuted/${m.uid}"] = if (muted) true else null
+        updates["chat/$key"] = mapOf(
+            "uid" to me,
+            "name" to displayName(),
+            "type" to "sys",
+            "event" to (if (muted) "mute" else "unmute"),
+            "text" to m.name.take(40),
+            "at" to ServerValue.TIMESTAMP
+        )
+        db.getReference("rooms/$code").updateChildren(updates).addOnFailureListener { chatFailed(it) }
+    }
+
     fun kickMember(uid: String) {
         val code = roomCode ?: return
         if (!isHost || uid == myUid()) return
@@ -1591,6 +1757,9 @@ class TogetherManager(
         const val MAX_MEMBERS = 8
         /** Instancia activa, para que los botones de la notificación lleguen al manager. */
         @Volatile var current: TogetherManager? = null
+        private const val CHAT_LIMIT = 100              // mensajes que se cargan/muestran
+        private const val CHAT_MAX_CHARS = 300
+        private const val CHAT_MIN_INTERVAL_MS = 700L
         const val MAX_OWNERS = 4                  // máximo 4 propietarios: el anfitrión + 3 más
         /** Página que abre la app con el código (ver docs/sala/index.html; hay que activar GitHub Pages). */
         const val WEB_LINK_BASE = "https://shimuronaga.github.io/MusicFlame/sala/#"

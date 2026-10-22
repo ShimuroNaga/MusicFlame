@@ -104,6 +104,56 @@ object TogetherNotifications {
     fun cancelUploadPrompt(ctx: Context) {
         NotificationManagerCompat.from(ctx).cancel(NOTIF_ID)
     }
+
+    // ---------------- Chat de la sala ----------------
+    const val CHAT_CHANNEL_ID = "together_chat"
+    /** Extra del intent de la notificación: al abrir la app, ir directo al chat de la sala. */
+    const val EXTRA_OPEN_CHAT = "together_open_chat"
+    private const val CHAT_NOTIF_ID = 7302
+
+    private fun ensureChatChannel(ctx: Context) {
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        if (nm.getNotificationChannel(CHAT_CHANNEL_ID) != null) return
+        val channel = NotificationChannel(
+            CHAT_CHANNEL_ID,
+            ctx.getString(R.string.tgc_notif_channel),
+            NotificationManager.IMPORTANCE_HIGH
+        ).apply {
+            description = ctx.getString(R.string.tgc_notif_channel_desc)
+            lockscreenVisibility = Notification.VISIBILITY_PRIVATE
+        }
+        nm.createNotificationChannel(channel)
+    }
+
+    /** Aviso de mensajes nuevos del chat (una sola notificación que se va actualizando con los últimos [lines]). */
+    @SuppressLint("MissingPermission") // se comprueba en canNotify()
+    fun showChat(ctx: Context, count: Int, lines: List<String>) {
+        if (lines.isEmpty() || !canNotify(ctx)) return
+        ensureChatChannel(ctx)
+        val title = if (count <= 1) ctx.getString(R.string.tgc_notif_title_one)
+        else ctx.getString(R.string.tgc_notif_title_many, count)
+
+        val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
+            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            it.putExtra(EXTRA_OPEN_CHAT, true)
+            PendingIntent.getActivity(ctx, 3, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+        val builder = NotificationCompat.Builder(ctx, CHAT_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_together_notif)
+            .setContentTitle(title)
+            .setContentText(lines.last())
+            .setStyle(NotificationCompat.BigTextStyle().bigText(lines.joinToString("\n")))
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_MESSAGE)
+            .setVisibility(NotificationCompat.VISIBILITY_PRIVATE)
+            .setAutoCancel(true)
+        if (open != null) builder.setContentIntent(open)
+        NotificationManagerCompat.from(ctx).notify(CHAT_NOTIF_ID, builder.build())
+    }
+
+    fun cancelChat(ctx: Context) {
+        NotificationManagerCompat.from(ctx).cancel(CHAT_NOTIF_ID)
+    }
 }
 
 /** Recibe los botones Permitir / Negar de la notificación. */

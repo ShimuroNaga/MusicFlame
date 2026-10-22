@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tgc_chats">Chats</string>
+    <string name="tgc_title">Chat de la sala</string>
+    <string name="tgc_back">Regresar</string>
+    <string name="tgc_hint">Escribe un mensaje…</string>
+    <string name="tgc_send">Enviar</string>
+    <string name="tgc_empty">Aún no hay mensajes. ¡Rompe el hielo!</string>
+    <string name="tgc_copy">Copiar</string>
+    <string name="tgc_delete">Borrar</string>
+    <string name="tgc_copied">Mensaje copiado</string>
+    <string name="tgc_mute">Expulsar del chat</string>
+    <string name="tgc_unmute">Perdonar</string>
+    <string name="tgc_sys_muted">%1$s fue expulsado del chat</string>
+    <string name="tgc_sys_unmuted">%1$s fue perdonado y puede volver a escribir</string>
+    <string name="tgc_you_muted">Un propietario te expulsó del chat. Puedes seguir escuchando, pero no escribir.</string>
+    <string name="tgc_unread_desc">Mensajes sin leer</string>
+    <string name="tgc_notif_channel">Chat de En compañía</string>
+    <string name="tgc_notif_channel_desc">Avisa cuando alguien escribe en el chat de tu sala mientras no lo tienes abierto.</string>
+    <string name="tgc_notif_title_one">Nuevo mensaje en la sala</string>
+    <string name="tgc_notif_title_many">%1$d mensajes nuevos en la sala</string>
+    <string name="tgc_members_online">%1$d en la sala</string>
+    <string name="tgc_today">Hoy</string>
+</resources>

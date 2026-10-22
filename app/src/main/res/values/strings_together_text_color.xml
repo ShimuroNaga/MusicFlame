@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_color_texto_en_compania">Color de texto de En compañía</string>
+    <string name="settings_color_texto_en_compania_desc">Color de los textos, el encabezado y los botones de la pantalla En compañía y de la barra de su chat.</string>
+    <string name="settings_together_text_adaptive_desc">Usa el mismo color de texto que ya usa la app</string>
+    <string name="settings_adaptativo_color_de_texto">Adaptativo (color de texto de la app)</string>
+</resources>

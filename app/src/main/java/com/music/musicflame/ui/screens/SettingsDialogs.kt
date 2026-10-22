@@ -1679,6 +1679,126 @@ internal fun SettingsTogetherColorDialog(
 
 @OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
 @Composable
+internal fun SettingsTogetherTextColorDialog(
+    style: SettingsStyle,
+    settingsRepo: SettingsRepository,
+    showTogetherTextColorDialog: MutableState<Boolean>,
+    togetherTextColorModePref: MutableState<String>,
+    togetherTextCustomColorHexPref: MutableState<String>
+) {
+    if (showTogetherTextColorDialog.value) {
+        val tempTogetherMode = remember { mutableStateOf(togetherTextColorModePref.value) }
+        val tempTogetherHex = remember { mutableStateOf(togetherTextCustomColorHexPref.value) }
+        AlertDialog(
+            onDismissRequest = { showTogetherTextColorDialog.value = false },
+            title = { Text(stringResource(R.string.settings_color_texto_en_compania), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    Text(
+                        stringResource(R.string.settings_color_texto_en_compania_desc),
+                        fontSize = 12.sp,
+                        color = style.mediumEmphasis,
+                        modifier = Modifier.padding(bottom = 8.dp)
+                    )
+                    listOf("Adaptativo", "Personalizado", com.music.musicflame.ui.theme.COLOR_MODE_RAINBOW).forEach { colorOption ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { tempTogetherMode.value = colorOption }
+                                .padding(vertical = 8.dp)
+                        ) {
+                            RadioButton(
+                                selected = tempTogetherMode.value == colorOption,
+                                onClick = { tempTogetherMode.value = colorOption }
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Column {
+                                Text(settingsOptionLabel(colorOption), fontSize = 14.sp)
+                                Text(
+                                    when (colorOption) {
+                                        "Adaptativo" -> stringResource(R.string.settings_together_text_adaptive_desc)
+                                        "Personalizado" -> stringResource(R.string.settings_elige_tu_propio_color)
+                                        else -> stringResource(R.string.settings_colores_del_espectro_en_movimiento)
+                                    },
+                                    fontSize = 11.sp,
+                                    color = style.mediumEmphasis
+                                )
+                            }
+                        }
+                    }
+
+                    if (tempTogetherMode.value == "Personalizado") {
+                        Spacer(Modifier.height(4.dp))
+                        val presetColors = listOf(
+                            "#FFFFFF", "#000000", "#F44336", "#E91E63", "#9C27B0",
+                            "#673AB7", "#3F51B5", "#2196F3", "#03A9F4", "#00BCD4",
+                            "#009688", "#4CAF50", "#8BC34A", "#CDDC39", "#FFEB3B",
+                            "#FFC107", "#FF9800", "#FF5722", "#795548", "#9E9E9E"
+                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            presetColors.forEach { hex ->
+                                val isSelected = tempTogetherHex.value.equals(hex, ignoreCase = true)
+                                Box(
+                                    modifier = Modifier
+                                        .size(36.dp)
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(com.music.musicflame.ui.theme.parseCustomTextColor(hex))
+                                        .border(
+                                            width = if (isSelected) 3.dp else 1.dp,
+                                            color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Gray,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .clickable { tempTogetherHex.value = hex }
+                                )
+                            }
+                        }
+                        Spacer(Modifier.height(12.dp))
+                        OutlinedTextField(
+                            value = tempTogetherHex.value,
+                            onValueChange = { tempTogetherHex.value = it },
+                            label = { Text(stringResource(R.string.settings_hex_rrggbb_o_rgba_r_g_b_a)) },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(28.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(com.music.musicflame.ui.theme.parseCustomTextColor(tempTogetherHex.value))
+                                    .border(1.dp, Color.Gray, RoundedCornerShape(6.dp))
+                            )
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.settings_vista_previa), fontSize = 12.sp)
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    settingsRepo.saveTogetherTextColorMode(tempTogetherMode.value)
+                    togetherTextColorModePref.value = tempTogetherMode.value
+                    if (tempTogetherMode.value == "Personalizado") {
+                        settingsRepo.saveTogetherTextCustomColorHex(tempTogetherHex.value)
+                        togetherTextCustomColorHexPref.value = tempTogetherHex.value
+                    }
+                    showTogetherTextColorDialog.value = false
+                }) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
+            },
+            dismissButton = { TextButton(onClick = { showTogetherTextColorDialog.value = false }) { Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.Bold) } }
+        )
+    }
+}
+
+@OptIn(androidx.compose.material3.ExperimentalMaterial3Api::class)
+@Composable
 internal fun SettingsLyricsColorDialog(
     style: SettingsStyle,
     settingsRepo: SettingsRepository,

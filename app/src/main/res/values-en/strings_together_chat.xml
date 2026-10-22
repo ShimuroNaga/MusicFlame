@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tgc_chats">Chats</string>
+    <string name="tgc_title">Room chat</string>
+    <string name="tgc_back">Back</string>
+    <string name="tgc_hint">Write a message…</string>
+    <string name="tgc_send">Send</string>
+    <string name="tgc_empty">No messages yet. Break the ice!</string>
+    <string name="tgc_copy">Copy</string>
+    <string name="tgc_delete">Delete</string>
+    <string name="tgc_copied">Message copied</string>
+    <string name="tgc_mute">Remove from chat</string>
+    <string name="tgc_unmute">Forgive</string>
+    <string name="tgc_sys_muted">%1$s was removed from the chat</string>
+    <string name="tgc_sys_unmuted">%1$s was forgiven and can write again</string>
+    <string name="tgc_you_muted">An owner removed you from the chat. You can keep listening, but you can\'t write.</string>
+    <string name="tgc_unread_desc">Unread messages</string>
+    <string name="tgc_notif_channel">En compañía chat</string>
+    <string name="tgc_notif_channel_desc">Lets you know when someone writes in your room\'s chat while it\'s closed.</string>
+    <string name="tgc_notif_title_one">New message in the room</string>
+    <string name="tgc_notif_title_many">%1$d new messages in the room</string>
+    <string name="tgc_members_online">%1$d in the room</string>
+    <string name="tgc_today">Today</string>
+</resources>

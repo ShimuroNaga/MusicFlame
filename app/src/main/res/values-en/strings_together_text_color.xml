@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_color_texto_en_compania">Together text color</string>
+    <string name="settings_color_texto_en_compania_desc">Color of the texts, header and buttons of the Together screen and its chat bar.</string>
+    <string name="settings_together_text_adaptive_desc">Uses the same text color the app already uses</string>
+    <string name="settings_adaptativo_color_de_texto">Adaptive (app text color)</string>
+</resources>

@@ -380,6 +380,10 @@ class MainActivity : ComponentActivity() {
                 LaunchedEffect(togetherManager.pendingDeepLinkCode) {
                     if (togetherManager.pendingDeepLinkCode != null) { showSettings = false; showTogether = true }
                 }
+                // Tocar la notificación del chat -> abre "En compañía" (TogetherScreen abre el chat solo)
+                LaunchedEffect(togetherManager.openChatRequested) {
+                    if (togetherManager.openChatRequested) { showSettings = false; showTogether = true }
+                }
                 LaunchedEffect(Unit) { togetherManager.onToast = { msg -> Toast.makeText(context, msg, Toast.LENGTH_LONG).show() } }
                 // "A tu amigo le falta esta canción, ¿subirla?" (solo le sale al anfitrión de la sala)
                 com.music.musicflame.together.TogetherUploadPrompt(togetherManager)
@@ -564,7 +568,9 @@ class MainActivity : ComponentActivity() {
                             modifier = Modifier.fillMaxSize(),
                             containerColor = Color.Transparent,
                             topBar = {
-                                if (isSongSelectionMode) {
+                                if (showTogether && togetherManager.chatScreenOpen) {
+                                    // El chat de En compañía es pantalla completa y trae su propia barra.
+                                } else if (isSongSelectionMode) {
                                     TopAppBar(
                                         title = { Text("${selectedSongs.size} / $totalSongsOnDevice", fontWeight = FontWeight.Bold) },
                                         navigationIcon = {
@@ -946,6 +952,7 @@ class MainActivity : ComponentActivity() {
                                 }
                             },
                             bottomBar = {
+                              if (!(showTogether && togetherManager.chatScreenOpen)) {
                                 Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
@@ -1047,12 +1054,14 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                 }
+                              }
                             }
                         ) { innerPadding ->
                             if (showTogether) {
                                 com.music.musicflame.together.TogetherScreen(
                                     manager = togetherManager,
-                                    modifier = Modifier.padding(innerPadding)
+                                    // Con el chat abierto no hay barras: el chat maneja sus propios insets (barra de estado, teclado).
+                                    modifier = if (togetherManager.chatScreenOpen) Modifier else Modifier.padding(innerPadding)
                                 )
                             } else if (showSettings) {
                                 SettingsScreen(
@@ -1507,6 +1516,11 @@ class MainActivity : ComponentActivity() {
 
     // Enlaces de invitación: musicflame://sala/ABC123
     private fun handleTogetherIntent(intent: Intent?) {
+        // Notificación del chat de la sala: abrir "En compañía" directo en el chat.
+        if (intent?.getBooleanExtra(com.music.musicflame.together.TogetherNotifications.EXTRA_OPEN_CHAT, false) == true) {
+            intent?.removeExtra(com.music.musicflame.together.TogetherNotifications.EXTRA_OPEN_CHAT)
+            togetherManager.openChatRequested = true
+        }
         val uri = intent?.data ?: return
         if (intent.action == Intent.ACTION_VIEW && uri.scheme == "musicflame" && uri.host == "sala") {
             uri.lastPathSegment?.let { togetherManager.pendingDeepLinkCode = com.music.musicflame.together.TogetherManager.parseCode(it) }

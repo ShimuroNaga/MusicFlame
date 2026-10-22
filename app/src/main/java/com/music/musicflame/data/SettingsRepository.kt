@@ -378,6 +378,14 @@ class SettingsRepository(context: Context) {
     fun getTogetherCustomColorHex(): String = prefs.getString("together_custom_color_hex", "#2196F3") ?: "#2196F3"
     fun saveTogetherCustomColorHex(value: String) = prefs.edit().putString("together_custom_color_hex", value).apply()
 
+    // Color de TEXTO de la pantalla "En compañía" (encabezado, botones y chat): "Adaptativo" = el mismo
+    // color de texto que ya usa la app, "Personalizado" o Arcoíris. Aparte del color de acento de arriba.
+    fun getTogetherTextColorMode(): String = prefs.getString("together_text_color_mode", "Adaptativo") ?: "Adaptativo"
+    fun saveTogetherTextColorMode(mode: String) = prefs.edit().putString("together_text_color_mode", mode).apply()
+
+    fun getTogetherTextCustomColorHex(): String = prefs.getString("together_text_custom_color_hex", "#FFFFFF") ?: "#FFFFFF"
+    fun saveTogetherTextCustomColorHex(value: String) = prefs.edit().putString("together_text_custom_color_hex", value).apply()
+
     // --- COLOR ÚNICO DEL "NOW PLAYING" INDICATOR (punto 3 del catálogo) ---
     // Mismo patrón que el color del ecualizador (punto 1): "Adaptativo" (default,
     // blanco/negro según luminancia del fondo, tal cual funcionaba antes) o

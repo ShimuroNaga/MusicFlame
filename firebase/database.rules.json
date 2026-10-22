@@ -71,6 +71,37 @@
           }
         },
 
+        // Chat de la sala (solo texto). Solo lo leen los miembros de ESA sala.
+        //  - Escribir: un miembro manda SUS mensajes (uid = el suyo) si no está expulsado del chat.
+        //    Los avisos del sistema (type = 'sys': "X fue expulsado/perdonado") solo los pueden poner propietarios.
+        //  - Borrar: cada quien borra los suyos; los propietarios pueden borrar cualquiera (no los avisos).
+        //  - Todo se borra solo cuando el anfitrión cierra la sala (sin historial).
+        "chat": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          "$id": {
+            ".write": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists() && ((!data.exists() && newData.child('uid').val() === auth.uid && ((newData.child('type').val() === 'sys' && root.child('rooms/' + $code + '/owners/' + auth.uid).exists()) || (!newData.child('type').exists() && !root.child('rooms/' + $code + '/chatMuted/' + auth.uid).exists()))) || (data.exists() && !newData.exists() && data.child('type').val() !== 'sys' && (data.child('uid').val() === auth.uid || root.child('rooms/' + $code + '/owners/' + auth.uid).exists())))",
+            ".validate": "newData.hasChildren(['uid', 'at', 'text']) && ((newData.child('type').val() === 'sys' && newData.child('event').exists()) || (!newData.child('type').exists() && !newData.child('event').exists()))",
+            "uid": { ".validate": "newData.isString()" },
+            "name": { ".validate": "newData.isString() && newData.val().length <= 40" },
+            "text": { ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 300" },
+            "at": { ".validate": "newData.isNumber()" },
+            "type": { ".validate": "newData.val() === 'sys'" },
+            "event": { ".validate": "newData.val() === 'mute' || newData.val() === 'unmute'" },
+            "$other": { ".validate": false }
+          }
+        },
+
+        // Expulsados del CHAT (siguen en la sala escuchando, solo no pueden escribir).
+        // Los lee cualquier miembro (para avisarte); solo un propietario expulsa/perdona,
+        // y nunca a otro propietario.
+        "chatMuted": {
+          ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",
+          "$uid": {
+            ".write": "auth != null && root.child('rooms/' + $code + '/owners/' + auth.uid).exists() && !root.child('rooms/' + $code + '/owners/' + $uid).exists()",
+            ".validate": "newData.val() === true"
+          }
+        },
+
         // Votos para saltar: cada propietario escribe solo el suyo; el controlador puede limpiarlos todos.
         "skipVotes": {
           ".read": "auth != null && root.child('rooms/' + $code + '/members/' + auth.uid).exists()",

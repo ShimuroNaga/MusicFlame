@@ -341,6 +341,37 @@ internal fun LazyListScope.settingsSongsSection(
         HorizontalDivider(color = style.dividerColor)
     }
 
+    // AUDIO 8D + BALANCE: el switch lo activa al instante; tocar la fila abre sus ajustes.
+    item {
+        val audio8dPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+        val audio8dOn = remember { mutableStateOf(audio8dPrefs.getBoolean("audio8d_enabled", false)) }
+        val showAudio8dDialog = remember { mutableStateOf(false) }
+        ListItem(
+            headlineContent = { Text(stringResource(R.string.audio8d_title)) },
+            supportingContent = { Text(stringResource(R.string.audio8d_desc)) },
+            trailingContent = {
+                Switch(
+                    checked = audio8dOn.value,
+                    onCheckedChange = { on ->
+                        audio8dOn.value = on
+                        audio8dPrefs.edit().putBoolean("audio8d_enabled", on).apply()
+                        context.sendBroadcast(android.content.Intent("com.music.musicflame.UPDATE_EQ").setPackage(context.packageName))
+                    }
+                )
+            },
+            modifier = Modifier.clickable { showAudio8dDialog.value = true },
+            colors = style.listItemColors
+        )
+        HorizontalDivider(color = style.dividerColor)
+        if (showAudio8dDialog.value) {
+            Audio8DDialog(onDismiss = {
+                showAudio8dDialog.value = false
+                // Por si lo prendió/apagó dentro del diálogo, se refleja en el switch de la fila.
+                audio8dOn.value = audio8dPrefs.getBoolean("audio8d_enabled", false)
+            })
+        }
+    }
+
     // SOLO DUEÑO: muestra el ajuste en dB que el servicio le puso a la canción actual.
     item {
         val isOwner = remember { com.music.musicflame.data.LicenseRepository(context).isOwnerAccount() }

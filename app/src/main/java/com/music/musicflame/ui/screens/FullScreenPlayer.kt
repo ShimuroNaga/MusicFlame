@@ -263,6 +263,14 @@ fun FullScreenPlayer(
     // (Studio Pro EQ de 5 bandas + graves/virtualizer/reverb/presets, y EQ PRO de 10 bandas).
     // Los estados se leen del mismo SettingsRepository que usa SettingsScreen.
     var showEqChooser by remember { mutableStateOf(false) }
+    // AUDIO 8D: el switch del selector lo activa/apaga al instante; tocar la fila abre sus ajustes.
+    var showAudio8dDialog by remember { mutableStateOf(false) }
+    var audio8dOn by remember {
+        mutableStateOf(
+            context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                .getBoolean("audio8d_enabled", false)
+        )
+    }
     val showEqualizerDialog = remember { mutableStateOf(false) }
     val showProEqualizerDialog = remember { mutableStateOf(false) }
     val eqSettingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
@@ -301,12 +309,43 @@ fun FullScreenPlayer(
                             showProEqualizerDialog.value = true
                         }
                     )
+                    HorizontalDivider()
+                    ListItem(
+                        headlineContent = { Text(stringResource(R.string.audio8d_title)) },
+                        supportingContent = { Text(stringResource(R.string.audio8d_desc)) },
+                        trailingContent = {
+                            Switch(
+                                checked = audio8dOn,
+                                onCheckedChange = { on ->
+                                    audio8dOn = on
+                                    context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                                        .edit().putBoolean("audio8d_enabled", on).apply()
+                                    context.sendBroadcast(
+                                        android.content.Intent("com.music.musicflame.UPDATE_EQ")
+                                            .setPackage(context.packageName)
+                                    )
+                                }
+                            )
+                        },
+                        modifier = Modifier.clickable {
+                            showEqChooser = false
+                            showAudio8dDialog = true
+                        }
+                    )
                 }
             },
             confirmButton = {
                 TextButton(onClick = { showEqChooser = false }) { Text(stringResource(R.string.action_close)) }
             }
         )
+    }
+    if (showAudio8dDialog) {
+        Audio8DDialog(onDismiss = {
+            showAudio8dDialog = false
+            // Por si el usuario lo prendió/apagó dentro del diálogo, se refleja en el selector.
+            audio8dOn = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                .getBoolean("audio8d_enabled", false)
+        })
     }
     SettingsEqualizerDialog(
         context = context,

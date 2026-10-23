@@ -37,6 +37,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
+import com.music.musicflame.audio.Spatial8DAudioProcessor
 import com.music.musicflame.audio.VolumeNormalizationAnalyzer
 import com.music.musicflame.audio.VolumeNormalizationAudioProcessor
 import com.music.musicflame.widget.MusicFlameVinylWidgetProvider
@@ -100,6 +101,8 @@ class MusicPlaybackService : MediaSessionService() {
     private val proEqualizerAudioProcessor = ProBiquadEqualizerAudioProcessor()
     // Normalización de volumen entre canciones (gratis, switch propio en Ajustes > Canciones).
     private val volumeNormalizationProcessor = VolumeNormalizationAudioProcessor()
+    // Audio 8D + balance izq/der (gratis). Va al final de la cadena, después de la normalización.
+    private val spatial8dProcessor = Spatial8DAudioProcessor()
 
     // FIX "el EQ Pro se apaga/prende solo": antes la licencia se leía de ProStatusHolder, que
     // SOLO la llena la UI (MainActivity/Theme/Ajustes). Si Android recrea este servicio sin
@@ -206,7 +209,7 @@ class MusicPlaybackService : MediaSessionService() {
                 return DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor, volumeNormalizationProcessor))
+                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor, volumeNormalizationProcessor, spatial8dProcessor))
                     .build()
             }
         }
@@ -239,6 +242,19 @@ class MusicPlaybackService : MediaSessionService() {
         volumeNormalizationProcessor.setEnabled(normEnabled)
         if (normEnabled && !wasEnabled && ::player.isInitialized) applyVolumeNormalizationForCurrentSong()
         normalizationWasEnabled = normEnabled
+        syncSpatial8dState()
+    }
+
+    /** Audio 8D y balance: lee los ajustes guardados por Audio8DDialog (mismas SharedPreferences). */
+    private fun syncSpatial8dState() {
+        spatial8dProcessor.setEnabled(sharedPrefs.getBoolean("audio8d_enabled", false))
+        spatial8dProcessor.setPeriodSeconds(
+            sharedPrefs.getFloat("audio8d_period_s", Spatial8DAudioProcessor.DEFAULT_PERIOD_SECONDS)
+        )
+        spatial8dProcessor.setDepth(
+            sharedPrefs.getFloat("audio8d_depth", Spatial8DAudioProcessor.DEFAULT_DEPTH)
+        )
+        spatial8dProcessor.setBalance(sharedPrefs.getFloat("audio8d_balance", 0f))
     }
 
     // SOLO DIAGNÓSTICO (la UI lo muestra únicamente a la cuenta dueña, bajo "Normalizar

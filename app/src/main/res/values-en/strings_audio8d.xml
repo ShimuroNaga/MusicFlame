@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="audio8d_title">8D Audio</string>
+    <string name="audio8d_desc">The sound circles around your head. You can also adjust the left / right balance.</string>
+    <string name="audio8d_enable">Enable 8D Audio</string>
+    <string name="audio8d_speed">Speed: one turn every %1$d s</string>
+    <string name="audio8d_intensity">Intensity: %1$d%%</string>
+    <string name="audio8d_balance">Balance: %1$s</string>
+    <string name="audio8d_balance_center">center</string>
+    <string name="audio8d_balance_left">left %1$d%%</string>
+    <string name="audio8d_balance_right">right %1$d%%</string>
+    <string name="audio8d_headphones_tip">Best with headphones; through the phone speaker it is barely noticeable.</string>
+    <string name="audio8d_reset">Reset</string>
+</resources>

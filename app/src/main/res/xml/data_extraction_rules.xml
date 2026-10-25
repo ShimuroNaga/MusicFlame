@@ -6,6 +6,10 @@
         <exclude domain="sharedpref" path="chat_history.xml"/>
         <exclude domain="sharedpref" path="ai_online_secure.xml"/>
         <exclude domain="sharedpref" path="ai_online_usage.xml"/>
+        <!-- Base Room (playlists por id de MediaStore): igual que playlists.xml, no se restaura en otro equipo -->
+        <exclude domain="database" path="musicflame.db"/>
+        <exclude domain="database" path="musicflame.db-wal"/>
+        <exclude domain="database" path="musicflame.db-shm"/>
     </cloud-backup>
     <device-transfer>
         <exclude domain="sharedpref" path="playlists.xml"/>
@@ -13,5 +17,9 @@
         <exclude domain="sharedpref" path="chat_history.xml"/>
         <exclude domain="sharedpref" path="ai_online_secure.xml"/>
         <exclude domain="sharedpref" path="ai_online_usage.xml"/>
+        <!-- Base Room (playlists por id de MediaStore): igual que playlists.xml, no se restaura en otro equipo -->
+        <exclude domain="database" path="musicflame.db"/>
+        <exclude domain="database" path="musicflame.db-wal"/>
+        <exclude domain="database" path="musicflame.db-shm"/>
     </device-transfer>
 </data-extraction-rules>

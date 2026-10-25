@@ -5,6 +5,7 @@ plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
     id("com.google.gms.google-services")
+    id("com.google.devtools.ksp")
 }
 
 // Cargamos local.properties una sola vez para reutilizarlo en varios lugares
@@ -99,6 +100,11 @@ android {
     }
 }
 
+// Room exporta el esquema de la base a app/schemas/ (súbelo a git: sirve para escribir y probar migraciones).
+ksp {
+    arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
@@ -153,6 +159,10 @@ dependencies {
     implementation("com.google.http-client:google-http-client-android:1.43.3")
     implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
+    // Room (SQLite) para los datos grandes/de lista. Apache-2.0. Versión estable.
+    implementation("androidx.room:room-runtime:2.8.5")
+    implementation("androidx.room:room-ktx:2.8.5")
+    ksp("androidx.room:room-compiler:2.8.5")
     // Meta de ahorro (token de GitHub cifrado en el dispositivo)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-splashscreen:1.0.1")

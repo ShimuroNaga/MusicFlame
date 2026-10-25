@@ -3,6 +3,11 @@ package com.music.musicflame.data
 import android.content.Context
 import android.net.Uri
 import android.os.Environment
+import android.util.Log
+import com.music.musicflame.data.db.AppDatabase
+import com.music.musicflame.data.db.PlaylistEntity
+import com.music.musicflame.data.db.PlaylistSongEntity
+import com.music.musicflame.data.db.RoomStoreEngine
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
@@ -66,92 +71,209 @@ fun buildNeverPlayedPlaylist(context: Context): Playlist {
     return Playlist(id = SmartPlaylistIds.NEVER_PLAYED, name = context.getString(R.string.pl_never_played), songIds = neverPlayedIds, isDefault = true, customCoverUri = coverUri)
 }
 
+/**
+ * Estado compartido (memoria + Room) de PlaylistRepository. Ver RoomStoreEngine para el patrón de
+ * arranque/migración/escritura. Antes: SharedPreferences "playlists", clave "playlists" (un JSON con
+ * todas las playlists). La lista es chica y siempre se escribía completa, así que cada cambio se
+ * guarda como una "foto" de todas las playlists (las ráfagas se fusionan en una sola escritura).
+ */
+private object PlaylistStore : RoomStoreEngine<String, List<Playlist>>(
+    tag = "PlaylistStore",
+    legacyPrefsName = "playlists",
+    legacyKey = "playlists"
+) {
+    private const val KEY_ALL = "all"
+
+    val lock = Any()
+
+    @Volatile
+    var snapshot: List<Playlist> = emptyList()
+
+    private fun dao() = AppDatabase.getInstance(appContext).playlistDao()
+
+    /** Reemplaza la lista completa en memoria y encola su escritura. Llamar con [lock] tomado. */
+    fun commit(playlists: List<Playlist>) {
+        snapshot = playlists
+        enqueue(KEY_ALL, playlists)
+    }
+
+    private fun parseLegacy(json: String): List<Playlist> {
+        val array = JSONArray(json) // JSONException si está corrupto
+        val result = ArrayList<Playlist>()
+        val usedIds = HashSet<String>()
+        for (i in 0 until array.length()) {
+            try {
+                val obj = array.getJSONObject(i)
+                val songs = obj.optJSONArray("songIds")
+                val songIds = ArrayList<Long>()
+                if (songs != null) {
+                    for (j in 0 until songs.length()) {
+                        songIds.add(songs.getLong(j))
+                    }
+                }
+                var id = obj.getString("id")
+                // Dos playlists con el mismo id (creadas en el mismo milisegundo) chocarían en la
+                // clave primaria: la segunda recibe un id nuevo para no perder ninguna.
+                while (!usedIds.add(id)) id += "_dup"
+                result.add(
+                    Playlist(
+                        id = id,
+                        name = obj.getString("name"),
+                        songIds = songIds,
+                        isDefault = obj.optBoolean("isDefault", false),
+                        customCoverUri = if (obj.has("customCoverUri")) obj.getString("customCoverUri") else null
+                    )
+                )
+            } catch (e: Exception) {
+                Log.w("PlaylistStore", "Se omite una playlist ilegible del JSON viejo (posición $i)", e)
+            }
+        }
+        return result
+    }
+
+    private fun toEntities(playlists: List<Playlist>): Pair<List<PlaylistEntity>, List<PlaylistSongEntity>> {
+        val pls = playlists.mapIndexed { index, p -> PlaylistEntity(p.id, p.name, p.isDefault, p.customCoverUri, index) }
+        val rows = playlists.flatMap { p -> p.songIds.mapIndexed { index, songId -> PlaylistSongEntity(p.id, index, songId) } }
+        return pls to rows
+    }
+
+    override suspend fun migrateLegacy(json: String): Int {
+        val parsed = parseLegacy(json)
+        val (pls, rows) = toEntities(parsed)
+        dao().migrateAll(pls, rows)
+        val plsInRoom = dao().countPlaylists()
+        val rowsInRoom = dao().countSongRows()
+        check(plsInRoom >= pls.size && rowsInRoom >= rows.size) {
+            "verificación falló: Room tiene $plsInRoom playlists/$rowsInRoom canciones y el JSON tenía ${pls.size}/${rows.size}"
+        }
+        return pls.size
+    }
+
+    override suspend fun loadFromRoom() {
+        val songsByPlaylist = dao().getSongRows().groupBy({ it.playlistId }, { it.songId })
+        snapshot = dao().getPlaylists().map { e ->
+            Playlist(
+                id = e.id,
+                name = e.name,
+                songIds = songsByPlaylist[e.id].orEmpty(),
+                isDefault = e.isDefault,
+                customCoverUri = e.customCoverUri
+            )
+        }
+    }
+
+    override fun loadFromLegacyJson(json: String) {
+        snapshot = parseLegacy(json)
+    }
+
+    override suspend fun flush(batch: Map<String, List<Playlist>>) {
+        val latest = batch[KEY_ALL] ?: return
+        val (pls, rows) = toEntities(latest)
+        dao().replaceAll(pls, rows)
+    }
+
+    override fun serializeLegacy(): String {
+        val array = JSONArray()
+        snapshot.forEach { playlist ->
+            val obj = JSONObject()
+            obj.put("id", playlist.id)
+            obj.put("name", playlist.name)
+            obj.put("isDefault", playlist.isDefault)
+            if (playlist.customCoverUri != null) obj.put("customCoverUri", playlist.customCoverUri)
+            val songs = JSONArray()
+            playlist.songIds.forEach { songs.put(it) }
+            obj.put("songIds", songs)
+            array.put(obj)
+        }
+        return array.toString()
+    }
+
+    override fun describeMemory(): String = "${snapshot.size} playlists"
+}
+
 class PlaylistRepository(context: Context) {
     private val appContext: Context = context.applicationContext
-    private val prefs = context.getSharedPreferences("playlists", Context.MODE_PRIVATE)
+
+    init {
+        PlaylistStore.start(context)
+    }
+
+    companion object {
+        /** Arranca la carga/migración en segundo plano (llamar desde MainActivity.onCreate). */
+        fun preload(context: Context) = PlaylistStore.start(context)
+    }
 
     fun getPlaylists(): List<Playlist> {
         return getAllPlaylists()
     }
 
     fun getAllPlaylists(): List<Playlist> {
-        val json = prefs.getString("playlists", "[]") ?: "[]"
-        val array = JSONArray(json)
-        val result = mutableListOf<Playlist>()
-        for (i in 0 until array.length()) {
-            val obj = array.getJSONObject(i)
-            val songIds = mutableListOf<Long>()
-            val songs = obj.getJSONArray("songIds")
-            for (j in 0 until songs.length()) {
-                songIds.add(songs.getLong(j))
-            }
-            result.add(
-                Playlist(
-                    id = obj.getString("id"),
-                    name = obj.getString("name"),
-                    songIds = songIds,
-                    isDefault = obj.optBoolean("isDefault", false),
-                    customCoverUri = if (obj.has("customCoverUri")) obj.getString("customCoverUri") else null
-                )
-            )
-        }
-        return result
+        PlaylistStore.awaitLoaded()
+        return PlaylistStore.snapshot
     }
+
+    /** Aplica un cambio a la lista completa de forma atómica (memoria al instante, Room en segundo plano). */
+    private fun update(transform: (List<Playlist>) -> List<Playlist>) {
+        PlaylistStore.awaitLoaded()
+        synchronized(PlaylistStore.lock) {
+            PlaylistStore.commit(transform(PlaylistStore.snapshot))
+        }
+    }
+
     fun createPlaylist(name: String) {
-        val playlists = getAllPlaylists().toMutableList()
-        playlists.add(
-            Playlist(
+        update { playlists ->
+            playlists + Playlist(
                 id = System.currentTimeMillis().toString(),
                 name = name,
                 songIds = emptyList()
             )
-        )
-        savePlaylists(playlists)
+        }
     }
 
     /** Crea una playlist ya con canciones (la usa el comando /playlist del chat, tras confirmar el usuario). */
     fun createPlaylistWithSongs(name: String, songIds: List<Long>): Playlist {
-        val playlists = getAllPlaylists().toMutableList()
-        var id = System.currentTimeMillis()
-        while (playlists.any { it.id == id.toString() }) id++
-        val created = Playlist(id = id.toString(), name = name.trim().ifBlank { "MusicFlame IA" }, songIds = songIds.distinct())
-        playlists.add(created)
-        savePlaylists(playlists)
-        return created
+        PlaylistStore.awaitLoaded()
+        synchronized(PlaylistStore.lock) {
+            val playlists = PlaylistStore.snapshot
+            var id = System.currentTimeMillis()
+            while (playlists.any { it.id == id.toString() }) id++
+            val created = Playlist(id = id.toString(), name = name.trim().ifBlank { "MusicFlame IA" }, songIds = songIds.distinct())
+            PlaylistStore.commit(playlists + created)
+            return created
+        }
     }
 
     fun deletePlaylist(id: String) {
-        val playlists = getAllPlaylists().filter { it.id != id && !it.isDefault }
-        savePlaylists(playlists)
+        update { playlists -> playlists.filter { it.id != id && !it.isDefault } }
     }
 
     // Vuelve a insertar una playlist (usado al restaurar desde la papelera), preservando su id, canciones y carátula
     fun restorePlaylist(playlist: Playlist) {
-        val playlists = getAllPlaylists().toMutableList()
-        if (playlists.none { it.id == playlist.id }) {
-            playlists.add(playlist)
-            savePlaylists(playlists)
+        update { playlists ->
+            if (playlists.none { it.id == playlist.id }) playlists + playlist else playlists
         }
     }
 
     fun addSongToPlaylist(playlistId: String, songId: Long) {
-        val playlists = getAllPlaylists().map { playlist ->
-            if (playlist.id == playlistId && songId !in playlist.songIds) {
-                playlist.copy(songIds = playlist.songIds + songId)
-            } else playlist
+        update { playlists ->
+            playlists.map { playlist ->
+                if (playlist.id == playlistId && songId !in playlist.songIds) {
+                    playlist.copy(songIds = playlist.songIds + songId)
+                } else playlist
+            }
         }
-        savePlaylists(playlists)
     }
 
     // Quita canciones de una playlist (solo de la lista; no toca el archivo ni la papelera).
     fun removeSongsFromPlaylist(playlistId: String, songIds: Set<Long>) {
         if (songIds.isEmpty()) return
-        val playlists = getAllPlaylists().map { playlist ->
-            if (playlist.id == playlistId) {
-                playlist.copy(songIds = playlist.songIds.filter { it !in songIds })
-            } else playlist
+        update { playlists ->
+            playlists.map { playlist ->
+                if (playlist.id == playlistId) {
+                    playlist.copy(songIds = playlist.songIds.filter { it !in songIds })
+                } else playlist
+            }
         }
-        savePlaylists(playlists)
     }
 
     // Renombra una playlist creada por el usuario (REGULAR). No aplica a Favoritos
@@ -159,37 +281,21 @@ class PlaylistRepository(context: Context) {
     fun renamePlaylist(playlistId: String, newName: String) {
         val trimmed = newName.trim()
         if (trimmed.isEmpty()) return
-        val playlists = getAllPlaylists().map { playlist ->
-            if (playlist.id == playlistId) playlist.copy(name = trimmed) else playlist
+        update { playlists ->
+            playlists.map { playlist ->
+                if (playlist.id == playlistId) playlist.copy(name = trimmed) else playlist
+            }
         }
-        savePlaylists(playlists)
     }
 
     fun updatePlaylistCover(playlistId: String, coverUri: String) {
-        val playlists = getAllPlaylists().map { playlist ->
-            if (playlist.id == playlistId) {
-                playlist.copy(customCoverUri = if (coverUri.isBlank()) null else coverUri)
-            } else playlist
-        }
-        savePlaylists(playlists)
-    }
-
-    private fun savePlaylists(playlists: List<Playlist>) {
-        val array = JSONArray()
-        playlists.forEach { playlist ->
-            val obj = JSONObject()
-            obj.put("id", playlist.id)
-            obj.put("name", playlist.name)
-            obj.put("isDefault", playlist.isDefault)
-            if (playlist.customCoverUri != null) {
-                obj.put("customCoverUri", playlist.customCoverUri)
+        update { playlists ->
+            playlists.map { playlist ->
+                if (playlist.id == playlistId) {
+                    playlist.copy(customCoverUri = if (coverUri.isBlank()) null else coverUri)
+                } else playlist
             }
-            val songs = JSONArray()
-            playlist.songIds.forEach { songs.put(it) }
-            obj.put("songIds", songs)
-            array.put(obj)
         }
-        prefs.edit().putString("playlists", array.toString()).apply()
     }
 
     fun importFromM3U(context: Context, uri: Uri): Playlist? {
@@ -213,9 +319,7 @@ class PlaylistRepository(context: Context) {
                 name = name,
                 songIds = matchedIds
             )
-            val playlists = getAllPlaylists().toMutableList()
-            playlists.add(playlist)
-            savePlaylists(playlists)
+            update { playlists -> playlists + playlist }
             playlist
         } catch (e: Exception) {
             null

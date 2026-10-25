@@ -139,6 +139,12 @@ class MainActivity : ComponentActivity() {
         // la pida) + observador de MediaStore para que las canciones nuevas
         // aparezcan solas sin salir y volver a entrar a la app.
         com.music.musicflame.data.SongLibraryHolder.start(this)
+        // Carga (y, la primera vez, migra a Room) el caché de carátulas en segundo plano.
+        com.music.musicflame.data.ArtworkCacheRepository.preload(this)
+        com.music.musicflame.data.StatsRepository.preload(this)
+        com.music.musicflame.data.PlaylistRepository.preload(this)
+        com.music.musicflame.data.SongCustomizationRepository.preload(this)
+        com.music.musicflame.data.MomentsRepository.preload(this)
         lifecycleScope.launch {
             com.music.musicflame.data.SongLibraryHolder.refreshIfPermitted(this@MainActivity)
         }

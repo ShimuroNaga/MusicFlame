@@ -48,7 +48,7 @@ object ConfigExportRepository {
     )
 
     fun exportToJson(context: Context): String {
-        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val prefs = SettingsStore.get(context)
         val entries = JSONObject()
 
         prefs.all.forEach { (key, value) ->
@@ -98,7 +98,7 @@ object ConfigExportRepository {
         val entries = root.optJSONObject("settings")
             ?: throw IllegalArgumentException(context.getString(com.music.musicflame.R.string.cfg_no_settings))
 
-        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val prefs = SettingsStore.get(context)
         val editor = prefs.edit()
         var applied = 0
 

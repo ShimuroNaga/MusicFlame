@@ -198,7 +198,7 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
-    val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    val sharedPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
 
     val showDurationFilterDialog = remember { mutableStateOf(false) }
     val showAudioFormatsDialog = remember { mutableStateOf(false) }

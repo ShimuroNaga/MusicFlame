@@ -135,6 +135,14 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        // Ajustes (DataStore): la carga arranca en MusicFlameApp.onCreate, así que normalmente ya
+        // terminó. Esperarla aquí, ANTES de setContent, evita que el tema por defecto se vea un
+        // instante antes del tema del usuario (tope de 4 s; si no, se usa el archivo viejo).
+        com.music.musicflame.data.SettingsStore.get(this).awaitLoaded()
+        // Compras desbloqueadas (fuentes/colores de pago): mismo motivo. Sin esto, el primer frame
+        // se dibuja con los valores gratis y un instante después "salta" a los del usuario.
+        com.music.musicflame.data.ProStatusHolder.awaitReady()
+
         // Precarga de la librería lo antes posible (antes de que cualquier pantalla
         // la pida) + observador de MediaStore para que las canciones nuevas
         // aparezcan solas sin salir y volver a entrar a la app.
@@ -406,6 +414,15 @@ class MainActivity : ComponentActivity() {
 
                 // --- Variables de Estado para Favoritos y Drive ---
                 var favoriteIds by remember { mutableStateOf(favoritesRepo.getAllFavoriteIds()) }
+                // Se refresca solo si los favoritos cambian desde fuera (corazón de la notificación).
+                androidx.compose.runtime.DisposableEffect(Unit) {
+                    val store = com.music.musicflame.data.SettingsStore.get(this@MainActivity.applicationContext)
+                    val favoritesListener = com.music.musicflame.data.SettingsStore.OnChangeListener { key ->
+                        if (key == "favorite_songs_set") favoriteIds = favoritesRepo.getAllFavoriteIds()
+                    }
+                    store.registerOnChangeListener(favoritesListener)
+                    onDispose { store.unregisterOnChangeListener(favoritesListener) }
+                }
                 var syncedFileNames by remember { mutableStateOf(setOf<String>()) } // <-- NUEVO
 
                 val selectedSongs = remember { mutableStateListOf<Song>() }

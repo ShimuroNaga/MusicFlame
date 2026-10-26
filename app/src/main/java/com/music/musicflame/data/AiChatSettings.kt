@@ -1,7 +1,6 @@
 package com.music.musicflame.data
 
 import android.content.Context
-import android.content.SharedPreferences
 import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
@@ -28,7 +27,7 @@ data class AiMessage(
  */
 class AiChatSettings(context: Context) {
     private val appContext = context.applicationContext
-    val prefs: SharedPreferences = appContext.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    val prefs: SettingsStore = SettingsStore.get(appContext)
 
     init {
         // Limpieza: versiones de prueba guardaban aquí una API key de Gemini; ya no se usa.

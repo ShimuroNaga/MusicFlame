@@ -1,11 +1,10 @@
 package com.music.musicflame.data
 
 import android.content.Context
-import android.content.SharedPreferences
 
 class FavoritesRepository(context: Context) {
     // AHORA: Usa el mismo archivo "settings" que el MusicPlaybackService
-    private val prefs: SharedPreferences = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val prefs: SettingsStore = SettingsStore.get(context)
     private val PREF_FAVORITES_KEY = "favorite_songs_set"
 
     fun isFavorite(songId: Long): Boolean {

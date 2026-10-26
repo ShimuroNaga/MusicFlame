@@ -343,7 +343,7 @@ internal fun LazyListScope.settingsSongsSection(
 
     // AUDIO 8D + BALANCE: el switch lo activa al instante; tocar la fila abre sus ajustes.
     item {
-        val audio8dPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+        val audio8dPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
         val audio8dOn = remember { mutableStateOf(audio8dPrefs.getBoolean("audio8d_enabled", false)) }
         val showAudio8dDialog = remember { mutableStateOf(false) }
         ListItem(
@@ -378,7 +378,7 @@ internal fun LazyListScope.settingsSongsSection(
         if (isOwner) {
             var normStatus by remember { mutableStateOf("") }
             LaunchedEffect(Unit) {
-                val sp = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                val sp = com.music.musicflame.data.SettingsStore.get(context)
                 while (true) {
                     normStatus = sp.getString("volume_normalization_status", null)
                         ?: "Sin datos todavía (pon una canción)"

@@ -40,7 +40,7 @@ import kotlin.math.roundToInt
 @Composable
 fun Audio8DDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val prefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    val prefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
 
     val enabled = remember { mutableStateOf(prefs.getBoolean("audio8d_enabled", false)) }
     val period = remember {

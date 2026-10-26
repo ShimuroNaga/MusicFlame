@@ -177,7 +177,7 @@ fun FullScreenPlayer(
     }
 
     LaunchedEffect(Unit) {
-        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        val prefs = com.music.musicflame.data.SettingsStore.get(context)
         val alreadyAsked = prefs.getBoolean("visualizer_permission_asked", false)
 
         if (!hasRecordAudioPermission && !alreadyAsked) {
@@ -197,7 +197,7 @@ fun FullScreenPlayer(
             confirmButton = {
                 TextButton(onClick = {
                     showVisualizerPermissionDialog = false
-                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    com.music.musicflame.data.SettingsStore.get(context)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
                     recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }) { Text(stringResource(R.string.fp_allow)) }
@@ -205,7 +205,7 @@ fun FullScreenPlayer(
             dismissButton = {
                 TextButton(onClick = {
                     showVisualizerPermissionDialog = false
-                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    com.music.musicflame.data.SettingsStore.get(context)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
                 }) { Text(stringResource(R.string.fp_not_now)) }
             }
@@ -267,14 +267,14 @@ fun FullScreenPlayer(
     var showAudio8dDialog by remember { mutableStateOf(false) }
     var audio8dOn by remember {
         mutableStateOf(
-            context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            com.music.musicflame.data.SettingsStore.get(context)
                 .getBoolean("audio8d_enabled", false)
         )
     }
     val showEqualizerDialog = remember { mutableStateOf(false) }
     val showProEqualizerDialog = remember { mutableStateOf(false) }
     val eqSettingsRepo = remember { com.music.musicflame.data.SettingsRepository(context) }
-    val eqSharedPrefs = remember { context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE) }
+    val eqSharedPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
     val eqPresetSelected = remember { mutableStateOf(eqSettingsRepo.getEqPresetSelected()) }
     val eqSliders = remember { List(5) { i -> mutableStateOf(eqSettingsRepo.getEqBand(i)) } }
     val eqBassBoost = remember { mutableStateOf(eqSettingsRepo.getBassBoost()) }
@@ -318,7 +318,7 @@ fun FullScreenPlayer(
                                 checked = audio8dOn,
                                 onCheckedChange = { on ->
                                     audio8dOn = on
-                                    context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+                                    com.music.musicflame.data.SettingsStore.get(context)
                                         .edit().putBoolean("audio8d_enabled", on).apply()
                                     context.sendBroadcast(
                                         android.content.Intent("com.music.musicflame.UPDATE_EQ")
@@ -343,7 +343,7 @@ fun FullScreenPlayer(
         Audio8DDialog(onDismiss = {
             showAudio8dDialog = false
             // Por si el usuario lo prendió/apagó dentro del diálogo, se refleja en el selector.
-            audio8dOn = context.getSharedPreferences("settings", android.content.Context.MODE_PRIVATE)
+            audio8dOn = com.music.musicflame.data.SettingsStore.get(context)
                 .getBoolean("audio8d_enabled", false)
         })
     }

@@ -3,6 +3,8 @@
     <cloud-backup>
         <exclude domain="sharedpref" path="playlists.xml"/>
         <exclude domain="sharedpref" path="settings.xml"/>
+        <!-- Ajustes en DataStore (antes settings.xml): se siguen excluyendo del respaldo -->
+        <exclude domain="file" path="datastore/settings_store.preferences_pb"/>
         <exclude domain="sharedpref" path="chat_history.xml"/>
         <exclude domain="sharedpref" path="ai_online_secure.xml"/>
         <exclude domain="sharedpref" path="ai_online_usage.xml"/>
@@ -14,6 +16,8 @@
     <device-transfer>
         <exclude domain="sharedpref" path="playlists.xml"/>
         <exclude domain="sharedpref" path="settings.xml"/>
+        <!-- Ajustes en DataStore (antes settings.xml): se siguen excluyendo del respaldo -->
+        <exclude domain="file" path="datastore/settings_store.preferences_pb"/>
         <exclude domain="sharedpref" path="chat_history.xml"/>
         <exclude domain="sharedpref" path="ai_online_secure.xml"/>
         <exclude domain="sharedpref" path="ai_online_usage.xml"/>

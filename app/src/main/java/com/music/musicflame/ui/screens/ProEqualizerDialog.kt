@@ -76,7 +76,7 @@ import kotlinx.coroutines.flow.drop
 @Composable
 fun ProEqualizerDialog(onDismiss: () -> Unit) {
     val context = LocalContext.current
-    val sharedPrefs = remember { context.getSharedPreferences("settings", Context.MODE_PRIVATE) }
+    val sharedPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
     val isProUnlocked = ProStatusHolder.isItemUnlocked("pro_eq_10band")
 
     val bandCount = ProBiquadEqualizerAudioProcessor.BAND_COUNT

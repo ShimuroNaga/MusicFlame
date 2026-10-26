@@ -2074,7 +2074,7 @@ internal fun SettingsProEqualizerDialog(
 internal fun SettingsEqualizerDialog(
     context: Context,
     settingsRepo: SettingsRepository,
-    sharedPrefs: android.content.SharedPreferences,
+    sharedPrefs: com.music.musicflame.data.SettingsStore,
     showEqualizerDialog: MutableState<Boolean>,
     eqPresetSelected: MutableState<String>,
     slidersValues: List<MutableState<Float>>,

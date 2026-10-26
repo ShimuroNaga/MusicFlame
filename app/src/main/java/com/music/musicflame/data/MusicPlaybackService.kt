@@ -125,7 +125,7 @@ class MusicPlaybackService : MediaSessionService() {
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
-    private lateinit var sharedPrefs: SharedPreferences
+    private lateinit var sharedPrefs: SettingsStore
 
     // --- LETRA EN VIVO EN EL WIDGET ---
     private lateinit var lyricsRepo: LyricsRepository
@@ -148,6 +148,12 @@ class MusicPlaybackService : MediaSessionService() {
     private var isCurrentSongFavorite = false
     private val PREF_FAVORITES_KEY = "favorite_songs_set"
 
+
+    // Favoritos cambiados desde la app (corazón del reproductor, listas...): refresca el corazón de la
+    // notificación al instante. Si el cambio lo hizo este mismo servicio, el resultado es idéntico (inofensivo).
+    private val favoritesChangeListener = SettingsStore.OnChangeListener { key ->
+        if (key == PREF_FAVORITES_KEY && ::player.isInitialized) checkIfCurrentSongIsFavorite()
+    }
 
     // RECEPTOR DEL "MISIL" DE DATOS DESDE LA UI
     private val eqUpdateReceiver = object : BroadcastReceiver() {
@@ -353,7 +359,7 @@ class MusicPlaybackService : MediaSessionService() {
     override fun onCreate() {
         super.onCreate()
 
-        sharedPrefs = getSharedPreferences("settings", Context.MODE_PRIVATE)
+        sharedPrefs = SettingsStore.get(this)
         lyricsRepo = LyricsRepository(this)
         lyricsSettingsRepo = SettingsRepository(this)
         volumeNormalizationCacheRepo = VolumeNormalizationCacheRepository(this)
@@ -385,6 +391,7 @@ class MusicPlaybackService : MediaSessionService() {
             addAction(Intent.ACTION_SCREEN_ON)
         }
         registerReceiver(screenStateReceiver, screenFilter)
+        sharedPrefs.registerOnChangeListener(favoritesChangeListener)
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -901,6 +908,7 @@ class MusicPlaybackService : MediaSessionService() {
         unregisterReceiver(eqUpdateReceiver)
         unregisterReceiver(noisyReceiver)
         unregisterReceiver(screenStateReceiver)
+        sharedPrefs.unregisterOnChangeListener(favoritesChangeListener)
         equalizer?.release()
         bassBoost?.release()
         virtualizer?.release()

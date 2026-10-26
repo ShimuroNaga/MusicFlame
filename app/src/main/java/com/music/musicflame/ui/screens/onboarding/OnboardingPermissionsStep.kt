@@ -61,7 +61,7 @@ fun OnboardingPermissionsStep() {
                 !notificationsGranted &&
                 context is Activity &&
                 !ActivityCompat.shouldShowRequestPermissionRationale(context, Manifest.permission.POST_NOTIFICATIONS) &&
-                context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("notification_permission_asked", false)
+                com.music.musicflame.data.SettingsStore.get(context).getBoolean("notification_permission_asked", false)
         )
     }
 
@@ -78,7 +78,7 @@ fun OnboardingPermissionsStep() {
     }
     val notificationLauncher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         notificationsGranted = granted
-        context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+        com.music.musicflame.data.SettingsStore.get(context)
             .edit().putBoolean("notification_permission_asked", true).apply()
         if (!granted && context is Activity) {
             notificationPermanentlyDenied = !ActivityCompat.shouldShowRequestPermissionRationale(context, Manifest.permission.POST_NOTIFICATIONS)
@@ -99,7 +99,7 @@ fun OnboardingPermissionsStep() {
                     notificationsGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
                     if (!notificationsGranted && context is Activity) {
                         notificationPermanentlyDenied = !ActivityCompat.shouldShowRequestPermissionRationale(context, Manifest.permission.POST_NOTIFICATIONS) &&
-                            context.getSharedPreferences("settings", Context.MODE_PRIVATE).getBoolean("notification_permission_asked", false)
+                            com.music.musicflame.data.SettingsStore.get(context).getBoolean("notification_permission_asked", false)
                     }
                 }
                 isIgnoringBattery = powerManager.isIgnoringBatteryOptimizations(context.packageName)
@@ -171,7 +171,7 @@ fun OnboardingPermissionsStep() {
                                     .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
                                 try { context.startActivity(intent) } catch (e: Exception) { /* dispositivo sin ese ajuste */ }
                             } else {
-                                context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                                com.music.musicflame.data.SettingsStore.get(context)
                                     .edit().putBoolean("notification_permission_asked", true).apply()
                                 notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                             }
@@ -259,7 +259,7 @@ fun OnboardingPermissionsStep() {
             confirmButton = {
                 TextButton(onClick = {
                     showVisualizerExplanationDialog = false
-                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    com.music.musicflame.data.SettingsStore.get(context)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
                     recordAudioLauncher.launch(Manifest.permission.RECORD_AUDIO)
                 }) { Text(stringResource(R.string.fp_allow)) }
@@ -267,7 +267,7 @@ fun OnboardingPermissionsStep() {
             dismissButton = {
                 TextButton(onClick = {
                     showVisualizerExplanationDialog = false
-                    context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+                    com.music.musicflame.data.SettingsStore.get(context)
                         .edit().putBoolean("visualizer_permission_asked", true).apply()
                 }) { Text(stringResource(R.string.fp_not_now)) }
             }

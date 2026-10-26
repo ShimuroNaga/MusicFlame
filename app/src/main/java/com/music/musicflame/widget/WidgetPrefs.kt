@@ -1,6 +1,7 @@
 package com.music.musicflame.widget
 
 import android.content.Context
+import com.music.musicflame.data.SettingsStore
 import org.json.JSONArray
 
 /**
@@ -11,12 +12,10 @@ import org.json.JSONArray
  * El widget (MusicFlameWidgetProvider) y el receiver de acciones (WidgetActionReceiver)
  * solo LEEN de aquí para dibujar el RemoteViews o para saber si hay que pausar/reanudar.
  *
- * Usamos el mismo archivo "settings" que ya usa el resto de la app para no
- * multiplicar archivos de SharedPreferences.
+ * Usamos el mismo archivo "settings" que ya usa el resto de la app (siempre a través
+ * de SettingsStore) para no multiplicar archivos de SharedPreferences.
  */
 object WidgetPrefs {
-    private const val PREFS_NAME = "settings"
-
     private const val KEY_HAS_SONG = "widget_has_song"
     private const val KEY_TITLE = "widget_song_title"
     private const val KEY_ARTIST = "widget_song_artist"
@@ -59,7 +58,7 @@ object WidgetPrefs {
         isPlaying: Boolean,
         mediaId: String?
     ) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        SettingsStore.get(context).edit()
             .putBoolean(KEY_HAS_SONG, hasSong)
             .putString(KEY_TITLE, title)
             .putString(KEY_ARTIST, artist)
@@ -71,7 +70,7 @@ object WidgetPrefs {
 
     /** Actualiza solo el flag de reproducción, sin tocar el resto (respuesta instantánea al tocar play/pause). */
     fun updateIsPlaying(context: Context, isPlaying: Boolean) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        SettingsStore.get(context).edit()
             .putBoolean(KEY_IS_PLAYING, isPlaying)
             .apply()
     }
@@ -85,7 +84,7 @@ object WidgetPrefs {
     fun saveLyricsLines(context: Context, mediaId: String?, lines: List<String>) {
         val array = JSONArray()
         lines.take(MAX_LYRICS_CONTEXT_LINES).forEach { array.put(it) }
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        SettingsStore.get(context).edit()
             .putString(KEY_LYRICS_LINES, array.toString())
             .putString(KEY_LYRICS_MEDIA_ID, mediaId)
             .apply()
@@ -93,7 +92,7 @@ object WidgetPrefs {
 
     /** Borra las líneas de letra guardadas (canción sin letra, o letra desactivada en Ajustes). */
     fun clearLyricsLines(context: Context) {
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit()
+        SettingsStore.get(context).edit()
             .remove(KEY_LYRICS_LINES)
             .remove(KEY_LYRICS_MEDIA_ID)
             .apply()
@@ -105,7 +104,7 @@ object WidgetPrefs {
      * la canción anterior pisando el widget justo después del cambio de canción.
      */
     fun readLyricsLines(context: Context, currentMediaId: String?): List<String> {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = SettingsStore.get(context)
         val savedMediaId = prefs.getString(KEY_LYRICS_MEDIA_ID, null)
         if (currentMediaId == null || savedMediaId != currentMediaId) return emptyList()
         val json = prefs.getString(KEY_LYRICS_LINES, null) ?: return emptyList()
@@ -118,7 +117,7 @@ object WidgetPrefs {
     }
 
     fun read(context: Context): WidgetSongState {
-        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val prefs = SettingsStore.get(context)
         return WidgetSongState(
             hasSong = prefs.getBoolean(KEY_HAS_SONG, false),
             title = prefs.getString(KEY_TITLE, "") ?: "",

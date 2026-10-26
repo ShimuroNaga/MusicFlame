@@ -18,6 +18,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import com.music.musicflame.data.SettingsRepository
+import com.music.musicflame.data.SettingsStore
 
 @Composable
 fun MusicFlameTheme(
@@ -66,8 +67,8 @@ fun MusicFlameTheme(
 
     // Registrar listeners para detectar cambios en SharedPreferences en tiempo real
     DisposableEffect(context) {
-        val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        val settingsStore = SettingsStore.get(context)
+        val listener = SettingsStore.OnChangeListener { key ->
             when (key) {
                 "app_theme" -> appThemeState.value = settingsRepo.getAppTheme()
                 // Nota: Asegúrate de que "amoled_mode" sea exactamente el nombre
@@ -81,7 +82,7 @@ fun MusicFlameTheme(
                 "app_font_size_sp" -> appFontSizeState.value = settingsRepo.getAppFontSizeSp()
             }
         }
-        prefs.registerOnSharedPreferenceChangeListener(listener)
+        settingsStore.registerOnChangeListener(listener)
 
         // NUEVO: mismo patrón pero para el archivo de preferencias de la
         // licencia (pago). Así, si se activa/revoca/quita la license key
@@ -95,7 +96,7 @@ fun MusicFlameTheme(
         licensePrefs.registerOnSharedPreferenceChangeListener(licenseListener)
 
         onDispose {
-            prefs.unregisterOnSharedPreferenceChangeListener(listener)
+            settingsStore.unregisterOnChangeListener(listener)
             licensePrefs.unregisterOnSharedPreferenceChangeListener(licenseListener)
         }
     }

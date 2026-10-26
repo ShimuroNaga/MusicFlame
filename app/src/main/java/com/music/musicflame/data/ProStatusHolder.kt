@@ -1,7 +1,11 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import android.util.Log
 import androidx.compose.runtime.mutableStateOf
+import java.util.concurrent.CountDownLatch
+import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicBoolean
 
 /**
  * Estado global y reactivo de qué ítems del catálogo (PaymentCatalog) están
@@ -25,6 +29,44 @@ import androidx.compose.runtime.mutableStateOf
  */
 object ProStatusHolder {
     private val unlockedIdsState = mutableStateOf<Set<String>>(emptySet())
+
+    // --- Precarga al arrancar (evita el "parpadeo" del tema) -------------------------------------
+    // Antes, unlockedIds arrancaba vacío y se llenaba DESPUÉS del primer frame (LaunchedEffect en
+    // Theme.kt / MainActivity). Resultado: el primer frame pintaba la fuente y los colores de pago
+    // del usuario con el valor gratis de siempre, y un instante después "saltaban" a los suyos.
+    // Ahora se calcula en segundo plano desde Application.onCreate y MainActivity lo espera (con
+    // tope) antes de dibujar, así el primer frame ya sale con el tema correcto.
+    private val preloadStarted = AtomicBoolean(false)
+    private val readyLatch = CountDownLatch(1)
+
+    @Volatile
+    private var ready = false
+
+    /** Calcula el estado de compras en un hilo aparte. Seguro llamarla varias veces. */
+    fun preload(context: Context) {
+        if (!preloadStarted.compareAndSet(false, true)) return
+        val appContext = context.applicationContext
+        Thread({
+            try {
+                refresh(appContext)
+            } catch (e: Exception) {
+                Log.w("ProStatusHolder", "No se pudo precargar el estado de compras; se calculará al abrir la UI", e)
+            } finally {
+                ready = true
+                readyLatch.countDown()
+            }
+        }, "pro-status-preload").start()
+    }
+
+    /** Espera (con tope) a que termine la precarga. Normalmente ya terminó. */
+    fun awaitReady(maxWaitMs: Long = 1500L) {
+        if (ready) return
+        try {
+            readyLatch.await(maxWaitMs, TimeUnit.MILLISECONDS)
+        } catch (e: InterruptedException) {
+            Thread.currentThread().interrupt()
+        }
+    }
 
     /** true si el ítem [catalogId] (un id de PaymentCatalog.ITEMS) está desbloqueado ahora mismo. */
     fun isItemUnlocked(catalogId: String): Boolean = catalogId in unlockedIdsState.value

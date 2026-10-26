@@ -148,7 +148,7 @@ fun AiChatScreen(
     var termsDismissed by remember { mutableStateOf(false) }   // "Ahora no": no insistir hasta reabrir la app
     var showTermsAgain by remember { mutableStateOf(false) }
     DisposableEffect(settings) {
-        val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
+        val listener = com.music.musicflame.data.SettingsStore.OnChangeListener { key ->
             if (key in AiChatSettings.OBSERVED_KEYS) {
                 name = settings.getName(); bubbleMode = settings.getBubbleMode(); bubbleHex = settings.getBubbleHex()
                 termsAccepted = settings.isTermsAccepted()
@@ -156,8 +156,8 @@ fun AiChatScreen(
                 onlineTermsAccepted = settings.isOnlineTermsAccepted()
             }
         }
-        settings.prefs.registerOnSharedPreferenceChangeListener(listener)
-        onDispose { settings.prefs.unregisterOnSharedPreferenceChangeListener(listener) }
+        settings.prefs.registerOnChangeListener(listener)
+        onDispose { settings.prefs.unregisterOnChangeListener(listener) }
     }
 
     val messages = remember { mutableStateListOf<AiMessage>().apply { addAll(settings.loadHistory()) } }

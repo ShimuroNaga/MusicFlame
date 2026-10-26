@@ -18,7 +18,7 @@ data class FullPlayerBgConfig(
 )
 
 class SettingsRepository(context: Context) {
-    private val prefs = context.getSharedPreferences("settings", Context.MODE_PRIVATE)
+    private val prefs = SettingsStore.get(context)
     private val appContext: Context = context.applicationContext
 
     fun getSystemPrompt(): String = prefs.getString("system_prompt", "") ?: ""

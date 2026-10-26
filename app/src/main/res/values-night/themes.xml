@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+
+    <!--
+        Variante para sistema en modo oscuro. El fondo de la VENTANA (lo que Android muestra antes de que
+        Compose dibuje el primer frame) era siempre blanco: con el sistema en oscuro se veía un destello
+        blanco antes del tema oscuro de la app. Ahora arranca negro, que coincide con AMOLED y queda muy
+        cerca del tema oscuro normal. No afecta a lo que dibuja Compose.
+    -->
+    <style name="Theme.MusicFlame" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
+    </style>
+</resources>

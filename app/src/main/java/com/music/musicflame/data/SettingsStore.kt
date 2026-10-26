@@ -444,13 +444,17 @@ class SettingsStore private constructor(private val appContext: Context) {
 
         /**
          * Claves que se QUEDAN en SharedPreferences (no se migran):
-         *  - favorite_songs_set: es un dato (lista de favoritos), no un ajuste, y el servicio lo escribe.
+         *  - favorite_songs_set: ya NO es el almacén de favoritos (viven en Room, tabla favorites); queda
+         *    aquí SOLO para que la migración a Room todavía pueda leerlo. NO quitarla de esta lista:
+         *    si no, DataStore la movería antes de que Room la lea y se perderían los favoritos.
+         *  - favorites_room_migration_done: flag de esa migración (lo lee/escribe RoomStoreEngine directo).
          *  - volume_normalization_status: texto de diagnóstico que escribe el servicio.
          *  - widget_*: estado del widget (canción, carátula, letras) que el servicio reescribe muy seguido.
          *    OJO: "widget_bg_opacity" NO está aquí: es un ajuste del usuario y sí va a DataStore.
          */
         private val SP_ONLY_KEYS: Set<String> = setOf(
             "favorite_songs_set",
+            "favorites_room_migration_done",
             "volume_normalization_status",
             "widget_has_song",
             "widget_song_title",

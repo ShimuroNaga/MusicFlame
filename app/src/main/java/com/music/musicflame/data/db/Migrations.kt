@@ -66,10 +66,21 @@ object Migrations {
         }
     }
 
+    /** v5 -> v6: FavoritesRepository (tabla favorites). */
+    val MIGRATION_5_6: Migration = object : Migration(5, 6) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `favorites` (`song_id` INTEGER NOT NULL, " +
+                    "PRIMARY KEY(`song_id`))"
+            )
+        }
+    }
+
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
-        MIGRATION_4_5
+        MIGRATION_4_5,
+        MIGRATION_5_6
     )
 }

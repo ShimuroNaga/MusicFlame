@@ -146,13 +146,13 @@ class MusicPlaybackService : MediaSessionService() {
     private val CUSTOM_COMMAND_CYCLE_MODE = "com.music.musicflame.CYCLE_MODE" // NUEVO: ÚNICO BOTÓN CÍCLICO
 
     private var isCurrentSongFavorite = false
-    private val PREF_FAVORITES_KEY = "favorite_songs_set"
+    private val favoritesRepo by lazy { FavoritesRepository(applicationContext) }
 
 
     // Favoritos cambiados desde la app (corazón del reproductor, listas...): refresca el corazón de la
     // notificación al instante. Si el cambio lo hizo este mismo servicio, el resultado es idéntico (inofensivo).
-    private val favoritesChangeListener = SettingsStore.OnChangeListener { key ->
-        if (key == PREF_FAVORITES_KEY && ::player.isInitialized) checkIfCurrentSongIsFavorite()
+    private val favoritesChangeListener = FavoritesChangeListener {
+        if (::player.isInitialized) checkIfCurrentSongIsFavorite()
     }
 
     // RECEPTOR DEL "MISIL" DE DATOS DESDE LA UI
@@ -391,7 +391,7 @@ class MusicPlaybackService : MediaSessionService() {
             addAction(Intent.ACTION_SCREEN_ON)
         }
         registerReceiver(screenStateReceiver, screenFilter)
-        sharedPrefs.registerOnChangeListener(favoritesChangeListener)
+        FavoritesRepository.addOnChangeListener(favoritesChangeListener)
 
         val audioAttributes = AudioAttributes.Builder()
             .setUsage(C.USAGE_MEDIA)
@@ -629,9 +629,9 @@ class MusicPlaybackService : MediaSessionService() {
 
     private fun checkIfCurrentSongIsFavorite() {
         val currentMediaId = player.currentMediaItem?.mediaId ?: return
-        val favoritesSet = sharedPrefs.getStringSet(PREF_FAVORITES_KEY, mutableSetOf()) ?: mutableSetOf()
+        val songId = currentMediaId.toLongOrNull()
 
-        isCurrentSongFavorite = favoritesSet.contains(currentMediaId)
+        isCurrentSongFavorite = songId != null && favoritesRepo.isFavorite(songId)
         mediaSession?.setCustomLayout(getCustomLayout())
     }
 
@@ -685,16 +685,17 @@ class MusicPlaybackService : MediaSessionService() {
             when (customCommand.customAction) {
                 CUSTOM_COMMAND_FAVORITE -> {
                     val currentMediaId = player.currentMediaItem?.mediaId
-                    if (currentMediaId != null) {
+                    // Los favoritos se guardan por id numérico de MediaStore; un mediaId que no lo sea
+                    // (ej. algo que no viene de la biblioteca) no se puede marcar.
+                    val songId = currentMediaId?.toLongOrNull()
+                    if (currentMediaId != null && songId != null) {
                         isCurrentSongFavorite = !isCurrentSongFavorite
 
-                        val favoritesSet = sharedPrefs.getStringSet(PREF_FAVORITES_KEY, mutableSetOf())?.toMutableSet() ?: mutableSetOf()
                         if (isCurrentSongFavorite) {
-                            favoritesSet.add(currentMediaId)
+                            favoritesRepo.addFavorite(songId)
                         } else {
-                            favoritesSet.remove(currentMediaId)
+                            favoritesRepo.removeFavorite(songId)
                         }
-                        sharedPrefs.edit().putStringSet(PREF_FAVORITES_KEY, favoritesSet).apply()
 
                         val intent = Intent("com.music.musicflame.FAVORITES_CHANGED")
                         intent.setPackage(packageName)
@@ -908,7 +909,7 @@ class MusicPlaybackService : MediaSessionService() {
         unregisterReceiver(eqUpdateReceiver)
         unregisterReceiver(noisyReceiver)
         unregisterReceiver(screenStateReceiver)
-        sharedPrefs.unregisterOnChangeListener(favoritesChangeListener)
+        FavoritesRepository.removeOnChangeListener(favoritesChangeListener)
         equalizer?.release()
         bassBoost?.release()
         virtualizer?.release()

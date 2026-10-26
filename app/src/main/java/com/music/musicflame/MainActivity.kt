@@ -153,6 +153,7 @@ class MainActivity : ComponentActivity() {
         com.music.musicflame.data.PlaylistRepository.preload(this)
         com.music.musicflame.data.SongCustomizationRepository.preload(this)
         com.music.musicflame.data.MomentsRepository.preload(this)
+        com.music.musicflame.data.FavoritesRepository.preload(this)
         lifecycleScope.launch {
             com.music.musicflame.data.SongLibraryHolder.refreshIfPermitted(this@MainActivity)
         }
@@ -416,12 +417,11 @@ class MainActivity : ComponentActivity() {
                 var favoriteIds by remember { mutableStateOf(favoritesRepo.getAllFavoriteIds()) }
                 // Se refresca solo si los favoritos cambian desde fuera (corazón de la notificación).
                 androidx.compose.runtime.DisposableEffect(Unit) {
-                    val store = com.music.musicflame.data.SettingsStore.get(this@MainActivity.applicationContext)
-                    val favoritesListener = com.music.musicflame.data.SettingsStore.OnChangeListener { key ->
-                        if (key == "favorite_songs_set") favoriteIds = favoritesRepo.getAllFavoriteIds()
+                    val favoritesListener = com.music.musicflame.data.FavoritesChangeListener {
+                        favoriteIds = favoritesRepo.getAllFavoriteIds()
                     }
-                    store.registerOnChangeListener(favoritesListener)
-                    onDispose { store.unregisterOnChangeListener(favoritesListener) }
+                    FavoritesRepository.addOnChangeListener(favoritesListener)
+                    onDispose { FavoritesRepository.removeOnChangeListener(favoritesListener) }
                 }
                 var syncedFileNames by remember { mutableStateOf(setOf<String>()) } // <-- NUEVO
 

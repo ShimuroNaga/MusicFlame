@@ -1,6 +1,7 @@
 package com.music.musicflame.data.db
 
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.Looper
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
@@ -79,6 +80,20 @@ abstract class RoomStoreEngine<K : Any, O : Any>(
     /** Texto corto para el log ("12 canciones", etc.). */
     protected abstract fun describeMemory(): String
 
+    /**
+     * Lee el dato viejo como texto. Por defecto es un String (JSON) bajo [legacyKey]. Un repo cuyo
+     * dato viejo NO es un String (ej. un StringSet) sobreescribe esto y lo devuelve como texto.
+     */
+    protected open fun readLegacy(prefs: SharedPreferences): String? = prefs.getString(legacyKey, null)
+
+    /**
+     * Guarda en el almacén viejo (modo "datos viejos"). Por defecto escribe [serialized] como String
+     * bajo [legacyKey]; sobreescribir junto con [readLegacy] si el dato viejo no es un String.
+     */
+    protected open fun writeLegacy(editor: SharedPreferences.Editor, serialized: String) {
+        editor.putString(legacyKey, serialized)
+    }
+
     fun start(context: Context) {
         if (!started.compareAndSet(false, true)) return
         appContext = context.applicationContext
@@ -126,7 +141,7 @@ abstract class RoomStoreEngine<K : Any, O : Any>(
             roomAvailable = false
             Log.e(tag, "Room/migración falló; sigo con los datos viejos y reintento en el próximo arranque", e)
             if (!alreadyMigrated) {
-                val json = prefs.getString(legacyKey, null)
+                val json = readLegacy(prefs)
                 if (json != null) {
                     try {
                         loadFromLegacyJson(json)
@@ -139,7 +154,7 @@ abstract class RoomStoreEngine<K : Any, O : Any>(
     }
 
     private suspend fun migrate(prefs: android.content.SharedPreferences) {
-        val json = prefs.getString(legacyKey, null)
+        val json = readLegacy(prefs)
         if (json == null) {
             prefs.edit().putBoolean(flagKey, true).commit()
             Log.i(tag, "Migración: no había JSON viejo; flag marcado")
@@ -188,7 +203,9 @@ abstract class RoomStoreEngine<K : Any, O : Any>(
     private fun persistLegacyIfNeeded() {
         val prefs = appContext.getSharedPreferences(legacyPrefsName, Context.MODE_PRIVATE)
         if (prefs.getBoolean(flagKey, false)) return
-        prefs.edit().putString(legacyKey, serializeLegacy()).apply()
+        val editor = prefs.edit()
+        writeLegacy(editor, serializeLegacy())
+        editor.apply()
     }
 
     private companion object {

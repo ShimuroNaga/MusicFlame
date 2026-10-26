@@ -16,6 +16,8 @@ import org.json.JSONObject
  *   a elegir a mano si quiere, después de importar.
  * - Favoritos, Mezcla del día, fecha de onboarding: son datos/estado de la
  *   biblioteca (IDs de MediaStore de ESTE dispositivo), no "configuración".
+ * - Estado del widget (widget_*, menos widget_bg_opacity) y el texto de diagnóstico de la
+ *   normalización de volumen: es estado momentáneo (qué suena ahora), no configuración.
  *
  * Todo lo demás en el archivo de prefs "settings" (tema, colores, tipografía,
  * ecualizador, forma de carátula, diseños de carátula propios ("cover_designs"
@@ -36,6 +38,7 @@ object ConfigExportRepository {
         "background_image_uri",
         "player_gif_uri",
         "favorite_songs_set",
+        "favorites_room_migration_done",
         "favorites_cover_uri",
         "most_played_cover_uri",
         "never_played_cover_uri",
@@ -44,7 +47,18 @@ object ConfigExportRepository {
         "ai_online_terms_accepted",
         "mix_songs",
         "last_mix_date",
-        "onboarding_completed"
+        "onboarding_completed",
+        // Estado interno del widget y diagnóstico que escribe el servicio (siguen en SharedPreferences,
+        // ver SettingsStore.SP_ONLY_KEYS). NO incluye "widget_bg_opacity": ese es un ajuste del usuario.
+        "widget_has_song",
+        "widget_song_title",
+        "widget_song_artist",
+        "widget_album_art_uri",
+        "widget_is_playing",
+        "widget_media_id",
+        "widget_lyrics_lines",
+        "widget_lyrics_media_id",
+        "volume_normalization_status"
     )
 
     fun exportToJson(context: Context): String {

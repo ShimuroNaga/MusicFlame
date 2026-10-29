@@ -375,4 +375,10 @@
     <string name="avatar_editor_title">Editar imagen</string>
     <string name="avatar_editor_scale">Escala</string>
     <string name="avatar_editor_load_failed">No se pudo abrir la imagen</string>
+    <string name="settings_group_personalization">Personalización</string>
+    <string name="settings_group_playback">Reproducción</string>
+    <string name="settings_group_account_data">Cuenta y datos</string>
+    <string name="settings_group_support">Apoyo</string>
+    <string name="settings_group_about">Acerca de</string>
+    <string name="settings_group_project">Proyecto</string>
 </resources>

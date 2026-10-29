@@ -92,7 +92,7 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
 
             if (online) {
                 Spacer(Modifier.height(12.dp))
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     Column(Modifier.padding(16.dp)) {
                         Text(stringResource(R.string.settings_ai_online_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)
                         Spacer(Modifier.height(2.dp))
@@ -205,7 +205,7 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
             Text(stringResource(R.string.settings_ai_models_hint), fontSize = 12.sp, color = style.mediumEmphasis)
             Spacer(Modifier.height(8.dp))
             AiModel.values().forEach { m ->
-                Card(Modifier.fillMaxWidth(), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                     Column(Modifier.padding(16.dp)) {
                         Text(m.displayName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)
                         Text(stringResource(R.string.settings_ai_model_meta, m.sizeLabel, m.licenseName), fontSize = 12.sp, color = style.mediumEmphasis)

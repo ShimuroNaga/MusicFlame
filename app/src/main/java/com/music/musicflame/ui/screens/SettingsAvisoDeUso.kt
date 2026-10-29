@@ -1,5 +1,6 @@
 package com.music.musicflame.ui.screens
 
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyListScope
@@ -22,6 +23,7 @@ internal fun LazyListScope.settingsAvisoDeUsoSection() {
             modifier = Modifier
                 .fillMaxWidth()
                 .padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.errorContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {

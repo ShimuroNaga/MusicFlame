@@ -171,318 +171,341 @@ internal fun LazyListScope.settingsSongsSection(
     item { SettingsSectionHeader(style, stringResource(R.string.settings_manejo_de_canciones)) }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_filtrar_por_duracion)) },
-            supportingContent = { Text(stringResource(R.string.settings_excluir_o_mostrar_solo_canciones_d)) },
-            trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text(stringResource(R.string.settings_configurar), fontWeight = FontWeight.ExtraBold, color = style.trailingColor) } },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_filtrar_por_duracion)) },
+                supportingContent = { Text(stringResource(R.string.settings_excluir_o_mostrar_solo_canciones_d)) },
+                trailingContent = { TextButton(onClick = { showDurationFilterDialog.value = true }) { Text(stringResource(R.string.settings_configurar), fontWeight = FontWeight.ExtraBold, color = style.trailingColor) } },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_formatos_de_audio_a_escuchar)) },
-            supportingContent = { Text(stringResource(R.string.settings_elige_que_formatos_de_tu_bibliotec)) },
-            trailingContent = { TextButton(onClick = { showAudioFormatsDialog.value = true }) { Text(stringResource(R.string.settings_ver_formatos), fontWeight = FontWeight.ExtraBold, color = style.trailingColor) } },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_formatos_de_audio_a_escuchar)) },
+                supportingContent = { Text(stringResource(R.string.settings_elige_que_formatos_de_tu_bibliotec)) },
+                trailingContent = { TextButton(onClick = { showAudioFormatsDialog.value = true }) { Text(stringResource(R.string.settings_ver_formatos), fontWeight = FontWeight.ExtraBold, color = style.trailingColor) } },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_busqueda_de_anomalias)) },
-            supportingContent = { Text(stringResource(R.string.settings_detecta_caratulas_corruptas_metada)) },
-            trailingContent = {
-                TextButton(onClick = { showAnomalyScanDialog.value = true }) {
-                    Text(stringResource(R.string.settings_analizar), fontWeight = FontWeight.ExtraBold, color = style.trailingColor)
-                }
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_busqueda_de_anomalias)) },
+                supportingContent = { Text(stringResource(R.string.settings_detecta_caratulas_corruptas_metada)) },
+                trailingContent = {
+                    TextButton(onClick = { showAnomalyScanDialog.value = true }) {
+                        Text(stringResource(R.string.settings_analizar), fontWeight = FontWeight.ExtraBold, color = style.trailingColor)
+                    }
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_guardar_etiquetas_reales_en_el_arc)) },
-            supportingContent = {
-                Text(
-                    text = when {
-                        !hasFileAccessPermission -> stringResource(R.string.settings_requiere_el_permiso_acceso_a_todos)
-                        realTagWritingEnabled -> stringResource(R.string.settings_activado_caratula_titulo_artista_y)
-                        else -> stringResource(R.string.settings_desactivado_los_cambios_solo_se_ve)
-                    },
-                    color = if (!hasFileAccessPermission) MaterialTheme.colorScheme.error else style.trailingColor
-                )
-            },
-            trailingContent = {
-                Switch(
-                    checked = realTagWritingEnabled,
-                    onCheckedChange = { checked ->
-                        if (checked) {
-                            if (hasFileAccessPermission) {
-                                realTagWritingEnabled = true
-                                settingsRepo.saveRealTagWritingEnabled(true)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_guardar_etiquetas_reales_en_el_arc)) },
+                supportingContent = {
+                    Text(
+                        text = when {
+                            !hasFileAccessPermission -> stringResource(R.string.settings_requiere_el_permiso_acceso_a_todos)
+                            realTagWritingEnabled -> stringResource(R.string.settings_activado_caratula_titulo_artista_y)
+                            else -> stringResource(R.string.settings_desactivado_los_cambios_solo_se_ve)
+                        },
+                        color = if (!hasFileAccessPermission) MaterialTheme.colorScheme.error else style.trailingColor
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = realTagWritingEnabled,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                if (hasFileAccessPermission) {
+                                    realTagWritingEnabled = true
+                                    settingsRepo.saveRealTagWritingEnabled(true)
+                                } else {
+                                    com.music.musicflame.data.RealTagWriter.requestFileAccessPermission(context)
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.settings_concede_acceso_a_todos_los_archivo),
+                                        Toast.LENGTH_LONG
+                                    ).show()
+                                }
                             } else {
-                                com.music.musicflame.data.RealTagWriter.requestFileAccessPermission(context)
-                                Toast.makeText(
-                                    context,
-                                    context.getString(R.string.settings_concede_acceso_a_todos_los_archivo),
-                                    Toast.LENGTH_LONG
-                                ).show()
+                                realTagWritingEnabled = false
+                                settingsRepo.saveRealTagWritingEnabled(false)
                             }
-                        } else {
-                            realTagWritingEnabled = false
-                            settingsRepo.saveRealTagWritingEnabled(false)
                         }
-                    }
-                )
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+                    )
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        val sleepActive by playerManager.sleepTimerActive
-        val sleepEndOfSong by playerManager.sleepTimerEndOfSongActive
-        val sleepRemainingMs by playerManager.sleepTimerRemainingMs
+        SettingsRow(style, SettingsRowPos.Last) {
+            val sleepActive by playerManager.sleepTimerActive
+            val sleepEndOfSong by playerManager.sleepTimerEndOfSongActive
+            val sleepRemainingMs by playerManager.sleepTimerRemainingMs
 
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_temporizador_de_apagado)) },
-            supportingContent = {
-                Text(
-                    when {
-                        sleepEndOfSong -> stringResource(R.string.settings_se_pausara_al_terminar_la_cancion)
-                        sleepActive -> {
-                            val totalSeconds = (sleepRemainingMs / 1000L).coerceAtLeast(0L)
-                            val mm = totalSeconds / 60
-                            val ss = totalSeconds % 60
-                            stringResource(R.string.settings_pausando_en_02d_02d).format(mm, ss)
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_temporizador_de_apagado)) },
+                supportingContent = {
+                    Text(
+                        when {
+                            sleepEndOfSong -> stringResource(R.string.settings_se_pausara_al_terminar_la_cancion)
+                            sleepActive -> {
+                                val totalSeconds = (sleepRemainingMs / 1000L).coerceAtLeast(0L)
+                                val mm = totalSeconds / 60
+                                val ss = totalSeconds % 60
+                                stringResource(R.string.settings_pausando_en_02d_02d).format(mm, ss)
+                            }
+                            else -> stringResource(R.string.settings_pausa_la_reproduccion_automaticame)
                         }
-                        else -> stringResource(R.string.settings_pausa_la_reproduccion_automaticame)
+                    )
+                },
+                trailingContent = {
+                    if (sleepActive) {
+                        TextButton(onClick = { playerManager.cancelSleepTimer() }) {
+                            Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.error)
+                        }
+                    } else {
+                        TextButton(onClick = { showSleepTimerDialog.value = true }) {
+                            Text(stringResource(R.string.settings_configurar), fontWeight = FontWeight.ExtraBold, color = style.trailingColor)
+                        }
                     }
-                )
-            },
-            trailingContent = {
-                if (sleepActive) {
-                    TextButton(onClick = { playerManager.cancelSleepTimer() }) {
-                        Text(stringResource(R.string.action_cancel), fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.error)
-                    }
-                } else {
-                    TextButton(onClick = { showSleepTimerDialog.value = true }) {
-                        Text(stringResource(R.string.settings_configurar), fontWeight = FontWeight.ExtraBold, color = style.trailingColor)
-                    }
-                }
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+                },
+                colors = style.listItemColors
+            )
+        }
     }
 
     item { SettingsSectionHeader(style, stringResource(R.string.settings_reproduccion)) }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_reproducir_en_segundo_plano)) },
-            supportingContent = { Text(stringResource(R.string.settings_mantiene_el_reproductor_activo_fue)) },
-            trailingContent = {
-                Switch(
-                    checked = playInBackground.value,
-                    onCheckedChange = {
-                        playInBackground.value = it
-                        settingsRepo.savePlayInBackground(it)
-                        Toast.makeText(context, if (it) context.getString(R.string.settings_segundo_plano_activado) else context.getString(R.string.settings_segundo_plano_desactivado), Toast.LENGTH_SHORT).show()
-                    }
-                )
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_reproducir_en_segundo_plano)) },
+                supportingContent = { Text(stringResource(R.string.settings_mantiene_el_reproductor_activo_fue)) },
+                trailingContent = {
+                    Switch(
+                        checked = playInBackground.value,
+                        onCheckedChange = {
+                            playInBackground.value = it
+                            settingsRepo.savePlayInBackground(it)
+                            Toast.makeText(context, if (it) context.getString(R.string.settings_segundo_plano_activado) else context.getString(R.string.settings_segundo_plano_desactivado), Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_pausar_al_desconectar_audifonos)) },
-            supportingContent = { Text(stringResource(R.string.settings_detiene_la_cancion_si_te_quitas_lo)) },
-            trailingContent = {
-                Switch(
-                    checked = pauseOnDisconnect.value,
-                    onCheckedChange = {
-                        pauseOnDisconnect.value = it
-                        settingsRepo.savePauseOnDisconnect(it)
-                        Toast.makeText(context, if (it) context.getString(R.string.settings_pausa_automatica_activada) else context.getString(R.string.settings_pausa_automatica_desactivada), Toast.LENGTH_SHORT).show()
-                    }
-                )
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_pausar_al_desconectar_audifonos)) },
+                supportingContent = { Text(stringResource(R.string.settings_detiene_la_cancion_si_te_quitas_lo)) },
+                trailingContent = {
+                    Switch(
+                        checked = pauseOnDisconnect.value,
+                        onCheckedChange = {
+                            pauseOnDisconnect.value = it
+                            settingsRepo.savePauseOnDisconnect(it)
+                            Toast.makeText(context, if (it) context.getString(R.string.settings_pausa_automatica_activada) else context.getString(R.string.settings_pausa_automatica_desactivada), Toast.LENGTH_SHORT).show()
+                        }
+                    )
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_normalizar_volumen)) },
-            supportingContent = { Text(stringResource(R.string.settings_normalizar_volumen_desc)) },
-            trailingContent = {
-                Switch(
-                    checked = volumeNormalizationEnabled.value,
-                    onCheckedChange = {
-                        volumeNormalizationEnabled.value = it
-                        settingsRepo.saveVolumeNormalizationEnabled(it)
-                        // Aplica ya a la canción que suena (el servicio también lo relee solo).
-                        context.sendBroadcast(android.content.Intent("com.music.musicflame.UPDATE_EQ").setPackage(context.packageName))
-                    }
-                )
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_normalizar_volumen)) },
+                supportingContent = { Text(stringResource(R.string.settings_normalizar_volumen_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = volumeNormalizationEnabled.value,
+                        onCheckedChange = {
+                            volumeNormalizationEnabled.value = it
+                            settingsRepo.saveVolumeNormalizationEnabled(it)
+                            // Aplica ya a la canción que suena (el servicio también lo relee solo).
+                            context.sendBroadcast(android.content.Intent("com.music.musicflame.UPDATE_EQ").setPackage(context.packageName))
+                        }
+                    )
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     // AUDIO 8D + BALANCE: el switch lo activa al instante; tocar la fila abre sus ajustes.
     item {
-        val audio8dPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
-        val audio8dOn = remember { mutableStateOf(audio8dPrefs.getBoolean("audio8d_enabled", false)) }
-        val showAudio8dDialog = remember { mutableStateOf(false) }
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.audio8d_title)) },
-            supportingContent = { Text(stringResource(R.string.audio8d_desc)) },
-            trailingContent = {
-                Switch(
-                    checked = audio8dOn.value,
-                    onCheckedChange = { on ->
-                        audio8dOn.value = on
-                        audio8dPrefs.edit().putBoolean("audio8d_enabled", on).apply()
-                        context.sendBroadcast(android.content.Intent("com.music.musicflame.UPDATE_EQ").setPackage(context.packageName))
-                    }
-                )
-            },
-            modifier = Modifier.clickable { showAudio8dDialog.value = true },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
-        if (showAudio8dDialog.value) {
-            Audio8DDialog(onDismiss = {
-                showAudio8dDialog.value = false
-                // Por si lo prendió/apagó dentro del diálogo, se refleja en el switch de la fila.
-                audio8dOn.value = audio8dPrefs.getBoolean("audio8d_enabled", false)
-            })
+        SettingsRow(style, SettingsRowPos.Middle) {
+            val audio8dPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
+            val audio8dOn = remember { mutableStateOf(audio8dPrefs.getBoolean("audio8d_enabled", false)) }
+            val showAudio8dDialog = remember { mutableStateOf(false) }
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.audio8d_title)) },
+                supportingContent = { Text(stringResource(R.string.audio8d_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = audio8dOn.value,
+                        onCheckedChange = { on ->
+                            audio8dOn.value = on
+                            audio8dPrefs.edit().putBoolean("audio8d_enabled", on).apply()
+                            context.sendBroadcast(android.content.Intent("com.music.musicflame.UPDATE_EQ").setPackage(context.packageName))
+                        }
+                    )
+                },
+                modifier = Modifier.clickable { showAudio8dDialog.value = true },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+            if (showAudio8dDialog.value) {
+                Audio8DDialog(onDismiss = {
+                    showAudio8dDialog.value = false
+                    // Por si lo prendió/apagó dentro del diálogo, se refleja en el switch de la fila.
+                    audio8dOn.value = audio8dPrefs.getBoolean("audio8d_enabled", false)
+                })
+            }
         }
     }
 
     // SOLO DUEÑO: muestra el ajuste en dB que el servicio le puso a la canción actual.
     item {
-        val isOwner = remember { com.music.musicflame.data.LicenseRepository(context).isOwnerAccount() }
-        if (isOwner) {
-            var normStatus by remember { mutableStateOf("") }
-            LaunchedEffect(Unit) {
-                val sp = com.music.musicflame.data.SettingsStore.get(context)
-                while (true) {
-                    normStatus = sp.getString("volume_normalization_status", null)
-                        ?: "Sin datos todavía (pon una canción)"
-                    kotlinx.coroutines.delay(1000)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            val isOwner = remember { com.music.musicflame.data.LicenseRepository(context).isOwnerAccount() }
+            if (isOwner) {
+                var normStatus by remember { mutableStateOf("") }
+                LaunchedEffect(Unit) {
+                    val sp = com.music.musicflame.data.SettingsStore.get(context)
+                    while (true) {
+                        normStatus = sp.getString("volume_normalization_status", null)
+                            ?: "Sin datos todavía (pon una canción)"
+                        kotlinx.coroutines.delay(1000)
+                    }
                 }
+                ListItem(
+                    headlineContent = { Text("Diagnóstico de volumen (solo dueño)") },
+                    supportingContent = { Text(normStatus) },
+                    colors = style.listItemColors
+                )
+                SettingsDivider(style)
             }
-            ListItem(
-                headlineContent = { Text("Diagnóstico de volumen (solo dueño)") },
-                supportingContent = { Text(normStatus) },
-                colors = style.listItemColors
-            )
-            HorizontalDivider(color = style.dividerColor)
         }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_optimizacion_de_bateria)) },
-            supportingContent = {
-                Text(
-                    text = if (isIgnoringBattery)
-                        stringResource(R.string.settings_optimizado_para_musica_continua_re)
-                    else
-                        stringResource(R.string.settings_restringido_android_podria_pausar),
-                    color = if (isIgnoringBattery) style.trailingColor else MaterialTheme.colorScheme.error
-                )
-            },
-            trailingContent = {
-                Switch(
-                    checked = isIgnoringBattery,
-                    onCheckedChange = { checked ->
-                        if (checked) {
-                            try {
-                                val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
-                                    data = Uri.parse("package:${context.packageName}")
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_optimizacion_de_bateria)) },
+                supportingContent = {
+                    Text(
+                        text = if (isIgnoringBattery)
+                            stringResource(R.string.settings_optimizado_para_musica_continua_re)
+                        else
+                            stringResource(R.string.settings_restringido_android_podria_pausar),
+                        color = if (isIgnoringBattery) style.trailingColor else MaterialTheme.colorScheme.error
+                    )
+                },
+                trailingContent = {
+                    Switch(
+                        checked = isIgnoringBattery,
+                        onCheckedChange = { checked ->
+                            if (checked) {
+                                try {
+                                    val intent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+                                        data = Uri.parse("package:${context.packageName}")
+                                    }
+                                    context.startActivity(intent)
+                                } catch (e: Exception) {
+                                    Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_abrir_la_configuracion), Toast.LENGTH_SHORT).show()
                                 }
+                            } else {
+                                val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
                                 context.startActivity(intent)
-                            } catch (e: Exception) {
-                                Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_abrir_la_configuracion), Toast.LENGTH_SHORT).show()
                             }
-                        } else {
-                            val intent = Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
-                            context.startActivity(intent)
                         }
-                    }
-                )
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+                    )
+                },
+                colors = style.listItemColors
+            )
+        }
     }
 
     item { SettingsSectionHeader(style, stringResource(R.string.settings_ecualizador)) }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_studio_pro_eq)) },
-            supportingContent = { Text(stringResource(R.string.settings_preset_activo_1_s, eqPresetSelected.value)) },
-            trailingContent = {
-                Button(
-                    onClick = { showEqualizerDialog.value = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
-                    )
-                ) { Text(stringResource(R.string.settings_abrir_consola), fontWeight = FontWeight.ExtraBold) }
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_studio_pro_eq)) },
+                supportingContent = { Text(stringResource(R.string.settings_preset_activo_1_s, eqPresetSelected.value)) },
+                trailingContent = {
+                    Button(
+                        onClick = { showEqualizerDialog.value = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) { Text(stringResource(R.string.settings_abrir_consola), fontWeight = FontWeight.ExtraBold) }
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isItemUnlocked("pro_eq_10band")
-        ListItem(
-            headlineContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(stringResource(R.string.settings_eq_pro_10_bandas))
-                    if (!isProEqUnlocked) {
-                        Spacer(Modifier.width(6.dp))
-                        Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
-                        Spacer(Modifier.width(2.dp))
-                        Text("\$${com.music.musicflame.data.PaymentCatalog.ITEMS.find { it.id == "pro_eq_10band" }?.priceMxn ?: 20} MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+        SettingsRow(style, SettingsRowPos.Last) {
+            val isProEqUnlocked = com.music.musicflame.data.ProStatusHolder.isItemUnlocked("pro_eq_10band")
+            ListItem(
+                headlineContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(stringResource(R.string.settings_eq_pro_10_bandas))
+                        if (!isProEqUnlocked) {
+                            Spacer(Modifier.width(6.dp))
+                            Icon(Icons.Filled.Lock, contentDescription = stringResource(R.string.settings_bloqueado), modifier = Modifier.size(13.dp), tint = MaterialTheme.colorScheme.error)
+                            Spacer(Modifier.width(2.dp))
+                            Text("\$${com.music.musicflame.data.PaymentCatalog.ITEMS.find { it.id == "pro_eq_10band" }?.priceMxn ?: 20} MXN", fontSize = 10.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
+                        }
                     }
-                }
-            },
-            supportingContent = {
-                Text(
-                    if (isProEqUnlocked) stringResource(R.string.settings_motor_propio_pre_amp_presets_y_nor)
-                    else stringResource(R.string.settings_funcion_de_pago_toca_para_ver_mas)
-                )
-            },
-            trailingContent = {
-                Button(
-                    onClick = { showProEqualizerDialog.value = true },
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = MaterialTheme.colorScheme.primary,
-                        contentColor = MaterialTheme.colorScheme.onPrimary
+                },
+                supportingContent = {
+                    Text(
+                        if (isProEqUnlocked) stringResource(R.string.settings_motor_propio_pre_amp_presets_y_nor)
+                        else stringResource(R.string.settings_funcion_de_pago_toca_para_ver_mas)
                     )
-                ) { Text(if (isProEqUnlocked) stringResource(R.string.settings_abrir) else stringResource(R.string.settings_ver), fontWeight = FontWeight.ExtraBold) }
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+                },
+                trailingContent = {
+                    Button(
+                        onClick = { showProEqualizerDialog.value = true },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.primary,
+                            contentColor = MaterialTheme.colorScheme.onPrimary
+                        )
+                    ) { Text(if (isProEqUnlocked) stringResource(R.string.settings_abrir) else stringResource(R.string.settings_ver), fontWeight = FontWeight.ExtraBold) }
+                },
+                colors = style.listItemColors
+            )
+        }
     }
 
 }

@@ -151,7 +151,11 @@ internal fun LazyListScope.settingsEspecificacionesSection(
     context: Context
 ) {
     item { SettingsSectionHeader(style, stringResource(R.string.settings_sobre)) }
-    item { ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.2") }, colors = style.listItemColors); HorizontalDivider(color = style.dividerColor) }
+    item {
+        SettingsRow(style, SettingsRowPos.Only) {
+     ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.2") }, colors = style.listItemColors);  
+        }
+    }
 
     // BOTÓN DE ACTUALIZACIONES (CARD)
     item {
@@ -160,6 +164,7 @@ internal fun LazyListScope.settingsEspecificacionesSection(
                 .fillMaxWidth()
                 .padding(16.dp)
                 .clickable { onCheckForUpdates() },
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
         ) {
             Row(
@@ -183,194 +188,217 @@ internal fun LazyListScope.settingsEspecificacionesSection(
     item { SettingsSectionHeader(style, stringResource(R.string.settings_especificaciones_tecnicas)) }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_framework_ui)) },
-            supportingContent = { Text("Jetpack Compose") },
-            colors = style.listItemColors
-        ); HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_framework_ui)) },
+                supportingContent = { Text("Jetpack Compose") },
+                colors = style.listItemColors
+            ); SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_lenguaje_de_diseno)) },
-            supportingContent = { Text("Material Design 3") },
-            colors = style.listItemColors
-        ); HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_lenguaje_de_diseno)) },
+                supportingContent = { Text("Material Design 3") },
+                colors = style.listItemColors
+            ); SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_paleta_de_colores)) },
-            supportingContent = { Text(stringResource(R.string.settings_material_you_dynamic)) },
-            colors = style.listItemColors
-        ); HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_paleta_de_colores)) },
+                supportingContent = { Text(stringResource(R.string.settings_material_you_dynamic)) },
+                colors = style.listItemColors
+            ); SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_arquitectura)) },
-            supportingContent = { Text(stringResource(R.string.settings_declarativa_y_modular)) },
-            colors = style.listItemColors
-        )
+        SettingsRow(style, SettingsRowPos.Middle) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_arquitectura)) },
+                supportingContent = { Text(stringResource(R.string.settings_declarativa_y_modular)) },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_creador_de_codigo)) },
-            supportingContent = { Text("ShimuroNaga") },
-            leadingContent = {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data("https://github.com/ShimuroNaga.png")
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = stringResource(R.string.settings_avatar_de_shimuronaga),
-                    contentScale = ContentScale.Crop,
-                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                )
-            },
-            colors = style.listItemColors
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_creador_de_codigo)) },
+                supportingContent = { Text("ShimuroNaga") },
+                leadingContent = {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data("https://github.com/ShimuroNaga.png")
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = stringResource(R.string.settings_avatar_de_shimuronaga),
+                        contentScale = ContentScale.Crop,
+                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    )
+                },
+                colors = style.listItemColors
+            )
+        }
     }
 
     item { SettingsSectionHeader(style, "Tester") }
 
     item {
-        ListItem(
-            headlineContent = { Text("Tester") },
-            supportingContent = { Text("Naofresita18") },
-            leadingContent = {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data("https://github.com/Naofresita18.png")
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = stringResource(R.string.settings_avatar_de_naofresita18),
-                    contentScale = ContentScale.Crop,
-                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                )
-            },
-            colors = style.listItemColors
-        )
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text("Tester") },
+                supportingContent = { Text("Naofresita18") },
+                leadingContent = {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data("https://github.com/Naofresita18.png")
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = stringResource(R.string.settings_avatar_de_naofresita18),
+                        contentScale = ContentScale.Crop,
+                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    )
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
     }
     item {
-        ListItem(
-            headlineContent = { Text("Tester") },
-            supportingContent = { Text("deivid-boop") },
-            leadingContent = {
-                AsyncImage(
-                    model = ImageRequest.Builder(context)
-                        .data("https://github.com/deivid-boop.png")
-                        .crossfade(true)
-                        .build(),
-                    contentDescription = stringResource(R.string.settings_avatar_de_deivid_boop),
-                    contentScale = ContentScale.Crop,
-                    placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
-                    error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                )
-            },
-            colors = style.listItemColors
-        )
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text("Tester") },
+                supportingContent = { Text("deivid-boop") },
+                leadingContent = {
+                    AsyncImage(
+                        model = ImageRequest.Builder(context)
+                            .data("https://github.com/deivid-boop.png")
+                            .crossfade(true)
+                            .build(),
+                        contentDescription = stringResource(R.string.settings_avatar_de_deivid_boop),
+                        contentScale = ContentScale.Crop,
+                        placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
+                        error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    )
+                },
+                colors = style.listItemColors
+            )
+        }
     }
 
     item { SettingsSectionHeader(style, stringResource(R.string.settings_comunidad)) }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_repositorio_en_github)) },
-            supportingContent = { Text(stringResource(R.string.settings_codigo_fuente_y_changelog_de_music)) },
-            leadingContent = {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_github),
-                    contentDescription = "GitHub",
-                    modifier = Modifier.size(28.dp),
-                    tint = style.highEmphasis
-                )
-            },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ShimuroNaga/MusicFlame"))
-                context.startActivity(intent)
-            }
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_repositorio_en_github)) },
+                supportingContent = { Text(stringResource(R.string.settings_codigo_fuente_y_changelog_de_music)) },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_github),
+                        contentDescription = "GitHub",
+                        modifier = Modifier.size(28.dp),
+                        tint = style.highEmphasis
+                    )
+                },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://github.com/ShimuroNaga/MusicFlame"))
+                    context.startActivity(intent)
+                }
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_unete_al_discord)) },
-            supportingContent = { Text(stringResource(R.string.settings_comunidad_soporte_y_novedades_de_l)) },
-            leadingContent = {
-                Icon(
-                    painter = painterResource(id = R.drawable.ic_discord),
-                    contentDescription = "Discord",
-                    modifier = Modifier.size(28.dp),
-                    tint = Color(0xFF5865F2)
-                )
-            },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/gGZ4zCZvab"))
-                context.startActivity(intent)
-            }
-        )
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_unete_al_discord)) },
+                supportingContent = { Text(stringResource(R.string.settings_comunidad_soporte_y_novedades_de_l)) },
+                leadingContent = {
+                    Icon(
+                        painter = painterResource(id = R.drawable.ic_discord),
+                        contentDescription = "Discord",
+                        modifier = Modifier.size(28.dp),
+                        tint = Color(0xFF5865F2)
+                    )
+                },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://discord.gg/gGZ4zCZvab"))
+                    context.startActivity(intent)
+                }
+            )
+        }
     }
 
     item { SettingsSectionHeader(style, stringResource(R.string.settings_colaboraciones)) }
 
     item {
-        ListItem(
-            headlineContent = { Text("GreenyPika") },
-            supportingContent = { Text(stringResource(R.string.settings_artista)) },
-            leadingContent = {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_artist_greenypika),
-                    contentDescription = "GreenyPika",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                )
-            },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://open.spotify.com/artist/0jaY21Zd3ouygWqNdIpr8N?si=3IVegY4ESPuKJyJTLgiU9A&utm_source=copy-link"))
-                context.startActivity(intent)
-            }
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text("GreenyPika") },
+                supportingContent = { Text(stringResource(R.string.settings_artista)) },
+                leadingContent = {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_artist_greenypika),
+                        contentDescription = "GreenyPika",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    )
+                },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://open.spotify.com/artist/0jaY21Zd3ouygWqNdIpr8N?si=3IVegY4ESPuKJyJTLgiU9A&utm_source=copy-link"))
+                    context.startActivity(intent)
+                }
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text("Bear Spring") },
-            supportingContent = { Text(stringResource(R.string.settings_artista)) },
-            leadingContent = {
-                Image(
-                    painter = painterResource(id = R.drawable.ic_artist_bearspring),
-                    contentDescription = "Bear Spring",
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier
-                        .size(40.dp)
-                        .clip(CircleShape)
-                )
-            },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable {
-                val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/berspring7"))
-                context.startActivity(intent)
-            }
-        )
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text("Bear Spring") },
+                supportingContent = { Text(stringResource(R.string.settings_artista)) },
+                leadingContent = {
+                    Image(
+                        painter = painterResource(id = R.drawable.ic_artist_bearspring),
+                        contentDescription = "Bear Spring",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                    )
+                },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable {
+                    val intent = Intent(Intent.ACTION_VIEW, Uri.parse("https://www.instagram.com/berspring7"))
+                    context.startActivity(intent)
+                }
+            )
+        }
     }
 }

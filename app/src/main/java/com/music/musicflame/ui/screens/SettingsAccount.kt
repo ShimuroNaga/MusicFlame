@@ -163,158 +163,163 @@ internal fun LazyListScope.settingsAccountSection(
     item { SettingsSectionHeader(style, stringResource(R.string.section_account)) }
 
     item {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
-                .padding(horizontal = 16.dp, vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
+        SettingsRow(style, SettingsRowPos.First) {
+            Row(
                 modifier = Modifier
-                    .size(64.dp)
-                    .clip(CircleShape)
-                    .background(
-                        if (isUserSignedIn) Color.Transparent
-                        else MaterialTheme.colorScheme.surfaceVariant
-                    ),
-                contentAlignment = Alignment.Center
+                    .fillMaxWidth()
+                    .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                if (isUserSignedIn && !userPhotoUrl.isNullOrEmpty()) {
-                    AsyncImage(
-                        model = ImageRequest.Builder(context)
-                            .data(userPhotoUrl)
-                            .memoryCacheKey("$userPhotoUrl-$avatarRefreshKey")
-                            .diskCacheKey("$userPhotoUrl-$avatarRefreshKey")
-                            .build(),
-                        contentDescription = stringResource(R.string.settings_foto_de_perfil),
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .clip(CircleShape)
-                    )
-                } else {
-                    Icon(
-                        imageVector = Icons.Filled.AccountCircle,
-                        contentDescription = stringResource(R.string.settings_sin_foto_de_perfil),
-                        modifier = Modifier.size(64.dp),
-                        tint = if (isUserSignedIn) style.trailingColor
-                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                    )
+                Box(
+                    modifier = Modifier
+                        .size(64.dp)
+                        .clip(CircleShape)
+                        .background(
+                            if (isUserSignedIn) Color.Transparent
+                            else MaterialTheme.colorScheme.surfaceVariant
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isUserSignedIn && !userPhotoUrl.isNullOrEmpty()) {
+                        AsyncImage(
+                            model = ImageRequest.Builder(context)
+                                .data(userPhotoUrl)
+                                .memoryCacheKey("$userPhotoUrl-$avatarRefreshKey")
+                                .diskCacheKey("$userPhotoUrl-$avatarRefreshKey")
+                                .build(),
+                            contentDescription = stringResource(R.string.settings_foto_de_perfil),
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(CircleShape)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Filled.AccountCircle,
+                            contentDescription = stringResource(R.string.settings_sin_foto_de_perfil),
+                            modifier = Modifier.size(64.dp),
+                            tint = if (isUserSignedIn) style.trailingColor
+                            else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                        )
+                    }
+                }
+
+                Spacer(Modifier.width(14.dp))
+
+                Column {
+                    if (isUserSignedIn && !userName.isNullOrEmpty()) {
+                        Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
+                        Text(stringResource(R.string.settings_toca_para_ver_tu_cuenta), fontSize = 13.sp, color = style.mediumEmphasis)
+                    } else {
+                        Text(
+                            stringResource(R.string.settings_sin_usuario_por_favor_registrese),
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = style.mediumEmphasis
+                        )
+                        Text(
+                            stringResource(R.string.settings_inicia_sesion_con_google),
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = style.trailingColor
+                        )
+                    }
                 }
             }
 
-            Spacer(Modifier.width(14.dp))
-
-            Column {
-                if (isUserSignedIn && !userName.isNullOrEmpty()) {
-                    Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
-                    Text(stringResource(R.string.settings_toca_para_ver_tu_cuenta), fontSize = 13.sp, color = style.mediumEmphasis)
-                } else {
-                    Text(
-                        stringResource(R.string.settings_sin_usuario_por_favor_registrese),
-                        fontSize = 15.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = style.mediumEmphasis
-                    )
-                    Text(
-                        stringResource(R.string.settings_inicia_sesion_con_google),
-                        fontSize = 13.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = style.trailingColor
-                    )
-                }
-            }
+            SettingsDivider(style)
         }
-
-        HorizontalDivider(color = style.dividerColor)
     }
 
     // ICONO DE "EN COMPAÑÍA": se muestra a los demás en la sala (editor de recorte estilo Discord)
     item {
-        var avatarB64 by remember { mutableStateOf(com.music.musicflame.together.TogetherAvatar.load(context)) }
-        val avatarBitmap = remember(avatarB64) {
-            com.music.musicflame.together.TogetherAvatar.decode(avatarB64)?.asImageBitmap()
-        }
-        var pickedUri by remember { mutableStateOf<Uri?>(null) }
-        val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-            if (uri != null) pickedUri = uri
-        }
+        SettingsRow(style, SettingsRowPos.Middle) {
+            var avatarB64 by remember { mutableStateOf(com.music.musicflame.together.TogetherAvatar.load(context)) }
+            val avatarBitmap = remember(avatarB64) {
+                com.music.musicflame.together.TogetherAvatar.decode(avatarB64)?.asImageBitmap()
+            }
+            var pickedUri by remember { mutableStateOf<Uri?>(null) }
+            val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) pickedUri = uri
+            }
 
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_together_icon_title)) },
-            supportingContent = { Text(stringResource(R.string.settings_together_icon_desc)) },
-            trailingContent = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (avatarBitmap != null) {
-                        IconButton(onClick = {
-                            com.music.musicflame.together.TogetherAvatar.clear(context)
-                            avatarB64 = null
-                        }) {
-                            Icon(Icons.Filled.Delete, stringResource(R.string.settings_together_icon_remove), tint = style.mediumEmphasis)
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape)
-                            .background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_together_icon_title)) },
+                supportingContent = { Text(stringResource(R.string.settings_together_icon_desc)) },
+                trailingContent = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         if (avatarBitmap != null) {
-                            Image(
-                                bitmap = avatarBitmap,
-                                contentDescription = stringResource(R.string.settings_together_icon_title),
-                                contentScale = ContentScale.Crop,
-                                modifier = Modifier.fillMaxSize()
-                            )
-                        } else {
-                            Icon(Icons.Filled.Add, null, tint = style.trailingColor)
+                            IconButton(onClick = {
+                                com.music.musicflame.together.TogetherAvatar.clear(context)
+                                avatarB64 = null
+                            }) {
+                                Icon(Icons.Filled.Delete, stringResource(R.string.settings_together_icon_remove), tint = style.mediumEmphasis)
+                            }
+                        }
+                        Box(
+                            modifier = Modifier
+                                .size(48.dp)
+                                .clip(CircleShape)
+                                .background(MaterialTheme.colorScheme.surfaceVariant),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            if (avatarBitmap != null) {
+                                Image(
+                                    bitmap = avatarBitmap,
+                                    contentDescription = stringResource(R.string.settings_together_icon_title),
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            } else {
+                                Icon(Icons.Filled.Add, null, tint = style.trailingColor)
+                            }
                         }
                     }
-                }
-            },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable { picker.launch("image/*") }
-        )
-        HorizontalDivider(color = style.dividerColor)
-
-        pickedUri?.let { uri ->
-            com.music.musicflame.ui.components.AvatarCropDialog(
-                uri = uri,
-                onDismiss = { pickedUri = null },
-                onConfirm = { bmp ->
-                    com.music.musicflame.together.TogetherAvatar.save(context, bmp)
-                    avatarB64 = com.music.musicflame.together.TogetherAvatar.load(context)
-                    pickedUri = null
-                }
+                },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable { picker.launch("image/*") }
             )
+            SettingsDivider(style)
+
+            pickedUri?.let { uri ->
+                com.music.musicflame.ui.components.AvatarCropDialog(
+                    uri = uri,
+                    onDismiss = { pickedUri = null },
+                    onConfirm = { bmp ->
+                        com.music.musicflame.together.TogetherAvatar.save(context, bmp)
+                        avatarB64 = com.music.musicflame.together.TogetherAvatar.load(context)
+                        pickedUri = null
+                    }
+                )
+            }
         }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_vincular_google_drive)) },
-            supportingContent = {
-                Text(
-                    if (isDriveLinked) stringResource(R.string.settings_google_drive_vinculado_con_tu_cuen)
-                    else stringResource(R.string.settings_vincula_tu_cuenta_para_respaldar_t)
-                )
-            },
-            trailingContent = {
-                Icon(
-                    imageVector = Icons.Filled.CloudDone,
-                    contentDescription = null,
-                    tint = if (isDriveLinked) style.trailingColor
-                    else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                )
-            },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable {
-                if (isUserSignedIn) onLinkDriveClick() else onSignInClick()
-            }
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_vincular_google_drive)) },
+                supportingContent = {
+                    Text(
+                        if (isDriveLinked) stringResource(R.string.settings_google_drive_vinculado_con_tu_cuen)
+                        else stringResource(R.string.settings_vincula_tu_cuenta_para_respaldar_t)
+                    )
+                },
+                trailingContent = {
+                    Icon(
+                        imageVector = Icons.Filled.CloudDone,
+                        contentDescription = null,
+                        tint = if (isDriveLinked) style.trailingColor
+                        else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+                    )
+                },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable {
+                    if (isUserSignedIn) onLinkDriveClick() else onSignInClick()
+                }
+            )
+        }
     }
 
     item {

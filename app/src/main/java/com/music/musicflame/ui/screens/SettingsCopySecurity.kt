@@ -33,24 +33,27 @@ internal fun LazyListScope.settingsCopySecuritySection(
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_exportar_configuracion)) },
-            supportingContent = { Text(stringResource(R.string.settings_guardar_como_archivo_json)) },
-            trailingContent = { Icon(Icons.Filled.Save, contentDescription = null, tint = style.trailingColor) },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable { onExport() }
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.First) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_exportar_configuracion)) },
+                supportingContent = { Text(stringResource(R.string.settings_guardar_como_archivo_json)) },
+                trailingContent = { Icon(Icons.Filled.Save, contentDescription = null, tint = style.trailingColor) },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable { onExport() }
+            )
+            SettingsDivider(style)
+        }
     }
 
     item {
-        ListItem(
-            headlineContent = { Text(stringResource(R.string.settings_importar_configuracion)) },
-            supportingContent = { Text(stringResource(R.string.settings_elegir_un_archivo_json_exportado_a)) },
-            trailingContent = { Icon(Icons.Filled.FileOpen, contentDescription = null, tint = style.trailingColor) },
-            colors = style.listItemColors,
-            modifier = Modifier.clickable { onImport() }
-        )
-        HorizontalDivider(color = style.dividerColor)
+        SettingsRow(style, SettingsRowPos.Last) {
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_importar_configuracion)) },
+                supportingContent = { Text(stringResource(R.string.settings_elegir_un_archivo_json_exportado_a)) },
+                trailingContent = { Icon(Icons.Filled.FileOpen, contentDescription = null, tint = style.trailingColor) },
+                colors = style.listItemColors,
+                modifier = Modifier.clickable { onImport() }
+            )
+        }
     }
 }

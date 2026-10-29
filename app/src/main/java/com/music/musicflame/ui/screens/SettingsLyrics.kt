@@ -163,6 +163,7 @@ internal fun LazyListScope.settingsLyricsSection(
 
         Card(
             modifier = Modifier.fillMaxWidth().padding(16.dp),
+            shape = RoundedCornerShape(20.dp),
             colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.tertiaryContainer)
         ) {
             Column(modifier = Modifier.padding(16.dp)) {

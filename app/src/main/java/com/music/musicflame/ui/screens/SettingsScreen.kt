@@ -492,7 +492,8 @@ fun SettingsScreen(
     )
 
     val dividerColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = if (hasAnyBackground) 0.5f else 1f)
-    val settingsStyle = SettingsStyle(highEmphasis, mediumEmphasis, trailingColor, listItemColors, dividerColor)
+    val groupColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = if (hasAnyBackground) 0.92f else 1f)
+    val settingsStyle = SettingsStyle(highEmphasis, mediumEmphasis, trailingColor, listItemColors, dividerColor, groupColor, hasAnyBackground)
 
     var isRefreshing by remember { mutableStateOf(false) }
     val avatarRefreshKeyState = remember { mutableIntStateOf(0) }
@@ -573,10 +574,55 @@ fun SettingsScreen(
                     // (Ecualizador, IA y Actualizaciones ya no navegan: se muestran fijas más abajo)
                     if (activeSection.value == null) {
                         item {
+                            // Categorías agrupadas; cada una con su color distintivo (Material You).
+                            val categoryGroups = listOf(
+                                stringResource(R.string.settings_group_personalization) to listOf(
+                                    "Apariencia" to stringResource(R.string.settings_fondo_colores_caratula_icono),
+                                    "Lyrics" to stringResource(R.string.settings_velocidad_animacion_y_color_de_la),
+                                    "Hogar de Shimuro" to stringResource(R.string.settings_tu_mascota_interactiva)
+                                ),
+                                stringResource(R.string.settings_group_playback) to listOf(
+                                    "Canciones" to stringResource(R.string.settings_manejo_de_canciones_y_reproduccion),
+                                    "IA" to stringResource(R.string.settings_ai_section_sub)
+                                ),
+                                stringResource(R.string.settings_group_account_data) to listOf(
+                                    "Cuenta" to stringResource(R.string.settings_cuenta_de_google_y_sesion),
+                                    "Copia de seguridad" to stringResource(R.string.settings_exportar_importar_tu_configuracion)
+                                ),
+                                stringResource(R.string.settings_group_support) to listOf(
+                                    "Pagos (opcional)" to stringResource(R.string.settings_licencia_de_apoyo_y_donacion_opcio)
+                                ),
+                                stringResource(R.string.settings_group_about) to listOf(
+                                    "Especificaciones" to stringResource(R.string.settings_version_comunidad),
+                                    "Aviso de Uso" to stringResource(R.string.settings_redistribucion_promocion_y_termino),
+                                    "Licencias de terceros" to stringResource(R.string.settings_third_party_licenses_sub)
+                                )
+                            )
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                categoryGroups.forEach { (groupTitle, entries) ->
+                                    SettingsSectionHeader(settingsStyle, groupTitle)
+                                    entries.forEach { (catKey, subtitle) ->
+                                        SettingsCategoryCard(
+                                            style = settingsStyle,
+                                            title = settingsSectionTitle(catKey),
+                                            subtitle = subtitle,
+                                            icon = settingsSectionIcon(catKey),
+                                            accent = settingsAccentFor(catKey),
+                                            onClick = { activeSection.value = catKey }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // Herramientas del proyecto (meta de ahorro y almacenamiento) al final de la lista.
+                        item { SettingsSectionHeader(settingsStyle, stringResource(R.string.settings_group_project)) }
+                        item {
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(horizontal = 16.dp, vertical = 6.dp),
+                                shape = RoundedCornerShape(20.dp),
                                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                             ) {
                                 Column(modifier = Modifier.padding(16.dp)) {
@@ -718,6 +764,7 @@ fun SettingsScreen(
                                     modifier = Modifier
                                         .fillMaxWidth()
                                         .padding(horizontal = 16.dp, vertical = 6.dp),
+                                    shape = RoundedCornerShape(20.dp),
                                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                                 ) {
                                     Column(modifier = Modifier.padding(16.dp)) {
@@ -778,92 +825,46 @@ fun SettingsScreen(
                                 }
                             }
                         }
-                        item {
-                            listOf(
-                                Triple("Hogar de Shimuro", stringResource(R.string.settings_tu_mascota_interactiva), Icons.Filled.Home),
-                                Triple("Cuenta", stringResource(R.string.settings_cuenta_de_google_y_sesion), Icons.Filled.AccountCircle),
-                                Triple("Apariencia", stringResource(R.string.settings_fondo_colores_caratula_icono), Icons.Filled.Palette),
-                                Triple("IA", stringResource(R.string.settings_ai_section_sub), Icons.Filled.AutoAwesome),
-                                Triple("Canciones", stringResource(R.string.settings_manejo_de_canciones_y_reproduccion), Icons.Filled.MusicNote),
-                                Triple("Copia de seguridad", stringResource(R.string.settings_exportar_importar_tu_configuracion), Icons.Filled.Save),
-                                Triple("Especificaciones", stringResource(R.string.settings_version_comunidad), Icons.Filled.Info),
-                                Triple("Lyrics", stringResource(R.string.settings_velocidad_animacion_y_color_de_la), Icons.Filled.MusicNote),
-                                Triple("Pagos (opcional)", stringResource(R.string.settings_licencia_de_apoyo_y_donacion_opcio), Icons.Filled.Favorite),
-                                Triple("Aviso de Uso", stringResource(R.string.settings_redistribucion_promocion_y_termino), Icons.Filled.Warning),
-                                Triple("Licencias de terceros", stringResource(R.string.settings_third_party_licenses_sub), Icons.Filled.Description)
-                            ).forEach { (catKey, subtitle, icon) ->
-                                val isLyricsCard = catKey == "Lyrics"
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(horizontal = 16.dp, vertical = 6.dp)
-                                        .clickable { activeSection.value = catKey },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (isLyricsCard)
-                                            MaterialTheme.colorScheme.tertiaryContainer
-                                        else MaterialTheme.colorScheme.surfaceContainerHigh
-                                    )
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            icon,
-                                            contentDescription = null,
-                                            tint = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else trailingColor
-                                        )
-                                        Spacer(Modifier.width(16.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                settingsSectionTitle(catKey), fontWeight = FontWeight.Bold, fontSize = 16.sp,
-                                                color = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else highEmphasis
-                                            )
-                                            Text(
-                                                subtitle, fontSize = 12.sp,
-                                                color = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer.copy(alpha = 0.75f) else mediumEmphasis
-                                            )
-                                        }
-                                        Icon(
-                                            Icons.Filled.ChevronRight, contentDescription = null,
-                                            tint = if (isLyricsCard) MaterialTheme.colorScheme.onTertiaryContainer else mediumEmphasis
-                                        )
-                                    }
-                                }
-                            }
-                        }
                     }
 
                     // --- ENCABEZADO DE REGRESO cuando hay una sub-página activa ---
                     if (activeSection.value != null) {
                         item {
-                            Column {
+                            // Encabezado con el mismo color distintivo que la tarjeta de la categoría.
+                            val sectionKey = activeSection.value ?: ""
+                            val accent = settingsAccentFor(sectionKey)
+                            Surface(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                shape = RoundedCornerShape(20.dp),
+                                color = accent.container.copy(alpha = if (hasAnyBackground) 0.92f else 1f)
+                            ) {
                                 Row(
                                     modifier = Modifier
-                                        .fillMaxWidth()
                                         .clickable { activeSection.value = null }
-                                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                                        .padding(horizontal = 12.dp, vertical = 10.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.settings_volver), tint = highEmphasis)
+                                    Icon(
+                                        Icons.AutoMirrored.Filled.ArrowBack,
+                                        contentDescription = stringResource(R.string.settings_volver),
+                                        tint = accent.onContainer
+                                    )
                                     Spacer(Modifier.width(12.dp))
-                                    Text(settingsSectionTitle(activeSection.value ?: ""), fontSize = 18.sp, fontWeight = FontWeight.Bold, color = highEmphasis)
+                                    SettingsIconBadge(settingsSectionIcon(sectionKey), accent)
+                                    Spacer(Modifier.width(12.dp))
+                                    Text(
+                                        settingsSectionTitle(sectionKey),
+                                        fontSize = 18.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = accent.onContainer
+                                    )
                                 }
-                                HorizontalDivider(color = dividerColor)
                             }
                         }
                     }
 
-
-                    val sectionHeader = @Composable { text: String ->
-                        Text(
-                            text = text,
-                            modifier = Modifier.padding(start = 16.dp, end = 16.dp, top = 20.dp, bottom = 8.dp),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black,
-                            color = trailingColor
-                        )
-                    }
 
                     // COPIA DE SEGURIDAD (exportar/importar configuración)
                     if (activeSection.value == "Copia de seguridad") {
@@ -1258,6 +1259,7 @@ internal fun DeviceInfoCard(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 16.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
     ) {
         Column(modifier = Modifier.padding(16.dp)) {

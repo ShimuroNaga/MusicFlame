@@ -1,8 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="section_third_party_licenses">Licencias de terceros</string>
-    <string name="settings_third_party_licenses_sub">Librerías de código abierto que usa MusicFlame</string>
-    <string name="tpl_intro">MusicFlame usa las siguientes librerías de código abierto. Cada una conserva su propia licencia; el código propio de MusicFlame es © 2026 ShimuroNaga, todos los derechos reservados.</string>
+    <string name="settings_third_party_licenses_sub">Librerías, fuentes y tecnologías que usa MusicFlame</string>
+    <string name="tpl_intro">MusicFlame usa las siguientes librerías, fuentes y tecnologías de terceros. Cada una conserva su propia licencia; el código propio de MusicFlame es © 2026 ShimuroNaga, todos los derechos reservados.</string>
     <string name="tpl_license_label">Licencia: %1$s</string>
     <string name="tpl_open_license">Ver licencia</string>
     <string name="tpl_open_source">Ver proyecto</string>

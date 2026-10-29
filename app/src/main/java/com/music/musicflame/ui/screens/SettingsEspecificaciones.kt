@@ -114,6 +114,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
@@ -152,81 +153,12 @@ internal fun LazyListScope.settingsEspecificacionesSection(
 ) {
     item { SettingsSectionHeader(style, stringResource(R.string.settings_sobre)) }
     item {
-        SettingsRow(style, SettingsRowPos.Only) {
-     ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.2") }, colors = style.listItemColors);  
-        }
-    }
-
-    // BOTÓN DE ACTUALIZACIONES (CARD)
-    item {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-                .clickable { onCheckForUpdates() },
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-        ) {
-            Row(
-                modifier = Modifier.padding(16.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.SystemUpdate,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary
-                )
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text(stringResource(R.string.settings_actualizaciones), fontWeight = FontWeight.Bold)
-                    Text(stringResource(R.string.settings_buscar_nueva_version), style = MaterialTheme.typography.bodySmall)
-                }
-            }
-        }
-    }
-
-    item { SettingsSectionHeader(style, stringResource(R.string.settings_especificaciones_tecnicas)) }
-
-    item {
         SettingsRow(style, SettingsRowPos.First) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_framework_ui)) },
-                supportingContent = { Text("Jetpack Compose") },
-                colors = style.listItemColors
-            ); SettingsDivider(style)
-        }
-    }
-
-    item {
-        SettingsRow(style, SettingsRowPos.Middle) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_lenguaje_de_diseno)) },
-                supportingContent = { Text("Material Design 3") },
-                colors = style.listItemColors
-            ); SettingsDivider(style)
-        }
-    }
-
-    item {
-        SettingsRow(style, SettingsRowPos.Middle) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_paleta_de_colores)) },
-                supportingContent = { Text(stringResource(R.string.settings_material_you_dynamic)) },
-                colors = style.listItemColors
-            ); SettingsDivider(style)
-        }
-    }
-
-    item {
-        SettingsRow(style, SettingsRowPos.Middle) {
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_arquitectura)) },
-                supportingContent = { Text(stringResource(R.string.settings_declarativa_y_modular)) },
-                colors = style.listItemColors
-            )
+            ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.2") }, colors = style.listItemColors)
             SettingsDivider(style)
         }
     }
+
     item {
         SettingsRow(style, SettingsRowPos.Last) {
             ListItem(
@@ -249,6 +181,34 @@ internal fun LazyListScope.settingsEspecificacionesSection(
                 },
                 colors = style.listItemColors
             )
+        }
+    }
+
+    // BOTÓN DE ACTUALIZACIONES (CARD)
+    item {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+                .clickable { onCheckForUpdates() },
+            shape = RectangleShape,
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+        ) {
+            Row(
+                modifier = Modifier.padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.SystemUpdate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary
+                )
+                Spacer(Modifier.width(16.dp))
+                Column {
+                    Text(stringResource(R.string.settings_actualizaciones), fontWeight = FontWeight.Bold)
+                    Text(stringResource(R.string.settings_buscar_nueva_version), style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 

@@ -35,6 +35,8 @@ import com.music.musicflame.data.OnlineErrorKind
 import com.music.musicflame.data.OnlineLlm
 import com.music.musicflame.data.OnlineModel
 import com.music.musicflame.voice.VoiceAssistantActivity
+import com.music.musicflame.voice.VoiceMemory
+import com.music.musicflame.voice.VoiceMode
 import com.music.musicflame.voice.VoiceSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -191,6 +193,8 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
         var hasKey by remember { mutableStateOf(false) }
         var isAssistant by remember { mutableStateOf(false) }
         var voiceName by remember { mutableStateOf(voice.getCustomName()) }
+        var voiceMode by remember { mutableStateOf(voice.getMode()) }
+        var voicePrompt by remember { mutableStateOf(voice.getCustomPrompt()) }
         val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
 
         // Se re-consulta al volver de los ajustes del sistema (ON_RESUME).
@@ -238,6 +242,53 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
                         singleLine = true, modifier = Modifier.fillMaxWidth(),
                         label = { Text(stringResource(R.string.settings_voice_name_label)) }
                     )
+
+                    // ---- Personalidad: actitud, sonidos y prompt personalizado (solo afectan a la voz) ----
+                    Spacer(Modifier.height(14.dp))
+                    Text(stringResource(R.string.settings_voice_mode_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = style.highEmphasis)
+                    Text(stringResource(R.string.settings_voice_mode_sub), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Spacer(Modifier.height(6.dp))
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        VoiceMode.values().forEach { m ->
+                            FilterChip(
+                                selected = voiceMode == m,
+                                onClick = { voiceMode = m; voice.setMode(m) },
+                                label = { Text(stringResource(voiceModeLabel(m)), fontSize = 13.sp) }
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(stringResource(voiceModeDesc(voiceMode)), fontSize = 12.sp, color = style.mediumEmphasis)
+
+
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = voicePrompt,
+                        onValueChange = { voicePrompt = it.take(VoiceSettings.MAX_PROMPT); voice.setCustomPrompt(voicePrompt) },
+                        modifier = Modifier.fillMaxWidth(), minLines = 2, maxLines = 4,
+                        label = { Text(stringResource(R.string.settings_voice_prompt_label)) },
+                        supportingText = { Text("${voicePrompt.length}/${VoiceSettings.MAX_PROMPT}") }
+                    )
+                    Text(stringResource(R.string.settings_voice_prompt_hint), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Spacer(Modifier.height(6.dp))
+                    val examples = listOf(
+                        stringResource(R.string.voice_prompt_ex1_label) to stringResource(R.string.voice_prompt_ex1),
+                        stringResource(R.string.voice_prompt_ex2_label) to stringResource(R.string.voice_prompt_ex2),
+                        stringResource(R.string.voice_prompt_ex3_label) to stringResource(R.string.voice_prompt_ex3),
+                        stringResource(R.string.voice_prompt_ex4_label) to stringResource(R.string.voice_prompt_ex4)
+                    )
+                    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        examples.forEach { (label, text) ->
+                            AssistChip(
+                                onClick = { voicePrompt = text.take(VoiceSettings.MAX_PROMPT); voice.setCustomPrompt(voicePrompt) },
+                                label = { Text(label, fontSize = 13.sp) }
+                            )
+                        }
+                    }
+                    TextButton(onClick = {
+                        VoiceMemory.clear(context)
+                        Toast.makeText(context, context.getString(R.string.settings_voice_memory_cleared), Toast.LENGTH_SHORT).show()
+                    }) { Text(stringResource(R.string.settings_voice_memory_clear)) }
                     Spacer(Modifier.height(8.dp))
                     Text(
                         stringResource(if (hasKey) R.string.settings_voice_whisper_ok else R.string.settings_voice_whisper_nokey),
@@ -429,4 +480,20 @@ private fun AiModeRow(selected: Boolean, style: SettingsStyle, title: String, su
             Text(subtitle, fontSize = 12.sp, color = style.mediumEmphasis)
         }
     }
+}
+
+private fun voiceModeLabel(m: VoiceMode): Int = when (m) {
+    VoiceMode.BUTLER -> R.string.voice_mode_butler
+    VoiceMode.FRIEND -> R.string.voice_mode_friend
+    VoiceMode.HYPE -> R.string.voice_mode_hype
+    VoiceMode.ZEN -> R.string.voice_mode_zen
+    VoiceMode.SARCASTIC -> R.string.voice_mode_sarcastic
+}
+
+private fun voiceModeDesc(m: VoiceMode): Int = when (m) {
+    VoiceMode.BUTLER -> R.string.voice_mode_butler_desc
+    VoiceMode.FRIEND -> R.string.voice_mode_friend_desc
+    VoiceMode.HYPE -> R.string.voice_mode_hype_desc
+    VoiceMode.ZEN -> R.string.voice_mode_zen_desc
+    VoiceMode.SARCASTIC -> R.string.voice_mode_sarcastic_desc
 }

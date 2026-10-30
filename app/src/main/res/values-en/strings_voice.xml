@@ -46,4 +46,29 @@
     <string name="voice_chip_next">Next</string>
     <string name="voice_song_not_found">I couldn\'t find «%1$s» in your library. Shall we try another?</string>
     <string name="settings_voice_name_label">What should I call you? (empty = your Google name)</string>
+    <!-- Voice: personality and style -->
+    <string name="settings_voice_mode_title">Assistant attitude</string>
+    <string name="settings_voice_mode_sub">Changes how it talks, its speed and the pitch of its voice. Applies the next time you open it.</string>
+    <string name="voice_mode_butler">Butler</string>
+    <string name="voice_mode_friend">Friend</string>
+    <string name="voice_mode_hype">Hype</string>
+    <string name="voice_mode_zen">Zen</string>
+    <string name="voice_mode_sarcastic">Gently sarcastic</string>
+    <string name="voice_mode_butler_desc">Elegant and courteous, with dry humor.</string>
+    <string name="voice_mode_friend_desc">Close and relaxed, like chatting with a friend.</string>
+    <string name="voice_mode_hype_desc">Lots of energy and enthusiasm; talks faster and higher.</string>
+    <string name="voice_mode_zen_desc">Calm and unhurried; talks slower and deeper.</string>
+    <string name="voice_mode_sarcastic_desc">Teases with affection, never too far.</string>
+    <string name="settings_voice_prompt_label">Custom prompt (voice only)</string>
+    <string name="settings_voice_prompt_hint">Tell it how you want it to talk. It only changes personality and style, never its action rules. It does not affect the written chat.</string>
+    <string name="voice_prompt_ex1_label">Direct</string>
+    <string name="voice_prompt_ex1">Be brief and direct. No detours or unnecessary questions.</string>
+    <string name="voice_prompt_ex2_label">Funny</string>
+    <string name="voice_prompt_ex2">Use light humor and a music joke now and then, never offensive.</string>
+    <string name="voice_prompt_ex3_label">Motivator</string>
+    <string name="voice_prompt_ex3">Talk to me like a coach: motivate me and cheer when I discover new music.</string>
+    <string name="voice_prompt_ex4_label">Poetic</string>
+    <string name="voice_prompt_ex4">Speak with a poetic touch and musical metaphors, without overdoing it.</string>
+    <string name="settings_voice_memory_clear">Forget previous conversations</string>
+    <string name="settings_voice_memory_cleared">Done, I forgot the earlier chats</string>
 </resources>

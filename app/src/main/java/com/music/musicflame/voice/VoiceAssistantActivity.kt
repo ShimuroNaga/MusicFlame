@@ -24,6 +24,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -159,6 +160,10 @@ class VoiceAssistantActivity : ComponentActivity() {
             val keyD = async(Dispatchers.IO) { OnlineAiStore(appCtx).getApiKey() }
             val nameD = async(Dispatchers.IO) { settings.resolveUserName(appCtx) }
             val listsD = async(Dispatchers.IO) { loadPlaylists() }
+            val memD = async(Dispatchers.IO) {
+                try { SongLibraryHolder.ensureLoaded(appCtx); VoiceMemory.build(appCtx, lang) }
+                catch (e: CancellationException) { throw e } catch (_: Exception) { "" }
+            }
             val pm = MusicPlayerManager(appCtx).also { player = it }
             var wasPlaying = false
             pm.whenReady { if (pm.isPlayingState.value) { wasPlaying = true; pm.pause() } }   // pausa sin esperar
@@ -185,10 +190,12 @@ class VoiceAssistantActivity : ComponentActivity() {
                     val playlists = listsD.await()
                     val vc = VoiceContext(
                         aiName, nameD.await(), lang, Calendar.getInstance().get(Calendar.HOUR_OF_DAY),
-                        pm.currentSong.value?.let { "«${it.title}» — ${it.artist}" }, playlists
+                        pm.currentSong.value?.let { "«${it.title}» — ${it.artist}" }, playlists,
+                        settings.getMode(), settings.getCustomPrompt(), memD.await()
                     )
                     val action = think(key, vc, dialog, said)
                     dialog += false to action.say
+                    launch(Dispatchers.IO) { VoiceMemory.remember(appCtx, said, action.say) }
 
                     when (action) {
                         is VoiceAction.PlayPlaylist -> {
@@ -383,9 +390,9 @@ class VoiceAssistantActivity : ComponentActivity() {
     private suspend fun speak(text: String) {
         if (text.isBlank()) return
         phase = Phase.SPEAKING; reply = text; level = 0f
-        if (!settings.speaksReplies()) { delay((900 + text.length * 35L).coerceAtMost(4000)); return }
-        val engine = ensureTts() ?: run { delay((900 + text.length * 35L).coerceAtMost(4000)); return }
-        withTimeoutOrNull(25_000) {
+        if (!settings.speaksReplies()) { delay((900 + text.length * 35L).coerceAtMost(12_000)); return }
+        val engine = ensureTts() ?: run { delay((900 + text.length * 35L).coerceAtMost(12_000)); return }
+        withTimeoutOrNull((10_000L + text.length * 90L).coerceIn(25_000L, 90_000L)) {
             suspendCancellableCoroutine<Unit> { cont ->
                 val id = "voice${System.nanoTime()}"
                 engine.setOnUtteranceProgressListener(object : UtteranceProgressListener() {
@@ -408,7 +415,11 @@ class VoiceAssistantActivity : ComponentActivity() {
         val d = CompletableDeferred<TextToSpeech?>().also { ttsInit = it }
         tts = TextToSpeech(applicationContext) { st ->
             val t = tts
-            if (st == TextToSpeech.SUCCESS && t != null) { t.language = Locale(lang); d.complete(t) } else d.complete(null)
+            if (st == TextToSpeech.SUCCESS && t != null) {
+                t.language = Locale(lang)
+                settings.getMode().let { m -> t.setSpeechRate(m.speechRate); t.setPitch(m.pitch) }
+                d.complete(t)
+            } else d.complete(null)
         }
         return d.await().also { tts = it }
     }
@@ -458,8 +469,12 @@ class VoiceAssistantActivity : ComponentActivity() {
                     Text("“$heard”", fontSize = 13.sp, fontStyle = FontStyle.Italic, textAlign = TextAlign.Center, color = cs.onSurfaceVariant, maxLines = 2)
                     Spacer(Modifier.height(6.dp))
                 }
-                AnimatedContent(targetState = reply, label = "reply") { r ->
-                    Text(r, fontSize = 21.sp, lineHeight = 27.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, color = cs.onSurface)
+                // Las respuestas largas ("cuéntame...") bajan de tamaño y se pueden desplazar.
+                Box(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+                    AnimatedContent(targetState = reply, label = "reply") { r ->
+                        val long = r.length > 140
+                        Text(r, fontSize = if (long) 16.sp else 21.sp, lineHeight = if (long) 22.sp else 27.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, color = cs.onSurface)
+                    }
                 }
 
                 Spacer(Modifier.height(10.dp))

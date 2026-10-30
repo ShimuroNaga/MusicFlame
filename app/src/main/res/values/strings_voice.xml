@@ -46,4 +46,29 @@
     <string name="voice_chip_next">Siguiente</string>
     <string name="voice_song_not_found">No encontré «%1$s» en tu biblioteca. ¿Probamos con otra?</string>
     <string name="settings_voice_name_label">¿Cómo te llamo? (vacío = tu nombre de Google)</string>
+    <!-- Voz: personalidad y estilo -->
+    <string name="settings_voice_mode_title">Actitud del asistente</string>
+    <string name="settings_voice_mode_sub">Cambia su forma de hablar, su velocidad y el tono de su voz. Se aplica la próxima vez que lo abras.</string>
+    <string name="voice_mode_butler">Mayordomo</string>
+    <string name="voice_mode_friend">Amigo</string>
+    <string name="voice_mode_hype">Hype</string>
+    <string name="voice_mode_zen">Zen</string>
+    <string name="voice_mode_sarcastic">Sarcástico suave</string>
+    <string name="voice_mode_butler_desc">Elegante y cortés, con humor fino.</string>
+    <string name="voice_mode_friend_desc">Cercano y relajado, como platicar con un amigo.</string>
+    <string name="voice_mode_hype_desc">Mucha energía y entusiasmo; habla más rápido y más agudo.</string>
+    <string name="voice_mode_zen_desc">Calmado y pausado; habla más lento y más grave.</string>
+    <string name="voice_mode_sarcastic_desc">Bromea con cariño, sin pasarse.</string>
+    <string name="settings_voice_prompt_label">Prompt personalizado (solo para la voz)</string>
+    <string name="settings_voice_prompt_hint">Cuéntale cómo quieres que hable. Solo cambia su personalidad y estilo, nunca sus reglas de acciones. No afecta al chat escrito.</string>
+    <string name="voice_prompt_ex1_label">Directo</string>
+    <string name="voice_prompt_ex1">Sé breve y directo. Sin rodeos ni preguntas de más.</string>
+    <string name="voice_prompt_ex2_label">Con humor</string>
+    <string name="voice_prompt_ex2">Usa humor ligero y alguna broma de música de vez en cuando, nunca ofensiva.</string>
+    <string name="voice_prompt_ex3_label">Motivador</string>
+    <string name="voice_prompt_ex3">Háblame como un coach: motívame y celébrame cuando descubro música nueva.</string>
+    <string name="voice_prompt_ex4_label">Poético</string>
+    <string name="voice_prompt_ex4">Habla con un toque poético y metáforas musicales, sin exagerar.</string>
+    <string name="settings_voice_memory_clear">Olvidar conversaciones anteriores</string>
+    <string name="settings_voice_memory_cleared">Listo, olvidé las charlas anteriores</string>
 </resources>

@@ -197,19 +197,3 @@ internal fun QuizOptionsCard(options: List<String>, color: Color, onPick: (Int) 
         }
     }
 }
-
-/** Jarvis pide un "Sí / No" antes de hacer cambios masivos (quitar favoritos en bloque, vaciar una playlist...). */
-@Composable
-internal fun JarvisConfirmCard(color: Color, onYes: () -> Unit, onNo: () -> Unit) {
-    val scheme = MaterialTheme.colorScheme
-    Surface(
-        shape = RoundedCornerShape(20.dp), color = color,
-        border = BorderStroke(1.dp, scheme.primary.copy(alpha = 0.35f)),
-        modifier = Modifier.padding(start = 4.dp)
-    ) {
-        Row(Modifier.padding(horizontal = 14.dp, vertical = 10.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Button(onClick = onYes) { Text(stringResource(R.string.jarvis_confirm_yes)) }
-            TextButton(onClick = onNo) { Text(stringResource(R.string.jarvis_confirm_no)) }
-        }
-    }
-}

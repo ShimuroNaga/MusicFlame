@@ -1269,7 +1269,6 @@ class MainActivity : ComponentActivity() {
                                             nowPlayingSongId = currentSong?.id,
                                             onPlaySong = { song, list -> songList = list; playerManager.playSong(song, list) },
                                             onPlaylistsChanged = { playlistsRefreshTrigger++ },
-                                            playerManager = playerManager,
                                             modifier = Modifier.consumeWindowInsets(innerPadding)
                                         )
                                         Screen.Trash -> TrashScreen(

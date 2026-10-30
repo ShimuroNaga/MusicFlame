@@ -796,6 +796,11 @@ class MusicPlayerManager(private val context: Context) {
         PlaybackCycle.apply(controller, nextMode)
     }
 
+    /** Para el asistente de voz: fija el modo de reproducción directamente (valores de [PlaybackCycle]). */
+    fun setCycleMode(state: Int) {
+        mediaController?.let { PlaybackCycle.apply(it, state) }
+    }
+
     fun seekTo(positionMs: Long) {
         val controller = mediaController
         if (controller == null) {

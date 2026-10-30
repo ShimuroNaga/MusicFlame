@@ -71,4 +71,23 @@
     <string name="voice_prompt_ex4">Speak with a poetic touch and musical metaphors, without overdoing it.</string>
     <string name="settings_voice_memory_clear">Forget previous conversations</string>
     <string name="settings_voice_memory_cleared">Done, I forgot the earlier chats</string>
+    <!-- Voice phase 2: actions, playlist table and confirmations -->
+    <string name="voice_draft_title">Playlist: %1$s</string>
+    <string name="voice_draft_save">Save</string>
+    <string name="voice_draft_discard">Discard</string>
+    <string name="voice_draft_ask">I built «%1$s» with %2$d songs. Shall I save it? You can uncheck the ones you don\'t want.</string>
+    <string name="voice_draft_ask_candidates">I didn\'t find exactly that, but there are candidates. Check the ones you want and say yes to save «%1$s».</string>
+    <string name="voice_draft_discarded">Done, I didn\'t save it.</string>
+    <string name="voice_draft_none_checked">You didn\'t check any song, so I didn\'t save it.</string>
+    <string name="voice_nothing_to_undo">I have nothing to undo.</string>
+    <string name="voice_undone">Done, I undid it.</string>
+    <string name="voice_cancelled">Cancelled, I changed nothing.</string>
+    <string name="voice_no_answer">I didn\'t hear you, so I\'ll leave it as is.</string>
+    <string name="voice_sleep_set">I\'ll stop the music in %1$d min.</string>
+    <string name="voice_sleep_off">Sleep timer cancelled.</string>
+    <string name="voice_together_no_app">Open MusicFlame for a moment and I\'ll try again.</string>
+    <string name="voice_together_failed">I couldn\'t create the room. Check your connection.</string>
+    <string name="voice_together_created">Done, room %1$s is created.</string>
+    <string name="voice_together_existing">You\'re already in room %1$s.</string>
+    <string name="voice_together_invite">I opened the invite options for room %1$s.</string>
 </resources>

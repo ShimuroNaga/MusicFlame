@@ -26,7 +26,11 @@ enum class JarvisTool(val id: String) {
     FAVORITE("favorite"), UNFAVORITE("unfavorite"),
     CREATE_PLAYLIST("create_playlist"), ADD_TO_PLAYLIST("add_to_playlist"), REMOVE_FROM_PLAYLIST("remove_from_playlist"),
     PAUSE("pause"), RESUME("resume"), NEXT("next"), PREVIOUS("previous"),
-    VOLUME("volume"), SLEEP_TIMER("sleep_timer"), CANCEL_SLEEP_TIMER("cancel_sleep_timer");
+    VOLUME("volume"), SLEEP_TIMER("sleep_timer"), CANCEL_SLEEP_TIMER("cancel_sleep_timer"),
+    REPEAT("repeat"), SHUFFLE_MODE("shuffle_mode"), RENAME_PLAYLIST("rename_playlist"),
+    EQ_PRESET("eq_preset"), EQ_BAND("eq_band"), SONG_TITLE("song_title"), SONG_COVER("song_cover"),
+    /** Sala de Juntos: las ejecuta la pantalla de voz (necesitan la Activity para abrir el menú de invitar). */
+    TOGETHER_CREATE("together_create"), TOGETHER_INVITE("together_invite");
 
     companion object {
         fun fromId(id: String?): JarvisTool? {
@@ -97,7 +101,7 @@ object JarvisBrain {
         "crea", "arma", "mezcla", "revuelve", "siguiente", "salta", "anterior", "pausa", "deten", "continua", "reanuda",
         "volumen", "sube", "subele", "baja", "bajale", "apagate", "duermete", "temporizador", "cola", "despues", "encola",
         "queue", "next", "skip", "add", "remove", "create", "build", "pause", "resume", "volume", "sleep", "shuffle",
-        "unfavorite", "mark", "turn", "stop", "vacia", "empty"
+        "unfavorite", "mark", "turn", "stop", "vacia", "empty", "repit", "renombra", "rename", "ecualiz", "eq", "carat", "cover", "sala", "invita", "juntos"
     )
 
     fun looksLikeAction(text: String): Boolean {
@@ -406,7 +410,7 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
                     JarvisTool.CREATE_PLAYLIST -> {
                         val r = resolveSongs(c.songs, library, stats, favIds, nowId, null, 20)
                         val name = c.name ?: c.songs?.theme ?: "MusicFlame"
-                        steps += if (r.songs.isEmpty()) JarvisStep(c, problem = if (en) "I found no songs to build «$name»." else "No encontré canciones para armar «$name».")
+                        steps += if (r.songs.isEmpty()) JarvisStep(c, candidates = r.candidates, label = name, problem = if (en) "I found no songs to build «$name»." else "No encontré canciones para armar «$name».")
                         else JarvisStep(c, songs = r.songs, label = name)
                     }
                     JarvisTool.ADD_TO_PLAYLIST, JarvisTool.REMOVE_FROM_PLAYLIST -> {
@@ -421,6 +425,39 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
                             steps += if (songs.isEmpty()) JarvisStep(c, candidates = r.candidates, problem = missing(c.songs?.query ?: c.songs?.theme))
                             else JarvisStep(c, songs = songs, label = list.name, playlistId = list.editableId)
                         }
+                    }
+                    JarvisTool.RENAME_PLAYLIST -> {
+                        val list = findList(ctx, c.playlist)
+                        val newName = c.name?.trim()?.take(40)
+                        steps += if (list == null) JarvisStep(c, problem = if (en) "I don't see a playlist called «${c.playlist}»." else "No veo una playlist llamada «${c.playlist}».")
+                        else if (list.editableId == null) JarvisStep(c, problem = if (en) "«${list.name}» can't be renamed." else "«${list.name}» no se puede renombrar.")
+                        else if (newName.isNullOrBlank()) JarvisStep(c, problem = if (en) "What should the new name be?" else "¿Cómo quieres que se llame?")
+                        else JarvisStep(c, label = newName, playlistId = list.editableId)
+                    }
+                    JarvisTool.EQ_PRESET -> {
+                        val name = com.music.musicflame.audio.EqVoice.findPreset(ctx, c.name)
+                        steps += if (name == null) JarvisStep(c, problem = if (en) "I don't have an equalizer preset called «${c.name}»." else "No tengo un preset de ecualizador llamado «${c.name}».")
+                        else JarvisStep(c, label = name)
+                    }
+                    JarvisTool.EQ_BAND -> {
+                        val ok = com.music.musicflame.audio.EqVoice.BAND_IDS.contains(c.name?.trim()?.lowercase())
+                        steps += if (ok) JarvisStep(c) else JarvisStep(c, problem = if (en) "Which band: bass, low mids, mids, high mids or treble?" else "¿Qué banda: graves, medios graves, medios, medios agudos o agudos?")
+                    }
+                    JarvisTool.SONG_TITLE, JarvisTool.SONG_COVER -> {
+                        // La canción objetivo es la que dijo el usuario o, si no dijo ninguna, la que suena.
+                        val sel = c.songs ?: JarvisSelector(source = "now_playing")
+                        val r = resolveSongs(sel, library, stats, favIds, nowId, null, 1)
+                        val target = r.songs.firstOrNull()
+                        if (target == null) {
+                            steps += JarvisStep(c, problem = if (sel.source == "now_playing") (if (en) "Nothing is playing right now." else "Ahora mismo no suena nada.") else missing(sel.query))
+                        } else if (c.tool == JarvisTool.SONG_COVER && c.direction != "reset") {
+                            // songs = [canción a cambiar, canción de la que se copia la carátula]
+                            val src = c.name?.let { AiLibraryContext.findSong(it, library) }
+                            steps += if (src == null) JarvisStep(c, problem = missing(c.name))
+                            else JarvisStep(c, songs = listOf(target, src))
+                        } else if (c.tool == JarvisTool.SONG_TITLE && c.direction != "reset" && c.name.isNullOrBlank()) {
+                            steps += JarvisStep(c, problem = if (en) "What should the new title be?" else "¿Cómo quieres que se llame?")
+                        } else steps += JarvisStep(c, songs = listOf(target), label = c.name?.trim()?.take(80))
                     }
                     else -> steps += JarvisStep(c)   // controles del reproductor: no necesitan canciones
                 }
@@ -523,6 +560,79 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
                             Unit
                         }
                     }
+                    JarvisTool.RENAME_PLAYLIST -> withContext(Dispatchers.IO) {
+                        PlaylistRepository(ctx).renamePlaylist(s.playlistId!!, s.label!!)
+                        plChanged = true
+                        lines += if (en) "Renamed it to «${s.label}»" else "La renombré a «${s.label}»"
+                        Unit
+                    }
+                    JarvisTool.REPEAT, JarvisTool.SHUFFLE_MODE -> {
+                        val p = player
+                        if (p == null) { lines += if (en) "I couldn't reach the player." else "No pude acceder al reproductor."; continue }
+                        withContext(Dispatchers.Main) {
+                            val cur = p.cycleMode.value
+                            var shuffle = cur == PlaybackCycle.SHUFFLE || cur == PlaybackCycle.SHUFFLE_REPEAT_ALL
+                            var rep = when (cur) {
+                                PlaybackCycle.REPEAT_ALL, PlaybackCycle.SHUFFLE_REPEAT_ALL -> "all"
+                                PlaybackCycle.REPEAT_ONE -> "one"
+                                else -> "off"
+                            }
+                            if (s.call.tool == JarvisTool.SHUFFLE_MODE) shuffle = s.call.direction != "off"
+                            else rep = when (s.call.direction) { "one" -> "one"; "off" -> "off"; else -> "all" }
+                            val target = when {
+                                rep == "one" -> PlaybackCycle.REPEAT_ONE
+                                rep == "all" && shuffle -> PlaybackCycle.SHUFFLE_REPEAT_ALL
+                                rep == "all" -> PlaybackCycle.REPEAT_ALL
+                                shuffle -> PlaybackCycle.SHUFFLE
+                                else -> PlaybackCycle.NORMAL
+                            }
+                            p.setCycleMode(target)
+                            lines += if (s.call.tool == JarvisTool.SHUFFLE_MODE) (if (shuffle) (if (en) "Shuffle on" else "Mezclar activado") else (if (en) "Shuffle off" else "Mezclar desactivado"))
+                            else when (rep) {
+                                "one" -> if (en) "Repeating this song" else "Repitiendo esta canción"
+                                "all" -> if (en) "Repeating the list" else "Repitiendo la lista"
+                                else -> if (en) "Repeat off" else "Repetir desactivado"
+                            }
+                            Unit
+                        }
+                    }
+                    JarvisTool.EQ_PRESET -> {
+                        com.music.musicflame.audio.EqVoice.applyPreset(ctx, s.label)
+                        lines += if (en) "Equalizer set to ${s.label}" else "Ecualizador en ${s.label}"
+                    }
+                    JarvisTool.EQ_BAND -> {
+                        val up = s.call.direction != "down"
+                        com.music.musicflame.audio.EqVoice.nudgeBand(ctx, s.call.name, up)
+                        lines += if (en) "${if (up) "Raised" else "Lowered"} the ${s.call.name?.replace('_', ' ')} band" else "${if (up) "Subí" else "Bajé"} la banda ${s.call.name?.replace('_', ' ')}"
+                    }
+                    JarvisTool.SONG_TITLE -> withContext(Dispatchers.IO) {
+                        val song = s.songs[0]
+                        val repo = SongCustomizationRepository(ctx)
+                        if (s.call.direction == "reset") {
+                            repo.setCustomization(song.id, clearTitle = true)
+                            lines += if (en) "Restored the original title of «${song.title}»" else "Restauré el título original de «${song.title}»"
+                        } else {
+                            repo.setCustomization(song.id, title = s.label)
+                            lines += if (en) "Renamed «${song.title}» to «${s.label}»" else "Renombré «${song.title}» a «${s.label}»"
+                        }
+                        Unit
+                    }
+                    JarvisTool.SONG_COVER -> withContext(Dispatchers.IO) {
+                        val song = s.songs[0]
+                        val repo = SongCustomizationRepository(ctx)
+                        val srcCover = s.songs.getOrNull(1)?.albumArtUri
+                        if (s.call.direction == "reset") {
+                            repo.setCustomization(song.id, clearCover = true)
+                            lines += if (en) "Restored the original cover of «${song.title}»" else "Restauré la carátula original de «${song.title}»"
+                        } else if (srcCover.isNullOrBlank()) {
+                            lines += if (en) "«${s.songs[1].title}» has no cover to copy." else "«${s.songs[1].title}» no tiene carátula para copiar."
+                        } else {
+                            repo.setCustomization(song.id, coverUri = srcCover)
+                            lines += if (en) "Gave «${song.title}» the cover of «${s.songs[1].title}»" else "Le puse a «${song.title}» la carátula de «${s.songs[1].title}»"
+                        }
+                        Unit
+                    }
+                    JarvisTool.TOGETHER_CREATE, JarvisTool.TOGETHER_INVITE -> { /* los resuelve la pantalla de voz */ }
                     JarvisTool.VOLUME -> {
                         val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
                         val max = am.getStreamMaxVolume(AudioManager.STREAM_MUSIC).coerceAtLeast(1)

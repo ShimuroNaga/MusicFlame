@@ -71,4 +71,23 @@
     <string name="voice_prompt_ex4">Habla con un toque poético y metáforas musicales, sin exagerar.</string>
     <string name="settings_voice_memory_clear">Olvidar conversaciones anteriores</string>
     <string name="settings_voice_memory_cleared">Listo, olvidé las charlas anteriores</string>
+    <!-- Voz fase 2: acciones, tabla de playlist y confirmaciones -->
+    <string name="voice_draft_title">Playlist: %1$s</string>
+    <string name="voice_draft_save">Guardar</string>
+    <string name="voice_draft_discard">Descartar</string>
+    <string name="voice_draft_ask">Armé «%1$s» con %2$d canciones. ¿La guardo? Puedes desmarcar las que no quieras.</string>
+    <string name="voice_draft_ask_candidates">No encontré exactamente eso, pero hay candidatas. Marca las que quieras y di sí para guardar «%1$s».</string>
+    <string name="voice_draft_discarded">Listo, no la guardé.</string>
+    <string name="voice_draft_none_checked">No marcaste ninguna canción, así que no la guardé.</string>
+    <string name="voice_nothing_to_undo">No tengo nada que deshacer.</string>
+    <string name="voice_undone">Listo, lo deshice.</string>
+    <string name="voice_cancelled">Cancelado, no cambié nada.</string>
+    <string name="voice_no_answer">No te escuché, lo dejo así.</string>
+    <string name="voice_sleep_set">Me apago en %1$d min.</string>
+    <string name="voice_sleep_off">Temporizador cancelado.</string>
+    <string name="voice_together_no_app">Abre MusicFlame un momento y vuelvo a intentarlo.</string>
+    <string name="voice_together_failed">No pude crear la sala. Revisa tu conexión.</string>
+    <string name="voice_together_created">Listo, la sala %1$s está creada.</string>
+    <string name="voice_together_existing">Ya estás en la sala %1$s.</string>
+    <string name="voice_together_invite">Abrí las opciones para invitar a la sala %1$s.</string>
 </resources>

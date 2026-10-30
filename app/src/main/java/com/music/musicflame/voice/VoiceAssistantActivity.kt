@@ -47,12 +47,16 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.lifecycleScope
 import com.music.musicflame.R
 import com.music.musicflame.data.AiChatSettings
 import com.music.musicflame.data.FavoritesRepository
+import com.music.musicflame.data.JarvisBrain
+import com.music.musicflame.data.JarvisStep
+import com.music.musicflame.data.JarvisTool
 import com.music.musicflame.data.AiLibraryContext
 import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.OnlineAiException
@@ -60,9 +64,11 @@ import com.music.musicflame.data.OnlineAiStore
 import com.music.musicflame.data.PlaylistKind
 import com.music.musicflame.data.PlaylistRepository
 import com.music.musicflame.data.SmartPlaylistIds
+import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongLibraryHolder
 import com.music.musicflame.data.buildMostPlayedPlaylist
 import com.music.musicflame.data.buildNeverPlayedPlaylist
+import com.music.musicflame.together.TogetherManager
 import com.music.musicflame.ui.theme.MusicFlameTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -100,6 +106,17 @@ class VoiceAssistantActivity : ComponentActivity() {
     private var userName by mutableStateOf("")
     private var aiName by mutableStateOf("Flame")
     private var chips by mutableStateOf<List<String>>(emptyList())
+
+    /** Borrador de playlist que se muestra como tabla con casillas (Guardar / Descartar, o "sí" / "no" por voz). */
+    private class DraftRow(val song: Song, initial: Boolean) { var checked by mutableStateOf(initial) }
+    private var draftName by mutableStateOf("")
+    private var draftRows by mutableStateOf<List<DraftRow>>(emptyList())
+    private var buttonAnswer: Boolean? = null
+
+    private companion object {
+        /** Última acción reversible del asistente (para "deshaz eso"); vive mientras viva el proceso. */
+        @Volatile var lastUndo: VoiceUndo? = null
+    }
 
     private var stopRequested = false
     private var chipText: String? = null
@@ -227,6 +244,26 @@ class VoiceAssistantActivity : ComponentActivity() {
                             if (!action.listenAgain) break
                         }
                         is VoiceAction.End -> { if (action.say.isNotBlank()) speak(action.say); break }
+                        is VoiceAction.Act -> {
+                            val (spoken, handled) = runAct(key, pm, action)
+                            dialog += false to spoken
+                            if (handled) { musicHandled = true; break }
+                            if (!action.listenAgain) break
+                        }
+                        is VoiceAction.Stats -> {
+                            SongLibraryHolder.ensureLoaded(appCtx)
+                            val now = pm.currentSong.value
+                            val text = withContext(Dispatchers.IO) { VoiceStats.answer(appCtx, action.kind, lang, now) }
+                            dialog += false to text
+                            speak(text); break
+                        }
+                        is VoiceAction.Undo -> {
+                            val u = lastUndo
+                            val msg = if (u == null || u.isEmpty) getString(R.string.voice_nothing_to_undo)
+                                else { u.run(pm); lastUndo = null; getString(R.string.voice_undone) }
+                            dialog += false to msg
+                            speak(msg); break
+                        }
                     }
                 }
             } catch (e: CancellationException) {
@@ -287,6 +324,132 @@ class VoiceAssistantActivity : ComponentActivity() {
         pm.whenReady { pm.playSong(songs.first(), songs, a.playlist.id, a.playlist.kind) }
         delay(300)
         return true
+    }
+
+    private data class ActResult(val spoken: String, val musicHandled: Boolean)
+
+    /**
+     * Ejecuta las acciones de la lista blanca. La IA solo describe; [JarvisBrain.prepare] las resuelve contra la
+     * biblioteca REAL. Los cambios masivos piden "sí"/"no" y las playlists nuevas pasan por la tabla de borrador.
+     */
+    private suspend fun runAct(key: String?, pm: MusicPlayerManager, a: VoiceAction.Act): ActResult {
+        val ctx = applicationContext
+        SongLibraryHolder.ensureLoaded(ctx)
+        val steps = JarvisBrain.prepare(ctx, lang, a.calls, pm.currentSong.value?.id)
+        val creates = steps.filter { it.call.tool == JarvisTool.CREATE_PLAYLIST }
+        val timers = steps.filter { it.call.tool == JarvisTool.SLEEP_TIMER || it.call.tool == JarvisTool.CANCEL_SLEEP_TIMER }
+        val together = steps.filter { it.call.tool == JarvisTool.TOGETHER_CREATE || it.call.tool == JarvisTool.TOGETHER_INVITE }
+        val others = steps.filter { it !in creates && it !in timers && it !in together }
+        val out = ArrayList<String>()
+        var musicHandled = false
+
+        var go = true
+        JarvisBrain.confirmQuestion(others, lang)?.let { q ->
+            val ans = askYesNo(key, q)
+            go = ans == true
+            if (!go) { val m = getString(if (ans == null) R.string.voice_no_answer else R.string.voice_cancelled); speak(m); return ActResult(m, false) }
+        }
+
+        if (go && (others.isNotEmpty() || timers.isNotEmpty())) {
+            val undo = VoiceUndo.capture(ctx, others + timers, pm)
+            val plays = others.any { it.problem == null && it.call.tool.id.startsWith("play_") }
+            var spokenFirst = false
+            if (plays) { speak(a.say.ifBlank { if (lang == "en") "On it." else "Enseguida." }); spokenFirst = true }
+
+            val lines = ArrayList<String>()
+            for (t in timers) {
+                if (t.call.tool == JarvisTool.SLEEP_TIMER) {
+                    val m = (t.call.value ?: 0).coerceIn(1, 600)
+                    VoiceSleepTimer.start(ctx, m); lines += getString(R.string.voice_sleep_set, m)
+                } else { VoiceSleepTimer.cancel(); lines += getString(R.string.voice_sleep_off) }
+            }
+            val res = JarvisBrain.execute(ctx, lang, others, pm) { first, list -> pm.whenReady { pm.playSong(first, list) } }
+            lines += res.lines
+            if (!undo.isEmpty) lastUndo = undo
+            musicHandled = plays || others.any { it.problem == null && it.call.tool == JarvisTool.PAUSE }
+            if (plays) delay(300)
+            // Si el modelo dijo una frase, esa es la voz; se añaden solo los avisos de lo que no se pudo hacer.
+            val problems = others.mapNotNull { it.problem }
+            val text = if (a.say.isNotBlank()) (listOf(a.say) + problems).joinToString(" ") else lines.joinToString(". ")
+            if (!spokenFirst && text.isNotBlank()) speak(text)
+            out += if (spokenFirst) a.say else text
+        }
+
+        if (go) for (t in together) {
+            val r = handleTogether(invite = t.call.tool == JarvisTool.TOGETHER_INVITE)
+            speak(r); out += r
+        }
+
+        for (c in creates) {
+            val r = handleDraft(key, c)
+            if (r.isNotBlank()) { speak(r); out += r }
+        }
+        return ActResult(out.joinToString(" "), musicHandled)
+    }
+
+    /**
+     * Sala de Juntos. Usa el TogetherManager de la app (el mismo de la pantalla "En compañía"); si MusicFlame no
+     * está abierta no hay manager y se pide abrirla. Si ya estás en una sala NO se crea otra: se reutiliza.
+     */
+    private suspend fun handleTogether(invite: Boolean): String {
+        val tm = TogetherManager.current ?: return getString(R.string.voice_together_no_app)
+        var created = false
+        if (tm.roomCode == null) {
+            tm.createRoom()
+            delay(400)
+            val ok = withTimeoutOrNull(15_000) {
+                while (tm.roomCode == null && tm.status != TogetherManager.Status.ERROR) delay(250)
+                tm.roomCode != null
+            } ?: false
+            if (!ok) return getString(R.string.voice_together_failed)
+            created = true
+        }
+        val code = tm.roomCode.orEmpty()
+        if (!invite) return getString(if (created) R.string.voice_together_created else R.string.voice_together_existing, code)
+        val msg = getString(R.string.tg_share_message, code, tm.roomLink.orEmpty())
+        val send = Intent(Intent.ACTION_SEND).apply { type = "text/plain"; putExtra(Intent.EXTRA_TEXT, msg) }
+        startActivity(Intent.createChooser(send, getString(R.string.tg_invite_to_room)))
+        return getString(R.string.voice_together_invite, code)
+    }
+
+    /** Muestra la tabla del borrador y espera "sí"/"no" (por voz o con los botones). Devuelve lo que hay que decir. */
+    private suspend fun handleDraft(key: String?, step: JarvisStep): String {
+        val name = (step.label ?: "MusicFlame").take(40)
+        val candidatesMode = step.problem != null
+        if (candidatesMode && step.candidates.isEmpty()) return step.problem ?: ""
+        val rows = if (candidatesMode) step.candidates.map { DraftRow(it, false) } else step.songs.map { DraftRow(it, true) }
+        draftName = name; draftRows = rows
+        val q = if (candidatesMode) getString(R.string.voice_draft_ask_candidates, name) else getString(R.string.voice_draft_ask, name, rows.size)
+        val ans = askYesNo(key, q)
+        val chosen = rows.filter { it.checked }.map { it.song }
+        draftRows = emptyList()
+        return when {
+            ans == null -> getString(R.string.voice_no_answer)
+            ans == false -> getString(R.string.voice_draft_discarded)
+            chosen.isEmpty() -> getString(R.string.voice_draft_none_checked)
+            else -> JarvisBrain.execute(applicationContext, lang, listOf(JarvisStep(step.call, songs = chosen, label = name)), null) { _, _ -> }
+                .lines.joinToString(". ")
+        }
+    }
+
+    /** Dice la pregunta y escucha un sí/no. null = no quedó claro (se trata como "no cambies nada"). */
+    private suspend fun askYesNo(key: String?, question: String): Boolean? {
+        buttonAnswer = null
+        speak(question)
+        buttonAnswer?.let { buttonAnswer = null; return it }
+        for (i in 0 until 2) {
+            val said = listen(key, silentIfNoSpeech = false)
+            if (said.isNullOrBlank()) return null
+            heard = said
+            VoiceBrain.yesNo(said)?.let { return it }
+        }
+        return null
+    }
+
+    /** Botones Guardar / Descartar de la tabla: equivalen a decir "sí" / "no". */
+    private fun answerDraft(yes: Boolean) {
+        buttonAnswer = yes
+        if (phase == Phase.SPEAKING) tts?.stop() else submit(if (yes) "sí" else "no")
     }
 
     private suspend fun runControl(pm: MusicPlayerManager, kind: VoiceControl) {
@@ -470,10 +633,36 @@ class VoiceAssistantActivity : ComponentActivity() {
                     Spacer(Modifier.height(6.dp))
                 }
                 // Las respuestas largas ("cuéntame...") bajan de tamaño y se pueden desplazar.
-                Box(Modifier.heightIn(max = 220.dp).verticalScroll(rememberScrollState())) {
+                Box(Modifier.heightIn(max = if (draftRows.isNotEmpty()) 80.dp else 220.dp).verticalScroll(rememberScrollState())) {
                     AnimatedContent(targetState = reply, label = "reply") { r ->
                         val long = r.length > 140
                         Text(r, fontSize = if (long) 16.sp else 21.sp, lineHeight = if (long) 22.sp else 27.sp, fontWeight = FontWeight.SemiBold, textAlign = TextAlign.Center, color = cs.onSurface)
+                    }
+                }
+
+                if (draftRows.isNotEmpty()) {
+                    Spacer(Modifier.height(8.dp))
+                    Text(stringResource(R.string.voice_draft_title, draftName), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = cs.primary)
+                    Column(
+                        Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(max = 150.dp)
+                            .clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainer).verticalScroll(rememberScrollState())
+                    ) {
+                        draftRows.forEach { row ->
+                            Row(
+                                Modifier.fillMaxWidth().clickable { row.checked = !row.checked }.padding(horizontal = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Checkbox(checked = row.checked, onCheckedChange = { row.checked = it })
+                                Column(Modifier.weight(1f)) {
+                                    Text(row.song.title, fontSize = 14.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = cs.onSurface)
+                                    Text(row.song.artist, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, color = cs.onSurfaceVariant)
+                                }
+                            }
+                        }
+                    }
+                    Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(onClick = { answerDraft(false) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.voice_draft_discard)) }
+                        Button(onClick = { answerDraft(true) }, modifier = Modifier.weight(1f)) { Text(stringResource(R.string.voice_draft_save)) }
                     }
                 }
 

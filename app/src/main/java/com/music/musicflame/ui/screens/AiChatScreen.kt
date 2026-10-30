@@ -78,7 +78,10 @@ import com.music.musicflame.data.AiCommands
 import com.music.musicflame.data.PlaylistRepository
 import com.music.musicflame.data.AiMessage
 import com.music.musicflame.data.AiLibraryContext
+import com.music.musicflame.data.JarvisBrain
+import com.music.musicflame.data.JarvisPending
 import com.music.musicflame.data.LocalLlm
+import com.music.musicflame.data.MusicPlayerManager
 import com.music.musicflame.data.OnlineAiException
 import com.music.musicflame.data.OnlineErrorKind
 import com.music.musicflame.data.OnlineLlm
@@ -128,6 +131,8 @@ fun AiChatScreen(
     onPlaySong: (Song, List<Song>) -> Unit = { _, _ -> },
     /** Se llama cuando un comando guarda una playlist, para que la pestaña Playlists se refresque. */
     onPlaylistsChanged: () -> Unit = {},
+    /** Reproductor real: Jarvis lo usa para pausa, siguiente, cola, temporizador... (null = solo reproducir). */
+    playerManager: MusicPlayerManager? = null,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -169,6 +174,7 @@ fun AiChatScreen(
     var pickerFor by remember { mutableStateOf<AiCommand?>(null) }
     var pendingPlaylist by remember { mutableStateOf<PendingPlaylist?>(null) }
     var pendingQuiz by remember { mutableStateOf<PendingQuiz?>(null) }
+    var pendingJarvis by remember { mutableStateOf<JarvisPending?>(null) }
 
     // --- Teclado ---
     // La app es edge-to-edge (targetSdk 36) y el chat ya se acomoda con imePadding(). Con el modo por defecto
@@ -211,8 +217,8 @@ fun AiChatScreen(
         if (last >= 0) listState.animateScrollToItem(last)
     }
     // Al aparecer la confirmación de playlist o las opciones del quiz, dejarlas a la vista
-    LaunchedEffect(pendingPlaylist, pendingQuiz) {
-        val extra = (if (pendingPlaylist != null) 1 else 0) + (if (pendingQuiz != null) 1 else 0)
+    LaunchedEffect(pendingPlaylist, pendingQuiz, pendingJarvis) {
+        val extra = (if (pendingPlaylist != null) 1 else 0) + (if (pendingQuiz != null) 1 else 0) + (if (pendingJarvis != null) 1 else 0)
         if (extra > 0) listState.animateScrollToItem(messages.size + extra - 1)
     }
     // Mientras la respuesta va llegando, mantener la vista abajo
@@ -377,6 +383,52 @@ fun AiChatScreen(
         persist()
     }
 
+    // ---------- Jarvis: acciones dentro de la app (lista blanca, ver JarvisBrain) ----------
+    /** true = el mensaje era una acción y ya se respondió; false = seguir con el chat normal. */
+    suspend fun runJarvis(text: String, finish: (String, Boolean, List<Long>?) -> Unit): Boolean {
+        val lang = context.resources.configuration.locales[0].language
+        if (SongLibraryHolder.songs.isEmpty()) return false
+        val nowId = playerManager?.currentSong?.value?.id ?: nowPlayingSongId
+        val plan = JarvisBrain.quickPlan(text) ?: if (onlineMode && JarvisBrain.looksLikeAction(text)) {
+            try {
+                val summary = withContext(Dispatchers.Default) { AiLibraryContext.summary(SongLibraryHolder.songs, stats, lang) }
+                val names = withContext(Dispatchers.IO) { JarvisBrain.playlistNames(context, lang) }
+                JarvisBrain.plan(context, name, lang, text, nowPlayingLabel, names, summary)
+            } catch (e: OnlineAiException) { null }   // sin internet/cuota: el chat normal explica el motivo
+        } else null
+        if (plan == null || plan.calls.isEmpty()) return false
+
+        val steps = JarvisBrain.prepare(context, lang, plan.calls, nowId)
+        val ask = JarvisBrain.confirmQuestion(steps, lang)
+        if (ask != null) {
+            pendingJarvis = JarvisPending(steps, ask)
+            finish(JarvisBrain.compose(plan.say, emptyList()).let { if (it.isBlank()) ask else "$it\n\n$ask" }, false, null)
+            return true
+        }
+        val out = JarvisBrain.execute(context, lang, steps, playerManager, onPlaySong)
+        finish(JarvisBrain.compose(plan.say, out.lines), false, out.songIds.takeIf { it.isNotEmpty() })
+        if (out.playlistsChanged) onPlaylistsChanged()
+        return true
+    }
+
+    fun confirmJarvis() {
+        val p = pendingJarvis ?: return
+        pendingJarvis = null
+        scope.launch {
+            val lang = context.resources.configuration.locales[0].language
+            val out = JarvisBrain.execute(context, lang, p.steps, playerManager, onPlaySong)
+            messages.add(AiMessage(System.nanoTime(), false, JarvisBrain.compose(null, out.lines), songIds = out.songIds))
+            persist()
+            if (out.playlistsChanged) onPlaylistsChanged()
+        }
+    }
+
+    fun cancelJarvis() {
+        pendingJarvis = null
+        messages.add(AiMessage(System.nanoTime(), false, context.getString(R.string.jarvis_cancelled)))
+        persist()
+    }
+
     fun savePendingPlaylist() {
         val p = pendingPlaylist ?: return
         pendingPlaylist = null
@@ -422,7 +474,7 @@ fun AiChatScreen(
             else runCommand(text, null)
             return
         }
-        pendingPlaylist = null; pendingQuiz = null
+        pendingPlaylist = null; pendingQuiz = null; pendingJarvis = null
         if (override == null) input = ""
         messages.add(AiMessage(System.nanoTime(), true, text))
         persist()
@@ -440,6 +492,8 @@ fun AiChatScreen(
         scope.launch {
             var fallbackText: String? = null
             try {
+                // 0) Jarvis: si el mensaje pide una ACCIÓN (poner, favoritos, playlists, pausa...), se ejecuta aquí.
+                if (runJarvis(text) { t, e, ids -> upsert(t, e, ids) }) return@launch
                 // 1) Búsqueda en la biblioteca REAL (sin IA, instantánea): las tarjetas aparecen YA,
                 //    sin esperar al modelo, y la IA solo comenta datos verdaderos en vez de adivinar.
                 val lib = withContext(Dispatchers.Default) {
@@ -594,7 +648,7 @@ fun AiChatScreen(
                         panelColor = panelColor, onPanel = onPanel,
                         statusText = if (onlineMode) stringResource(R.string.ai_status_online, onlineModel.displayName) else stringResource(R.string.ai_status_local),
                         statusOnline = onlineMode,
-                        onClear = { messages.clear(); settings.clearHistory(); pendingPlaylist = null; pendingQuiz = null }
+                        onClear = { messages.clear(); settings.clearHistory(); pendingPlaylist = null; pendingQuiz = null; pendingJarvis = null }
                     )
                     // Barra fina de tokens de hoy, solo en modo online (se actualiza sola con cada respuesta).
                     if (onlineMode && activeTermsAccepted) AiUsageBar(
@@ -628,6 +682,11 @@ fun AiChatScreen(
                         pendingPlaylist?.let { _ ->
                             item(key = "pending_playlist") {
                                 PlaylistConfirmCard(color = pillColor, onSave = { savePendingPlaylist() }, onDiscard = { discardPendingPlaylist() })
+                            }
+                        }
+                        pendingJarvis?.let { _ ->
+                            item(key = "pending_jarvis") {
+                                JarvisConfirmCard(color = pillColor, onYes = { confirmJarvis() }, onNo = { cancelJarvis() })
                             }
                         }
                         pendingQuiz?.let { quiz ->

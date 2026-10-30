@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Asistente de voz: tile y pantalla de escucha -->
+    <string name="tile_voice">Asistente de voz</string>
+    <string name="voice_listening">Te escucho…</string>
+    <string name="voice_tap_to_finish">Toca el círculo cuando termines de hablar</string>
+    <string name="voice_transcribing">Entendiendo lo que dijiste…</string>
+    <string name="voice_thinking">Pensando…</string>
+    <string name="voice_whisper_fallback">Whisper no está disponible; repítelo con el reconocimiento de Android</string>
+    <string name="voice_not_heard">No te escuché. Inténtalo otra vez.</string>
+    <string name="voice_error">Algo salió mal. Inténtalo otra vez.</string>
+    <string name="voice_mic_busy">No pude usar el micrófono (¿lo está usando otra app?)</string>
+    <string name="voice_no_mic_permission">Necesito permiso de micrófono para escucharte</string>
+    <string name="voice_disabled">El asistente de voz está apagado. Actívalo en Ajustes > IA.</string>
+    <string name="voice_no_playlists">Todavía no tienes playlists con canciones.</string>
+    <string name="voice_playlist_empty">Esa playlist no tiene canciones disponibles.</string>
+    <string name="voice_playlist_favorites">Favoritas</string>
+    <string name="voice_close">Cerrar</string>
+
+    <!-- Ajustes > IA > Asistente de voz -->
+    <string name="settings_voice_title">Asistente de voz</string>
+    <string name="settings_voice_card_title">Háblale a MusicFlame</string>
+    <string name="settings_voice_desc">Platica con ella y pídele canciones, tus playlists (incluidas Favoritas y las inteligentes) o que pause y cambie de tema; te llama por tu nombre y conversa como una persona. Entiende tu voz con Whisper (usa la misma API key de Groq de arriba, sin configurar nada más) y, si no hay internet o se acaba el cupo, usa el reconocimiento de voz de Android.</string>
+    <string name="settings_voice_enable">Activar asistente de voz</string>
+    <string name="settings_voice_enable_sub">Mientras esté apagado, ni el botón power ni el tile hacen nada.</string>
+    <string name="settings_voice_speak">Responder en voz alta</string>
+    <string name="settings_voice_speak_sub">Usa la voz del sistema (no pesa nada extra).</string>
+    <string name="settings_voice_whisper_ok">Whisper listo: se usará tu API key de Groq.</string>
+    <string name="settings_voice_whisper_nokey">Sin API key de Groq: se usará el reconocimiento de voz de Android.</string>
+    <string name="settings_voice_power_title">Botón power</string>
+    <string name="settings_voice_power_body">Android no deja que una app capture el botón power por sí sola. Lo que sí permite es elegir a MusicFlame como asistente digital: así, al mantener pulsado el botón de encendido, se abre. Cuánto hay que mantenerlo lo decide Android (en algunos teléfonos se ajusta en Ajustes del sistema > Botón de encendido); la app no puede fijarlo en 2 o 4 segundos.</string>
+    <string name="settings_voice_power_status_on">MusicFlame es tu asistente digital ✔</string>
+    <string name="settings_voice_power_status_off">MusicFlame todavía no es tu asistente digital</string>
+    <string name="settings_voice_power_button">Elegir asistente en el sistema</string>
+    <string name="settings_voice_tile_title">Tile del panel de control</string>
+    <string name="settings_voice_tile_body">Desliza el panel rápido, toca el lápiz (editar) y arrastra el tile "Asistente de voz" a tu panel.</string>
+    <string name="settings_voice_test">Probar ahora</string>
+    <string name="settings_voice_enable_first">Primero activa el asistente de voz</string>
+    <string name="voice_greet_morning">Buenos días</string>
+    <string name="voice_greet_afternoon">Buenas tardes</string>
+    <string name="voice_greet_night">Buenas noches</string>
+    <string name="voice_hint_listening">Habla, te escucho · toca la esfera cuando termines</string>
+    <string name="voice_hint_speaking">Toca la esfera para interrumpirme</string>
+    <string name="voice_chip_my_playlists">¿Qué playlists tengo?</string>
+    <string name="voice_chip_surprise">Sorpréndeme</string>
+    <string name="voice_chip_next">Siguiente</string>
+    <string name="voice_song_not_found">No encontré «%1$s» en tu biblioteca. ¿Probamos con otra?</string>
+    <string name="settings_voice_name_label">¿Cómo te llamo? (vacío = tu nombre de Google)</string>
+</resources>

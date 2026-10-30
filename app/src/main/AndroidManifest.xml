@@ -16,6 +16,16 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
+    <!-- Respaldo de voz: reconocimiento de Android (Android 11+ exige declarar que se consulta) -->
+    <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
+        <intent>
+            <action android:name="android.intent.action.TTS_SERVICE" />
+        </intent>
+    </queries>
+
     <application
         android:name=".MusicFlameApp"
         android:allowBackup="true"
@@ -323,6 +333,52 @@
                 <action android:name="android.service.quicksettings.action.QS_TILE" />
             </intent-filter>
         </service>
+
+        <!-- Quick Settings Tile: Asistente de voz -->
+        <service
+            android:name=".tile.VoiceTileService"
+            android:label="@string/tile_voice"
+            android:icon="@drawable/ic_tile_voice"
+            android:permission="android.permission.BIND_QUICK_SETTINGS_TILE"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.service.quicksettings.action.QS_TILE" />
+            </intent-filter>
+        </service>
+
+        <!-- Asistente de voz: pantalla de escucha (se abre desde el botón power, el tile o Ajustes) -->
+        <activity
+            android:name=".voice.VoiceAssistantActivity"
+            android:exported="true"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:taskAffinity=""
+            android:theme="@style/Theme.MusicFlame.VoiceOverlay">
+            <intent-filter>
+                <action android:name="android.intent.action.ASSIST" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity>
+
+        <!-- Registro como asistente digital del teléfono: así el botón power (mantener pulsado) puede abrirlo -->
+        <service
+            android:name=".voice.VoiceAssistService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION">
+            <meta-data
+                android:name="android.voice_interaction"
+                android:resource="@xml/voice_interaction_service" />
+            <intent-filter>
+                <action android:name="android.service.voice.VoiceInteractionService" />
+            </intent-filter>
+        </service>
+        <service
+            android:name=".voice.VoiceAssistSessionService"
+            android:exported="true"
+            android:permission="android.permission.BIND_VOICE_INTERACTION" />
+        <service
+            android:name=".voice.VoiceAssistStubRecognizer"
+            android:exported="false" />
 
         <!-- Quick Settings Tile: Mezclar Playlist -->
         <service

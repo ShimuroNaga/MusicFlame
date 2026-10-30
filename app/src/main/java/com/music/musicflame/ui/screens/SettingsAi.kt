@@ -34,6 +34,8 @@ import com.music.musicflame.data.OnlineAiStore
 import com.music.musicflame.data.OnlineErrorKind
 import com.music.musicflame.data.OnlineLlm
 import com.music.musicflame.data.OnlineModel
+import com.music.musicflame.voice.VoiceAssistantActivity
+import com.music.musicflame.voice.VoiceSettings
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
@@ -175,6 +177,101 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
                         Text(stringResource(R.string.settings_ai_online_fallback), fontSize = 12.sp, color = style.mediumEmphasis)
                         TextButton(onClick = { showOnlineTerms = true }) { Text(stringResource(R.string.settings_ai_online_terms_button)) }
                     }
+                }
+            }
+        }
+    }
+
+    // ---------- Asistente de voz (Whisper + voz del sistema; se abre con botón power, tile o "Probar") ----------
+    item {
+        val context = LocalContext.current
+        val voice = remember { VoiceSettings(context) }
+        var enabled by remember { mutableStateOf(voice.isEnabled()) }
+        var speak by remember { mutableStateOf(voice.speaksReplies()) }
+        var hasKey by remember { mutableStateOf(false) }
+        var isAssistant by remember { mutableStateOf(false) }
+        var voiceName by remember { mutableStateOf(voice.getCustomName()) }
+        val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
+
+        // Se re-consulta al volver de los ajustes del sistema (ON_RESUME).
+        DisposableEffect(lifecycleOwner) {
+            val obs = androidx.lifecycle.LifecycleEventObserver { _, e ->
+                if (e == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                    isAssistant = try {
+                        android.provider.Settings.Secure.getString(context.contentResolver, "assistant")
+                            ?.startsWith(context.packageName + "/") == true
+                    } catch (_: Exception) { false }
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(obs)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+        }
+        LaunchedEffect(Unit) { hasKey = withContext(Dispatchers.IO) { OnlineAiStore(context).hasApiKey() } }
+
+        SettingsSectionHeader(style, stringResource(R.string.settings_voice_title))
+        Column(Modifier.padding(horizontal = 16.dp)) {
+            Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text(stringResource(R.string.settings_voice_card_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(stringResource(R.string.settings_voice_desc), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Spacer(Modifier.height(8.dp))
+
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_voice_enable), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
+                            Text(stringResource(R.string.settings_voice_enable_sub), fontSize = 12.sp, color = style.mediumEmphasis)
+                        }
+                        Switch(checked = enabled, onCheckedChange = { enabled = it; voice.setEnabled(it) })
+                    }
+                    Spacer(Modifier.height(6.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Column(Modifier.weight(1f)) {
+                            Text(stringResource(R.string.settings_voice_speak), fontSize = 14.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
+                            Text(stringResource(R.string.settings_voice_speak_sub), fontSize = 12.sp, color = style.mediumEmphasis)
+                        }
+                        Switch(checked = speak, onCheckedChange = { speak = it; voice.setSpeaksReplies(it) })
+                    }
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = voiceName, onValueChange = { voiceName = it.take(24); voice.setCustomName(voiceName) },
+                        singleLine = true, modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.settings_voice_name_label)) }
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    Text(
+                        stringResource(if (hasKey) R.string.settings_voice_whisper_ok else R.string.settings_voice_whisper_nokey),
+                        fontSize = 12.sp, color = if (hasKey) MaterialTheme.colorScheme.primary else style.mediumEmphasis
+                    )
+
+                    Spacer(Modifier.height(14.dp))
+                    Text(stringResource(R.string.settings_voice_power_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = style.highEmphasis)
+                    Text(stringResource(R.string.settings_voice_power_body), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        stringResource(if (isAssistant) R.string.settings_voice_power_status_on else R.string.settings_voice_power_status_off),
+                        fontSize = 12.sp, color = if (isAssistant) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    )
+                    OutlinedButton(onClick = {
+                        try {
+                            context.startActivity(android.content.Intent(android.provider.Settings.ACTION_VOICE_INPUT_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK))
+                        } catch (_: Exception) {
+                            try { context.startActivity(android.content.Intent(android.provider.Settings.ACTION_SETTINGS).addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)) } catch (_: Exception) {}
+                        }
+                    }) { Text(stringResource(R.string.settings_voice_power_button)) }
+
+                    Spacer(Modifier.height(10.dp))
+                    Text(stringResource(R.string.settings_voice_tile_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = style.highEmphasis)
+                    Text(stringResource(R.string.settings_voice_tile_body), fontSize = 12.sp, color = style.mediumEmphasis)
+
+                    Spacer(Modifier.height(12.dp))
+                    Button(onClick = {
+                        if (!enabled) {
+                            Toast.makeText(context, context.getString(R.string.settings_voice_enable_first), Toast.LENGTH_SHORT).show()
+                        } else {
+                            context.startActivity(android.content.Intent(context, VoiceAssistantActivity::class.java))
+                        }
+                    }) { Text(stringResource(R.string.settings_voice_test), fontWeight = FontWeight.Bold) }
                 }
             }
         }

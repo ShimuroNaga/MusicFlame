@@ -669,6 +669,19 @@ class MusicPlayerManager(private val context: Context) {
         refreshQueue(controller)
     }
 
+    // NUEVO (Jarvis): inserta canciones JUSTO DESPUÉS de la que suena, sin interrumpirla
+    // ("pon después esa de Daft Punk"). Si no hay cola cargada, queda al principio.
+    fun playNext(songs: List<Song>) {
+        val controller = mediaController ?: return
+        if (songs.isEmpty()) return
+        val insertAt = (controller.currentMediaItemIndex + 1).coerceIn(0, controller.mediaItemCount)
+        controller.addMediaItems(insertAt, songs.map { s -> buildMediaItem(s) })
+        val list = currentPlaylist.toMutableList()
+        list.addAll(insertAt.coerceAtMost(list.size), songs)
+        currentPlaylist = list
+        refreshQueue(controller)
+    }
+
     // NUEVO: recalcula el orden visible de la cola (_queue) a partir del Timeline
     // real de Media3, recorriéndolo en el mismo orden en que ExoPlayer va a
     // reproducirlo (respeta el shuffle activo). Guarda en paralelo el "window

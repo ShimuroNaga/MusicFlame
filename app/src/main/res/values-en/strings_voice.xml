@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Voice assistant: tile and listening screen -->
+    <string name="tile_voice">Voice assistant</string>
+    <string name="voice_listening">Listening…</string>
+    <string name="voice_tap_to_finish">Tap the circle when you finish speaking</string>
+    <string name="voice_transcribing">Understanding what you said…</string>
+    <string name="voice_thinking">Thinking…</string>
+    <string name="voice_whisper_fallback">Whisper isn\'t available; say it again using Android\'s speech recognition</string>
+    <string name="voice_not_heard">I didn\'t hear you. Try again.</string>
+    <string name="voice_error">Something went wrong. Try again.</string>
+    <string name="voice_mic_busy">Couldn\'t use the microphone (is another app using it?)</string>
+    <string name="voice_no_mic_permission">I need microphone permission to hear you</string>
+    <string name="voice_disabled">The voice assistant is off. Turn it on in Settings > AI.</string>
+    <string name="voice_no_playlists">You don\'t have any playlists with songs yet.</string>
+    <string name="voice_playlist_empty">That playlist has no available songs.</string>
+    <string name="voice_playlist_favorites">Favorites</string>
+    <string name="voice_close">Close</string>
+
+    <!-- Settings > AI > Voice assistant -->
+    <string name="settings_voice_title">Voice assistant</string>
+    <string name="settings_voice_card_title">Talk to MusicFlame</string>
+    <string name="settings_voice_desc">Chat with it and ask for songs, your playlists (including Favorites and the smart ones), or to pause and skip; it calls you by name and talks like a person. It understands your voice with Whisper (using the same Groq API key as above, nothing else to set up) and, if there\'s no internet or the quota runs out, it uses Android\'s speech recognition.</string>
+    <string name="settings_voice_enable">Turn on voice assistant</string>
+    <string name="settings_voice_enable_sub">While it is off, neither the power button nor the tile does anything.</string>
+    <string name="settings_voice_speak">Reply out loud</string>
+    <string name="settings_voice_speak_sub">Uses the system voice (no extra size).</string>
+    <string name="settings_voice_whisper_ok">Whisper ready: your Groq API key will be used.</string>
+    <string name="settings_voice_whisper_nokey">No Groq API key: Android\'s speech recognition will be used.</string>
+    <string name="settings_voice_power_title">Power button</string>
+    <string name="settings_voice_power_body">Android doesn\'t let an app capture the power button by itself. What it does allow is choosing MusicFlame as your digital assistant: then, holding the power button opens it. How long you must hold is decided by Android (on some phones it\'s adjustable in system Settings > Power button); the app can\'t set it to 2 or 4 seconds.</string>
+    <string name="settings_voice_power_status_on">MusicFlame is your digital assistant ✔</string>
+    <string name="settings_voice_power_status_off">MusicFlame isn\'t your digital assistant yet</string>
+    <string name="settings_voice_power_button">Choose assistant in system settings</string>
+    <string name="settings_voice_tile_title">Quick settings tile</string>
+    <string name="settings_voice_tile_body">Swipe down the quick panel, tap the pencil (edit) and drag the "Voice assistant" tile into your panel.</string>
+    <string name="settings_voice_test">Try it now</string>
+    <string name="settings_voice_enable_first">Turn on the voice assistant first</string>
+    <string name="voice_greet_morning">Good morning</string>
+    <string name="voice_greet_afternoon">Good afternoon</string>
+    <string name="voice_greet_night">Good evening</string>
+    <string name="voice_hint_listening">Go ahead, I\'m listening · tap the orb when you\'re done</string>
+    <string name="voice_hint_speaking">Tap the orb to interrupt me</string>
+    <string name="voice_chip_my_playlists">What playlists do I have?</string>
+    <string name="voice_chip_surprise">Surprise me</string>
+    <string name="voice_chip_next">Next</string>
+    <string name="voice_song_not_found">I couldn\'t find «%1$s» in your library. Shall we try another?</string>
+    <string name="settings_voice_name_label">What should I call you? (empty = your Google name)</string>
+</resources>

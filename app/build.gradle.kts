@@ -138,6 +138,8 @@ dependencies {
     // Versión FIJA: 0.13.1 está hecha con Kotlin 2.2 (igual que este proyecto). Las más nuevas (con latest.release)
     // traen metadata de Kotlin 2.4 y el compilador 2.2 no las puede leer ("incompatible version of Kotlin").
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
+    // Escucha siempre: modelos de huellas de voz (assets/wake) ejecutados con ONNX Runtime
+    implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")

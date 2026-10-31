@@ -2,6 +2,7 @@ package com.music.musicflame.voice
 
 import android.content.Context
 import com.music.musicflame.data.SettingsStore
+import com.music.musicflame.voice.wake.WakeSensitivity
 
 /** Ajustes del asistente de voz (card "Asistente de voz" en Ajustes > IA). */
 class VoiceSettings(context: Context) {
@@ -37,6 +38,17 @@ class VoiceSettings(context: Context) {
     fun getTtsPitch(): Float = prefs.getFloat(KEY_TTS_PITCH, 1f).coerceIn(MIN_TTS_MULT, MAX_TTS_MULT)
     fun setTtsPitch(v: Float) = prefs.edit().putFloat(KEY_TTS_PITCH, v.coerceIn(MIN_TTS_MULT, MAX_TTS_MULT)).apply()
 
+    /** Escucha siempre ("oye <nombre>"): apagada por defecto. */
+    fun isWakeEnabled(): Boolean = prefs.getBoolean(KEY_WAKE_ENABLED, false)
+    fun setWakeEnabled(v: Boolean) = prefs.edit().putBoolean(KEY_WAKE_ENABLED, v).apply()
+
+    /** true mientras el servicio de escucha está corriendo (para avisar si el sistema lo detuvo). */
+    fun isWakeRunning(): Boolean = prefs.getBoolean(KEY_WAKE_RUNNING, false)
+    fun setWakeRunning(v: Boolean) = prefs.edit().putBoolean(KEY_WAKE_RUNNING, v).apply()
+
+    fun getWakeSensitivity(): WakeSensitivity = WakeSensitivity.fromId(prefs.getString(KEY_WAKE_SENS, null))
+    fun setWakeSensitivity(v: WakeSensitivity) = prefs.edit().putString(KEY_WAKE_SENS, v.id).apply()
+
     /** Nombre final para saludar (llamar desde un hilo de fondo si puede tocar la cuenta de Google). */
     fun resolveUserName(ctx: Context): String {
         getCustomName().takeIf { it.isNotEmpty() }?.let { return it }
@@ -47,6 +59,9 @@ class VoiceSettings(context: Context) {
     }
 
     companion object {
+        const val KEY_WAKE_ENABLED = "voice_wake_enabled"
+        const val KEY_WAKE_RUNNING = "voice_wake_running"
+        const val KEY_WAKE_SENS = "voice_wake_sens"
         const val KEY_NAME = "voice_user_name"
         const val KEY_ENABLED = "voice_assistant_enabled"
         const val KEY_SPEAK = "voice_assistant_speak"

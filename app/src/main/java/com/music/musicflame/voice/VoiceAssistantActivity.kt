@@ -69,6 +69,9 @@ import com.music.musicflame.data.SongLibraryHolder
 import com.music.musicflame.data.buildMostPlayedPlaylist
 import com.music.musicflame.data.buildNeverPlayedPlaylist
 import com.music.musicflame.together.TogetherManager
+import com.music.musicflame.voice.wake.WakePhrase
+import com.music.musicflame.voice.wake.WakeWord
+import com.music.musicflame.voice.wake.WakeWordService
 import com.music.musicflame.ui.theme.MusicFlameTheme
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CompletableDeferred
@@ -136,6 +139,10 @@ class VoiceAssistantActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         settings = VoiceSettings(this)
+        WakeWord.assistantOpened()          // la escucha siempre suelta el micrófono mientras esta pantalla esté abierta
+        if (intent?.getBooleanExtra(WakeWordService.EXTRA_FROM_WAKE, false) == true) {
+            setShowWhenLocked(true); setTurnScreenOn(true)     // abierto por "oye <nombre>": se ve aunque el teléfono esté bloqueado
+        }
         lang = resources.configuration.locales[0].language.let { if (it == "en") "en" else "es" }
         reply = greeting(null)
 
@@ -153,6 +160,7 @@ class VoiceAssistantActivity : ComponentActivity() {
     }
 
     override fun onDestroy() {
+        WakeWord.assistantClosed()
         session?.cancel()
         recorder?.cancel()
         tts?.shutdown()
@@ -193,12 +201,21 @@ class VoiceAssistantActivity : ComponentActivity() {
             var musicHandled = false
             val dialog = ArrayList<Pair<Boolean, String>>()
             var turns = 0
+            var nameOnlyUsed = false
 
             try {
                 while (turns < 8) {
                     val first = turns == 0
-                    val said = listen(key, silentIfNoSpeech = !first)
-                    if (said.isNullOrBlank()) { if (first) speak(getString(R.string.voice_not_heard)); break }
+                    val heardRaw = listen(key, silentIfNoSpeech = !first)
+                    if (heardRaw.isNullOrBlank()) { if (first) speak(getString(R.string.voice_not_heard)); break }
+                    // Se puede empezar con "oye <nombre>": se quita y queda solo la orden.
+                    val said = WakePhrase.strip(heardRaw, aiName).trim()
+                    if (said.isBlank()) {
+                        if (nameOnlyUsed) break
+                        nameOnlyUsed = true
+                        reply = getString(R.string.wake_say_command)
+                        continue
+                    }
                     turns++
                     heard = said
                     dialog += true to said

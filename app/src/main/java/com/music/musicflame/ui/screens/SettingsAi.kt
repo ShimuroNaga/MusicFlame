@@ -409,6 +409,9 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
         }
     }
 
+    // ---------- Escuchar siempre ("oye <nombre>") ----------
+    settingsWakeSection(style)
+
     // ---------- Motor de IA + modelo local (solo UNO descargado a la vez) ----------
     item {
         val context = LocalContext.current

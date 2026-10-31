@@ -44,6 +44,9 @@ import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import com.music.musicflame.ui.theme.parseCustomTextColor
+import android.speech.tts.TextToSpeech
+import android.speech.tts.Voice
+import com.music.musicflame.voice.VoiceTts
 
 /**
  * Sección "IA" de Ajustes: API key, nombre de la IA, color de las burbujas del chat
@@ -195,6 +198,14 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
         var voiceName by remember { mutableStateOf(voice.getCustomName()) }
         var voiceMode by remember { mutableStateOf(voice.getMode()) }
         var voicePrompt by remember { mutableStateOf(voice.getCustomPrompt()) }
+        var ttsVoice by remember { mutableStateOf(voice.getTtsVoice()) }
+        var ttsRate by remember { mutableStateOf(voice.getTtsRate()) }
+        var ttsPitch by remember { mutableStateOf(voice.getTtsPitch()) }
+        var ttsEngine by remember { mutableStateOf<TextToSpeech?>(null) }
+        var ttsVoices by remember { mutableStateOf<List<Voice>>(emptyList()) }
+        var ttsReady by remember { mutableStateOf(false) }
+        var ttsMenu by remember { mutableStateOf(false) }
+        val ttsLang = remember { if (context.resources.configuration.locales[0].language == "en") "en" else "es" }
         val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
 
         // Se re-consulta al volver de los ajustes del sistema (ON_RESUME).
@@ -211,6 +222,16 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
             onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
         }
         LaunchedEffect(Unit) { hasKey = withContext(Dispatchers.IO) { OnlineAiStore(context).hasApiKey() } }
+        // Motor de voz del sistema solo para listar voces y probarlas desde Ajustes.
+        DisposableEffect(Unit) {
+            var engine: TextToSpeech? = null
+            engine = TextToSpeech(context.applicationContext) { st ->
+                val e = engine
+                if (st == TextToSpeech.SUCCESS && e != null) { ttsEngine = e; ttsVoices = VoiceTts.voicesFor(e, ttsLang) }
+                ttsReady = true
+            }
+            onDispose { try { engine?.stop(); engine?.shutdown() } catch (_: Exception) {}; ttsEngine = null }
+        }
 
         SettingsSectionHeader(style, stringResource(R.string.settings_voice_title))
         Column(Modifier.padding(horizontal = 16.dp)) {
@@ -284,6 +305,66 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
                                 label = { Text(label, fontSize = 13.sp) }
                             )
                         }
+                    }
+                    // ---- Voz del sistema: selector, velocidad y tono ----
+                    Spacer(Modifier.height(14.dp))
+                    Text(stringResource(R.string.settings_voice_tts_title), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = style.highEmphasis)
+                    Text(stringResource(R.string.settings_voice_tts_sub), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Spacer(Modifier.height(6.dp))
+                    val ttsLabel = { i: Int, v: Voice ->
+                        val region = v.locale.displayCountry.ifBlank { v.locale.displayLanguage }
+                        context.getString(R.string.voice_tts_voice_item, region, i + 1) +
+                            if (v.isNetworkConnectionRequired) " · " + context.getString(R.string.voice_tts_network) else ""
+                    }
+                    val ttsCurrent = ttsVoices.indexOfFirst { it.name == ttsVoice }.let { i ->
+                        if (i >= 0) ttsLabel(i, ttsVoices[i]) else stringResource(R.string.voice_tts_auto)
+                    }
+                    Box {
+                        OutlinedButton(onClick = { ttsMenu = true }, enabled = ttsVoices.isNotEmpty(), modifier = Modifier.fillMaxWidth()) {
+                            Text(ttsCurrent, maxLines = 1)
+                        }
+                        DropdownMenu(expanded = ttsMenu, onDismissRequest = { ttsMenu = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.voice_tts_auto)) },
+                                onClick = { ttsVoice = ""; voice.setTtsVoice(""); ttsMenu = false }
+                            )
+                            ttsVoices.forEachIndexed { i, v ->
+                                DropdownMenuItem(
+                                    text = { Text(ttsLabel(i, v)) },
+                                    onClick = { ttsVoice = v.name; voice.setTtsVoice(v.name); ttsMenu = false }
+                                )
+                            }
+                        }
+                    }
+                    if (ttsReady && ttsVoices.isEmpty()) {
+                        Text(stringResource(R.string.settings_voice_tts_empty), fontSize = 12.sp, color = MaterialTheme.colorScheme.error)
+                    }
+                    Text(stringResource(R.string.settings_voice_tts_rate, Math.round(ttsRate * 100)), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Slider(
+                        value = ttsRate, onValueChange = { ttsRate = it },
+                        onValueChangeFinished = { voice.setTtsRate(ttsRate) },
+                        valueRange = VoiceSettings.MIN_TTS_MULT..VoiceSettings.MAX_TTS_MULT
+                    )
+                    Text(stringResource(R.string.settings_voice_tts_pitch, Math.round(ttsPitch * 100)), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Slider(
+                        value = ttsPitch, onValueChange = { ttsPitch = it },
+                        onValueChangeFinished = { voice.setTtsPitch(ttsPitch) },
+                        valueRange = VoiceSettings.MIN_TTS_MULT..VoiceSettings.MAX_TTS_MULT
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            enabled = ttsEngine != null,
+                            onClick = {
+                                ttsEngine?.let { e ->
+                                    VoiceTts.apply(e, voice, ttsLang)
+                                    e.speak(context.getString(R.string.voice_tts_sample, AiChatSettings(context).getName()), TextToSpeech.QUEUE_FLUSH, null, "voice_tts_test")
+                                }
+                            }
+                        ) { Text(stringResource(R.string.settings_voice_tts_test)) }
+                        TextButton(onClick = {
+                            ttsVoice = ""; ttsRate = 1f; ttsPitch = 1f
+                            voice.setTtsVoice(""); voice.setTtsRate(1f); voice.setTtsPitch(1f)
+                        }) { Text(stringResource(R.string.settings_voice_tts_reset)) }
                     }
                     TextButton(onClick = {
                         VoiceMemory.clear(context)

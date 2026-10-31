@@ -27,6 +27,16 @@ class VoiceSettings(context: Context) {
     fun getCustomPrompt(): String = prefs.getString(KEY_PROMPT, "")?.trim().orEmpty().take(MAX_PROMPT)
     fun setCustomPrompt(v: String) = prefs.edit().putString(KEY_PROMPT, v.take(MAX_PROMPT)).apply()
 
+    /** Voz del sistema elegida (nombre interno de TextToSpeech.Voice). Vacío = la voz por defecto del sistema. */
+    fun getTtsVoice(): String = prefs.getString(KEY_TTS_VOICE, "")?.trim().orEmpty()
+    fun setTtsVoice(v: String) = prefs.edit().putString(KEY_TTS_VOICE, v).apply()
+
+    /** Multiplicadores de velocidad y tono que se suman a los de la actitud (1.0 = sin cambio). */
+    fun getTtsRate(): Float = prefs.getFloat(KEY_TTS_RATE, 1f).coerceIn(MIN_TTS_MULT, MAX_TTS_MULT)
+    fun setTtsRate(v: Float) = prefs.edit().putFloat(KEY_TTS_RATE, v.coerceIn(MIN_TTS_MULT, MAX_TTS_MULT)).apply()
+    fun getTtsPitch(): Float = prefs.getFloat(KEY_TTS_PITCH, 1f).coerceIn(MIN_TTS_MULT, MAX_TTS_MULT)
+    fun setTtsPitch(v: Float) = prefs.edit().putFloat(KEY_TTS_PITCH, v.coerceIn(MIN_TTS_MULT, MAX_TTS_MULT)).apply()
+
     /** Nombre final para saludar (llamar desde un hilo de fondo si puede tocar la cuenta de Google). */
     fun resolveUserName(ctx: Context): String {
         getCustomName().takeIf { it.isNotEmpty() }?.let { return it }
@@ -43,5 +53,10 @@ class VoiceSettings(context: Context) {
         const val KEY_MODE = "voice_mode"
         const val KEY_PROMPT = "voice_custom_prompt"
         const val MAX_PROMPT = 250
+        const val KEY_TTS_VOICE = "voice_tts_voice"
+        const val KEY_TTS_RATE = "voice_tts_rate"
+        const val KEY_TTS_PITCH = "voice_tts_pitch"
+        const val MIN_TTS_MULT = 0.6f
+        const val MAX_TTS_MULT = 1.4f
     }
 }

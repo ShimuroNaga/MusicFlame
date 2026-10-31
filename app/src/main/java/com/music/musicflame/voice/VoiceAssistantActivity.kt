@@ -579,8 +579,7 @@ class VoiceAssistantActivity : ComponentActivity() {
         tts = TextToSpeech(applicationContext) { st ->
             val t = tts
             if (st == TextToSpeech.SUCCESS && t != null) {
-                t.language = Locale(lang)
-                settings.getMode().let { m -> t.setSpeechRate(m.speechRate); t.setPitch(m.pitch) }
+                VoiceTts.apply(t, settings, lang)
                 d.complete(t)
             } else d.complete(null)
         }

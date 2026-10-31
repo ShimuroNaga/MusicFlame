@@ -90,4 +90,16 @@
     <string name="voice_together_created">Listo, la sala %1$s está creada.</string>
     <string name="voice_together_existing">Ya estás en la sala %1$s.</string>
     <string name="voice_together_invite">Abrí las opciones para invitar a la sala %1$s.</string>
+    <!-- Voz fase 3: selector de voces del sistema, velocidad y tono -->
+    <string name="settings_voice_tts_title">Voz del asistente</string>
+    <string name="settings_voice_tts_sub">Voces del sistema instaladas en tu teléfono. La actitud ya ajusta el ritmo y el tono; estos controles se suman a ella.</string>
+    <string name="voice_tts_auto">Automática (voz por defecto del sistema)</string>
+    <string name="voice_tts_voice_item">%1$s · voz %2$d</string>
+    <string name="voice_tts_network">necesita internet</string>
+    <string name="settings_voice_tts_rate">Velocidad: %1$d%%</string>
+    <string name="settings_voice_tts_pitch">Tono: %1$d%%</string>
+    <string name="settings_voice_tts_test">Probar voz</string>
+    <string name="settings_voice_tts_reset">Restablecer voz</string>
+    <string name="settings_voice_tts_empty">No encontré voces del sistema para este idioma. Instálalas en los ajustes de salida de texto a voz de tu teléfono.</string>
+    <string name="voice_tts_sample">Hola, soy %1$s. Así sueno con esta configuración.</string>
 </resources>

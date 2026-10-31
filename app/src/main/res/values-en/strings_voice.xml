@@ -90,4 +90,16 @@
     <string name="voice_together_created">Done, room %1$s is created.</string>
     <string name="voice_together_existing">You\'re already in room %1$s.</string>
     <string name="voice_together_invite">I opened the invite options for room %1$s.</string>
+    <!-- Voice phase 3: system voice picker, speed and pitch -->
+    <string name="settings_voice_tts_title">Assistant voice</string>
+    <string name="settings_voice_tts_sub">System voices installed on your phone. The attitude already adjusts pace and pitch; these controls add on top of it.</string>
+    <string name="voice_tts_auto">Automatic (system default voice)</string>
+    <string name="voice_tts_voice_item">%1$s · voice %2$d</string>
+    <string name="voice_tts_network">needs internet</string>
+    <string name="settings_voice_tts_rate">Speed: %1$d%%</string>
+    <string name="settings_voice_tts_pitch">Pitch: %1$d%%</string>
+    <string name="settings_voice_tts_test">Test voice</string>
+    <string name="settings_voice_tts_reset">Reset voice</string>
+    <string name="settings_voice_tts_empty">I couldn\'t find system voices for this language. Install them in your phone\'s text-to-speech settings.</string>
+    <string name="voice_tts_sample">Hi, I\'m %1$s. This is how I sound with this setup.</string>
 </resources>

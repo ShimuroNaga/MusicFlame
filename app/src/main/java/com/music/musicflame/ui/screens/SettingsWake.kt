@@ -282,7 +282,7 @@ internal fun LazyListScope.settingsWakeSection(style: SettingsStyle) {
                         }), fontSize = 12.sp, color = style.mediumEmphasis
                     )
                     Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.wake_without_always), fontSize = 12.sp, color = style.mediumEmphasis)
+                    Text(stringResource(R.string.wake_without_always, aiName), fontSize = 12.sp, color = style.mediumEmphasis)
                 }
             }
         }

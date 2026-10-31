@@ -75,10 +75,15 @@
     <string name="voice_draft_title">Playlist: %1$s</string>
     <string name="voice_draft_save">Save</string>
     <string name="voice_draft_discard">Discard</string>
-    <string name="voice_draft_ask">I built «%1$s» with %2$d songs. Shall I save it? You can uncheck the ones you don\'t want.</string>
+    <string name="voice_draft_ask">I built «%1$s» with %2$d songs. You can rename it or uncheck the ones you don\'t want. Shall I save it?</string>
     <string name="voice_draft_ask_candidates">I didn\'t find exactly that, but there are candidates. Check the ones you want and say yes to save «%1$s».</string>
     <string name="voice_draft_discarded">Done, I didn\'t save it.</string>
     <string name="voice_draft_none_checked">You didn\'t check any song, so I didn\'t save it.</string>
+    <string name="voice_draft_all">All</string>
+    <string name="voice_draft_none">None</string>
+    <string name="voice_draft_name_label">Playlist name</string>
+    <string name="voice_draft_play_ask">Do you want me to play «%1$s» now?</string>
+    <string name="voice_draft_playing">Playing «%1$s».</string>
     <string name="voice_nothing_to_undo">I have nothing to undo.</string>
     <string name="voice_undone">Done, I undid it.</string>
     <string name="voice_cancelled">Cancelled, I changed nothing.</string>

@@ -295,6 +295,7 @@ class VoiceAssistantActivity : ComponentActivity() {
     }
 
     private suspend fun think(key: String?, vc: VoiceContext, dialog: List<Pair<Boolean, String>>, said: String): VoiceAction {
+        JarvisBrain.quickCreatePlaylists(said, vc.lang)?.let { return VoiceAction.Act(it.calls, "", false) }
         if (key != null && hasInternet()) {
             try { return VoiceBrain.decide(applicationContext, vc, dialog) }
             catch (e: CancellationException) { throw e }
@@ -398,8 +399,8 @@ class VoiceAssistantActivity : ComponentActivity() {
         }
 
         for (c in creates) {
-            val r = handleDraft(key, c)
-            if (r.isNotBlank()) { speak(r); out += r }
+            val r = handleDraft(key, c, pm)   // handleDraft ya lo dice en voz alta
+            if (r.isNotBlank()) out += r
         }
         return ActResult(out.joinToString(" "), musicHandled)
     }
@@ -430,23 +431,40 @@ class VoiceAssistantActivity : ComponentActivity() {
     }
 
     /** Muestra la tabla del borrador y espera "sí"/"no" (por voz o con los botones). Devuelve lo que hay que decir. */
-    private suspend fun handleDraft(key: String?, step: JarvisStep): String {
+    private suspend fun handleDraft(key: String?, step: JarvisStep, pm: MusicPlayerManager): String {
         val name = (step.label ?: "MusicFlame").take(40)
         val candidatesMode = step.problem != null
-        if (candidatesMode && step.candidates.isEmpty()) return step.problem ?: ""
+        if (candidatesMode && step.candidates.isEmpty()) {
+            val p = step.problem ?: ""
+            if (p.isNotBlank()) speak(p)
+            return p
+        }
         val rows = if (candidatesMode) step.candidates.map { DraftRow(it, false) } else step.songs.map { DraftRow(it, true) }
         draftName = name; draftRows = rows
         val q = if (candidatesMode) getString(R.string.voice_draft_ask_candidates, name) else getString(R.string.voice_draft_ask, name, rows.size)
         val ans = askYesNo(key, q)
         val chosen = rows.filter { it.checked }.map { it.song }
+        val finalName = draftName.trim().ifBlank { name }.take(40)   // el nombre se puede editar en la tabla
         draftRows = emptyList()
-        return when {
+        val text = when {
             ans == null -> getString(R.string.voice_no_answer)
             ans == false -> getString(R.string.voice_draft_discarded)
             chosen.isEmpty() -> getString(R.string.voice_draft_none_checked)
-            else -> JarvisBrain.execute(applicationContext, lang, listOf(JarvisStep(step.call, songs = chosen, label = name)), null) { _, _ -> }
+            else -> JarvisBrain.execute(applicationContext, lang, listOf(JarvisStep(step.call, songs = chosen, label = finalName)), null) { _, _ -> }
                 .lines.joinToString(". ")
         }
+        speak(text)
+        // Guardada: la playlist ya aparece en Playlists. Se pregunta si se quiere escuchar ahora.
+        if (ans == true && chosen.isNotEmpty()) {
+            if (askYesNo(key, getString(R.string.voice_draft_play_ask, finalName)) == true) {
+                pm.whenReady { pm.playSong(chosen.first(), chosen) }
+                delay(300)
+                val playing = getString(R.string.voice_draft_playing, finalName)
+                speak(playing)
+                return "$text $playing"
+            }
+        }
+        return text
     }
 
     /** Dice la pregunta y escucha un sí/no. null = no quedó claro (se trata como "no cambies nada"). */
@@ -658,9 +676,20 @@ class VoiceAssistantActivity : ComponentActivity() {
 
                 if (draftRows.isNotEmpty()) {
                     Spacer(Modifier.height(8.dp))
-                    Text(stringResource(R.string.voice_draft_title, draftName), fontWeight = FontWeight.Bold, fontSize = 14.sp, color = cs.primary)
+                    OutlinedTextField(
+                        value = draftName,
+                        onValueChange = { draftName = it.take(40) },
+                        singleLine = true,
+                        label = { Text(stringResource(R.string.voice_draft_name_label)) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End, verticalAlignment = Alignment.CenterVertically) {
+                        Text("${draftRows.count { it.checked }}/${draftRows.size}", fontSize = 12.sp, color = cs.onSurfaceVariant, modifier = Modifier.weight(1f))
+                        TextButton(onClick = { draftRows.forEach { it.checked = true } }) { Text(stringResource(R.string.voice_draft_all)) }
+                        TextButton(onClick = { draftRows.forEach { it.checked = false } }) { Text(stringResource(R.string.voice_draft_none)) }
+                    }
                     Column(
-                        Modifier.fillMaxWidth().padding(top = 6.dp).heightIn(max = 150.dp)
+                        Modifier.fillMaxWidth().padding(top = 0.dp).heightIn(max = 150.dp)
                             .clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainer).verticalScroll(rememberScrollState())
                     ) {
                         draftRows.forEach { row ->

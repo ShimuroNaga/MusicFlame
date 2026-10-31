@@ -74,6 +74,9 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.snapshotFlow
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -206,8 +209,17 @@ fun PlaylistsScreen(
         displayPlaylists.addAll(playlists)
     }
 
-    LaunchedEffect(playlistsRefreshTrigger) {
-        if (playlistsRefreshTrigger > 0) {
+    // Al volver a esta pantalla (p. ej. tras cerrar el asistente de voz, que pudo crear o editar playlists) se relee la lista.
+    val resumeTick = remember { mutableStateOf(0) }
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val obs = LifecycleEventObserver { _, e -> if (e == Lifecycle.Event.ON_RESUME) resumeTick.value++ }
+        lifecycleOwner.lifecycle.addObserver(obs)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(obs) }
+    }
+
+    LaunchedEffect(playlistsRefreshTrigger, resumeTick.value) {
+        if (playlistsRefreshTrigger > 0 || resumeTick.value > 0) {
             playlists.clear()
             playlists.addAll(playlistRepo.getPlaylists())
             displayPlaylists.clear()

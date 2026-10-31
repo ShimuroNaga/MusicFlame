@@ -85,7 +85,7 @@ class JarvisOutcome(val lines: List<String>, val songIds: List<Long>, val playli
 
 object JarvisBrain {
     private const val MAX_CALLS = 6
-    private const val MAX_SONGS_PER_CALL = 50
+    private const val MAX_SONGS_PER_CALL = 200
     private const val FORGOTTEN_DAYS = 90L
 
     // ---------- Texto ----------
@@ -119,6 +119,44 @@ object JarvisBrain {
     private val RE_VOL_SET = Regex("(volumen|volume) (al |a |to |at )?(\\d{1,3})")
     private val RE_VOL_UP = Regex("^(sube|subele|sube el volumen|subele al volumen|aumenta el volumen|volume up|turn it up|louder)$")
     private val RE_VOL_DOWN = Regex("^(baja|bajale|baja el volumen|bajale al volumen|reduce el volumen|volume down|turn it down|quieter)$")
+
+    // ---------- Crear playlists aleatorias sin depender del modelo ----------
+    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|create|make|build|generate)\\b")
+    private val RE_MK_PLAYLIST = Regex("play ?lists?|listas? de reproduccion")
+    private val RE_MK_RANDOM = Regex("aleatori|al azar|random|sorpresa|variad|revuelt")
+    private val RE_MK_SONGS = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|musicas|songs|tracks|piezas)")
+    private val RE_MK_LISTS = Regex("(\\d{1,2}|[a-z]+) (playlists?|listas)")
+    private val NUM_WORDS = mapOf(
+        "un" to 1, "una" to 1, "dos" to 2, "tres" to 3, "cuatro" to 4, "cinco" to 5, "seis" to 6, "diez" to 10, "quince" to 15,
+        "veinte" to 20, "veinticinco" to 25, "treinta" to 30, "cuarenta" to 40, "cincuenta" to 50, "sesenta" to 60,
+        "setenta" to 70, "ochenta" to 80, "noventa" to 90, "cien" to 100, "ciento" to 100, "doscientas" to 200, "doscientos" to 200,
+        "ten" to 10, "fifteen" to 15, "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "hundred" to 100
+    )
+    private fun numOf(tok: String): Int? = tok.toIntOrNull() ?: NUM_WORDS[tok]
+
+    /**
+     * "Crea una playlist de 50 canciones aleatorias" (también "2 playlists aleatorias de 30 canciones").
+     * Se resuelve aquí, sin modelo: así siempre sale la tabla de borrador y nunca se queda en un "listo" inventado.
+     * Pedidos con artista, género o tema siguen yendo al modelo.
+     */
+    fun quickCreatePlaylists(text: String, lang: String): JarvisPlan? {
+        val f = fold(text)
+        if (f.isEmpty() || f.length > 160) return null
+        if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f) || !RE_MK_RANDOM.containsMatchIn(f)) return null
+        val perList = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 20
+        val lists = RE_MK_LISTS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 1
+        val count = perList.coerceIn(1, MAX_SONGS_PER_CALL)
+        val n = lists.coerceIn(1, 4)
+        val base = if (lang == "en") "Random mix" else "Mezcla aleatoria"
+        val calls = (1..n).map { i ->
+            JarvisCall(
+                JarvisTool.CREATE_PLAYLIST,
+                songs = JarvisSelector(source = "random", count = count, shuffle = true),
+                name = if (n == 1) base else "$base $i"
+            )
+        }
+        return JarvisPlan(null, calls)
+    }
 
     fun quickPlan(text: String): JarvisPlan? {
         val f = fold(text)

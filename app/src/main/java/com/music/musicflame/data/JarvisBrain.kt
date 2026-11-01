@@ -121,9 +121,12 @@ object JarvisBrain {
     private val RE_VOL_DOWN = Regex("^(baja|bajale|baja el volumen|bajale al volumen|reduce el volumen|volume down|turn it down|quieter)$")
 
     // ---------- Crear playlists aleatorias sin depender del modelo ----------
-    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|create|make|build|generate)\\b")
+    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|arroja|arrojame|muestrame|ensename|dame|create|make|build|generate|show)\\b")
     private val RE_MK_PLAYLIST = Regex("play ?lists?|listas? de reproduccion")
     private val RE_MK_RANDOM = Regex("aleatori|al azar|random|sorpresa|variad|revuelt")
+    // "una tabla de mis canciones para elegirlas": sin tema ni artista, la tabla se arma con una muestra de la biblioteca.
+    private val RE_MK_PICK = Regex("\\btabla\\b|elegir|escoger|seleccionar|mis canciones|mi musica|table|pick|choose")
+    private val RE_MK_THEMED = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by) (?!mis\\b|mi\\b|todas\\b|toda\\b|\\d)")
     private val RE_MK_SONGS = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|musicas|songs|tracks|piezas)")
     private val RE_MK_LISTS = Regex("(\\d{1,2}|[a-z]+) (playlists?|listas)")
     private val NUM_WORDS = mapOf(
@@ -142,8 +145,11 @@ object JarvisBrain {
     fun quickCreatePlaylists(text: String, lang: String): JarvisPlan? {
         val f = fold(text)
         if (f.isEmpty() || f.length > 160) return null
-        if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f) || !RE_MK_RANDOM.containsMatchIn(f)) return null
-        val perList = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 20
+        val pick = RE_MK_PICK.containsMatchIn(f)
+        // "playlist de rock / de Queen para elegir": trae tema o artista -> que lo resuelva el modelo.
+        if (pick && !RE_MK_RANDOM.containsMatchIn(f) && RE_MK_THEMED.containsMatchIn(f)) return null
+        if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f) || !(RE_MK_RANDOM.containsMatchIn(f) || pick)) return null
+        val perList = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: (if (pick) 50 else 20)
         val lists = RE_MK_LISTS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 1
         val count = perList.coerceIn(1, MAX_SONGS_PER_CALL)
         val n = lists.coerceIn(1, 4)

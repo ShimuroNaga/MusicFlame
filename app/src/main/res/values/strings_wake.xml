@@ -1,13 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <!-- Escucha siempre ("oye <nombre>") -->
-    <string name="wake_card_title">Escuchar siempre («oye %1$s»)</string>
-    <string name="wake_card_desc">Di «oye %1$s» y el asistente se abre solo, sin tocar el teléfono. Compara tu voz con 4 grabaciones tuyas, así que sirve con cualquier nombre e idioma, aunque el nombre sea inventado.</string>
+    <string name="wake_card_title">Escuchar siempre («oye %1$s» o «%1$s»)</string>
+    <string name="wake_card_desc">Di «oye %1$s» o solo «%1$s» y el asistente se abre solo, sin tocar el teléfono. Compara tu voz con tus grabaciones (4 de cada frase), así que sirve con cualquier nombre e idioma, aunque el nombre sea inventado.</string>
     <string name="wake_enable">Activar escucha siempre</string>
     <string name="wake_enable_sub">Apagado por defecto. Sigue escuchando con la pantalla apagada.</string>
     <string name="wake_status_off">Apagada</string>
     <string name="wake_status_starting">Iniciando…</string>
-    <string name="wake_status_listening">Escuchando «oye %1$s»…</string>
+    <string name="wake_status_listening">Escuchando «%1$s»…</string>
     <string name="wake_status_assistant">En pausa: el asistente está abierto</string>
     <string name="wake_status_call">En pausa: llamada en curso</string>
     <string name="wake_status_loud">En pausa: música muy alta</string>
@@ -17,23 +17,23 @@
     <string name="wake_reactivate">Reactivar</string>
     <string name="wake_warn_battery">Gasta batería: el micrófono queda encendido mientras esté activa.</string>
     <string name="wake_warn_notif">Muestra una notificación fija y Android enseña el indicador de micrófono (puntito verde) todo el tiempo.</string>
-    <string name="wake_privacy">Privacidad: la detección de «oye %1$s» ocurre dentro del teléfono y el audio no sale de él hasta que te oiga. Solo entonces se graba tu orden y se envía a Whisper (Groq) como siempre. Tus grabaciones se borran; solo se guardan huellas numéricas.</string>
+    <string name="wake_privacy">Privacidad: la detección de «%1$s» ocurre dentro del teléfono y el audio no sale de él hasta que te oiga. Solo entonces se graba tu orden y se envía a Whisper (Groq) como siempre. Tus grabaciones se borran; solo se guardan huellas numéricas.</string>
     <string name="wake_overlay_missing_status">Sin el permiso «Mostrar sobre otras apps» no puedo abrir el asistente solo: te avisaré con una notificación que tendrás que tocar.</string>
     <string name="wake_overlay_title">Permiso para abrir el asistente</string>
-    <string name="wake_overlay_body">Para que el asistente se abra solo cuando digas «oye %1$s», Android pide el permiso «Mostrar sobre otras apps». Si no lo das, funcionará con una notificación que tendrás que tocar.</string>
+    <string name="wake_overlay_body">Para que el asistente se abra solo cuando digas «%1$s», Android pide el permiso «Mostrar sobre otras apps». Si no lo das, funcionará con una notificación que tendrás que tocar.</string>
     <string name="wake_overlay_open">Dar permiso</string>
     <string name="wake_overlay_skip">Ahora no</string>
     <string name="wake_name_hint_short">«%1$s» es muy corto y puede activarse sin querer. Funciona, pero uno común de 2 o 3 sílabas va mejor (no es obligatorio).</string>
     <string name="wake_name_hint_one_syl">«%1$s» tiene una sola sílaba y puede fallar más. Uno común, corto, de 2 o 3 sílabas va mejor (no es obligatorio).</string>
     <string name="wake_name_hint_long">«%1$s» es largo o difícil de decir y puede fallar. Uno común, corto, de 2 o 3 sílabas va mejor (no es obligatorio).</string>
     <string name="wake_name_hint_symbols">«%1$s» tiene números o símbolos. Dilo como lo pronuncias; aun así conviene un nombre simple.</string>
-    <string name="wake_name_changed">Cambiaste el nombre de la IA: vuelve a grabar «oye %1$s» para activar la escucha.</string>
-    <string name="wake_record_button">Grabar «oye %1$s»</string>
-    <string name="wake_rerecord_button">Volver a grabar «oye %1$s»</string>
+    <string name="wake_name_changed">Cambiaste el nombre de la IA: vuelve a grabar «oye %1$s» y «%1$s» para activar la escucha.</string>
+    <string name="wake_record_button">Grabar «oye %1$s» y «%1$s»</string>
+    <string name="wake_rerecord_button">Volver a grabar «oye %1$s» y «%1$s»</string>
     <string name="wake_test_button">Probar nombre</string>
     <string name="wake_delete_button">Borrar mi voz</string>
     <string name="wake_deleted">Se borraron tus grabaciones y la escucha se apagó</string>
-    <string name="wake_needs_recording">Primero graba «oye %1$s» (4 veces).</string>
+    <string name="wake_needs_recording">Primero graba «oye %1$s» y «%1$s» (4 veces cada una).</string>
     <string name="wake_need_assistant">Primero activa el asistente de voz (arriba)</string>
     <string name="wake_no_mic_permission">Necesito el permiso de micrófono</string>
     <string name="wake_sens_title">Sensibilidad</string>
@@ -43,10 +43,10 @@
     <string name="wake_sens_low_desc">Casi nunca se activa de más, pero a veces puede no oírte.</string>
     <string name="wake_sens_medium_desc">Equilibrada (recomendada).</string>
     <string name="wake_sens_high_desc">Te oye más fácil, pero puede activarse con otras voces o ruidos.</string>
-    <string name="wake_without_always">Sin escuchar siempre, el asistente se abre con el botón de encendido o el tile, y dentro también puedes empezar diciendo «oye %1$s».</string>
+    <string name="wake_without_always">Sin escuchar siempre, el asistente se abre con el botón de encendido o el tile, y dentro también puedes empezar diciendo «oye %1$s» o «%1$s».</string>
     <string name="wake_notif_channel_listening">Escucha siempre</string>
     <string name="wake_notif_channel_alerts">Avisos de la escucha</string>
-    <string name="wake_notif_title">Escuchando «oye %1$s»</string>
+    <string name="wake_notif_title">Escuchando «%1$s»</string>
     <string name="wake_notif_text">El audio se analiza en tu teléfono y no sale de él hasta que te oiga.</string>
     <string name="wake_notif_stop">Apagar</string>
     <string name="wake_notif_stopped_title">La escucha se detuvo</string>
@@ -62,9 +62,10 @@
     <string name="wake_say_command">Dime…</string>
     <string name="wake_start">Empezar</string>
     <string name="wake_continue">Continuar</string>
-    <string name="wake_enroll_title">Graba «oye %1$s»</string>
+    <string name="wake_enroll_title">Graba «oye %1$s» y «%1$s»</string>
     <string name="wake_enroll_take">Toma %1$d de %2$d</string>
-    <string name="wake_enroll_prompt">Di «oye %1$s» con tu voz normal.</string>
+    <string name="wake_enroll_prompt">Ahora di solo «%1$s» (sin «oye») con tu voz normal.</string>
+    <string name="wake_enroll_prompt_oye">Primero di «oye %1$s» con tu voz normal.</string>
     <string name="wake_enroll_tip">Hazlo en un lugar tranquilo, a unos 30 cm del teléfono. No tiene que sonar idéntico cada vez.</string>
     <string name="wake_enroll_waiting">Esperando tu voz…</string>
     <string name="wake_enroll_heard">¡Te escuché!</string>
@@ -74,9 +75,9 @@
     <string name="wake_enroll_inconsistent">Tus grabaciones se parecen poco entre sí y puede fallar más. Para mejorar, vuelve a grabar en un lugar silencioso.</string>
     <string name="wake_enroll_error">No pude preparar el detector. Reinstala la app o avisa del error.</string>
     <string name="wake_enroll_mic_error">No pude usar el micrófono (¿lo está usando otra app?)</string>
-    <string name="wake_test_title">Probar «oye %1$s»</string>
+    <string name="wake_test_title">Probar «%1$s»</string>
     <string name="wake_test_intro">Haremos dos pruebas cortas: primero dirás la frase varias veces y luego hablarás normal para ver si se activa de más.</string>
-    <string name="wake_test_a_title">Paso 1: di «oye %1$s»</string>
+    <string name="wake_test_a_title">Paso 1: di «oye %1$s» o «%1$s»</string>
     <string name="wake_test_a_body">Dilo unas 5 veces, con una pausa de 2 segundos entre cada una. Solo la frase.</string>
     <string name="wake_test_b_title">Paso 2: habla normal</string>
     <string name="wake_test_b_body">Platica, lee en voz alta o pon música o TV, sin decir la frase. Se cuentan las activaciones falsas (10 s).</string>

@@ -228,6 +228,7 @@ class VoiceAssistantActivity : ComponentActivity() {
                         settings.getMode(), settings.getCustomPrompt(), memD.await()
                     )
                     val action = think(key, vc, dialog, said)
+                    android.util.Log.d("JarvisDraft", "said='$said' action=${action::class.simpleName}")
                     dialog += false to action.say
                     launch(Dispatchers.IO) { VoiceMemory.remember(appCtx, said, action.say) }
 
@@ -354,6 +355,7 @@ class VoiceAssistantActivity : ComponentActivity() {
         val ctx = applicationContext
         SongLibraryHolder.ensureLoaded(ctx)
         val steps = JarvisBrain.prepare(ctx, lang, a.calls, pm.currentSong.value?.id)
+        android.util.Log.d("JarvisDraft", "library=${com.music.musicflame.data.SongLibraryHolder.songs.size} steps=" + steps.joinToString { "songs=${it.songs.size} problem=${it.problem}" })
         val creates = steps.filter { it.call.tool == JarvisTool.CREATE_PLAYLIST }
         val timers = steps.filter { it.call.tool == JarvisTool.SLEEP_TIMER || it.call.tool == JarvisTool.CANCEL_SLEEP_TIMER }
         val together = steps.filter { it.call.tool == JarvisTool.TOGETHER_CREATE || it.call.tool == JarvisTool.TOGETHER_INVITE }
@@ -441,8 +443,19 @@ class VoiceAssistantActivity : ComponentActivity() {
         }
         val rows = if (candidatesMode) step.candidates.map { DraftRow(it, false) } else step.songs.map { DraftRow(it, true) }
         draftName = name; draftRows = rows
+        android.util.Log.d("JarvisDraft", "handleDraft name=$name rows=${rows.size} candidatesMode=$candidatesMode")
         val q = if (candidatesMode) getString(R.string.voice_draft_ask_candidates, name) else getString(R.string.voice_draft_ask, name, rows.size)
-        val ans = askYesNo(key, q)
+        var ans = askYesNo(key, q)
+        // Sin respuesta clara por voz: la tabla NO se cierra ni se descarta sola. Se queda abierta hasta que
+        // toques Guardar o Descartar (o cierres el asistente).
+        if (ans == null) {
+            buttonAnswer = null
+            phase = Phase.SPEAKING; reply = q
+            ans = withTimeoutOrNull(10 * 60_000L) {
+                while (buttonAnswer == null) delay(150)
+                buttonAnswer
+            }
+        }
         val chosen = rows.filter { it.checked }.map { it.song }
         val finalName = draftName.trim().ifBlank { name }.take(40)   // el nombre se puede editar en la tabla
         draftRows = emptyList()

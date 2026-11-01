@@ -91,6 +91,7 @@ fun WakeEnrollDialog(aiName: String, onFinished: (saved: Boolean) -> Unit) {
     var finished by remember { mutableStateOf(false) }
     var inconsistent by remember { mutableStateOf(false) }
     var failed by remember { mutableStateOf<Int?>(null) }
+    var phrase by remember { mutableIntStateOf(0) }          // 0 = «oye <nombre>», 1 = «<nombre>» solo
 
     DisposableEffect(Unit) {
         WakeWord.testing = true                 // el servicio de escucha suelta el micrófono
@@ -101,6 +102,9 @@ fun WakeEnrollDialog(aiName: String, onFinished: (saved: Boolean) -> Unit) {
         val extractor = withContext(Dispatchers.Default) { try { WakeFeatureExtractor(ctx) } catch (_: Throwable) { null } }
         if (extractor == null) { failed = R.string.wake_enroll_error; return@LaunchedEffect }
         try {
+            val groups = ArrayList<List<Array<FloatArray>>>()
+            for (g in 0..1) {
+                phrase = g
             val takes = ArrayList<Array<FloatArray>>()
             while (takes.size < WAKE_TAKES) {
                 take = takes.size + 1
@@ -115,7 +119,9 @@ fun WakeEnrollDialog(aiName: String, onFinished: (saved: Boolean) -> Unit) {
                 takes += e
                 delay(350)
             }
-            val data = withContext(Dispatchers.Default) { WakeTemplates.build(aiName, takes) }
+                groups += takes
+            }
+            val data = withContext(Dispatchers.Default) { WakeTemplates.buildGroups(aiName, groups) }
             withContext(Dispatchers.IO) { WakeTemplates.save(ctx, data) }
             inconsistent = data.spread > WakeTemplates.INCONSISTENT_SPREAD
             finished = true
@@ -139,7 +145,7 @@ fun WakeEnrollDialog(aiName: String, onFinished: (saved: Boolean) -> Unit) {
                 } else {
                     Text(stringResource(R.string.wake_enroll_take, take, WAKE_TAKES), fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(4.dp))
-                    Text(stringResource(R.string.wake_enroll_prompt, aiName))
+                    Text(stringResource(if (phrase == 0) R.string.wake_enroll_prompt_oye else R.string.wake_enroll_prompt, aiName))
                     Spacer(Modifier.height(10.dp))
                     LinearProgressIndicator(progress = { level }, modifier = Modifier.fillMaxWidth())
                     Spacer(Modifier.height(6.dp))

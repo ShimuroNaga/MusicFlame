@@ -103,15 +103,21 @@ object WakeTemplates {
      * Arma los datos finales y calcula el umbral base con "dejar una fuera": cada grabación se compara contra las demás.
      * Si tu voz varía mucho entre tomas, el umbral sube solo; si eres muy constante, baja.
      */
-    fun build(name: String, takes: List<Array<FloatArray>>): Data {
+    fun build(name: String, takes: List<Array<FloatArray>>): Data = buildGroups(name, listOf(takes))
+
+    /**
+     * Varias frases a la vez (p. ej. «oye <nombre>» y «<nombre>» solo): todas las tomas son plantillas y el detector
+     * se activa con la que mejor encaje. El umbral se calcula comparando solo las tomas de la MISMA frase.
+     */
+    fun buildGroups(name: String, groups: List<List<Array<FloatArray>>>): Data {
         val dists = ArrayList<Float>()
-        for (i in takes.indices) for (j in takes.indices) {
+        for (takes in groups) for (i in takes.indices) for (j in takes.indices) {
             if (i == j) continue
             val s = WakeDtw.score(takes[i], takes[j].asList())
             if (s < 1f) dists += s
         }
         val spread = if (dists.isEmpty()) DEFAULT_BASE else dists.average().toFloat()
-        return Data(name, takes, spread.coerceIn(MIN_BASE, MAX_BASE), spread)
+        return Data(name, groups.flatten(), spread.coerceIn(MIN_BASE, MAX_BASE), spread)
     }
 
     /** Huellas de una grabación completa (cada 80 ms una, desde que hay ~0.8 s de audio). */

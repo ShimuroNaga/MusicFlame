@@ -206,7 +206,7 @@ object VoiceBrain {
             }
             else -> {
                 val pl = findPlaylist(text, vc.playlists)
-                val shuffle = has("aleatori", "mezcla", "shuffle", "random")
+                val shuffle = has("aleatorio", "mezcla", "shuffle", "random")
                 val rest = VERBS.replace(t, "").trim()
                 when {
                     pl != null -> VoiceAction.PlayPlaylist(pl, shuffle, if (en) "Playing ${pl.name}." else "Reproduciendo ${pl.name}.")

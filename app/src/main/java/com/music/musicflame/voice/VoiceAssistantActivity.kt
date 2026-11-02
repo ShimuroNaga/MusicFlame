@@ -230,7 +230,7 @@ class VoiceAssistantActivity : ComponentActivity() {
                         settings.getMode(), settings.getCustomPrompt(), memD.await()
                     )
                     val action = think(key, vc, dialog, said)
-                    android.util.Log.i("JarvisDraft", "said='$said' action=${action::class.simpleName}")
+                    android.util.Log.w("JarvisDraft", "said='$said' action=${action::class.simpleName}")
                     dialog += false to action.say
                     launch(Dispatchers.IO) { VoiceMemory.remember(appCtx, said, action.say) }
 
@@ -299,7 +299,7 @@ class VoiceAssistantActivity : ComponentActivity() {
 
     private suspend fun think(key: String?, vc: VoiceContext, dialog: List<Pair<Boolean, String>>, said: String): VoiceAction {
         val quick = JarvisBrain.quickCreatePlaylists(said, vc.lang)
-        android.util.Log.i("JarvisDraft", "think said='$said' quick=${quick != null} key=${key != null} internet=${hasInternet()}")
+        android.util.Log.w("JarvisDraft", "think said='$said' quick=${quick != null} key=${key != null} internet=${hasInternet()}")
         quick?.let { return VoiceAction.Act(it.calls, "", false) }
         var decided: VoiceAction? = null
         if (key != null && hasInternet()) {
@@ -310,8 +310,11 @@ class VoiceAssistantActivity : ComponentActivity() {
         val d = decided ?: VoiceBrain.local(said, vc)
         // "Hazme una playlist de Ado": si el modelo contesta con charla o con otra accion, se fuerza la tabla.
         val made = d is VoiceAction.Act && d.calls.any { it.tool == JarvisTool.CREATE_PLAYLIST }
-        android.util.Log.i("JarvisDraft", "think result=${d::class.simpleName} madePlaylist=$made")
-        if (!made) JarvisBrain.themedCreatePlaylist(said, vc.lang)?.let { return VoiceAction.Act(it.calls, "", false) }
+        android.util.Log.w("JarvisDraft", "think result=${d::class.simpleName} madePlaylist=$made")
+        if (!made) JarvisBrain.themedCreatePlaylist(said, vc.lang)?.let {
+            android.util.Log.w("JarvisDraft", "think: el modelo no creo playlist, se fuerza la tabla por tema")
+            return VoiceAction.Act(it.calls, "", false)
+        }
         return d
     }
 
@@ -365,7 +368,7 @@ class VoiceAssistantActivity : ComponentActivity() {
         val ctx = applicationContext
         SongLibraryHolder.ensureLoaded(ctx)
         val steps = JarvisBrain.prepare(ctx, lang, a.calls, pm.currentSong.value?.id)
-        android.util.Log.i("JarvisDraft", "library=${com.music.musicflame.data.SongLibraryHolder.songs.size} steps=" + steps.joinToString { "songs=${it.songs.size} problem=${it.problem}" })
+        android.util.Log.w("JarvisDraft", "library=${com.music.musicflame.data.SongLibraryHolder.songs.size} steps=" + steps.joinToString { "songs=${it.songs.size} problem=${it.problem}" })
         val creates = steps.filter { it.call.tool == JarvisTool.CREATE_PLAYLIST }
         val timers = steps.filter { it.call.tool == JarvisTool.SLEEP_TIMER || it.call.tool == JarvisTool.CANCEL_SLEEP_TIMER }
         val together = steps.filter { it.call.tool == JarvisTool.TOGETHER_CREATE || it.call.tool == JarvisTool.TOGETHER_INVITE }
@@ -453,7 +456,7 @@ class VoiceAssistantActivity : ComponentActivity() {
         }
         val rows = if (candidatesMode) step.candidates.map { DraftRow(it, false) } else (step.songs.map { DraftRow(it, true) } + step.extra.map { DraftRow(it, false) })
         draftName = name; draftRows = rows
-        android.util.Log.i("JarvisDraft", "handleDraft name=$name rows=${rows.size} candidatesMode=$candidatesMode")
+        android.util.Log.w("JarvisDraft", "handleDraft name=$name rows=${rows.size} candidatesMode=$candidatesMode")
         val q = if (candidatesMode) getString(R.string.voice_draft_ask_candidates, name) else if (step.songs.isEmpty()) getString(R.string.voice_draft_ask_pick, name) else getString(R.string.voice_draft_ask, name, step.songs.size)
         var ans = askYesNo(key, q)
         // Sin respuesta clara por voz: la tabla NO se cierra ni se descarta sola. Se queda abierta hasta que

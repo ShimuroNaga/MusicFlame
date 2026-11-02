@@ -7,7 +7,6 @@ import com.music.musicflame.data.JarvisStep
 import com.music.musicflame.data.JarvisTool
 import com.music.musicflame.data.Song
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -42,13 +41,6 @@ class JarvisBrainTest {
         assertNull(JarvisBrain.quickPlan("hola, ¿cómo estás?"))
     }
 
-    @Test fun looksLikeAction_distingue_charla_de_acciones() {
-        assertTrue(JarvisBrain.looksLikeAction("márcame como favoritas las 5 más escuchadas"))
-        assertTrue(JarvisBrain.looksLikeAction("Crea una playlist de rock de los 2000"))
-        assertTrue(JarvisBrain.looksLikeAction("reproduce Around the World"))
-        assertFalse(JarvisBrain.looksLikeAction("¿cuál es tu opinión sobre el jazz?"))
-    }
-
     @Test fun confirmQuestion_solo_pide_confirmar_cambios_masivos() {
         val few = JarvisStep(JarvisCall(JarvisTool.UNFAVORITE, JarvisSelector(source = "favorites")), songs = listOf(song(1), song(2)))
         assertNull(JarvisBrain.confirmQuestion(listOf(few), "es"))
@@ -58,8 +50,24 @@ class JarvisBrainTest {
         assertNull(JarvisBrain.confirmQuestion(listOf(create), "es"))   // crear no es destructivo
     }
 
-    @Test fun compose_une_frase_y_resultados() {
-        assertEquals("Va.\n\n• uno\n• dos", JarvisBrain.compose("Va.", listOf("uno", "dos")))
-        assertEquals("• uno", JarvisBrain.compose(null, listOf("uno")))
+    @Test fun themedCreatePlaylist_arma_el_pedido_con_artista_o_tema() {
+        val ado = JarvisBrain.themedCreatePlaylist("hazme una playlist de Ado", "es")!!.calls.single()
+        assertEquals(JarvisTool.CREATE_PLAYLIST, ado.tool)
+        assertEquals("ado", ado.songs?.theme)
+        assertEquals(30, ado.songs?.count)
+
+        val rock = JarvisBrain.themedCreatePlaylist("crea una playlist de rock de 20 canciones", "es")!!.calls.single()
+        assertEquals("rock", rock.songs?.theme)
+        assertEquals(20, rock.songs?.count)
+
+        // En ingles "Ado songs" no debe borrar el artista, y "para elegir" no es parte del tema.
+        assertEquals("ado", JarvisBrain.themedCreatePlaylist("make me a playlist of Ado songs", "en")!!.calls.single().songs?.theme)
+        assertEquals("rock", JarvisBrain.themedCreatePlaylist("hazme una playlist de rock para elegir", "es")!!.calls.single().songs?.theme)
+        assertNull(JarvisBrain.themedCreatePlaylist("pon musica", "es"))
+    }
+
+    @Test fun quickCreatePlaylists_deja_los_temas_al_modelo() {
+        assertNotNull(JarvisBrain.quickCreatePlaylists("dame una playlist aleatoria de 100 canciones", "es"))
+        assertNull(JarvisBrain.quickCreatePlaylists("hazme una playlist de rock para elegir", "es"))
     }
 }

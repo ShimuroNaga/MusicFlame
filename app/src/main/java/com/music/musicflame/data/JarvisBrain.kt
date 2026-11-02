@@ -80,9 +80,6 @@ class JarvisStep(
     val problem: String? = null
 )
 
-/** Acciones que esperan el "Sí" del usuario. */
-class JarvisPending(val steps: List<JarvisStep>, val question: String)
-
 class JarvisOutcome(val lines: List<String>, val songIds: List<Long>, val playlistsChanged: Boolean)
 
 object JarvisBrain {
@@ -97,20 +94,6 @@ object JarvisBrain {
 
     fun fold(s: String): String =
         RE_SEP.replace(RE_MARKS.replace(Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD), ""), " ").trim()
-
-    // Raíces de verbos de acción. Solo sirven para decidir si vale la pena gastar una llamada al modelo.
-    private val ACTION_STEMS = listOf(
-        "pon", "repro", "toca", "play", "favorit", "marca", "desmarca", "quita", "saca", "elimina", "agrega", "anade",
-        "crea", "arma", "mezcla", "revuelve", "siguiente", "salta", "anterior", "pausa", "deten", "continua", "reanuda",
-        "volumen", "sube", "subele", "baja", "bajale", "apagate", "duermete", "temporizador", "cola", "despues", "encola",
-        "queue", "next", "skip", "add", "remove", "create", "build", "pause", "resume", "volume", "sleep", "shuffle",
-        "unfavorite", "mark", "turn", "stop", "vacia", "empty", "repit", "renombra", "rename", "ecualiz", "eq", "carat", "cover", "sala", "invita", "juntos"
-    )
-
-    fun looksLikeAction(text: String): Boolean {
-        val tokens = fold(text).split(' ').filter { it.isNotEmpty() }
-        return tokens.any { tk -> ACTION_STEMS.any { tk.startsWith(it) } }
-    }
 
     // ---------- Atajos sin IA (instantáneos, 0 tokens, funcionan sin internet) ----------
     private val RE_PAUSE = Regex("^(pon )?(pausa|pausar|pause|detente|deten la musica|para la musica|stop|stop the music)$")
@@ -136,8 +119,8 @@ object JarvisBrain {
     private val NUM_WORDS = mapOf(
         "un" to 1, "una" to 1, "dos" to 2, "tres" to 3, "cuatro" to 4, "cinco" to 5, "seis" to 6, "diez" to 10, "quince" to 15,
         "veinte" to 20, "veinticinco" to 25, "treinta" to 30, "cuarenta" to 40, "cincuenta" to 50, "sesenta" to 60,
-        "setenta" to 70, "ochenta" to 80, "noventa" to 90, "cien" to 100, "ciento" to 100, "doscientas" to 200, "doscientos" to 200,
-        "ten" to 10, "fifteen" to 15, "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "hundred" to 100
+        "setenta" to 70, "ochenta" to 80, "noventa" to 90, "cien" to 100, "quinientas" to 500, "quinientos" to 500, "ciento" to 100, "doscientas" to 200, "doscientos" to 200,
+        "ten" to 10, "fifteen" to 15, "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "hundred" to 100, "five hundred" to 500
     )
     private fun numOf(tok: String): Int? = tok.toIntOrNull() ?: NUM_WORDS[tok]
 
@@ -155,7 +138,7 @@ object JarvisBrain {
         // "playlist de rock / de Queen para elegir": trae tema o artista -> que lo resuelva el modelo.
         // "playlist de cincuenta canciones" NO es un tema: despues del "de" hay un numero escrito con letras.
         val themed = RE_MK_THEMED.find(f)?.let { m -> numOf(f.substring(m.range.last + 1).trim().substringBefore(' ')) == null } ?: false
-        android.util.Log.i("JarvisDraft", "quick f='$f' verb=${RE_MK_VERB.containsMatchIn(f)} playlist=${RE_MK_PLAYLIST.containsMatchIn(f)} random=${RE_MK_RANDOM.containsMatchIn(f)} pick=$pick themed=$themed")
+        android.util.Log.w("JarvisDraft", "quick f='$f' verb=${RE_MK_VERB.containsMatchIn(f)} playlist=${RE_MK_PLAYLIST.containsMatchIn(f)} random=${RE_MK_RANDOM.containsMatchIn(f)} pick=$pick themed=$themed")
         if (pick && !RE_MK_RANDOM.containsMatchIn(f) && themed) return null
         if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f) || !(RE_MK_RANDOM.containsMatchIn(f) || pick)) return null
         val given = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull()
@@ -179,6 +162,8 @@ object JarvisBrain {
     private val RE_MK_TOPIC = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by) (.+)")
     private val RE_MK_LEAD = Regex("^(canciones|cancion|temas|musica|songs|music)\\s+(de|del|of|by)\\s+")
     private val RE_MK_EDGE = Regex("^(de|del|con|of|with|by|para|for)\\s+|\\s+(de|del|con|of|with|by|para|for)$")
+    private val RE_MK_TAIL = Regex("\\s+(songs|tracks|music|canciones|cancion|temas|musica)$")
+    private val RE_MK_PICKTAIL = Regex("\\s+((para|pa|to)\\s+)?(elegir|escoger|seleccionar|pick|choose)\\w*$")
 
     /**
      * Respaldo para "hazme una playlist de Ado / de rock": si el modelo contesta con charla en vez de create_playlist,
@@ -190,10 +175,13 @@ object JarvisBrain {
         if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f)) return null
         val given = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 30
         var topic = RE_MK_TOPIC.find(f)?.groupValues?.get(3) ?: return null
-        topic = RE_MK_SONGS.replace(topic, " ").trim()
+        // Solo se quita "30 canciones" / "treinta canciones" (numero + palabra); "Ado songs" conserva "Ado".
+        topic = RE_MK_SONGS.replace(topic) { m -> if (numOf(m.groupValues[1]) != null) " " else m.value }.trim()
+        topic = RE_MK_TAIL.replace(RE_MK_PICKTAIL.replace(topic, ""), "").trim()
         topic = RE_MK_EDGE.replace(RE_MK_LEAD.replace(topic, ""), "").trim().take(40)
         if (topic.isEmpty()) return null
         val name = topic.replaceFirstChar { it.uppercase() }
+        android.util.Log.w("JarvisDraft", "themedCreatePlaylist topic='$topic' count=$given")
         val call = JarvisCall(
             JarvisTool.CREATE_PLAYLIST,
             songs = JarvisSelector(theme = topic, count = given.coerceIn(1, MAX_SONGS_PER_CALL), shuffle = true),
@@ -274,54 +262,6 @@ object JarvisBrain {
         return JarvisPlan(say, calls)
     }
 
-    // ---------- Llamada al modelo (Groq) ----------
-    private fun systemPrompt(aiName: String, lang: String): String =
-        if (lang == "en") """
-You are $aiName, the living brain of the MusicFlame music app. Personality: warm, curious and quick-witted, like someone who really loves music and enjoys helping, with a light touch of humor; at the same time professional, clear and brief. Never fake feelings, never ramble.
-Your job now: turn the user's message into ACTIONS the app can run. Reply with ONLY a JSON object, no Markdown, no extra text:
-{"say":"one short sentence in your voice (max 20 words) or empty","actions":[{"tool":"...", ...}]}
-ALLOWED tools (you can use no others):
-- play_song {songs:{query}}   play_artist {name}   play_album {name}   play_genre {name}   play_playlist {name, shuffle}
-- play_selection {songs:{...}}  (play a group described by the selector)
-- queue_next {songs:{...}}  (play right after the current one)   queue_add {songs:{...}}  (add to the end of the queue)
-- favorite {songs:{...}}   unfavorite {songs:{...}}
-- create_playlist {name, songs:{...}}   add_to_playlist {playlist, songs:{...}}   remove_from_playlist {playlist, songs:{...}}
-- pause, resume, next, previous   volume {value:0-100 | direction:"up"|"down"}   sleep_timer {value:minutes}   cancel_sleep_timer
-Selector "songs" (use only what applies): query (exact title(s) the user said), source (most_played | never_played | forgotten = not heard in months | favorites | now_playing | random | playlist = the target playlist), theme, genre, artist, year_from, year_to, min_minutes, max_minutes, count, shuffle.
-Rules: never invent titles, artists or IDs: copy what the user said into query/name/theme. For "the N most played" use source most_played and count N. If the message needs no action (small talk, questions, opinions) return {"say":"","actions":[]}. Reply in the user's language.
-""".trimIndent() else """
-Eres $aiName, el cerebro vivo de la app de música MusicFlame. Personalidad: cálido, curioso e ingenioso, como alguien a quien de verdad le apasiona la música y disfruta ayudar, con un toque ligero de humor; a la vez profesional, claro y breve. No finjas emociones y no te enrolles.
-Tu trabajo ahora: convertir el mensaje del usuario en ACCIONES que la app pueda ejecutar. Responde SOLO con un objeto JSON, sin Markdown ni texto extra:
-{"say":"una frase corta con tu voz (máx. 20 palabras) o vacío","actions":[{"tool":"...", ...}]}
-Herramientas PERMITIDAS (no puedes usar otras):
-- play_song {songs:{query}}   play_artist {name}   play_album {name}   play_genre {name}   play_playlist {name, shuffle}
-- play_selection {songs:{...}}  (reproducir un grupo descrito con el selector)
-- queue_next {songs:{...}}  (que suene justo después de la actual)   queue_add {songs:{...}}  (agregar al final de la cola)
-- favorite {songs:{...}}   unfavorite {songs:{...}}
-- create_playlist {name, songs:{...}}   add_to_playlist {playlist, songs:{...}}   remove_from_playlist {playlist, songs:{...}}
-- pause, resume, next, previous   volume {value:0-100 | direction:"up"|"down"}   sleep_timer {value:minutos}   cancel_sleep_timer
-Selector "songs" (usa solo lo que aplique): query (título(s) exacto(s) que dijo el usuario), source (most_played | never_played | forgotten = no escuchadas hace meses | favorites | now_playing | random | playlist = la playlist objetivo), theme, genre, artist, year_from, year_to, min_minutes, max_minutes, count, shuffle.
-Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario en query/name/theme. Para "las N más escuchadas" usa source most_played y count N. Si el mensaje no pide ninguna acción (charla, preguntas, opiniones) responde {"say":"","actions":[]}. Responde en el idioma del usuario.
-""".trimIndent()
-
-    /** null = no hay acciones (o el modelo no devolvió JSON válido): el chat normal se encarga. */
-    suspend fun plan(
-        ctx: Context, aiName: String, lang: String, userText: String,
-        nowPlaying: String?, playlistNames: List<String>, librarySummary: String?
-    ): JarvisPlan? {
-        val en = lang == "en"
-        val user = buildString {
-            append(if (en) "User message: " else "Mensaje del usuario: ").append(userText.take(400)).append('\n')
-            if (nowPlaying != null) append(if (en) "Now playing: " else "Suena ahora: ").append(nowPlaying).append('\n')
-            if (playlistNames.isNotEmpty())
-                append(if (en) "User playlists: " else "Playlists del usuario: ").append(playlistNames.take(40).joinToString(", ")).append('\n')
-            if (!librarySummary.isNullOrBlank())
-                append(if (en) "Library summary: " else "Resumen de la biblioteca: ").append(librarySummary.take(700))
-        }
-        val raw = OnlineLlm.command(ctx, systemPrompt(aiName, lang), user, 600, 0.3)
-        return parsePlan(raw)
-    }
-
     // ---------- Confirmaciones ----------
     fun confirmQuestion(steps: List<JarvisStep>, lang: String): String? {
         val en = lang == "en"
@@ -342,10 +282,6 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
         return if (en) "That changes a lot at once: $list. Shall I go ahead?" else "Esto cambia varias cosas a la vez: $list. ¿Lo hago?"
     }
 
-    fun compose(say: String?, lines: List<String>): String =
-        listOfNotNull(say?.takeIf { it.isNotBlank() }, lines.takeIf { it.isNotEmpty() }?.joinToString("\n") { "• $it" })
-            .joinToString("\n\n")
-
     // ---------- Resolver contra la biblioteca real ----------
     private class NamedList(val name: String, val ids: List<Long>, val editableId: String?)
 
@@ -364,16 +300,6 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
         regular.firstOrNull { val n = fold(it.name); n.isNotEmpty() && (n.contains(q) || q.contains(n)) }
             ?.let { return NamedList(it.name, it.songIds, if (it.isDefault) null else it.id) }
         return null
-    }
-
-    /** Nombres que se le pasan a la IA para que sepa a qué playlist se refiere el usuario (solo nombres). */
-    fun playlistNames(ctx: Context, lang: String): List<String> {
-        val names = ArrayList<String>()
-        names += if (lang == "en") "Favorites" else "Favoritos"
-        names += buildMostPlayedPlaylist(ctx).name
-        names += buildNeverPlayedPlaylist(ctx).name
-        PlaylistRepository(ctx).getAllPlaylists().forEach { names += it.name }
-        return names.distinct()
     }
 
     private class Resolution(val songs: List<Song>, val candidates: List<Song> = emptyList(), val notFound: List<String> = emptyList())
@@ -492,6 +418,7 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
                     JarvisTool.CREATE_PLAYLIST -> {
                         val browse = c.songs?.source == "browse"
                         val r = if (browse) Resolution(emptyList()) else resolveSongs(c.songs, library, stats, favIds, nowId, null, 20)
+                        android.util.Log.w("JarvisDraft", "create_playlist browse=$browse theme=${c.songs?.theme} artist=${c.songs?.artist} genre=${c.songs?.genre} source=${c.songs?.source} -> ${r.songs.size} canciones de ${library.size} en la biblioteca")
                         val name = c.name ?: c.songs?.theme ?: "MusicFlame"
                         // La tabla siempre muestra TODA la biblioteca: lo pedido va marcado y el resto sin marcar.
                         val pickedIds = r.songs.map { it.id }.toHashSet()

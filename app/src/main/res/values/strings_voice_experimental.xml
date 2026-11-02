@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_exp_badge">Experimental</string>
+    <string name="voice_exp_title">Qué puede y qué no (por ahora)</string>
+    <string name="voice_exp_intro">Esta sección es experimental y sigue en actualización: puede fallar o cambiar.</string>
+    <string name="voice_exp_can_title">Sí puede</string>
+    <string name="voice_exp_can1">Reproducir canciones: «reproduce Patient A».</string>
+    <string name="voice_exp_can2">Crear playlists: aleatorias o por artista, género o tema («hazme una playlist aleatoria de 500 canciones», «hazme una playlist de Ado»).</string>
+    <string name="voice_exp_can3">Controles básicos: pausa, siguiente, anterior y volumen.</string>
+    <string name="voice_exp_why">Avanza lento porque el teléfono de pruebas del desarrollador oculta los registros (logcat) de esta sección, y sin ellos no se pueden ver los errores para mejorarla.</string>
+</resources>

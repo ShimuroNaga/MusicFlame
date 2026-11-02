@@ -187,7 +187,11 @@ object VoiceBrain {
     fun local(text: String, vc: VoiceContext): VoiceAction {
         val en = vc.lang == "en"
         val t = fold(text)
-        fun has(vararg w: String) = w.any { t.contains(it) }
+        // Palabra/frase completa (así "Don't Stop Me Now" no cuenta como "stop") y, si es un pedido largo con
+        // verbo de reproducir ("pon Don't Stop Me Now"), nunca se toma como control.
+        val padded = " $t "
+        fun has(vararg w: String) = w.any { padded.contains(" $it ") }
+        val songRequest = VERBS.containsMatchIn(t) && t.split(' ').size > 2
         val name = if (vc.userName.isNotBlank()) ", ${vc.userName}" else ""
         if (has("deshaz", "deshacer", "revierte", "undo that", "take that back")) return VoiceAction.Undo("")
         if (has("que suena", "que esta sonando", "whats playing", "what is playing", "whats this song")) return VoiceAction.Stats("now_playing", "")
@@ -195,11 +199,11 @@ object VoiceBrain {
         JarvisBrain.quickPlan(text)?.takeIf { p -> p.calls.all { it.tool == JarvisTool.VOLUME || it.tool == JarvisTool.SLEEP_TIMER || it.tool == JarvisTool.CANCEL_SLEEP_TIMER } }
             ?.let { return VoiceAction.Act(it.calls, "") }
         return when {
-            has("gracias", "adios", "hasta luego", "thanks", "bye", "that's all") -> VoiceAction.End(if (en) "Anytime$name." else "Para eso estoy$name.")
-            has("pausa", "pausar", "detente", "para la musica", "pause", "stop") -> VoiceAction.Control(VoiceControl.PAUSE, if (en) "Paused." else "Pausado.")
-            has("siguiente", "next", "salta", "skip") -> VoiceAction.Control(VoiceControl.NEXT, if (en) "Next one." else "Siguiente.")
-            has("anterior", "previous", "atras", "go back") -> VoiceAction.Control(VoiceControl.PREVIOUS, if (en) "Going back." else "Anterior.")
-            has("continua", "reanuda", "resume", "continue") -> VoiceAction.Control(VoiceControl.RESUME, if (en) "Resuming." else "Continuando.")
+            !songRequest && has("gracias", "adios", "hasta luego", "thanks", "bye", "thats all") -> VoiceAction.End(if (en) "Anytime$name." else "Para eso estoy$name.")
+            !songRequest && has("pausa", "pausar", "detente", "para la musica", "pause", "stop") -> VoiceAction.Control(VoiceControl.PAUSE, if (en) "Paused." else "Pausado.")
+            !songRequest && has("siguiente", "next", "salta", "skip") -> VoiceAction.Control(VoiceControl.NEXT, if (en) "Next one." else "Siguiente.")
+            !songRequest && has("anterior", "previous", "atras", "go back") -> VoiceAction.Control(VoiceControl.PREVIOUS, if (en) "Going back." else "Anterior.")
+            !songRequest && has("continua", "reanuda", "resume", "continue") -> VoiceAction.Control(VoiceControl.RESUME, if (en) "Resuming." else "Continuando.")
             has("que playlists", "mis playlists", "what playlists", "my playlists") -> {
                 val list = vc.playlists.take(5).joinToString(", ") { it.name }
                 VoiceAction.Chat(if (en) "You have: $list. Which one?" else "Tienes: $list. ¿Cuál te pongo?")

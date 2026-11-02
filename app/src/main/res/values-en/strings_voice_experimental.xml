@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_exp_badge">Experimental</string>
+    <string name="voice_exp_title">What it can and can\'t do (for now)</string>
+    <string name="voice_exp_intro">This section is experimental and still being updated: it may fail or change.</string>
+    <string name="voice_exp_can_title">It can</string>
+    <string name="voice_exp_can1">Play songs: “play Patient A”.</string>
+    <string name="voice_exp_can2">Create playlists: random or by artist, genre or theme (“make me a random playlist of 500 songs”, “make me a playlist of Ado songs”).</string>
+    <string name="voice_exp_can3">Basic controls: pause, next, previous and volume.</string>
+    <string name="voice_exp_why">Progress is slow because the developer\'s test phone hides the logs (logcat) of this section, and without them the errors can\'t be seen to improve it.</string>
+</resources>

@@ -23,7 +23,6 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
-import com.music.musicflame.voice.wake.WakeListeningBadge
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -587,9 +586,6 @@ class MainActivity : ComponentActivity() {
                                 }
                             )
                         }
-
-                        // Indicador de "escuchando" de la escucha siempre (solo se ve si está activa)
-                        WakeListeningBadge()
 
                         Scaffold(
                             modifier = Modifier.fillMaxSize(),

@@ -233,8 +233,9 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
             onDispose { try { engine?.stop(); engine?.shutdown() } catch (_: Exception) {}; ttsEngine = null }
         }
 
-        SettingsSectionHeader(style, stringResource(R.string.settings_voice_title))
+        ExperimentalSectionHeader(stringResource(R.string.settings_voice_title))
         Column(Modifier.padding(horizontal = 16.dp)) {
+            VoiceCapabilitiesCard(style)
             Card(Modifier.fillMaxWidth(), shape = RoundedCornerShape(20.dp), colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)) {
                 Column(Modifier.padding(16.dp)) {
                     Text(stringResource(R.string.settings_voice_card_title), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = style.highEmphasis)

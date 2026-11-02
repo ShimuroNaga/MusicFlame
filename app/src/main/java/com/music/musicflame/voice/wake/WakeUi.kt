@@ -51,36 +51,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 
-/**
- * Indicador dentro de la app: un micrófono chiquito arriba a la derecha mientras la escucha siempre está activa
- * (parpadea suave al escuchar; tachado si está en pausa por una llamada o música muy alta).
- * Se pone dentro del Box raíz de MainActivity.
- */
-@Composable
-fun BoxScope.WakeListeningBadge() {
-    val st by WakeWord.state.collectAsState()
-    val listening = st == WakeState.LISTENING
-    val paused = st == WakeState.PAUSED_CALL || st == WakeState.PAUSED_LOUD_MUSIC || st == WakeState.PAUSED_BUSY_MIC
-    if (!listening && !paused) return
-
-    val pulse = rememberInfiniteTransition(label = "wake_badge")
-    val a by pulse.animateFloat(0.55f, 1f, infiniteRepeatable(tween(1100), RepeatMode.Reverse), label = "wake_badge_alpha")
-    Box(
-        Modifier.align(Alignment.TopEnd).zIndex(10f).padding(top = 6.dp, end = 6.dp)
-            .size(20.dp).clip(CircleShape)
-            .background(MaterialTheme.colorScheme.surfaceContainerHighest.copy(alpha = 0.85f))
-            .alpha(if (listening) a else 0.7f),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            if (listening) Icons.Filled.Mic else Icons.Filled.MicOff,
-            contentDescription = stringResource(if (listening) R.string.wake_badge_listening else R.string.wake_badge_paused),
-            tint = if (listening) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.size(13.dp)
-        )
-    }
-}
-
 /** Registro guiado: grabas "oye <nombre>" 4 veces; se guardan solo las huellas (el audio se borra). */
 @Composable
 fun WakeEnrollDialog(aiName: String, onFinished: (saved: Boolean) -> Unit) {

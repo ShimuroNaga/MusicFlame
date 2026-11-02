@@ -59,4 +59,19 @@ class VoiceBrainTest {
             plan.calls.map { it.tool }
         )
     }
+
+    @Test fun local_titulos_con_palabras_de_control_se_reproducen() {
+        val a = VoiceBrain.local("pon Don't Stop Me Now", vc())
+        assertTrue(a is VoiceAction.PlaySong && a.query == "dont stop me now")
+        assertTrue(VoiceBrain.local("reproduce Bye Bye Bye", vc()) is VoiceAction.PlaySong)
+        assertTrue(VoiceBrain.local("pon Next to You", vc()) is VoiceAction.PlaySong)
+    }
+
+    @Test fun local_comandos_cortos_siguen_funcionando() {
+        val p = VoiceBrain.local("pausa", vc())
+        assertTrue(p is VoiceAction.Control && p.kind == com.music.musicflame.voice.VoiceControl.PAUSE)
+        val n = VoiceBrain.local("siguiente", vc())
+        assertTrue(n is VoiceAction.Control && n.kind == com.music.musicflame.voice.VoiceControl.NEXT)
+        assertTrue(VoiceBrain.local("gracias", vc()) is VoiceAction.End)
+    }
 }

@@ -72,6 +72,8 @@ class JarvisStep(
     val call: JarvisCall,
     val songs: List<Song> = emptyList(),
     val candidates: List<Song> = emptyList(),
+    /** Resto de la biblioteca (sin marcar) que la tabla del borrador muestra debajo de las canciones elegidas. */
+    val extra: List<Song> = emptyList(),
     val label: String? = null,
     val playlistId: String? = null,
     /** Si no se pudo resolver, el texto ya listo para decírselo al usuario. */
@@ -85,7 +87,8 @@ class JarvisOutcome(val lines: List<String>, val songIds: List<Long>, val playli
 
 object JarvisBrain {
     private const val MAX_CALLS = 6
-    private const val MAX_SONGS_PER_CALL = 200
+    // Sin tope fijo: el maximo es la cantidad de canciones que tenga el usuario en su biblioteca.
+    private const val MAX_SONGS_PER_CALL = Int.MAX_VALUE
     private const val FORGOTTEN_DAYS = 90L
 
     // ---------- Texto ----------
@@ -121,11 +124,12 @@ object JarvisBrain {
     private val RE_VOL_DOWN = Regex("^(baja|bajale|baja el volumen|bajale al volumen|reduce el volumen|volume down|turn it down|quieter)$")
 
     // ---------- Crear playlists aleatorias sin depender del modelo ----------
-    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|arroja|arrojame|muestrame|ensename|dame|create|make|build|generate|show)\\b")
+    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|arroja|arrojame|muestrame|ensename|dame|quiero|necesito|create|make|build|generate|show|want|need|give)\\b")
     private val RE_MK_PLAYLIST = Regex("play ?lists?|listas? de reproduccion")
     private val RE_MK_RANDOM = Regex("aleatori|al azar|random|sorpresa|variad|revuelt")
     // "una tabla de mis canciones para elegirlas": sin tema ni artista, la tabla se arma con una muestra de la biblioteca.
     private val RE_MK_PICK = Regex("\\btabla\\b|elegir|escoger|seleccionar|mis canciones|mi musica|table|pick|choose")
+    private val RE_MK_COUNT = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|songs|tracks)")
     private val RE_MK_THEMED = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by) (?!mis\\b|mi\\b|todas\\b|toda\\b|\\d)")
     private val RE_MK_SONGS = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|musicas|songs|tracks|piezas)")
     private val RE_MK_LISTS = Regex("(\\d{1,2}|[a-z]+) (playlists?|listas)")
@@ -145,23 +149,57 @@ object JarvisBrain {
     fun quickCreatePlaylists(text: String, lang: String): JarvisPlan? {
         val f = fold(text)
         if (f.isEmpty() || f.length > 160) return null
-        val pick = RE_MK_PICK.containsMatchIn(f)
+        // "una playlist de 50 canciones" (con cantidad) tambien cuenta como pedir la tabla para elegir.
+        val hasCount = RE_MK_COUNT.findAll(f).any { numOf(it.groupValues[1]) != null }
+        val pick = RE_MK_PICK.containsMatchIn(f) || hasCount
         // "playlist de rock / de Queen para elegir": trae tema o artista -> que lo resuelva el modelo.
-        if (pick && !RE_MK_RANDOM.containsMatchIn(f) && RE_MK_THEMED.containsMatchIn(f)) return null
+        // "playlist de cincuenta canciones" NO es un tema: despues del "de" hay un numero escrito con letras.
+        val themed = RE_MK_THEMED.find(f)?.let { m -> numOf(f.substring(m.range.last + 1).trim().substringBefore(' ')) == null } ?: false
+        android.util.Log.i("JarvisDraft", "quick f='$f' verb=${RE_MK_VERB.containsMatchIn(f)} playlist=${RE_MK_PLAYLIST.containsMatchIn(f)} random=${RE_MK_RANDOM.containsMatchIn(f)} pick=$pick themed=$themed")
+        if (pick && !RE_MK_RANDOM.containsMatchIn(f) && themed) return null
         if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f) || !(RE_MK_RANDOM.containsMatchIn(f) || pick)) return null
-        val perList = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: (if (pick) 50 else 20)
+        val given = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull()
+        // "una tabla de mis canciones para elegirlas" (sin cantidad ni "aleatoria"): tabla con TODA la biblioteca y 0 marcadas.
+        val browse = pick && given == null && !RE_MK_RANDOM.containsMatchIn(f)
+        val perList = given ?: (if (pick) 50 else 20)
         val lists = RE_MK_LISTS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 1
         val count = perList.coerceIn(1, MAX_SONGS_PER_CALL)
-        val n = lists.coerceIn(1, 4)
-        val base = if (lang == "en") "Random mix" else "Mezcla aleatoria"
+        val n = if (browse) 1 else lists.coerceIn(1, 4)
+        val base = if (browse) (if (lang == "en") "My picks" else "Mi selección") else if (lang == "en") "Random mix" else "Mezcla aleatoria"
         val calls = (1..n).map { i ->
             JarvisCall(
                 JarvisTool.CREATE_PLAYLIST,
-                songs = JarvisSelector(source = "random", count = count, shuffle = true),
+                songs = if (browse) JarvisSelector(source = "browse") else JarvisSelector(source = "random", count = count, shuffle = true),
                 name = if (n == 1) base else "$base $i"
             )
         }
         return JarvisPlan(null, calls)
+    }
+
+    private val RE_MK_TOPIC = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by) (.+)")
+    private val RE_MK_LEAD = Regex("^(canciones|cancion|temas|musica|songs|music)\\s+(de|del|of|by)\\s+")
+    private val RE_MK_EDGE = Regex("^(de|del|con|of|with|by|para|for)\\s+|\\s+(de|del|con|of|with|by|para|for)$")
+
+    /**
+     * Respaldo para "hazme una playlist de Ado / de rock": si el modelo contesta con charla en vez de create_playlist,
+     * se arma aqui el pedido con el tema o artista dicho, para que SIEMPRE salga la tabla.
+     */
+    fun themedCreatePlaylist(text: String, lang: String): JarvisPlan? {
+        val f = fold(text)
+        if (f.isEmpty() || f.length > 160) return null
+        if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f)) return null
+        val given = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 30
+        var topic = RE_MK_TOPIC.find(f)?.groupValues?.get(3) ?: return null
+        topic = RE_MK_SONGS.replace(topic, " ").trim()
+        topic = RE_MK_EDGE.replace(RE_MK_LEAD.replace(topic, ""), "").trim().take(40)
+        if (topic.isEmpty()) return null
+        val name = topic.replaceFirstChar { it.uppercase() }
+        val call = JarvisCall(
+            JarvisTool.CREATE_PLAYLIST,
+            songs = JarvisSelector(theme = topic, count = given.coerceIn(1, MAX_SONGS_PER_CALL), shuffle = true),
+            name = name
+        )
+        return JarvisPlan(null, listOf(call))
     }
 
     fun quickPlan(text: String): JarvisPlan? {
@@ -452,10 +490,19 @@ Reglas: nunca inventes títulos, artistas ni IDs: copia lo que dijo el usuario e
                         else JarvisStep(c, songs = shuffled, label = list.name)
                     }
                     JarvisTool.CREATE_PLAYLIST -> {
-                        val r = resolveSongs(c.songs, library, stats, favIds, nowId, null, 20)
+                        val browse = c.songs?.source == "browse"
+                        val r = if (browse) Resolution(emptyList()) else resolveSongs(c.songs, library, stats, favIds, nowId, null, 20)
                         val name = c.name ?: c.songs?.theme ?: "MusicFlame"
-                        steps += if (r.songs.isEmpty()) JarvisStep(c, candidates = r.candidates, label = name, problem = if (en) "I found no songs to build «$name»." else "No encontré canciones para armar «$name».")
-                        else JarvisStep(c, songs = r.songs, label = name)
+                        // La tabla siempre muestra TODA la biblioteca: lo pedido va marcado y el resto sin marcar.
+                        val pickedIds = r.songs.map { it.id }.toHashSet()
+                        val rest = library.filter { it.id !in pickedIds }.sortedBy { it.title.lowercase() }
+                        steps += if (browse && rest.isNotEmpty()) {
+                            JarvisStep(c, songs = emptyList(), extra = rest, label = name)
+                        } else if (r.songs.isEmpty()) {
+                            val candIds = r.candidates.map { it.id }.toHashSet()
+                            val all = r.candidates + rest.filter { it.id !in candIds }
+                            JarvisStep(c, candidates = all, label = name, problem = if (en) "I found no songs to build «$name»." else "No encontré canciones para armar «$name».")
+                        } else JarvisStep(c, songs = r.songs, extra = rest, label = name)
                     }
                     JarvisTool.ADD_TO_PLAYLIST, JarvisTool.REMOVE_FROM_PLAYLIST -> {
                         val list = findList(ctx, c.playlist ?: c.name)

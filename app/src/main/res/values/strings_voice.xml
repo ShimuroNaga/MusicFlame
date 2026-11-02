@@ -77,6 +77,7 @@
     <string name="voice_draft_discard">Descartar</string>
     <string name="voice_draft_ask">Armé «%1$s» con %2$d canciones. Puedes cambiarle el nombre o desmarcar las que no quieras. ¿La guardo?</string>
     <string name="voice_draft_ask_candidates">No encontré exactamente eso, pero hay candidatas. Marca las que quieras y di sí para guardar «%1$s».</string>
+    <string name="voice_draft_ask_pick">Aquí está tu biblioteca. Marca las canciones que quieras y di sí para guardar «%1$s».</string>
     <string name="voice_draft_discarded">Listo, no la guardé.</string>
     <string name="voice_draft_none_checked">No marcaste ninguna canción, así que no la guardé.</string>
     <string name="voice_draft_all">Todas</string>

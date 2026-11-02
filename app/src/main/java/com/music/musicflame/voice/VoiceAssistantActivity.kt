@@ -23,6 +23,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
@@ -228,7 +230,7 @@ class VoiceAssistantActivity : ComponentActivity() {
                         settings.getMode(), settings.getCustomPrompt(), memD.await()
                     )
                     val action = think(key, vc, dialog, said)
-                    android.util.Log.d("JarvisDraft", "said='$said' action=${action::class.simpleName}")
+                    android.util.Log.i("JarvisDraft", "said='$said' action=${action::class.simpleName}")
                     dialog += false to action.say
                     launch(Dispatchers.IO) { VoiceMemory.remember(appCtx, said, action.say) }
 
@@ -296,13 +298,21 @@ class VoiceAssistantActivity : ComponentActivity() {
     }
 
     private suspend fun think(key: String?, vc: VoiceContext, dialog: List<Pair<Boolean, String>>, said: String): VoiceAction {
-        JarvisBrain.quickCreatePlaylists(said, vc.lang)?.let { return VoiceAction.Act(it.calls, "", false) }
+        val quick = JarvisBrain.quickCreatePlaylists(said, vc.lang)
+        android.util.Log.i("JarvisDraft", "think said='$said' quick=${quick != null} key=${key != null} internet=${hasInternet()}")
+        quick?.let { return VoiceAction.Act(it.calls, "", false) }
+        var decided: VoiceAction? = null
         if (key != null && hasInternet()) {
-            try { return VoiceBrain.decide(applicationContext, vc, dialog) }
+            try { decided = VoiceBrain.decide(applicationContext, vc, dialog) }
             catch (e: CancellationException) { throw e }
             catch (_: Exception) { /* cae al respaldo local */ }
         }
-        return VoiceBrain.local(said, vc)
+        val d = decided ?: VoiceBrain.local(said, vc)
+        // "Hazme una playlist de Ado": si el modelo contesta con charla o con otra accion, se fuerza la tabla.
+        val made = d is VoiceAction.Act && d.calls.any { it.tool == JarvisTool.CREATE_PLAYLIST }
+        android.util.Log.i("JarvisDraft", "think result=${d::class.simpleName} madePlaylist=$made")
+        if (!made) JarvisBrain.themedCreatePlaylist(said, vc.lang)?.let { return VoiceAction.Act(it.calls, "", false) }
+        return d
     }
 
     private fun loadPlaylists(): List<VoicePlaylist> {
@@ -355,7 +365,7 @@ class VoiceAssistantActivity : ComponentActivity() {
         val ctx = applicationContext
         SongLibraryHolder.ensureLoaded(ctx)
         val steps = JarvisBrain.prepare(ctx, lang, a.calls, pm.currentSong.value?.id)
-        android.util.Log.d("JarvisDraft", "library=${com.music.musicflame.data.SongLibraryHolder.songs.size} steps=" + steps.joinToString { "songs=${it.songs.size} problem=${it.problem}" })
+        android.util.Log.i("JarvisDraft", "library=${com.music.musicflame.data.SongLibraryHolder.songs.size} steps=" + steps.joinToString { "songs=${it.songs.size} problem=${it.problem}" })
         val creates = steps.filter { it.call.tool == JarvisTool.CREATE_PLAYLIST }
         val timers = steps.filter { it.call.tool == JarvisTool.SLEEP_TIMER || it.call.tool == JarvisTool.CANCEL_SLEEP_TIMER }
         val together = steps.filter { it.call.tool == JarvisTool.TOGETHER_CREATE || it.call.tool == JarvisTool.TOGETHER_INVITE }
@@ -441,10 +451,10 @@ class VoiceAssistantActivity : ComponentActivity() {
             if (p.isNotBlank()) speak(p)
             return p
         }
-        val rows = if (candidatesMode) step.candidates.map { DraftRow(it, false) } else step.songs.map { DraftRow(it, true) }
+        val rows = if (candidatesMode) step.candidates.map { DraftRow(it, false) } else (step.songs.map { DraftRow(it, true) } + step.extra.map { DraftRow(it, false) })
         draftName = name; draftRows = rows
-        android.util.Log.d("JarvisDraft", "handleDraft name=$name rows=${rows.size} candidatesMode=$candidatesMode")
-        val q = if (candidatesMode) getString(R.string.voice_draft_ask_candidates, name) else getString(R.string.voice_draft_ask, name, rows.size)
+        android.util.Log.i("JarvisDraft", "handleDraft name=$name rows=${rows.size} candidatesMode=$candidatesMode")
+        val q = if (candidatesMode) getString(R.string.voice_draft_ask_candidates, name) else if (step.songs.isEmpty()) getString(R.string.voice_draft_ask_pick, name) else getString(R.string.voice_draft_ask, name, step.songs.size)
         var ans = askYesNo(key, q)
         // Sin respuesta clara por voz: la tabla NO se cierra ni se descarta sola. Se queda abierta hasta que
         // toques Guardar o Descartar (o cierres el asistente).
@@ -701,11 +711,11 @@ class VoiceAssistantActivity : ComponentActivity() {
                         TextButton(onClick = { draftRows.forEach { it.checked = true } }) { Text(stringResource(R.string.voice_draft_all)) }
                         TextButton(onClick = { draftRows.forEach { it.checked = false } }) { Text(stringResource(R.string.voice_draft_none)) }
                     }
-                    Column(
+                    LazyColumn(
                         Modifier.fillMaxWidth().padding(top = 0.dp).heightIn(max = 150.dp)
-                            .clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainer).verticalScroll(rememberScrollState())
+                            .clip(RoundedCornerShape(16.dp)).background(cs.surfaceContainer)
                     ) {
-                        draftRows.forEach { row ->
+                        items(draftRows) { row ->
                             Row(
                                 Modifier.fillMaxWidth().clickable { row.checked = !row.checked }.padding(horizontal = 6.dp),
                                 verticalAlignment = Alignment.CenterVertically

@@ -77,6 +77,7 @@
     <string name="voice_draft_discard">Discard</string>
     <string name="voice_draft_ask">I built «%1$s» with %2$d songs. You can rename it or uncheck the ones you don\'t want. Shall I save it?</string>
     <string name="voice_draft_ask_candidates">I didn\'t find exactly that, but there are candidates. Check the ones you want and say yes to save «%1$s».</string>
+    <string name="voice_draft_ask_pick">Here is your library. Check the songs you want and say yes to save «%1$s».</string>
     <string name="voice_draft_discarded">Done, I didn\'t save it.</string>
     <string name="voice_draft_none_checked">You didn\'t check any song, so I didn\'t save it.</string>
     <string name="voice_draft_all">All</string>

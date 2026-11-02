@@ -20,3 +20,4 @@ app/src/main/java/com/music/musicflame/anti-tampering.patch
 app/debug/
 app/release/*.apk
 app/release/baselineProfiles/
+app/release/output-metadata.json

@@ -310,9 +310,7 @@ class PlaylistRepository(context: Context) {
             val paths = lines.filter { !it.startsWith("#") && it.isNotBlank() }
 
             val allSongs = SongLibraryHolder.songs
-            val matchedIds = allSongs
-                .filter { song -> paths.any { path -> song.path.endsWith(path.trimStart('/')) || song.path == path } }
-                .map { it.id }
+            val matchedIds = matchM3uPaths(allSongs, paths).map { it.id }
 
             val playlist = Playlist(
                 id = System.currentTimeMillis().toString(),

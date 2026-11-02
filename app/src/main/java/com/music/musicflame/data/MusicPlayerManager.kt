@@ -480,7 +480,7 @@ class MusicPlayerManager(private val context: Context) {
         // (con su albumArtUri legítimo, tal cual lo arma SongRepository), en
         // vez de reconstruir siempre una versión "liviana" a partir de los
         // metadatos crudos del propio MediaItem.
-        SongLibraryHolder.songs.find { it.id == id }?.let { return it }
+        SongLibraryHolder.findById(id)?.let { return it }
 
         val metadata = mediaItem.mediaMetadata
         return Song(

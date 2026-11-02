@@ -282,24 +282,38 @@ fun SongsScreen(
     // o cambia alguno de los filtros (Artista/Álbum/Año/Género).
     LaunchedEffect(sortType.value, songs.size, songsVersion.value, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger, filterArtist, filterAlbum, filterYear, filterGenre) {
         if (searchMode == SearchMode.LOCAL) {
-            val sortedBase = when (sortType.value) {
-                SortType.DATE_CREATED -> songs.sortedByDescending { it.dateAdded }
-                SortType.A_Z -> songs.sortedBy { it.title.lowercase() }
-                SortType.Z_A -> songs.sortedByDescending { it.title.lowercase() }
-            }
-            val textFiltered = if (searchQuery.isBlank()) {
-                sortedBase
-            } else {
-                sortedBase.filter {
-                    it.title.contains(searchQuery, ignoreCase = true) ||
-                            it.artist.contains(searchQuery, ignoreCase = true)
+            // Debounce: cada tecla relanza este efecto y cancela el anterior, así que solo se
+            // filtra cuando el usuario deja de escribir (antes: ordenar + filtrar toda la
+            // biblioteca en el hilo principal por CADA tecla).
+            if (searchQuery.isNotBlank()) delay(150)
+            val snapshot = songs.toList()
+            val currentSort = sortType.value
+            val query = searchQuery
+            val fArtist = filterArtist
+            val fAlbum = filterAlbum
+            val fYear = filterYear
+            val fGenre = filterGenre
+            val fullyFiltered = withContext(Dispatchers.Default) {
+                val titleOrder = compareBy(String.CASE_INSENSITIVE_ORDER) { s: Song -> s.title }
+                val sortedBase = when (currentSort) {
+                    SortType.DATE_CREATED -> snapshot.sortedByDescending { it.dateAdded }
+                    SortType.A_Z -> snapshot.sortedWith(titleOrder)
+                    SortType.Z_A -> snapshot.sortedWith(titleOrder.reversed())
                 }
-            }
-            val fullyFiltered = textFiltered.filter { song ->
-                (filterArtist == null || song.artist == filterArtist) &&
-                        (filterAlbum == null || song.album == filterAlbum) &&
-                        (filterYear == null || song.year == filterYear) &&
-                        (filterGenre == null || song.genre == filterGenre)
+                val textFiltered = if (query.isBlank()) {
+                    sortedBase
+                } else {
+                    sortedBase.filter {
+                        it.title.contains(query, ignoreCase = true) ||
+                                it.artist.contains(query, ignoreCase = true)
+                    }
+                }
+                textFiltered.filter { song ->
+                    (fArtist == null || song.artist == fArtist) &&
+                            (fAlbum == null || song.album == fAlbum) &&
+                            (fYear == null || song.year == fYear) &&
+                            (fGenre == null || song.genre == fGenre)
+                }
             }
             displaySongs.clear()
             displaySongs.addAll(fullyFiltered)

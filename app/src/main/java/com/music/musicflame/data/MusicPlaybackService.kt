@@ -311,7 +311,7 @@ class MusicPlaybackService : MediaSessionService() {
             return
         }
         val songId = player.currentMediaItem?.mediaId?.toLongOrNull() ?: return
-        val filePath = SongLibraryHolder.songs.find { it.id == songId }?.path
+        val filePath = SongLibraryHolder.findById(songId)?.path
         if (filePath.isNullOrEmpty()) return
 
         val cachedGainDb = volumeNormalizationCacheRepo.get(filePath)

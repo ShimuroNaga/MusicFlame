@@ -50,8 +50,14 @@ import kotlinx.coroutines.withContext
  *    OnboardingSongsStep).
  */
 object SongLibraryHolder {
-    private val state = mutableStateOf<List<Song>>(emptyList())
+    // Un solo estado con lista + índices derivados (ver LibraryIndex). Leer [songs] o [index]
+    // dentro de un @Composable te suscribe a cambios, igual que antes.
+    private val state = mutableStateOf(LibraryIndex(emptyList()))
     @Volatile private var hasLoadedOnce = false
+
+    // Generación de MediaStore (Android 11+) del último escaneo. Si no cambió, los refresh
+    // "automáticos" (onResume, ContentObserver) se saltan el query completo. -1 = desconocida.
+    @Volatile private var lastGeneration = -1L
 
     // Evita escaneos duplicados: al arrancar, MainActivity, SongScreen, etc. piden
     // la librería casi a la vez; con el mutex solo el primero escanea de verdad y
@@ -65,12 +71,40 @@ object SongLibraryHolder {
 
     /** Snapshot actual de la librería. Leerlo dentro de un @Composable te suscribe a cambios. */
     val songs: List<Song>
+        get() = state.value.songs
+
+    /** Índices ya calculados (byId, byPath, álbumes, artistas, géneros). */
+    val index: LibraryIndex
         get() = state.value
+
+    /** Búsqueda O(1) por id (antes: songs.find { it.id == ... } lineal). */
+    fun findById(id: Long): Song? = state.value.byId[id]
+
+    /** Búsqueda O(1) por ruta de archivo. */
+    fun findByPath(path: String): Song? = state.value.byPath[path]
 
     /** Re-escanea MediaStore en Dispatchers.IO y actualiza [songs]. Llamar tras cualquier cambio real. */
     suspend fun refresh(context: Context) {
         val appContext = context.applicationContext
         scanMutex.withLock { scan(appContext) }
+    }
+
+    // Refresh "barato": si MediaStore no registró ningún cambio desde el último escaneo, no hace
+    // nada. Los cambios hechos DENTRO de la app (filtros, personalizaciones, papelera) siguen
+    // usando refresh() que siempre re-escanea.
+    private suspend fun refreshIfMediaStoreChanged(context: Context) {
+        val appContext = context.applicationContext
+        scanMutex.withLock {
+            val gen = currentMediaStoreGeneration(appContext)
+            if (gen != -1L && gen == lastGeneration) return@withLock
+            scan(appContext)
+        }
+    }
+
+    private fun currentMediaStoreGeneration(context: Context): Long = try {
+        MediaStore.getGeneration(context, MediaStore.VOLUME_EXTERNAL_PRIMARY)
+    } catch (e: Throwable) {
+        -1L
     }
 
     /** Carga solo si nunca se ha cargado en esta sesión de la app; no fuerza un re-escaneo. */
@@ -88,7 +122,7 @@ object SongLibraryHolder {
      */
     suspend fun refreshIfPermitted(context: Context) {
         if (!hasAudioPermission(context)) return
-        if (hasLoadedOnce) refresh(context) else ensureLoaded(context)
+        if (hasLoadedOnce) refreshIfMediaStoreChanged(context) else ensureLoaded(context)
     }
 
     /**
@@ -129,28 +163,25 @@ object SongLibraryHolder {
 
     // Debe llamarse con scanMutex tomado.
     private suspend fun scan(appContext: Context) {
-        // FASE 1 (rápida): canciones sin el mapa de géneros -> la UI las muestra ya.
-        val fast = withContext(Dispatchers.IO) {
-            loadSongsFromDevice(appContext, includeGenres = false)
+        // Se lee ANTES del query: si MediaStore cambia mientras escaneamos, la próxima
+        // comparación verá otra generación y volverá a escanear (nunca nos saltamos un cambio).
+        val generation = currentMediaStoreGeneration(appContext)
+
+        // UNA sola pasada a MediaStore (género incluido, ver SongRepository), en IO.
+        val loaded = withContext(Dispatchers.IO) {
+            loadSongsFromDevice(appContext, includeGenres = true)
         }
-        // Conserva los géneros ya conocidos para que no "parpadee" el filtro de género
-        // mientras llega la fase 2 de este mismo refresh.
-        val knownGenres = state.value.mapNotNull { s -> s.genre?.let { s.id to it } }.toMap()
-        state.value = if (knownGenres.isEmpty()) fast else fast.map { s ->
-            knownGenres[s.id]?.let { s.copy(genre = it) } ?: s
-        }
+        lastGeneration = generation
         hasLoadedOnce = true
 
-        // FASE 2 (lenta, N+1 queries): géneros en segundo plano, sin hacer esperar al
-        // que llamó a refresh().
-        appScope.launch {
-            val genres = withContext(Dispatchers.IO) { loadGenreMapFromDevice(appContext) }
-            if (genres.isNotEmpty()) {
-                state.value = state.value.map { s ->
-                    val g = genres[s.id]
-                    if (g != null && g != s.genre) s.copy(genre = g) else s
-                }
-            }
-        }
+        // Si el contenido es idéntico no se publica nada: ninguna pantalla se recompone y los
+        // índices ya calculados se reutilizan.
+        if (loaded == state.value.songs) return
+
+        val idx = LibraryIndex(loaded)
+        state.value = idx
+
+        // Calcula byId/byPath/álbumes/artistas/géneros fuera del hilo principal.
+        appScope.launch(Dispatchers.Default) { idx.warmUp() }
     }
 }

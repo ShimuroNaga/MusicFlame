@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import android.net.Uri
+import android.util.LruCache
 
 /**
  * RAÍZ DEL BUG: cuando una canción NO tiene carátula elegida a mano, el resto
@@ -31,6 +32,22 @@ object SongArtLoader {
     // del archivo (de donde sacar la carátula embebida real) como la URI
     // genérica de MediaStore a la que caer si ese archivo no trae ninguna.
     const val EMBEDDED_ART_SCHEME = "musicflame-embedded-art"
+
+    // Lado máximo (px) al que se decodifica; suficiente para notificación/widgets y evita cargar
+    // carátulas de 3000x3000 (~36 MB) cada vez que cambia la canción.
+    private const val MAX_DIM = 768
+
+    // Caché en memoria (LRU por tamaño): la notificación y los widgets pedían la misma carátula
+    // una y otra vez (cada actualización = abrir el archivo + MediaMetadataRetriever + decode).
+    private val artCache = object : LruCache<String, Bitmap>(cacheKb()) {
+        override fun sizeOf(key: String, value: Bitmap): Int = (value.byteCount / 1024).coerceAtLeast(1)
+    }
+
+    private fun cacheKb(): Int =
+        (Runtime.getRuntime().maxMemory() / 1024 / 16).toInt().coerceIn(4 * 1024, 24 * 1024)
+
+    /** Descarta lo cacheado (p. ej. tras escribir una carátula nueva en el archivo). */
+    fun clearCache() = artCache.evictAll()
     private const val PARAM_PATH = "path"
     private const val PARAM_FALLBACK = "fallback"
 
@@ -67,6 +84,14 @@ object SongArtLoader {
      * Devuelve null si no se pudo obtener ninguna imagen.
      */
     fun loadBitmap(context: Context, uri: Uri): Bitmap? {
+        val key = uri.toString()
+        artCache.get(key)?.let { cached -> if (!cached.isRecycled) return cached }
+        val loaded = loadBitmapUncached(context, uri)
+        if (loaded != null) artCache.put(key, loaded)
+        return loaded
+    }
+
+    private fun loadBitmapUncached(context: Context, uri: Uri): Bitmap? {
         if (uri.scheme == EMBEDDED_ART_SCHEME) {
             val path = uri.getQueryParameter(PARAM_PATH)
             val fallback = uri.getQueryParameter(PARAM_FALLBACK)
@@ -87,7 +112,7 @@ object SongArtLoader {
     private fun loadFromContentOrFileUri(context: Context, uri: Uri): Bitmap? {
         return when (uri.scheme) {
             "content", "file" -> try {
-                context.contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) }
+                context.contentResolver.openInputStream(uri)?.use { it.readBytes() }?.let { decodeSampled(it) }
             } catch (e: Exception) {
                 null
             }
@@ -101,7 +126,7 @@ object SongArtLoader {
         return try {
             retriever.setDataSource(filePath)
             val art = retriever.embeddedPicture ?: return null
-            BitmapFactory.decodeByteArray(art, 0, art.size)
+            decodeSampled(art)
         } catch (e: Exception) {
             null
         } finally {
@@ -111,5 +136,16 @@ object SongArtLoader {
                 // no-op
             }
         }
+    }
+
+    /** Decodifica reducida (inSampleSize potencia de 2) para que el lado mayor quede >= MAX_DIM. */
+    private fun decodeSampled(bytes: ByteArray): Bitmap? {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return null
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= MAX_DIM) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
     }
 }

@@ -82,10 +82,13 @@ fun AlbumScreen(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     LaunchedEffect(Unit) { SongLibraryHolder.ensureLoaded(context) }
-    val allSongs = SongLibraryHolder.songs
-    val albums = remember(allSongs) { groupSongsIntoAlbums(allSongs) }
-    val artists = remember(allSongs) { groupSongsIntoArtists(allSongs) }
-    val genres = remember(allSongs) { groupSongsIntoGenres(allSongs) }
+    // Álbumes/artistas/géneros ya vienen agrupados desde SongLibraryHolder (se calculan una vez
+    // por escaneo, fuera del hilo principal) en vez de agrupar 3 veces aquí en cada cambio.
+    val libraryIndex = SongLibraryHolder.index
+    val allSongs = libraryIndex.songs
+    val albums = libraryIndex.albums
+    val artists = libraryIndex.artists
+    val genres = libraryIndex.genres
 
     var libraryTab by remember { mutableStateOf(LibraryTab.ALBUMS) }
 

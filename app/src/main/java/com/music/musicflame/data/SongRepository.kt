@@ -7,31 +7,6 @@ import android.net.Uri
 import android.provider.MediaStore
 import java.io.File
 
-data class Song(
-    val id: Long,
-    val title: String,
-    val artist: String,
-    val album: String = "Desconocido",
-    val duration: Long,
-    val path: String,
-    val albumArtUri: String? = null,
-    // NUEVO: true cuando `albumArtUri` viene de una carátula elegida a mano
-    // por el usuario (SongCustomization.coverUri), false cuando es la URI
-    // "de fábrica" de MediaStore por álbum (content://.../albumart/{albumId}).
-    // AlbumArt() usa este dato para decidir si respeta esa URI o si prueba
-    // primero la carátula embebida en el propio archivo (ver AlbumArt.kt).
-    val hasCustomCover: Boolean = false,
-    // NUEVO: título de visualización con códigos § (SongCustomization.displayTitleFormatted).
-    // null cuando la canción no tiene uno guardado; en ese caso las cards deben
-    // mostrar `title` tal cual (ver FormatCodeText.kt / rawDisplayTitle()).
-    val displayTitleFormatted: String? = null,
-    val dateAdded: Long = 0L,
-    val youtubeVideoId: String? = null, // <-- NUEVO: ID real del video en YouTube (distinto de `id`)
-    // --- NUEVO: usados por el buscador con filtros (Artista/Álbum/Año/Género) ---
-    val year: Int? = null,
-    val genre: String? = null
-)
-
 fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<Song> {
     val songs = mutableListOf<Song>()
     val settingsRepo = SettingsRepository(context)
@@ -53,16 +28,13 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
     // etc. nunca vean canciones de un formato oculto (ver SongLibraryHolder).
     val hiddenAudioFormats = settingsRepo.getHiddenAudioFormats()
 
-    // Mapa songId -> nombre de género, usado por el buscador con filtros.
-    // Se arma aparte porque el género no vive en la tabla Media sino en
-    // MediaStore.Audio.Genres (funciona en todas las versiones de Android,
-    // a diferencia de la columna GENRE directa que solo existe desde API 30).
-    // includeGenres=false: SongLibraryHolder pide primero la lista rápida (sin
-    // géneros) para mostrarla al instante, y el mapa de géneros (1 query extra
-    // POR CADA género) lo completa después en segundo plano.
-    val genreBySongId = if (includeGenres) loadGenreMapFromDevice(context) else emptyMap()
+    // Género: en Android 11+ (minSdk 31) MediaStore.Audio.Media.GENRE viene en la MISMA
+    // consulta de canciones (1 query en total). Antes se hacía 1 query extra POR CADA género
+    // (MediaStore.Audio.Genres + Members), un N+1 que tardaba segundos con muchos géneros.
+    // Solo si el dispositivo/ROM no soporta la columna se usa ese camino viejo como respaldo.
+    var genreInline = includeGenres
 
-    val projection = arrayOf(
+    val baseProjection = arrayOf(
         MediaStore.Audio.Media._ID,
         MediaStore.Audio.Media.TITLE,
         MediaStore.Audio.Media.ARTIST,
@@ -73,11 +45,27 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
         MediaStore.Audio.Media.DATE_ADDED,
         MediaStore.Audio.Media.YEAR
     )
+    val selection = "${MediaStore.Audio.Media.IS_MUSIC} != 0"
 
-    val cursor = context.contentResolver.query(
-        MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
-        projection, "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, null
-    )
+    val cursor = if (genreInline) {
+        try {
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+                baseProjection + MediaStore.Audio.Media.GENRE, selection, null, null
+            )
+        } catch (e: IllegalArgumentException) {
+            genreInline = false
+            context.contentResolver.query(
+                MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, baseProjection, selection, null, null
+            )
+        }
+    } else {
+        context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, baseProjection, selection, null, null
+        )
+    }
+    // Respaldo (rarísimo): solo si pidieron géneros y la columna directa no existe.
+    val legacyGenres = if (includeGenres && !genreInline) loadGenreMapPerGenre(context) else emptyMap()
 
     cursor?.use {
         val idCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
@@ -89,6 +77,7 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
         val albumIdCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.ALBUM_ID)
         val dateAddedCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.DATE_ADDED)
         val yearCol = it.getColumnIndexOrThrow(MediaStore.Audio.Media.YEAR)
+        val genreCol = if (genreInline) it.getColumnIndex(MediaStore.Audio.Media.GENRE) else -1
 
         while (it.moveToNext()) {
             val duration = it.getLong(durationCol)
@@ -111,6 +100,11 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
 
                 val customization = customizations[id]
                 val year = it.getInt(yearCol).takeIf { y -> y > 0 }
+                val genre = if (genreCol >= 0) {
+                    it.getString(genreCol)?.trim()?.takeIf { g -> g.isNotEmpty() }
+                } else {
+                    legacyGenres[id]
+                }
 
                 songs.add(
                     Song(
@@ -126,7 +120,7 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
                         dateAdded = it.getLong(dateAddedCol),
                         // youtubeVideoId queda null para canciones locales, es lo esperado
                         year = year,
-                        genre = genreBySongId[id]
+                        genre = genre
                     )
                 )
             }
@@ -136,12 +130,37 @@ fun loadSongsFromDevice(context: Context, includeGenres: Boolean = true): List<S
 }
 
 /**
+ * Mapa songId -> género con UNA sola query (columna Media.GENRE, Android 11+). Si el dispositivo
+ * no la soporta cae al recorrido por género de [loadGenreMapPerGenre].
+ */
+internal fun loadGenreMapFromDevice(context: Context): Map<Long, String> {
+    return try {
+        val result = HashMap<Long, String>()
+        context.contentResolver.query(
+            MediaStore.Audio.Media.EXTERNAL_CONTENT_URI,
+            arrayOf(MediaStore.Audio.Media._ID, MediaStore.Audio.Media.GENRE),
+            "${MediaStore.Audio.Media.IS_MUSIC} != 0", null, null
+        )?.use { c ->
+            val idCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media._ID)
+            val genreCol = c.getColumnIndexOrThrow(MediaStore.Audio.Media.GENRE)
+            while (c.moveToNext()) {
+                val g = c.getString(genreCol)?.trim()
+                if (!g.isNullOrEmpty()) result[c.getLong(idCol)] = g
+            }
+        }
+        result
+    } catch (e: IllegalArgumentException) {
+        loadGenreMapPerGenre(context)
+    }
+}
+
+/**
  * Recorre MediaStore.Audio.Genres y, para cada género, sus canciones miembro
  * (MediaStore.Audio.Genres.Members), armando un mapa songId -> nombre de género.
  * No todos los archivos tienen género etiquetado; los que no aparecen en este
  * mapa simplemente no tendrán filtro de género disponible.
  */
-internal fun loadGenreMapFromDevice(context: Context): Map<Long, String> {
+internal fun loadGenreMapPerGenre(context: Context): Map<Long, String> {
     val result = mutableMapOf<Long, String>()
     try {
         val genresCursor = context.contentResolver.query(

@@ -1,6 +1,7 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import android.content.SharedPreferences
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -57,45 +58,100 @@ data class AnomalyRecord(
  */
 class AnomalyRepository(context: Context) {
     private val prefs = context.getSharedPreferences("anomaly_scan_results", Context.MODE_PRIVATE)
-    private val KEY_MAP = "records_map"
 
-    /** Todos los resultados guardados, indexados por ruta física del archivo. */
-    fun getAll(): Map<String, AnomalyRecord> {
-        val json = prefs.getString(KEY_MAP, null) ?: return emptyMap()
-        return try {
-            val obj = JSONObject(json)
-            val result = mutableMapOf<String, AnomalyRecord>()
-            obj.keys().forEach { path ->
-                val entry = obj.optJSONObject(path) ?: return@forEach
-                entry.toRecord(path)?.let { result[path] = it }
+    init {
+        prefsRef = prefs
+    }
+
+    // Los resultados viven en memoria (se parsea el JSON UNA vez por proceso) y se guardan en
+    // segundo plano con debounce. Antes cada get()/ignore() re-parseaba TODO el JSON y cada
+    // escritura lo reserializaba completo.
+    private companion object {
+        const val KEY_MAP = "records_map"
+
+        @Volatile private var prefsRef: SharedPreferences? = null
+        @Volatile private var cache: MutableMap<String, AnomalyRecord>? = null
+        private val lock = Any()
+        private val writer = DebouncedTask(1000L) { persistNow() }
+
+        private fun persistNow() {
+            val p = prefsRef ?: return
+            val snapshot = synchronized(lock) { cache?.toMap() } ?: return
+            val obj = JSONObject()
+            snapshot.forEach { (path, record) -> obj.put(path, record.toJson()) }
+            try {
+                p.edit().putString(KEY_MAP, obj.toString()).apply()
+            } catch (e: Exception) {
+                // Si no se pudo guardar, la próxima vez simplemente se vuelve a analizar.
             }
-            result
-        } catch (e: Exception) {
-            emptyMap()
+        }
+
+        private fun AnomalyRecord.toJson(): JSONObject {
+            val obj = JSONObject()
+            obj.put("songId", songId)
+            obj.put("title", title)
+            obj.put("artist", artist)
+            obj.put("types", JSONArray(types.map { it.name }))
+            obj.put("ignoredTypes", JSONArray(ignoredTypes.map { it.name }))
+            obj.put("fileSize", fileSize)
+            obj.put("fileLastModified", fileLastModified)
+            obj.put("lastScannedAt", lastScannedAt)
+            return obj
         }
     }
 
-    fun get(path: String): AnomalyRecord? = getAll()[path]
+    // Debe llamarse con [lock] tomado.
+    private fun memory(): MutableMap<String, AnomalyRecord> {
+        cache?.let { return it }
+        val result = HashMap<String, AnomalyRecord>()
+        val json = prefs.getString(KEY_MAP, null)
+        if (json != null) {
+            try {
+                val obj = JSONObject(json)
+                obj.keys().forEach { path ->
+                    val entry = obj.optJSONObject(path) ?: return@forEach
+                    entry.toRecord(path)?.let { result[path] = it }
+                }
+            } catch (e: Exception) {
+                result.clear()
+            }
+        }
+        cache = result
+        return result
+    }
+
+    /** Todos los resultados guardados, indexados por ruta física del archivo (copia). */
+    fun getAll(): Map<String, AnomalyRecord> = synchronized(lock) { HashMap(memory()) }
+
+    fun get(path: String): AnomalyRecord? = synchronized(lock) { memory()[path] }
 
     /**
-     * Guarda/actualiza el resultado de un análisis reciente para varias
-     * canciones a la vez (una sola escritura a SharedPreferences en vez de
-     * una por canción, igual que ArtworkCacheRepository.writeAll).
+     * Guarda/actualiza el resultado de un análisis reciente para varias canciones a la vez
+     * (una sola escritura a disco, diferida, en vez de una por canción).
      */
     fun saveAll(records: List<AnomalyRecord>) {
         if (records.isEmpty()) return
-        val current = getAll().toMutableMap()
-        records.forEach { record -> current[record.path] = record }
-        writeAll(current)
+        synchronized(lock) {
+            val m = memory()
+            records.forEach { record -> m[record.path] = record }
+        }
+        writer.request()
     }
 
     /** Marca un tipo de problema puntual como ignorado para una canción (no borra el registro, solo lo oculta). */
     fun ignore(path: String, type: AnomalyType) {
-        val current = getAll().toMutableMap()
-        val existing = current[path] ?: return
-        if (type in existing.ignoredTypes) return // ya estaba ignorado, no reescribas por gusto
-        current[path] = existing.copy(ignoredTypes = existing.ignoredTypes + type)
-        writeAll(current)
+        val changed = synchronized(lock) {
+            val m = memory()
+            val existing = m[path]
+            if (existing == null || type in existing.ignoredTypes) {
+                false // no existe, o ya estaba ignorado: no reescribas por gusto
+            } else {
+                m[path] = existing.copy(ignoredTypes = existing.ignoredTypes + type)
+                true
+            }
+        }
+        // Acción explícita del usuario: se guarda ya, no dentro de la ventana del debounce.
+        if (changed) writer.flushNow()
     }
 
     /**
@@ -104,34 +160,13 @@ class AnomalyRepository(context: Context) {
      * sigan arrastrando para siempre entradas de archivos fantasma.
      */
     fun pruneMissing(currentPaths: Set<String>) {
-        val current = getAll().toMutableMap()
-        val before = current.size
-        current.keys.retainAll(currentPaths)
-        if (current.size != before) writeAll(current)
-    }
-
-    private fun writeAll(map: Map<String, AnomalyRecord>) {
-        val obj = JSONObject()
-        map.forEach { (path, record) -> obj.put(path, record.toJson()) }
-        try {
-            prefs.edit().putString(KEY_MAP, obj.toString()).apply()
-        } catch (e: Exception) {
-            // Si por alguna razón no se pudo guardar, la próxima vez simplemente
-            // se vuelve a analizar desde cero; no rompe nada más.
+        val changed = synchronized(lock) {
+            val m = memory()
+            val before = m.size
+            m.keys.retainAll(currentPaths)
+            m.size != before
         }
-    }
-
-    private fun AnomalyRecord.toJson(): JSONObject {
-        val obj = JSONObject()
-        obj.put("songId", songId)
-        obj.put("title", title)
-        obj.put("artist", artist)
-        obj.put("types", JSONArray(types.map { it.name }))
-        obj.put("ignoredTypes", JSONArray(ignoredTypes.map { it.name }))
-        obj.put("fileSize", fileSize)
-        obj.put("fileLastModified", fileLastModified)
-        obj.put("lastScannedAt", lastScannedAt)
-        return obj
+        if (changed) writer.request()
     }
 
     private fun JSONObject.toRecord(path: String): AnomalyRecord? {

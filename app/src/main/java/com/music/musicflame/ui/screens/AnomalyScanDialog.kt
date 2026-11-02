@@ -174,7 +174,7 @@ fun AnomalyScanDialog(
                         results = results,
                         textColor = textColor,
                         onEdit = { record ->
-                            editingSong = SongLibraryHolder.songs.find { it.id == record.songId }
+                            editingSong = SongLibraryHolder.findById(record.songId)
                         },
                         onView = { record -> viewingRecord = record },
                         onIgnore = { record, type -> ignore(record, type) }
@@ -206,7 +206,7 @@ fun AnomalyScanDialog(
             record = record,
             onDismiss = { viewingRecord = null },
             onPlay = {
-                val song = SongLibraryHolder.songs.find { it.id == record.songId }
+                val song = SongLibraryHolder.findById(record.songId)
                 if (song != null) {
                     playerManager.playSong(song, SongLibraryHolder.songs)
                     viewingRecord = null
@@ -327,7 +327,7 @@ private fun AnomalyRow(
     onView: () -> Unit,
     onIgnore: () -> Unit
 ) {
-    val song = remember(record.path) { SongLibraryHolder.songs.find { it.id == record.songId } }
+    val song = remember(record.path) { SongLibraryHolder.findById(record.songId) }
 
     Card(
         modifier = Modifier.fillMaxWidth(),

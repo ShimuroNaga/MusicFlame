@@ -4,9 +4,14 @@ import android.content.Context
 import android.graphics.BitmapFactory
 import android.media.MediaMetadataRetriever
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Semaphore
+import kotlinx.coroutines.sync.withPermit
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
 import kotlin.coroutines.coroutineContext
 
 /**
@@ -34,6 +39,13 @@ import kotlin.coroutines.coroutineContext
  */
 object AnomalyScanner {
 
+    // Canciones analizadas a la vez. 3 equilibra velocidad y memoria/batería en celulares medios.
+    private const val SCAN_PARALLELISM = 3
+
+    // Para validar la carátula no hace falta decodificarla a tamaño completo (una de 3000x3000 son
+    // ~36 MB y con varias en paralelo reventaría la memoria): se decodifica reducida.
+    private const val ART_CHECK_MAX_DIM = 256
+
     // Marcadores típicos de "sin artista real" que distintos taggers/apps
     // dejan cuando no hay dato — no pretende ser una lista exhaustiva.
     private val UNKNOWN_ARTIST_MARKERS = setOf(
@@ -54,43 +66,58 @@ object AnomalyScanner {
         val total = songs.size
         val cache = repository.getAll()
         val now = System.currentTimeMillis()
-        val fresh = ArrayList<AnomalyRecord>(total)
+        val results = arrayOfNulls<AnomalyRecord>(total)
 
-        songs.forEachIndexed { index, song ->
-            coroutineContext.ensureActive() // permite cancelar el escaneo si se cierra el diálogo a medias
+        // Hasta SCAN_PARALLELISM canciones a la vez (antes: una por una). El trabajo es IO
+        // (stat del archivo + MediaMetadataRetriever), así que paralelizar acota el tiempo total
+        // sin saturar el celular. El orden de salida se conserva (results[index]).
+        val gate = Semaphore(SCAN_PARALLELISM)
+        val doneCount = AtomicInteger(0)
+        val progressLock = Any()
 
-            val file = File(song.path)
-            val exists = file.exists()
-            val currentSize = if (exists) file.length() else -1L
-            val currentModified = if (exists) file.lastModified() else -1L
-            val cached = cache[song.path]
+        coroutineScope {
+            songs.forEachIndexed { index, song ->
+                launch {
+                    gate.withPermit {
+                        coroutineContext.ensureActive() // permite cancelar el escaneo si se cierra el diálogo a medias
 
-            val unchanged = cached != null &&
-                cached.songId == song.id &&
-                cached.fileSize == currentSize &&
-                cached.fileLastModified == currentModified &&
-                cached.title == song.title &&
-                cached.artist == song.artist
+                        val file = File(song.path)
+                        val exists = file.exists()
+                        val currentSize = if (exists) file.length() else -1L
+                        val currentModified = if (exists) file.lastModified() else -1L
+                        val cached = cache[song.path]
 
-            val record = if (unchanged) {
-                cached!!
-            } else {
-                AnomalyRecord(
-                    songId = song.id,
-                    path = song.path,
-                    title = song.title,
-                    artist = song.artist,
-                    types = detectFileLevelAnomalies(song, file, exists),
-                    ignoredTypes = cached?.ignoredTypes ?: emptySet(),
-                    fileSize = currentSize,
-                    fileLastModified = currentModified,
-                    lastScannedAt = now
-                )
+                        val unchanged = cached != null &&
+                            cached.songId == song.id &&
+                            cached.fileSize == currentSize &&
+                            cached.fileLastModified == currentModified &&
+                            cached.title == song.title &&
+                            cached.artist == song.artist
+
+                        results[index] = if (unchanged) {
+                            cached!!
+                        } else {
+                            AnomalyRecord(
+                                songId = song.id,
+                                path = song.path,
+                                title = song.title,
+                                artist = song.artist,
+                                types = detectFileLevelAnomalies(song, file, exists),
+                                ignoredTypes = cached?.ignoredTypes ?: emptySet(),
+                                fileSize = currentSize,
+                                fileLastModified = currentModified,
+                                lastScannedAt = now
+                            )
+                        }
+                    }
+                    // Callbacks serializados y con contador creciente, aunque terminen desordenadas.
+                    synchronized(progressLock) { onProgress(doneCount.incrementAndGet(), total) }
+                }
             }
-            fresh.add(record)
-            onProgress(index + 1, total)
         }
 
+        val fresh = ArrayList<AnomalyRecord>(total)
+        for (r in results) if (r != null) fresh.add(r)
         withDuplicatesMarked(fresh, songs)
     }
 
@@ -133,8 +160,7 @@ object AnomalyScanner {
                 retriever.setDataSource(song.path)
                 val embedded = retriever.embeddedPicture
                 if (embedded != null) {
-                    val decoded = BitmapFactory.decodeByteArray(embedded, 0, embedded.size)
-                    if (decoded == null) types.add(AnomalyType.CORRUPT_ARTWORK)
+                    if (!isArtworkDecodable(embedded)) types.add(AnomalyType.CORRUPT_ARTWORK)
                 }
             } catch (e: Exception) {
                 // No se pudo ni siquiera abrir el archivo para leer sus metadatos:
@@ -149,6 +175,23 @@ object AnomalyScanner {
         }
 
         return types
+    }
+
+    /** true si los bytes se pueden decodificar como imagen (decodificando reducida, barato en memoria). */
+    private fun isArtworkDecodable(bytes: ByteArray): Boolean {
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        if (bounds.outWidth <= 0 || bounds.outHeight <= 0) return false
+        var sample = 1
+        while (maxOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= ART_CHECK_MAX_DIM) sample *= 2
+        val opts = BitmapFactory.Options().apply {
+            inSampleSize = sample
+            inPreferredConfig = android.graphics.Bitmap.Config.RGB_565
+        }
+        val decoded = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
+        val ok = decoded != null
+        decoded?.recycle()
+        return ok
     }
 
     /**

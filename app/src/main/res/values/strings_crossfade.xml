@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_crossfade_title">Crossfade (fundido entre canciones)</string>
+    <string name="settings_crossfade_desc">Mezcla el final de una canción con el inicio de la siguiente en vez de cortar. Desactivado por defecto.</string>
+    <string name="settings_crossfade_duration">Duración del fundido: %1$d s</string>
+    <string name="settings_crossfade_note">Solo con archivos locales. No se aplica en Momentos, salas En compañía, \"repetir una\" ni con el temporizador al terminar la canción.</string>
+</resources>

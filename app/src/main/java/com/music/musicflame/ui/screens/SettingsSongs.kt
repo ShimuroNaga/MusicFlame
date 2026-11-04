@@ -356,6 +356,74 @@ internal fun LazyListScope.settingsSongsSection(
         }
     }
 
+    // CROSSFADE: mezcla el final de una canción con el inicio de la siguiente.
+    // Apagado por defecto; la duración (1-12 s) solo aparece cuando está activado.
+    item {
+        SettingsRow(style, SettingsRowPos.Middle) {
+            val crossfadeOn = remember { mutableStateOf(settingsRepo.getCrossfadeEnabled()) }
+            var crossfadeSeconds by remember { mutableStateOf(settingsRepo.getCrossfadeSeconds().toFloat()) }
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_crossfade_title)) },
+                supportingContent = { Text(stringResource(R.string.settings_crossfade_desc)) },
+                trailingContent = {
+                    Switch(
+                        checked = crossfadeOn.value,
+                        onCheckedChange = { on ->
+                            crossfadeOn.value = on
+                            settingsRepo.saveCrossfadeEnabled(on)
+                        }
+                    )
+                },
+                colors = style.listItemColors
+            )
+            AnimatedVisibility(visible = crossfadeOn.value) {
+                Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                    Text(
+                        stringResource(R.string.settings_crossfade_duration, crossfadeSeconds.toInt()),
+                        fontSize = 13.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    androidx.compose.material3.Slider(
+                        value = crossfadeSeconds,
+                        onValueChange = { crossfadeSeconds = it.toInt().toFloat() },
+                        onValueChangeFinished = { settingsRepo.saveCrossfadeSeconds(crossfadeSeconds.toInt()) },
+                        valueRange = 1f..12f,
+                        steps = 10
+                    )
+                    Text(
+                        stringResource(R.string.settings_crossfade_note),
+                        fontSize = 11.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Diagnóstico: solo en builds de depuración o para la cuenta dueña.
+                    val showCrossfadeDiag = remember {
+                        com.music.musicflame.BuildConfig.DEBUG ||
+                            com.music.musicflame.data.LicenseRepository(context).isOwnerAccount()
+                    }
+                    if (showCrossfadeDiag) {
+                        var crossfadeStatus by remember { mutableStateOf("") }
+                        LaunchedEffect(Unit) {
+                            val sp = com.music.musicflame.data.SettingsStore.get(context)
+                            while (true) {
+                                crossfadeStatus = sp.getString("crossfade_status", null)
+                                    ?: "Sin datos todavía (pon una canción)"
+                                kotlinx.coroutines.delay(1000)
+                            }
+                        }
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            "Diagnóstico: $crossfadeStatus",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                    Spacer(Modifier.height(10.dp))
+                }
+            }
+            SettingsDivider(style)
+        }
+    }
+
     // AUDIO 8D + BALANCE: el switch lo activa al instante; tocar la fila abre sus ajustes.
     item {
         SettingsRow(style, SettingsRowPos.Middle) {

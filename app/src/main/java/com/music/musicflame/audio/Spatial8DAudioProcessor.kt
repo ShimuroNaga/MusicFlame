@@ -51,6 +51,10 @@ class Spatial8DAudioProcessor : BaseAudioProcessor() {
     @Volatile private var depth: Float = DEFAULT_DEPTH
     @Volatile private var balanceTarget: Float = 0f
 
+    // CROSSFADE: permiten que el reproductor "cola" continúe el giro desde la fase del principal.
+    @Volatile private var phaseSnapshot = 0f
+    @Volatile private var pendingPhase = -1f
+
     private var channelCount = 0
     private var sampleRateHz = 0
 
@@ -84,6 +88,14 @@ class Spatial8DAudioProcessor : BaseAudioProcessor() {
         balanceTarget = value.coerceIn(-1f, 1f)
     }
 
+    /** Última fase (0..2π) procesada; la lee el crossfade para sincronizar otra instancia. */
+    fun currentPhase(): Float = phaseSnapshot
+
+    /** Hace que la próxima tanda de audio arranque desde esta fase (0..2π). */
+    fun adoptPhase(phase: Float) {
+        pendingPhase = phase
+    }
+
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {
             throw AudioProcessor.UnhandledAudioFormatException(inputAudioFormat)
@@ -97,6 +109,12 @@ class Spatial8DAudioProcessor : BaseAudioProcessor() {
     override fun queueInput(inputBuffer: ByteBuffer) {
         val remaining = inputBuffer.remaining()
         if (remaining == 0 || channelCount == 0) return
+
+        val adopt = pendingPhase
+        if (adopt >= 0f) {
+            phase = adopt % TWO_PI
+            pendingPhase = -1f
+        }
 
         val on = enabled
         val targetBalance = balanceTarget
@@ -173,6 +191,7 @@ class Spatial8DAudioProcessor : BaseAudioProcessor() {
             phase += phaseStep
             if (phase >= TWO_PI) phase -= TWO_PI
         }
+        phaseSnapshot = phase
 
         inputBuffer.position(inputBuffer.position() + usableBytes)
         out.flip()

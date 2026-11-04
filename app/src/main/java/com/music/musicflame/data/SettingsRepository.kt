@@ -180,6 +180,12 @@ class SettingsRepository(context: Context) {
     fun getVolumeNormalizationEnabled(): Boolean = prefs.getBoolean("volume_normalization_enabled", false)
     fun saveVolumeNormalizationEnabled(enabled: Boolean) = prefs.edit().putBoolean("volume_normalization_enabled", enabled).apply()
 
+    // Crossfade (fundido entre canciones). Default apagado. La duración va de 1 a 12 segundos.
+    fun getCrossfadeEnabled(): Boolean = prefs.getBoolean("crossfade_enabled", false)
+    fun saveCrossfadeEnabled(enabled: Boolean) = prefs.edit().putBoolean("crossfade_enabled", enabled).apply()
+    fun getCrossfadeSeconds(): Int = prefs.getInt("crossfade_seconds", 5).coerceIn(1, 12)
+    fun saveCrossfadeSeconds(seconds: Int) = prefs.edit().putInt("crossfade_seconds", seconds.coerceIn(1, 12)).apply()
+
     // --- ECUALIZADOR Y AUDIO PRO ---
     fun getEqPresetSelected(): String = prefs.getString("eq_preset_selected", "Flat") ?: "Flat"
     fun saveEqPresetSelected(preset: String) = prefs.edit().putString("eq_preset_selected", preset).apply()

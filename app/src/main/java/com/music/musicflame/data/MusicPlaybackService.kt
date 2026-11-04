@@ -70,6 +70,9 @@ class MusicPlaybackService : MediaSessionService() {
     private var mediaSession: MediaSession? = null
     lateinit var player: ExoPlayer
 
+    // CROSSFADE (Ajustes > Canciones). Apagado por defecto; ver CrossfadeController.
+    private var crossfadeController: CrossfadeController? = null
+
     // EFECTOS DE AUDIO
     private var equalizer: Equalizer? = null
     private var bassBoost: BassBoost? = null
@@ -216,6 +219,50 @@ class MusicPlaybackService : MediaSessionService() {
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
                     .setAudioProcessors(arrayOf(proEqualizerAudioProcessor, volumeNormalizationProcessor, spatial8dProcessor))
+                    .build()
+            }
+        }
+    }
+
+    /**
+     * CROSSFADE: RenderersFactory para el reproductor "cola" (el que toca el final de la canción
+     * que sale). Usa la MISMA cadena que el principal (EQ Pro -> normalización -> 8D), pero con
+     * instancias NUEVAS: los procesadores guardan estado y no se pueden compartir entre dos
+     * players. Se configuran con los ajustes actuales, con el gain de normalización de la
+     * canción que está sonando y con la fase del 8D del principal (para que el paneo no salte).
+     */
+    private fun buildTailRenderersFactory(): RenderersFactory {
+        val tailEq = ProBiquadEqualizerAudioProcessor().apply {
+            setProLicensed(isProEqLicensed())
+            setBypassed(sharedPrefs.getBoolean("pro_eq_bypass", false))
+            for (i in 0 until ProBiquadEqualizerAudioProcessor.BAND_COUNT) {
+                setBandGainDb(i, sharedPrefs.getFloat("pro_eq_band_$i", 0f))
+            }
+            setPreAmpGainDb(sharedPrefs.getFloat("pro_eq_preamp", 0f))
+        }
+        val tailNorm = VolumeNormalizationAudioProcessor().apply {
+            setEnabled(sharedPrefs.getBoolean("volume_normalization_enabled", false))
+            setGainDb(volumeNormalizationProcessor.currentGainDb())
+        }
+        val tailSpatial = Spatial8DAudioProcessor().apply {
+            setEnabled(sharedPrefs.getBoolean("audio8d_enabled", false))
+            setPeriodSeconds(
+                sharedPrefs.getFloat("audio8d_period_s", Spatial8DAudioProcessor.DEFAULT_PERIOD_SECONDS)
+            )
+            setDepth(sharedPrefs.getFloat("audio8d_depth", Spatial8DAudioProcessor.DEFAULT_DEPTH))
+            setBalance(sharedPrefs.getFloat("audio8d_balance", 0f))
+            adoptPhase(spatial8dProcessor.currentPhase())
+        }
+        return object : DefaultRenderersFactory(this) {
+            override fun buildAudioSink(
+                context: Context,
+                enableFloatOutput: Boolean,
+                enableAudioTrackPlaybackParams: Boolean
+            ): AudioSink? {
+                return DefaultAudioSink.Builder(context)
+                    .setEnableFloatOutput(enableFloatOutput)
+                    .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
+                    .setAudioProcessors(arrayOf(tailEq, tailNorm, tailSpatial))
                     .build()
             }
         }
@@ -401,6 +448,14 @@ class MusicPlaybackService : MediaSessionService() {
         player = ExoPlayer.Builder(this, buildProEqRenderersFactory())
             .setAudioAttributes(audioAttributes, true)
             .build()
+
+        // Fundido entre canciones: solo actúa si el usuario lo activó en Ajustes > Canciones.
+        crossfadeController = CrossfadeController(
+            context = this,
+            player = player,
+            settings = sharedPrefs,
+            tailRenderersFactory = { buildTailRenderersFactory() }
+        )
 
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio
         player.addListener(object : Player.Listener {
@@ -919,6 +974,9 @@ class MusicPlaybackService : MediaSessionService() {
         // en segundo plano — si no, quedaría una coroutine viva intentando decodificar un
         // archivo aunque el servicio (y el player) ya no existan.
         serviceScope.cancel()
+        // Antes de liberar el player: el controlador toca su volumen y libera su reproductor "cola".
+        crossfadeController?.release()
+        crossfadeController = null
         mediaSession?.run {
             player.release()
             release()

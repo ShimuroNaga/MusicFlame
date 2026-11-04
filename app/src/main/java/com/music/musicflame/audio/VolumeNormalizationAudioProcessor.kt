@@ -28,6 +28,7 @@ class VolumeNormalizationAudioProcessor : BaseAudioProcessor() {
 
     @Volatile private var enabled: Boolean = false
     @Volatile private var gainLinear: Float = 1f
+    @Volatile private var gainDbValue: Float = 0f
 
     private var channelCount = 0
 
@@ -39,8 +40,12 @@ class VolumeNormalizationAudioProcessor : BaseAudioProcessor() {
     /** Gain en dB de la canción actual, recortado a [-12, 12]. 0f = neutro. */
     fun setGainDb(gainDb: Float) {
         val clamped = gainDb.coerceIn(MIN_GAIN_DB, MAX_GAIN_DB)
+        gainDbValue = clamped
         gainLinear = 10.0.pow(clamped / 20.0).toFloat()
     }
+
+    /** Gain en dB vigente (0f si la normalización está apagada). Lo usa el crossfade. */
+    fun currentGainDb(): Float = if (enabled) gainDbValue else 0f
 
     override fun onConfigure(inputAudioFormat: AudioProcessor.AudioFormat): AudioProcessor.AudioFormat {
         if (inputAudioFormat.encoding != C.ENCODING_PCM_16BIT) {

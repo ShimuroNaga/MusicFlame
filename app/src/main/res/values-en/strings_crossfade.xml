@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_crossfade_title">Crossfade (fade between songs)</string>
+    <string name="settings_crossfade_desc">Blends the end of a song with the start of the next one instead of cutting. Off by default.</string>
+    <string name="settings_crossfade_duration">Fade length: %1$d s</string>
+    <string name="settings_crossfade_note">Local files only. Not applied to Moments, Together rooms, \"repeat one\" or the sleep timer set to end of song.</string>
+</resources>

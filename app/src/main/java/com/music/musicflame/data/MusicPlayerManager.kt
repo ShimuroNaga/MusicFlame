@@ -103,6 +103,11 @@ class MusicPlayerManager(private val context: Context) {
     // Modo "fin de canción actual": no hay cuenta regresiva, se pausa en el próximo
     // onMediaItemTransition disparado por avance automático (fin de la canción).
     private var sleepTimerEndOfSong = false
+        // En ese modo el crossfade se desactiva (la pausa debe caer justo al terminar la canción).
+        set(value) {
+            field = value
+            CrossfadeSignal.suppressedBySleepTimer = value
+        }
 
     private val _sleepTimerActive = mutableStateOf(false)
     val sleepTimerActive: State<Boolean> = _sleepTimerActive
@@ -310,7 +315,12 @@ class MusicPlayerManager(private val context: Context) {
 
                 override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
                     val currentIndex = controller.currentMediaItemIndex
-                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+                    // CROSSFADE: el servicio adelanta el salto a la siguiente canción (llega como
+                    // SEEK). Si lo provocó el fundido y no el usuario, se trata como si la canción
+                    // hubiera terminado sola.
+                    val byCrossfade = reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK &&
+                        CrossfadeSignal.consumeAdvance()
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || byCrossfade) {
                         if (lastIndex != C.INDEX_UNSET) {
                             playbackHistory.add(lastIndex)
                         }
@@ -320,15 +330,20 @@ class MusicPlayerManager(private val context: Context) {
                     // En ambos casos, si el sleep timer está en modo "fin de canción
                     // actual", pausamos aquí; si no, el modo repetir-una la dejaba sonar
                     // para siempre sin que el timer se enterara.
-                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT) {
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO || reason == Player.MEDIA_ITEM_TRANSITION_REASON_REPEAT || byCrossfade) {
                         handleSongEndedForSleepTimer()
                         onTrackEnded?.invoke()
+                    }
+                    // El avance automático normal se cuenta en onPositionDiscontinuity; el del
+                    // crossfade no dispara ese callback con AUTO_TRANSITION, así que se cuenta aquí.
+                    if (byCrossfade) {
+                        incrementPlayCountForCurrent(controller)
                     }
                     // ESTADÍSTICAS: solo contamos aquí el salto manual (SEEK, botón
                     // siguiente/anterior). El avance automático y el loop de "repetir
                     // una" se cuentan en onPositionDiscontinuity de abajo, para no
                     // duplicar el conteo (ambos callbacks se disparan para esos casos).
-                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK) {
+                    if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_SEEK && !byCrossfade) {
                         incrementPlayCountForCurrent(controller)
                     }
                     lastIndex = currentIndex

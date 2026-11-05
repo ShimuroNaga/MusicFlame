@@ -241,8 +241,11 @@ class MusicPlaybackService : MediaSessionService() {
             setPreAmpGainDb(sharedPrefs.getFloat("pro_eq_preamp", 0f))
         }
         val tailNorm = VolumeNormalizationAudioProcessor().apply {
-            setEnabled(sharedPrefs.getBoolean("volume_normalization_enabled", false))
-            setGainDb(volumeNormalizationProcessor.currentGainDb())
+            // Ajuste manual de volumen de la cola (Ajustes > Canciones > Diagnóstico, dB): sirve para
+            // igualar su volumen al del principal si en este celular suena distinto.
+            val trimDb = sharedPrefs.getFloat("crossfade_tail_gain_db", 0f)
+            setEnabled(sharedPrefs.getBoolean("volume_normalization_enabled", false) || trimDb != 0f)
+            setGainDb(volumeNormalizationProcessor.currentGainDb() + trimDb)
         }
         val tailSpatial = Spatial8DAudioProcessor().apply {
             setEnabled(sharedPrefs.getBoolean("audio8d_enabled", false))
@@ -469,7 +472,8 @@ class MusicPlaybackService : MediaSessionService() {
             context = this,
             player = player,
             settings = sharedPrefs,
-            tailRenderersFactory = { buildTailRenderersFactory() }
+            tailRenderersFactory = { buildTailRenderersFactory() },
+            tailEffectsFactory = { session -> createTailEffects(session) }
         )
 
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio
@@ -535,8 +539,15 @@ class MusicPlaybackService : MediaSessionService() {
                 // Barato (un boolean + 11 floats de SharedPreferences) y cubre el caso de
                 // que la licencia se haya activado a media sesión sin pasar por el broadcast
                 // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
-                syncProEqualizerState()
-                applyAudioSettings()
+                // CROSSFADE: en pleno fundido NO se tocan los efectos nativos (graves, virtualizer,
+                // reverb, EQ). Comparten la sesión de audio con la cola, y volver a mandarles sus
+                // valores justo al arrancar el mezclado reconfigura la cadena de efectos del sistema
+                // y se oye como una traba de varios segundos. Si el usuario cambia un ajuste, le
+                // llega por el broadcast UPDATE_EQ, así que no se pierde nada.
+                if (!CrossfadeSignal.fadeActive) {
+                    syncProEqualizerState()
+                    applyAudioSettings()
+                }
 
                 // (Se quitó el refuerzo con postDelayed: checkIfCurrentSongIsFavorite() ya manda
                 // el layout, y mandarlo dos veces provocaba parpadeos del orden de botones.
@@ -888,7 +899,63 @@ class MusicPlaybackService : MediaSessionService() {
         return if (totalBoost > threshold) threshold / totalBoost else 1f
     }
 
+    /** Aplica los ajustes actuales a los efectos del principal y, si hay fundido, a los de la cola. */
     private fun applyAudioSettings() {
+        applyEffectSet(equalizer, bassBoost, virtualizer, loudnessEnhancer, presetReverb)
+        tailEffects?.let { applyEffectSet(it.equalizer, it.bassBoost, it.virtualizer, it.loudness, it.reverb) }
+    }
+
+    /**
+     * Efectos nativos PROPIOS de la cola del crossfade. La cola vive en su propia sesión de audio
+     * (así, cuando el principal recrea su salida de audio al saltar de canción, la cadena de efectos
+     * de la cola no se reconfigura ni se oye la traba), por lo que necesita su copia de los efectos
+     * con los mismos ajustes que el principal.
+     */
+    private inner class TailEffects(sessionId: Int) : AutoCloseable {
+        val equalizer: Equalizer? = try { Equalizer(1000, sessionId) } catch (e: Exception) { null }
+        val bassBoost: BassBoost? = try { BassBoost(1000, sessionId) } catch (e: Exception) { null }
+        val virtualizer: Virtualizer? = try { Virtualizer(1000, sessionId) } catch (e: Exception) { null }
+        val loudness: LoudnessEnhancer? = try { LoudnessEnhancer(sessionId) } catch (e: Exception) { null }
+        val reverb: PresetReverb? = try { PresetReverb(1000, sessionId) } catch (e: Exception) { null }
+
+        override fun close() {
+            if (tailEffects === this) tailEffects = null
+            try { equalizer?.release() } catch (_: Exception) {}
+            try { bassBoost?.release() } catch (_: Exception) {}
+            try { virtualizer?.release() } catch (_: Exception) {}
+            try { loudness?.release() } catch (_: Exception) {}
+            try { reverb?.release() } catch (_: Exception) {}
+        }
+    }
+
+    private var tailEffects: TailEffects? = null
+
+    /** Lo llama el CrossfadeController al crear la cola: crea sus efectos con los ajustes actuales. */
+    private fun createTailEffects(sessionId: Int): AutoCloseable {
+        tailEffects?.close()
+        val fx = TailEffects(sessionId)
+        tailEffects = fx
+        applyEffectSet(fx.equalizer, fx.bassBoost, fx.virtualizer, fx.loudness, fx.reverb)
+        // Para el diagnóstico de Ajustes: qué efectos de la cola se pudieron crear en este celular.
+        fun ok(x: Any?) = if (x != null) "sí" else "NO"
+        try {
+            sharedPrefs.edit().putString(
+                "crossfade_tail_fx",
+                "efectos de la cola: ecualizador ${ok(fx.equalizer)}, graves ${ok(fx.bassBoost)}, " +
+                        "virtualizer ${ok(fx.virtualizer)}, loudness ${ok(fx.loudness)}, reverb ${ok(fx.reverb)}"
+            ).apply()
+        } catch (_: Exception) {
+        }
+        return fx
+    }
+
+    private fun applyEffectSet(
+        equalizer: Equalizer?,
+        bassBoost: BassBoost?,
+        virtualizer: Virtualizer?,
+        loudnessEnhancer: LoudnessEnhancer?,
+        presetReverb: PresetReverb?
+    ) {
         try {
             val gainScale = computeSafeGainScale()
 

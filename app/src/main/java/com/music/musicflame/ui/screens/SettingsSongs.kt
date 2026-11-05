@@ -387,8 +387,8 @@ internal fun LazyListScope.settingsSongsSection(
                         value = crossfadeSeconds,
                         onValueChange = { crossfadeSeconds = it.toInt().toFloat() },
                         onValueChangeFinished = { settingsRepo.saveCrossfadeSeconds(crossfadeSeconds.toInt()) },
-                        valueRange = 1f..12f,
-                        steps = 10
+                        valueRange = 5f..12f,
+                        steps = 6
                     )
                     Text(
                         stringResource(R.string.settings_crossfade_note),
@@ -398,13 +398,15 @@ internal fun LazyListScope.settingsSongsSection(
                     // Diagnóstico: solo en builds de depuración o para la cuenta dueña.
                     val showCrossfadeDiag = remember {
                         com.music.musicflame.BuildConfig.DEBUG ||
-                            com.music.musicflame.data.LicenseRepository(context).isOwnerAccount()
+                                com.music.musicflame.data.LicenseRepository(context).isOwnerAccount()
                     }
                     if (showCrossfadeDiag) {
                         var crossfadeStatus by remember { mutableStateOf("") }
+                        var tailFxStatus by remember { mutableStateOf("") }
                         LaunchedEffect(Unit) {
                             val sp = com.music.musicflame.data.SettingsStore.get(context)
                             while (true) {
+                                tailFxStatus = sp.getString("crossfade_tail_fx", null) ?: ""
                                 crossfadeStatus = sp.getString("crossfade_status", null)
                                     ?: "Sin datos todavía (pon una canción)"
                                 kotlinx.coroutines.delay(1000)
@@ -415,6 +417,30 @@ internal fun LazyListScope.settingsSongsSection(
                             "Diagnóstico: $crossfadeStatus",
                             fontSize = 11.sp,
                             color = MaterialTheme.colorScheme.primary
+                        )
+                        if (tailFxStatus.isNotEmpty()) {
+                            Text(
+                                tailFxStatus,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                        val diagPrefs = remember { com.music.musicflame.data.SettingsStore.get(context) }
+                        var tailTrimDb by remember { mutableStateOf(diagPrefs.getFloat("crossfade_tail_gain_db", 0f)) }
+                        Text(
+                            "Volumen de la cola: " + String.format("%+.1f", tailTrimDb) +
+                                    " dB (sube si al empezar el fundido baja el volumen; aplica desde la siguiente canción)",
+                            fontSize = 11.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        androidx.compose.material3.Slider(
+                            value = tailTrimDb,
+                            onValueChange = { tailTrimDb = kotlin.math.round(it * 2f) / 2f },
+                            onValueChangeFinished = {
+                                diagPrefs.edit().putFloat("crossfade_tail_gain_db", tailTrimDb).apply()
+                            },
+                            valueRange = -6f..9f,
+                            steps = 29
                         )
                     }
                     Spacer(Modifier.height(10.dp))

@@ -90,7 +90,9 @@ class CrossfadeController(
     private val player: ExoPlayer,
     private val settings: SettingsStore,
     /** Fábrica con la misma cadena de audio que el principal, con instancias nuevas. */
-    private val tailRenderersFactory: () -> RenderersFactory
+    private val tailRenderersFactory: () -> RenderersFactory,
+    /** Crea los efectos nativos (EQ, graves, etc.) de la cola en SU sesión de audio. */
+    private val tailEffectsFactory: (Int) -> AutoCloseable? = { null }
 ) {
     companion object {
         private const val TAG = "Crossfade"
@@ -98,7 +100,7 @@ class CrossfadeController(
         private const val KEY_SECONDS = "crossfade_seconds"
         private const val KEY_STATUS = "crossfade_status"
         private const val DEFAULT_SECONDS = 5
-        private const val MIN_SECONDS = 1
+        private const val MIN_SECONDS = 5
         private const val MAX_SECONDS = 12
 
         private const val IDLE_TICK_MS = 250L
@@ -148,6 +150,7 @@ class CrossfadeController(
     private val handler = Handler(Looper.getMainLooper())
 
     private var tail: ExoPlayer? = null
+    private var tailEffects: AutoCloseable? = null
     private var tailKey: String? = null
     private var giveUpKey: String? = null
 
@@ -170,6 +173,12 @@ class CrossfadeController(
     private var fadeIndex = C.INDEX_UNSET
     private var fadeMediaId: String? = null
     private var lastFadePos = 0L
+
+    /** Duración de la canción que sale (la cola termina ahí): ancla el volumen del fundido. */
+    private var fadeSongDurMs = 0L
+
+    /** Posición de la cola cuando el principal empezó a sonar de verdad (-1 = aún no suena). */
+    private var fadeTailStartPos = -1L
 
     // Cierre suave
     private var settling = false
@@ -308,6 +317,8 @@ class CrossfadeController(
 
     /** Escucha de bajo nivel de un reproductor: detecta cortes de audio y saltos durante el fundido. */
     private fun analyticsFor(who: String): AnalyticsListener = object : AnalyticsListener {
+        private var bufferingSince = 0L
+
         override fun onAudioUnderrun(
             eventTime: AnalyticsListener.EventTime,
             bufferSize: Int,
@@ -318,7 +329,14 @@ class CrossfadeController(
         }
 
         override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
-            if (state == Player.STATE_BUFFERING) noteEvent("$who: cargando (buffering)")
+            if (state == Player.STATE_BUFFERING) {
+                bufferingSince = SystemClock.elapsedRealtime()
+                noteEvent("$who: cargando (buffering)")
+            }
+            if (state == Player.STATE_READY && bufferingSince != 0L) {
+                noteEvent("$who: listo tras ${SystemClock.elapsedRealtime() - bufferingSince} ms")
+                bufferingSince = 0L
+            }
             if (state == Player.STATE_ENDED) noteEvent("$who: llegó al final")
         }
 
@@ -419,9 +437,19 @@ class CrossfadeController(
                     .build(),
                 /* handleAudioFocus = */ false
             )
-            // Mismo audioSessionId: los efectos nativos (ecualizador, graves, etc.) también le llegan.
-            val session = player.audioSessionId
-            if (session != C.AUDIO_SESSION_ID_UNSET) t.audioSessionId = session
+            // SESIÓN PROPIA (distinta a la del principal) con su copia de los efectos nativos.
+            // Antes compartían sesión: al saltar de canción el principal apaga y recrea su salida
+            // de audio, y eso reconfiguraba la cadena de efectos que la cola también usaba (se
+            // oía una traba justo al empezar el fundido, coincidiendo con el "buffering" del principal).
+            val session = t.audioSessionId
+            if (session != C.AUDIO_SESSION_ID_UNSET) {
+                tailEffects = try {
+                    tailEffectsFactory(session)
+                } catch (e: Exception) {
+                    Log.w(TAG, "No se pudieron crear los efectos de la cola", e)
+                    null
+                }
+            }
             t.addAnalyticsListener(analyticsFor("cola"))
             t.addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
@@ -519,6 +547,8 @@ class CrossfadeController(
         // "terminó sola" gracias a CrossfadeSignal.
         // `fading` se marca ANTES del salto: ExoPlayer llama a los listeners DENTRO de
         // seekToNextMediaItem() (de forma síncrona), y a esa altura ya debe constar que hay un fundido.
+        fadeSongDurMs = dur
+        fadeTailStartPos = -1L
         fadeStartedAt = SystemClock.elapsedRealtime()
         fadeEvents.setLength(0)
         lastFadeTickAt = 0L
@@ -581,7 +611,19 @@ class CrossfadeController(
         // Pausa / reanudación (o pérdida de foco) en conjunto.
         if (t.playWhenReady != player.playWhenReady) t.playWhenReady = player.playWhenReady
 
-        val progress = (pos.toFloat() / fadeLenMs.toFloat()).coerceIn(0f, 1f)
+        // El volumen NO empieza a moverse hasta que la siguiente canción suena de verdad: mientras el
+        // principal carga (buffering) la cola sigue al 100% y el principal en 0, así no hay bajón.
+        // Desde que arranca, el fundido se reparte en lo que le queda a la cola, medido con la
+        // posición de la propia cola: llega a 0 justo cuando termina su audio.
+        if (fadeTailStartPos < 0L && state == Player.STATE_READY && player.isPlaying) {
+            fadeTailStartPos = t.currentPosition
+        }
+        val progress = if (fadeTailStartPos < 0L) {
+            0f
+        } else {
+            val span = (fadeSongDurMs - fadeTailStartPos).coerceAtLeast(MIN_FADE_MS)
+            ((t.currentPosition - fadeTailStartPos).toFloat() / span.toFloat()).coerceIn(0f, 1f)
+        }
         val angle = progress * (PI / 2.0).toFloat()
         val volStart = SystemClock.elapsedRealtime()
         player.volume = sin(angle)
@@ -642,6 +684,11 @@ class CrossfadeController(
             } catch (_: Exception) {
             }
         }
+        try {
+            tailEffects?.close()
+        } catch (_: Exception) {
+        }
+        tailEffects = null
         tail = null
         tailKey = null
         tailWarm = false

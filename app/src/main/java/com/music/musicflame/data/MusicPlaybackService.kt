@@ -372,8 +372,23 @@ class MusicPlaybackService : MediaSessionService() {
         publishNormalizationStatus("Analizando…")
 
         serviceScope.launch {
+            // CROSSFADE: no decodificar hasta 30 s de audio en pleno fundido (competía por CPU con
+            // los dos reproductores y se oía una traba). Se espera a que termine la mezcla (con tope
+            // de 15 s por seguridad) y el análisis corre con prioridad de fondo.
+            var waitedMs = 0L
+            while (CrossfadeSignal.fadeActive && waitedMs < 15_000L) {
+                kotlinx.coroutines.delay(250)
+                waitedMs += 250
+            }
             val gainDb = withContext(Dispatchers.IO) {
-                VolumeNormalizationAnalyzer.analyze(filePath)
+                val tid = android.os.Process.myTid()
+                val oldPriority = android.os.Process.getThreadPriority(tid)
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                try {
+                    VolumeNormalizationAnalyzer.analyze(filePath)
+                } finally {
+                    android.os.Process.setThreadPriority(oldPriority)
+                }
             }
 
             val stillSameSong = player.currentMediaItem?.mediaId?.toLongOrNull() == songId

@@ -30,6 +30,13 @@ object CrossfadeSignal {
     @Volatile
     var suppressedBySleepTimer: Boolean = false
 
+    /**
+     * true desde que arranca un fundido hasta que termina (o se interrumpe). El servicio la usa
+     * para no lanzar trabajo pesado (p. ej. el análisis de normalización de volumen) en pleno fundido.
+     */
+    @Volatile
+    var fadeActive: Boolean = false
+
     @Volatile
     private var advanceMarkedAt: Long = 0L
 
@@ -110,10 +117,13 @@ class CrossfadeController(
         private const val MIN_WARM_MS = 700L
 
         /** Diferencia de posición cola/principal que se considera "sincronizada". */
-        private const val SYNC_TOLERANCE_MS = 25L
+        private const val SYNC_TOLERANCE_MS = 40L
 
         /** Máximo de correcciones por seek durante el calentamiento. */
-        private const val MAX_SYNC_CORRECTIONS = 4
+        private const val MAX_SYNC_CORRECTIONS = 6
+
+        /** Tope del adelanto aprendido (lo que tarda la cola en empezar a sonar tras un seek). */
+        private const val MAX_SYNC_LEAD_MS = 1000L
 
         /** Espera tras cada corrección para que la cola se estabilice antes de volver a medir. */
         private const val SYNC_SETTLE_MS = 350L
@@ -145,6 +155,13 @@ class CrossfadeController(
     private var tailSynced = false
     private var syncCorrections = 0
     private var lastCorrectionAt = 0L
+
+    /**
+     * Cuánto hay que ADELANTAR cada seek de la cola para compensar lo que tarda en empezar a
+     * sonar (en este dispositivo). Se aprende midiendo la diferencia tras cada corrección y se
+     * conserva entre canciones: así la cola queda alineada desde el primer intento.
+     */
+    private var syncLeadMs = 0L
 
     // Fundido
     private var fading = false
@@ -306,7 +323,7 @@ class CrossfadeController(
 
         // La cola lista y con tiempo de sobra: arranca en silencio y se alinea con el principal.
         if (!tailWarm && t.playbackState == Player.STATE_READY && remaining > fadeMs + MIN_WARM_MS) {
-            t.seekTo(pos)
+            t.seekTo((pos + syncLeadMs).coerceAtLeast(0L))
             t.volume = 0f
             t.playWhenReady = true
             tailWarm = true
@@ -365,6 +382,12 @@ class CrossfadeController(
      * Mide la diferencia de posición entre la cola (en silencio) y el principal, y la corrige con
      * seeks hasta quedar dentro de la tolerancia. Es lo que reemplaza al "salto de ~80 ms" de la
      * primera versión: ya no se adivina cuánto tarda en arrancar, se mide en el dispositivo.
+     *
+     * OJO: un seek tarda en empezar a sonar, y mientras tanto el principal sigue avanzando. Si el
+     * seek apuntara a "donde está el principal ahora", la cola quedaría SIEMPRE atrasada esa
+     * misma cantidad y nunca convergería. Por eso cada corrección apunta a la posición del
+     * principal + syncLeadMs, y syncLeadMs se ajusta con la diferencia medida (drift < 0: la cola
+     * va atrasada, hay que adelantar más; drift > 0: al revés).
      */
     private fun syncTail(t: ExoPlayer) {
         if (!t.isPlaying) return
@@ -378,17 +401,18 @@ class CrossfadeController(
             }
             abs(drift) <= SYNC_TOLERANCE_MS -> {
                 tailSynced = true
-                publishStatus("Cola sincronizada (diferencia ${drift} ms, $syncCorrections ajustes)")
+                publishStatus("Cola sincronizada (diferencia ${drift} ms, $syncCorrections ajustes, adelanto $syncLeadMs ms)")
             }
             syncCorrections < MAX_SYNC_CORRECTIONS -> {
                 tailSynced = false
                 syncCorrections++
                 lastCorrectionAt = now
-                t.seekTo((t.currentPosition - drift).coerceAtLeast(0L))
+                syncLeadMs = (syncLeadMs - drift).coerceIn(0L, MAX_SYNC_LEAD_MS)
+                t.seekTo((player.currentPosition + syncLeadMs).coerceAtLeast(0L))
             }
             else -> {
                 tailSynced = false // no logró alinearse: se usará la ruta de respaldo
-                publishStatus("Cola sin alinear (diferencia ${drift} ms): ruta de respaldo")
+                publishStatus("Cola sin alinear (diferencia ${drift} ms, adelanto $syncLeadMs ms): ruta de respaldo")
             }
         }
     }
@@ -415,7 +439,7 @@ class CrossfadeController(
 
         if (!hot) {
             // Respaldo: la cola arranca en frío desde la posición oída (+ compensación).
-            t.seekTo(pos + COLD_START_LEAD_MS)
+            t.seekTo(pos + maxOf(COLD_START_LEAD_MS, syncLeadMs))
             t.playWhenReady = true
         }
         t.volume = 1f
@@ -425,6 +449,7 @@ class CrossfadeController(
         // `fading` se marca ANTES del salto: ExoPlayer llama a los listeners DENTRO de
         // seekToNextMediaItem() (de forma síncrona), y a esa altura ya debe constar que hay un fundido.
         fading = true
+        CrossfadeSignal.fadeActive = true
         player.volume = 0f
         CrossfadeSignal.markAdvance()
         player.seekToNextMediaItem()
@@ -456,8 +481,8 @@ class CrossfadeController(
             return
         }
         val interrupted = player.currentMediaItemIndex != fadeIndex ||
-            player.currentMediaItem?.mediaId != fadeMediaId ||
-            pos + BACKWARD_TOLERANCE_MS < lastFadePos
+                player.currentMediaItem?.mediaId != fadeMediaId ||
+                pos + BACKWARD_TOLERANCE_MS < lastFadePos
         if (interrupted) {
             // El usuario saltó de canción o movió la barra hacia atrás: cierre suave, no corte.
             publishStatus("Último fundido: interrumpido (saltaste o moviste la barra)")
@@ -512,6 +537,7 @@ class CrossfadeController(
     private fun abortAndRestore() {
         fading = false
         settling = false
+        CrossfadeSignal.fadeActive = false
         try {
             player.volume = 1f
         } catch (_: Exception) {

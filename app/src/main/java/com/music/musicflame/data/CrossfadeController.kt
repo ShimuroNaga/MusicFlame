@@ -13,6 +13,7 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.RenderersFactory
+import androidx.media3.exoplayer.analytics.AnalyticsListener
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
@@ -182,6 +183,12 @@ class CrossfadeController(
     // Diagnóstico: último texto publicado (solo se escribe cuando cambia).
     private var lastStatus: String? = null
 
+    // Diagnóstico de trabas durante el fundido: eventos del fundido en curso y reporte del último.
+    private var fadeStartedAt = 0L
+    private var lastFadeTickAt = 0L
+    private val fadeEvents = StringBuilder()
+    private var lastFadeReport: String? = null
+
     private val tickRunnable = Runnable {
         ticking = false
         if (!released) {
@@ -211,8 +218,11 @@ class CrossfadeController(
         }
     }
 
+    private val mainAnalytics = analyticsFor("principal")
+
     init {
         player.addListener(playerListener)
+        player.addAnalyticsListener(mainAnalytics)
         scheduleTick()
     }
 
@@ -222,6 +232,7 @@ class CrossfadeController(
         handler.removeCallbacksAndMessages(null)
         try {
             player.removeListener(playerListener)
+            player.removeAnalyticsListener(mainAnalytics)
         } catch (_: Exception) {
         }
         abortAndRestore()
@@ -259,11 +270,70 @@ class CrossfadeController(
 
     /** Escribe el estado para la línea de diagnóstico de Ajustes (solo si cambió). */
     private fun publishStatus(text: String) {
-        if (text == lastStatus) return
-        lastStatus = text
+        // Fuera de un fundido, el reporte del último fundido se queda pegado al estado para que no
+        // lo borre el siguiente mensaje de "Listo: mezclará…".
+        val report = lastFadeReport
+        val full = if (report != null && !fading && !settling && !text.startsWith("Último fundido")) {
+            "$text · Último fundido: $report"
+        } else {
+            text
+        }
+        if (full == lastStatus) return
+        lastStatus = full
         try {
-            settings.edit().putString(KEY_STATUS, text).apply()
+            settings.edit().putString(KEY_STATUS, full).apply()
         } catch (_: Exception) {
+        }
+    }
+
+    /** Anota un evento raro (traba, salto, buffering) del fundido en curso, con su tiempo. */
+    private fun noteEvent(text: String) {
+        if (!fading && !settling) return
+        val t = SystemClock.elapsedRealtime() - fadeStartedAt
+        Log.w(TAG, "Evento a los $t ms del fundido: $text")
+        if (fadeEvents.length < 500) {
+            fadeEvents.append("[").append(t / 100 / 10f).append(" s] ").append(text).append("; ")
+        }
+    }
+
+    /** Cierra el fundido: guarda y publica el reporte completo (resultado + eventos raros). */
+    private fun finishFadeReport(result: String) {
+        val total = if (fadeStartedAt != 0L) SystemClock.elapsedRealtime() - fadeStartedAt else 0L
+        val ev = if (fadeEvents.isEmpty()) "sin eventos raros" else fadeEvents.toString().trim()
+        val report = "$result (${total / 1000f} s) · $ev"
+        lastFadeReport = report
+        Log.w(TAG, "Fundido: $report")
+        publishStatus("Último fundido: $report")
+    }
+
+    /** Escucha de bajo nivel de un reproductor: detecta cortes de audio y saltos durante el fundido. */
+    private fun analyticsFor(who: String): AnalyticsListener = object : AnalyticsListener {
+        override fun onAudioUnderrun(
+            eventTime: AnalyticsListener.EventTime,
+            bufferSize: Int,
+            bufferSizeMs: Long,
+            elapsedSinceLastFeedMs: Long
+        ) {
+            noteEvent("$who: el audio se quedó sin datos ($elapsedSinceLastFeedMs ms)")
+        }
+
+        override fun onPlaybackStateChanged(eventTime: AnalyticsListener.EventTime, state: Int) {
+            if (state == Player.STATE_BUFFERING) noteEvent("$who: cargando (buffering)")
+            if (state == Player.STATE_ENDED) noteEvent("$who: llegó al final")
+        }
+
+        override fun onPositionDiscontinuity(
+            eventTime: AnalyticsListener.EventTime,
+            oldPosition: Player.PositionInfo,
+            newPosition: Player.PositionInfo,
+            reason: Int
+        ) {
+            if (reason == Player.DISCONTINUITY_REASON_SEEK) return
+            noteEvent("$who: salto de posición ${newPosition.positionMs - oldPosition.positionMs} ms (motivo $reason)")
+        }
+
+        override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
+            noteEvent("$who: error en la salida de audio")
         }
     }
 
@@ -352,6 +422,7 @@ class CrossfadeController(
             // Mismo audioSessionId: los efectos nativos (ecualizador, graves, etc.) también le llegan.
             val session = player.audioSessionId
             if (session != C.AUDIO_SESSION_ID_UNSET) t.audioSessionId = session
+            t.addAnalyticsListener(analyticsFor("cola"))
             t.addListener(object : Player.Listener {
                 override fun onPlayerError(error: PlaybackException) {
                     Log.w(TAG, "La cola falló, esta canción pasa sin fundido", error)
@@ -448,6 +519,9 @@ class CrossfadeController(
         // "terminó sola" gracias a CrossfadeSignal.
         // `fading` se marca ANTES del salto: ExoPlayer llama a los listeners DENTRO de
         // seekToNextMediaItem() (de forma síncrona), y a esa altura ya debe constar que hay un fundido.
+        fadeStartedAt = SystemClock.elapsedRealtime()
+        fadeEvents.setLength(0)
+        lastFadeTickAt = 0L
         fading = true
         CrossfadeSignal.fadeActive = true
         player.volume = 0f
@@ -468,15 +542,23 @@ class CrossfadeController(
     }
 
     private fun onFadeTick() {
+        // Si el hilo principal se atasca (trabajo pesado de la UI/servicio), los ticks se retrasan.
+        val nowTick = SystemClock.elapsedRealtime()
+        if (lastFadeTickAt != 0L && nowTick - lastFadeTickAt > 300L) {
+            noteEvent("hilo principal atascado ${nowTick - lastFadeTickAt} ms")
+        }
+        lastFadeTickAt = nowTick
+
         val t = tail
         if (t == null) {
-            publishStatus("Último fundido: se perdió la cola de la canción que sale")
+            finishFadeReport("se perdió la cola de la canción que sale")
             abortAndRestore()
             return
         }
         val pos = player.currentPosition
         val state = player.playbackState
         if (state == Player.STATE_IDLE || state == Player.STATE_ENDED) {
+            finishFadeReport("el principal quedó en estado $state")
             abortAndRestore()
             return
         }
@@ -485,7 +567,12 @@ class CrossfadeController(
                 pos + BACKWARD_TOLERANCE_MS < lastFadePos
         if (interrupted) {
             // El usuario saltó de canción o movió la barra hacia atrás: cierre suave, no corte.
-            publishStatus("Último fundido: interrumpido (saltaste o moviste la barra)")
+            val why = when {
+                player.currentMediaItemIndex != fadeIndex -> "cambió el índice de la cola"
+                player.currentMediaItem?.mediaId != fadeMediaId -> "cambió la canción"
+                else -> "la posición del principal retrocedió ${lastFadePos - pos} ms"
+            }
+            finishFadeReport("interrumpido: $why")
             beginSettle(t)
             return
         }
@@ -496,11 +583,14 @@ class CrossfadeController(
 
         val progress = (pos.toFloat() / fadeLenMs.toFloat()).coerceIn(0f, 1f)
         val angle = progress * (PI / 2.0).toFloat()
+        val volStart = SystemClock.elapsedRealtime()
         player.volume = sin(angle)
         t.volume = cos(angle)
+        val volMs = SystemClock.elapsedRealtime() - volStart
+        if (volMs > 50L) noteEvent("cambiar el volumen tardó $volMs ms")
 
         if (progress >= 1f || t.playbackState == Player.STATE_ENDED) {
-            publishStatus("Último fundido: completo")
+            finishFadeReport("completo")
             abortAndRestore()
         }
     }

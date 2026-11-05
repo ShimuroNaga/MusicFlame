@@ -231,6 +231,9 @@ class MusicPlaybackService : MediaSessionService() {
      * players. Se configuran con los ajustes actuales, con el gain de normalización de la
      * canción que está sonando y con la fase del 8D del principal (para que el paneo no salte).
      */
+    @Volatile
+    private var tailNormProcessor: VolumeNormalizationAudioProcessor? = null
+
     private fun buildTailRenderersFactory(): RenderersFactory {
         val tailEq = ProBiquadEqualizerAudioProcessor().apply {
             setProLicensed(isProEqLicensed())
@@ -247,6 +250,7 @@ class MusicPlaybackService : MediaSessionService() {
             setEnabled(sharedPrefs.getBoolean("volume_normalization_enabled", false) || trimDb != 0f)
             setGainDb(volumeNormalizationProcessor.currentGainDb() + trimDb)
         }
+        tailNormProcessor = tailNorm
         val tailSpatial = Spatial8DAudioProcessor().apply {
             setEnabled(sharedPrefs.getBoolean("audio8d_enabled", false))
             setPeriodSeconds(
@@ -368,6 +372,7 @@ class MusicPlaybackService : MediaSessionService() {
         if (cachedGainDb != null) {
             volumeNormalizationProcessor.setGainDb(cachedGainDb)
             publishNormalizationStatus("Ajuste ${formatGainDb(cachedGainDb)} (guardado)")
+            preAnalyzeNextSong()
             return
         }
 
@@ -405,7 +410,48 @@ class MusicPlaybackService : MediaSessionService() {
             if (stillSameSong) {
                 volumeNormalizationProcessor.setGainDb(gainDb)
                 publishNormalizationStatus("Ajuste ${formatGainDb(gainDb)} (nuevo)")
+                preAnalyzeNextSong()
             }
+        }
+    }
+
+    private var preAnalyzedPath: String? = null
+
+    /**
+     * CROSSFADE: analiza (en segundo plano, sin tocar el audio) la SIGUIENTE canción mientras suena
+     * la actual, para que al empezar el fundido su gain de normalización ya esté en caché. Antes,
+     * si no estaba, la canción entrante sonaba sin normalizar durante todo el fundido (el análisis
+     * esperaba a que terminara) y su volumen no coincidía con el de la que salía: se oía como
+     * un bajón o un salto al final de la mezcla.
+     */
+    private fun preAnalyzeNextSong() {
+        if (!sharedPrefs.getBoolean("volume_normalization_enabled", false)) return
+        if (!sharedPrefs.getBoolean("crossfade_enabled", false)) return
+        if (!player.hasNextMediaItem()) return
+        val nextIndex = player.nextMediaItemIndex
+        if (nextIndex == C.INDEX_UNSET) return
+        val nextId = player.getMediaItemAt(nextIndex).mediaId.toLongOrNull() ?: return
+        val nextPath = SongLibraryHolder.findById(nextId)?.path
+        if (nextPath.isNullOrEmpty() || nextPath == preAnalyzedPath) return
+        if (volumeNormalizationCacheRepo.get(nextPath) != null) return
+        preAnalyzedPath = nextPath
+        serviceScope.launch {
+            var waitedMs = 0L
+            while (CrossfadeSignal.fadeActive && waitedMs < 15_000L) {
+                kotlinx.coroutines.delay(250)
+                waitedMs += 250
+            }
+            val gainDb = withContext(Dispatchers.IO) {
+                val tid = android.os.Process.myTid()
+                val oldPriority = android.os.Process.getThreadPriority(tid)
+                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
+                try {
+                    VolumeNormalizationAnalyzer.analyze(nextPath)
+                } finally {
+                    android.os.Process.setThreadPriority(oldPriority)
+                }
+            }
+            if (gainDb != null) volumeNormalizationCacheRepo.set(nextPath, gainDb)
         }
     }
 
@@ -473,7 +519,9 @@ class MusicPlaybackService : MediaSessionService() {
             player = player,
             settings = sharedPrefs,
             tailRenderersFactory = { buildTailRenderersFactory() },
-            tailEffectsFactory = { session -> createTailEffects(session) }
+            tailEffectsFactory = { session -> createTailEffects(session) },
+            mainPower = { volumeNormalizationProcessor.recentPower() },
+            tailPower = { tailNormProcessor?.recentPower() ?: 0f }
         )
 
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio

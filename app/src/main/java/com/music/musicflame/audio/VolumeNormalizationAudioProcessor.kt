@@ -32,6 +32,35 @@ class VolumeNormalizationAudioProcessor : BaseAudioProcessor() {
 
     private var channelCount = 0
 
+    /**
+     * Medidor de nivel (potencia media, 0..1 al cuadrado) de lo que sale de la cadena, ANTES del
+     * volumen del player. Lo usa el crossfade para compensar huecos de volumen entre canciones
+     * (intros/outros suaves). Es un promedio exponencial: barato y sin asignaciones.
+     */
+    @Volatile private var meterPower: Float = 0f
+
+    /** Potencia media reciente (amplitud al cuadrado, 0..1). 0 si aún no ha pasado audio. */
+    fun recentPower(): Float = meterPower
+
+    private fun updateMeter(buffer: ByteBuffer, bytes: Int) {
+        if (bytes < 8) return
+        val b = buffer.duplicate().order(ByteOrder.LITTLE_ENDIAN)
+        var sum = 0.0
+        var n = 0
+        var i = 0
+        // 1 de cada 4 muestras: suficiente para un promedio y casi gratis en CPU.
+        while (i + 1 < bytes) {
+            val v = b.getShort(b.position() + i) / 32768f
+            sum += (v * v).toDouble()
+            n++
+            i += 8
+        }
+        if (n == 0) return
+        val p = (sum / n).toFloat()
+        // ~100 ms de memoria (un buffer típico dura 10-20 ms).
+        meterPower = meterPower * 0.85f + p * 0.15f
+    }
+
     /** Activa o apaga la normalización (switch de Ajustes). */
     fun setEnabled(value: Boolean) {
         enabled = value
@@ -61,6 +90,7 @@ class VolumeNormalizationAudioProcessor : BaseAudioProcessor() {
 
         val gain = gainLinear
         if (!enabled || gain == 1f) {
+            updateMeter(inputBuffer, remaining)
             val out = replaceOutputBuffer(remaining)
             out.put(inputBuffer)
             out.flip()
@@ -84,5 +114,6 @@ class VolumeNormalizationAudioProcessor : BaseAudioProcessor() {
 
         inputBuffer.position(inputBuffer.position() + usableBytes)
         out.flip()
+        updateMeter(out, usableBytes)
     }
 }

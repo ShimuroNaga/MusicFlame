@@ -17,10 +17,8 @@ import androidx.media3.exoplayer.analytics.AnalyticsListener
 import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
-import kotlin.math.log10
 import kotlin.math.min
 import kotlin.math.sin
-import kotlin.math.sqrt
 
 /**
  * Señales en memoria entre el servicio de reproducción y el MusicPlayerManager.
@@ -94,11 +92,7 @@ class CrossfadeController(
     /** Fábrica con la misma cadena de audio que el principal, con instancias nuevas. */
     private val tailRenderersFactory: () -> RenderersFactory,
     /** Crea los efectos nativos (EQ, graves, etc.) de la cola en SU sesión de audio. */
-    private val tailEffectsFactory: (Int) -> AutoCloseable? = { null },
-    /** Potencia media reciente (0..1, antes del volumen) de lo que suena en el principal. */
-    private val mainPower: () -> Float = { 0f },
-    /** Igual, para la cola. Si ambas devuelven 0 la compensación de nivel se desactiva sola. */
-    private val tailPower: () -> Float = { 0f }
+    private val tailEffectsFactory: (Int) -> AutoCloseable? = { null }
 ) {
     companion object {
         private const val TAG = "Crossfade"
@@ -153,16 +147,23 @@ class CrossfadeController(
         private const val SETTLE_MS = 250L
 
         /**
-         * COMPENSACIÓN DE NIVEL: la curva seno/coseno mantiene la potencia constante solo si las dos
-         * canciones suenan igual de fuerte. Si la que sale ya está en su outro suave, o la que entra
-         * empieza con una intro baja, la suma cae y se oye un bajón. Aquí se mide el nivel real de
-         * cada una y se corrige para que la potencia total se quede en la que había al empezar.
+         * Refuerzo del cruce contra el bajón de volumen. La curva seno/coseno deja a cada canción en
+         * 0.71 (-3 dB) en el medio, y con música real (outro suave + intro baja) se oye un hueco.
+         * Se multiplica ambas por 1 + BOOST * sin(PI * progreso): 0 en los extremos y máximo en el
+         * medio. Ojo: NO usar exponentes (x^0.4): tienen pendiente casi vertical al inicio y al
+         * final y el volumen, que se actualiza a saltos cada ~40 ms, hace un "pth" audible.
+         * Esta forma es suave en los extremos. Subir BOOST si aún hay bajón; bajarlo si se oye más
+         * fuerte en el medio.
          */
-        private const val KEY_LEVEL_MATCH = "crossfade_level_match"
-        private const val POWER_FLOOR = 1e-7f
-        private const val COMP_MIN = 0.6f
-        private const val COMP_MAX = 1.6f
-        private const val COMP_SMOOTH = 0.15f
+        private const val MID_BOOST = 0.25f
+
+        /**
+         * Traspaso corto al empezar el fundido. Antes la cola pasaba de 0 a 1 y el principal de 1 a 0
+         * de golpe; si la cola iba desfasada unos milisegundos, ese corte seco se oía como un "pth"
+         * justo cuando entra la siguiente canción. Ahora ambos se cruzan en línea recta durante este
+         * tiempo (es el MISMO audio en los dos, así que la suma lineal no cambia el volumen).
+         */
+        private const val HANDOFF_MS = 80L
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -198,13 +199,8 @@ class CrossfadeController(
     /** Posición de la cola cuando el principal empezó a sonar de verdad (-1 = aún no suena). */
     private var fadeTailStartPos = -1L
 
-    /** Potencia total que se quiere mantener durante el fundido (la que había al empezar). */
-    private var fadeRefPower = 0f
-
-    /** Factor de compensación suavizado y el máximo aplicado (para el reporte). */
-    private var compGain = 1f
-    private var compMaxGain = 1f
-    private var compMinGain = 1f
+    /** Instante en que empezó el traspaso corto principal -> cola (0 = no hay traspaso en curso). */
+    private var handoffStartedAt = 0L
 
     // Cierre suave
     private var settling = false
@@ -283,7 +279,7 @@ class CrossfadeController(
         if (!fading && !settling && !player.isPlaying) return
         ticking = true
         val delay = when {
-            fading || settling -> FADE_TICK_MS
+            fading || settling || handoffStartedAt != 0L -> FADE_TICK_MS
             tail != null -> WARM_TICK_MS
             else -> IDLE_TICK_MS
         }
@@ -335,12 +331,7 @@ class CrossfadeController(
     private fun finishFadeReport(result: String) {
         val total = if (fadeStartedAt != 0L) SystemClock.elapsedRealtime() - fadeStartedAt else 0L
         val ev = if (fadeEvents.isEmpty()) "sin eventos raros" else fadeEvents.toString().trim()
-        val comp = if (compMaxGain > 1.02f || compMinGain < 0.98f) {
-            " · compensación de nivel: de ${"%.1f".format(toDb(compMinGain))} a +${"%.1f".format(toDb(compMaxGain))} dB"
-        } else {
-            ""
-        }
-        val report = "$result (${total / 1000f} s)$comp · $ev"
+        val report = "$result (${total / 1000f} s) · $ev"
         lastFadeReport = report
         Log.w(TAG, "Fundido: $report")
         publishStatus("Último fundido: $report")
@@ -564,6 +555,19 @@ class CrossfadeController(
             return
         }
 
+        if (hot) {
+            val now = SystemClock.elapsedRealtime()
+            if (handoffStartedAt == 0L) handoffStartedAt = now
+            val k = ((now - handoffStartedAt).toFloat() / HANDOFF_MS.toFloat()).coerceIn(0f, 1f)
+            if (k < 1f) {
+                // Traspaso en curso: la cola sube y el principal baja, todavía sin saltar de canción.
+                t.volume = k
+                player.volume = 1f - k
+                return
+            }
+        }
+        handoffStartedAt = 0L
+
         val oldIndex = player.currentMediaItemIndex
         fadeLenMs = min(remaining, fadeMs.coerceAtLeast(MIN_FADE_MS))
 
@@ -580,10 +584,6 @@ class CrossfadeController(
         // seekToNextMediaItem() (de forma síncrona), y a esa altura ya debe constar que hay un fundido.
         fadeSongDurMs = dur
         fadeTailStartPos = -1L
-        fadeRefPower = tailPower()
-        compGain = 1f
-        compMaxGain = 1f
-        compMinGain = 1f
         fadeStartedAt = SystemClock.elapsedRealtime()
         fadeEvents.setLength(0)
         lastFadeTickAt = 0L
@@ -660,16 +660,10 @@ class CrossfadeController(
             ((t.currentPosition - fadeTailStartPos).toFloat() / span.toFloat()).coerceIn(0f, 1f)
         }
         val angle = progress * (PI / 2.0).toFloat()
-        var vIn = sin(angle)
-        var vOut = cos(angle)
-        if (fadeTailStartPos >= 0L && progress > 0f && progress < 1f) {
-            val k = levelCompensation(vOut, vIn)
-            vIn = (vIn * k).coerceIn(0f, 1f)
-            vOut = (vOut * k).coerceIn(0f, 1f)
-        }
         val volStart = SystemClock.elapsedRealtime()
-        player.volume = vIn
-        t.volume = vOut
+        val boost = 1f + MID_BOOST * sin(PI.toFloat() * progress)
+        player.volume = (sin(angle) * boost).coerceIn(0f, 1f)
+        t.volume = (cos(angle) * boost).coerceIn(0f, 1f)
         val volMs = SystemClock.elapsedRealtime() - volStart
         if (volMs > 50L) noteEvent("cambiar el volumen tardó $volMs ms")
 
@@ -678,31 +672,6 @@ class CrossfadeController(
             abortAndRestore()
         }
     }
-
-    /**
-     * Factor que corrige la curva seno/coseno para que la potencia total (salida + entrada, medidas
-     * con el nivel real de cada canción) no baje ni suba respecto a la del inicio del fundido.
-     * Devuelve 1 si no hay mediciones fiables o si la opción está apagada.
-     */
-    private fun levelCompensation(vOut: Float, vIn: Float): Float {
-        if (!settings.getBoolean(KEY_LEVEL_MATCH, true)) return 1f
-        val pt = tailPower()
-        val pm = mainPower()
-        if (fadeRefPower < POWER_FLOOR || pt < POWER_FLOOR || pm < POWER_FLOOR) {
-            // Sin medición fiable (silencio o medidor no disponible): se relaja suave hacia 1.
-            compGain += (1f - compGain) * COMP_SMOOTH
-            return compGain
-        }
-        val actual = vOut * vOut * pt + vIn * vIn * pm
-        if (actual < POWER_FLOOR) return compGain
-        val target = sqrt(fadeRefPower / actual).coerceIn(COMP_MIN, COMP_MAX)
-        compGain += (target - compGain) * COMP_SMOOTH
-        if (compGain > compMaxGain) compMaxGain = compGain
-        if (compGain < compMinGain) compMinGain = compGain
-        return compGain
-    }
-
-    private fun toDb(x: Float): Float = 20f * log10(x)
 
     // ---------------------------------------------------------------------------------------
     // Cierre suave (el usuario interrumpió el fundido)
@@ -734,6 +703,7 @@ class CrossfadeController(
 
     /** Termina (o cancela) todo: volumen principal al 100% y la cola se libera. */
     private fun abortAndRestore() {
+        handoffStartedAt = 0L
         fading = false
         settling = false
         CrossfadeSignal.fadeActive = false
@@ -745,6 +715,14 @@ class CrossfadeController(
     }
 
     private fun discardTail() {
+        if (handoffStartedAt != 0L) {
+            // Se canceló en pleno traspaso: devolver el volumen del principal.
+            handoffStartedAt = 0L
+            try {
+                player.volume = 1f
+            } catch (_: Exception) {
+            }
+        }
         tail?.let {
             try {
                 it.release()

@@ -170,18 +170,28 @@ class MusicPlayerManager(private val context: Context) {
     private var listenedAccumMs = 0L
 
     private fun incrementPlayCountForCurrent(controller: Player) {
-        controller.currentMediaItem?.mediaId?.toLongOrNull()?.let { statsRepo.incrementPlayCount(it) }
+        val songId = controller.currentMediaItem?.mediaId?.toLongOrNull() ?: return
+        // El repositorio espera a que termine la carga/migración inicial (hasta 3 s). No hacerlo
+        // dentro del listener de transición: el crossfade cambia de MediaItem en el hilo principal.
+        managerScope.launch(Dispatchers.IO) {
+            statsRepo.incrementPlayCount(songId)
+        }
     }
 
     // Vuelca a disco el tiempo acumulado (en memoria) escuchado de la canción actual.
     // Se llama antes de cambiar de canción y al liberar el manager, para no perder
     // los últimos segundos que todavía no se habían guardado.
     private fun flushListenedTime() {
-        val song = _currentSong.value
-        if (song != null && listenedAccumMs > 0L) {
-            statsRepo.addListenedTime(song.id, listenedAccumMs)
-        }
+        val songId = _currentSong.value?.id
+        val deltaMs = listenedAccumMs
         listenedAccumMs = 0L
+        if (songId != null && deltaMs > 0L) {
+            // Igual que el conteo de reproducciones: la carga inicial del store no debe bloquear
+            // el callback que procesa el cambio de canción.
+            managerScope.launch(Dispatchers.IO) {
+                statsRepo.addListenedTime(songId, deltaMs)
+            }
+        }
     }
 
     // Corre mientras el manager esté vivo: cada segundo, si hay música sonando, suma

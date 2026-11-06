@@ -46,6 +46,7 @@ import com.music.musicflame.widget.WidgetPrefs
 import android.media.AudioManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
@@ -134,6 +135,8 @@ class MusicPlaybackService : MediaSessionService() {
     private lateinit var lyricsRepo: LyricsRepository
     private lateinit var lyricsSettingsRepo: SettingsRepository
     private var currentParsedLyrics: ParsedLyrics = ParsedLyrics.EMPTY
+    private var lyricsLoadJob: Job? = null
+    private var favoriteCheckJob: Job? = null
     private var lastAppliedLyricIndex: Int = -1
     private var lyricsTickingActive = false
     private val lyricsTickHandler = Handler(Looper.getMainLooper())
@@ -231,9 +234,6 @@ class MusicPlaybackService : MediaSessionService() {
      * players. Se configuran con los ajustes actuales, con el gain de normalización de la
      * canción que está sonando y con la fase del 8D del principal (para que el paneo no salte).
      */
-    @Volatile
-    private var tailNormProcessor: VolumeNormalizationAudioProcessor? = null
-
     private fun buildTailRenderersFactory(): RenderersFactory {
         val tailEq = ProBiquadEqualizerAudioProcessor().apply {
             setProLicensed(isProEqLicensed())
@@ -250,7 +250,6 @@ class MusicPlaybackService : MediaSessionService() {
             setEnabled(sharedPrefs.getBoolean("volume_normalization_enabled", false) || trimDb != 0f)
             setGainDb(volumeNormalizationProcessor.currentGainDb() + trimDb)
         }
-        tailNormProcessor = tailNorm
         val tailSpatial = Spatial8DAudioProcessor().apply {
             setEnabled(sharedPrefs.getBoolean("audio8d_enabled", false))
             setPeriodSeconds(
@@ -372,7 +371,6 @@ class MusicPlaybackService : MediaSessionService() {
         if (cachedGainDb != null) {
             volumeNormalizationProcessor.setGainDb(cachedGainDb)
             publishNormalizationStatus("Ajuste ${formatGainDb(cachedGainDb)} (guardado)")
-            preAnalyzeNextSong()
             return
         }
 
@@ -410,48 +408,7 @@ class MusicPlaybackService : MediaSessionService() {
             if (stillSameSong) {
                 volumeNormalizationProcessor.setGainDb(gainDb)
                 publishNormalizationStatus("Ajuste ${formatGainDb(gainDb)} (nuevo)")
-                preAnalyzeNextSong()
             }
-        }
-    }
-
-    private var preAnalyzedPath: String? = null
-
-    /**
-     * CROSSFADE: analiza (en segundo plano, sin tocar el audio) la SIGUIENTE canción mientras suena
-     * la actual, para que al empezar el fundido su gain de normalización ya esté en caché. Antes,
-     * si no estaba, la canción entrante sonaba sin normalizar durante todo el fundido (el análisis
-     * esperaba a que terminara) y su volumen no coincidía con el de la que salía: se oía como
-     * un bajón o un salto al final de la mezcla.
-     */
-    private fun preAnalyzeNextSong() {
-        if (!sharedPrefs.getBoolean("volume_normalization_enabled", false)) return
-        if (!sharedPrefs.getBoolean("crossfade_enabled", false)) return
-        if (!player.hasNextMediaItem()) return
-        val nextIndex = player.nextMediaItemIndex
-        if (nextIndex == C.INDEX_UNSET) return
-        val nextId = player.getMediaItemAt(nextIndex).mediaId.toLongOrNull() ?: return
-        val nextPath = SongLibraryHolder.findById(nextId)?.path
-        if (nextPath.isNullOrEmpty() || nextPath == preAnalyzedPath) return
-        if (volumeNormalizationCacheRepo.get(nextPath) != null) return
-        preAnalyzedPath = nextPath
-        serviceScope.launch {
-            var waitedMs = 0L
-            while (CrossfadeSignal.fadeActive && waitedMs < 15_000L) {
-                kotlinx.coroutines.delay(250)
-                waitedMs += 250
-            }
-            val gainDb = withContext(Dispatchers.IO) {
-                val tid = android.os.Process.myTid()
-                val oldPriority = android.os.Process.getThreadPriority(tid)
-                android.os.Process.setThreadPriority(android.os.Process.THREAD_PRIORITY_BACKGROUND)
-                try {
-                    VolumeNormalizationAnalyzer.analyze(nextPath)
-                } finally {
-                    android.os.Process.setThreadPriority(oldPriority)
-                }
-            }
-            if (gainDb != null) volumeNormalizationCacheRepo.set(nextPath, gainDb)
         }
     }
 
@@ -519,9 +476,7 @@ class MusicPlaybackService : MediaSessionService() {
             player = player,
             settings = sharedPrefs,
             tailRenderersFactory = { buildTailRenderersFactory() },
-            tailEffectsFactory = { session -> createTailEffects(session) },
-            mainPower = { volumeNormalizationProcessor.recentPower() },
-            tailPower = { tailNormProcessor?.recentPower() ?: 0f }
+            tailEffectsFactory = { session -> createTailEffects(session) }
         )
 
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio
@@ -695,14 +650,23 @@ class MusicPlaybackService : MediaSessionService() {
 
         lastAppliedLyricIndex = -1
         WidgetPrefs.clearLyricsLines(this)
-
-        currentParsedLyrics = songId?.let { id ->
-            lyricsRepo.getLyrics(id)?.let { stored -> LyricsParser.parse(stored.raw) }
-        } ?: ParsedLyrics.EMPTY
-
         stopLyricsTicking()
-        updateLyricLinesIfNeeded(mediaId, force = true)
-        if (player.isPlaying) startLyricsTickingIfNeeded()
+        currentParsedLyrics = ParsedLyrics.EMPTY
+
+        // Leer el mapa de letras y parsear LRC puede tardar bastante en bibliotecas grandes.
+        // El cambio de MediaItem ocurre durante el crossfade, así que el trabajo va a IO.
+        lyricsLoadJob?.cancel()
+        lyricsLoadJob = serviceScope.launch {
+            val parsed = withContext(Dispatchers.IO) {
+                songId?.let { id ->
+                    lyricsRepo.getLyrics(id)?.let { stored -> LyricsParser.parse(stored.raw) }
+                } ?: ParsedLyrics.EMPTY
+            }
+            if (player.currentMediaItem?.mediaId != mediaId) return@launch
+            currentParsedLyrics = parsed
+            updateLyricLinesIfNeeded(mediaId, force = true)
+            if (player.isPlaying) startLyricsTickingIfNeeded()
+        }
     }
 
     /**
@@ -757,11 +721,23 @@ class MusicPlaybackService : MediaSessionService() {
     }
 
     private fun checkIfCurrentSongIsFavorite() {
-        val currentMediaId = player.currentMediaItem?.mediaId ?: return
+        val currentMediaId = player.currentMediaItem?.mediaId ?: run {
+            isCurrentSongFavorite = false
+            return
+        }
         val songId = currentMediaId.toLongOrNull()
 
-        isCurrentSongFavorite = songId != null && favoritesRepo.isFavorite(songId)
-        mediaSession?.setCustomLayout(getCustomLayout())
+        // FavoritesRepository.awaitLoaded() puede esperar hasta 3 s durante su migración inicial.
+        // Consultarlo en IO evita trabar el inicio audible del crossfade.
+        favoriteCheckJob?.cancel()
+        favoriteCheckJob = serviceScope.launch {
+            val isFavorite = withContext(Dispatchers.IO) {
+                songId != null && favoritesRepo.isFavorite(songId)
+            }
+            if (player.currentMediaItem?.mediaId != currentMediaId) return@launch
+            isCurrentSongFavorite = isFavorite
+            mediaSession?.setCustomLayout(getCustomLayout())
+        }
     }
 
     // --- LÓGICA DE LA NOTIFICACIÓN Y BOTONES EN 2DO PLANO ---

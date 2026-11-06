@@ -18,6 +18,7 @@ import kotlin.math.PI
 import kotlin.math.abs
 import kotlin.math.cos
 import kotlin.math.min
+import kotlin.math.pow
 import kotlin.math.sin
 
 /**
@@ -92,7 +93,11 @@ class CrossfadeController(
     /** Fábrica con la misma cadena de audio que el principal, con instancias nuevas. */
     private val tailRenderersFactory: () -> RenderersFactory,
     /** Crea los efectos nativos (EQ, graves, etc.) de la cola en SU sesión de audio. */
-    private val tailEffectsFactory: (Int) -> AutoCloseable? = { null }
+    private val tailEffectsFactory: (Int) -> AutoCloseable? = { null },
+    /** Filtro pasa-altos del principal (la que entra): se abre durante el fundido. */
+    private val mainFilter: com.music.musicflame.audio.CrossfadeFilterAudioProcessor? = null,
+    /** Proveedor del filtro pasa-bajos de la cola (la que sale): se cierra durante el fundido. */
+    private val tailFilterProvider: () -> com.music.musicflame.audio.CrossfadeFilterAudioProcessor? = { null }
 ) {
     companion object {
         private const val TAG = "Crossfade"
@@ -145,6 +150,14 @@ class CrossfadeController(
 
         /** Duración del cierre suave cuando el usuario interrumpe un fundido. */
         private const val SETTLE_MS = 250L
+
+        // Frecuencias de corte del filtro espectral del crossfade.
+        // HP (pasa-altos, canción que entra): empieza en 800 Hz y abre hasta 20 Hz.
+        // LP (pasa-bajos, canción que sale): empieza en 20 kHz y cierra hasta 300 Hz.
+        private const val HP_START_HZ = 800f
+        private const val HP_END_HZ   = 20f
+        private const val LP_START_HZ = 20000f
+        private const val LP_END_HZ   = 300f
 
         /**
          * Refuerzo del cruce contra el bajón de volumen. La curva seno/coseno deja a cada canción en
@@ -659,6 +672,7 @@ class CrossfadeController(
             val span = (fadeSongDurMs - fadeTailStartPos).coerceAtLeast(MIN_FADE_MS)
             ((t.currentPosition - fadeTailStartPos).toFloat() / span.toFloat()).coerceIn(0f, 1f)
         }
+        applyFilters(progress)
         val angle = progress * (PI / 2.0).toFloat()
         val volStart = SystemClock.elapsedRealtime()
         val boost = 1f + MID_BOOST * sin(PI.toFloat() * progress)
@@ -701,8 +715,21 @@ class CrossfadeController(
     // Limpieza
     // ---------------------------------------------------------------------------------------
 
+    /** Mueve los filtros segun el progreso del fundido (0 = recien empieza, 1 = termina). */
+    private fun applyFilters(progress: Float) {
+        val p = progress.coerceIn(0f, 1f)
+        mainFilter?.setFilter(true, HP_START_HZ * (HP_END_HZ / HP_START_HZ).pow(p))
+        tailFilterProvider()?.setFilter(true, LP_START_HZ * (LP_END_HZ / LP_START_HZ).pow(p))
+    }
+
+    private fun releaseFilters() {
+        mainFilter?.setFilter(false, HP_END_HZ)
+        tailFilterProvider()?.setFilter(false, LP_START_HZ)
+    }
+
     /** Termina (o cancela) todo: volumen principal al 100% y la cola se libera. */
     private fun abortAndRestore() {
+        releaseFilters()
         handoffStartedAt = 0L
         fading = false
         settling = false

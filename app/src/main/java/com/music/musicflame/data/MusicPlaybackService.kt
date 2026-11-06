@@ -36,6 +36,7 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
+import com.music.musicflame.audio.CrossfadeFilterAudioProcessor
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
 import com.music.musicflame.audio.Spatial8DAudioProcessor
 import com.music.musicflame.audio.VolumeNormalizationAnalyzer
@@ -107,6 +108,10 @@ class MusicPlaybackService : MediaSessionService() {
     private val volumeNormalizationProcessor = VolumeNormalizationAudioProcessor()
     // Audio 8D + balance izq/der (gratis). Va al final de la cadena, después de la normalización.
     private val spatial8dProcessor = Spatial8DAudioProcessor()
+    // Filtros del crossfade (apagados fuera del fundido): pasa-altos en el principal (la que entra)
+    // y pasa-bajos en la cola (la que sale). Van al final de cada cadena.
+    private val crossfadeMainFilter = CrossfadeFilterAudioProcessor(CrossfadeFilterAudioProcessor.Mode.HIGH_PASS)
+    @Volatile private var crossfadeTailFilter: CrossfadeFilterAudioProcessor? = null
 
     // FIX "el EQ Pro se apaga/prende solo": antes la licencia se leía de ProStatusHolder, que
     // SOLO la llena la UI (MainActivity/Theme/Ajustes). Si Android recrea este servicio sin
@@ -221,7 +226,7 @@ class MusicPlaybackService : MediaSessionService() {
                 return DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor, volumeNormalizationProcessor, spatial8dProcessor))
+                    .setAudioProcessors(arrayOf(proEqualizerAudioProcessor, volumeNormalizationProcessor, spatial8dProcessor, crossfadeMainFilter))
                     .build()
             }
         }
@@ -259,6 +264,8 @@ class MusicPlaybackService : MediaSessionService() {
             setBalance(sharedPrefs.getFloat("audio8d_balance", 0f))
             adoptPhase(spatial8dProcessor.currentPhase())
         }
+        val tailFilter = CrossfadeFilterAudioProcessor(CrossfadeFilterAudioProcessor.Mode.LOW_PASS)
+        crossfadeTailFilter = tailFilter
         return object : DefaultRenderersFactory(this) {
             override fun buildAudioSink(
                 context: Context,
@@ -268,7 +275,7 @@ class MusicPlaybackService : MediaSessionService() {
                 return DefaultAudioSink.Builder(context)
                     .setEnableFloatOutput(enableFloatOutput)
                     .setEnableAudioTrackPlaybackParams(enableAudioTrackPlaybackParams)
-                    .setAudioProcessors(arrayOf(tailEq, tailNorm, tailSpatial))
+                    .setAudioProcessors(arrayOf(tailEq, tailNorm, tailSpatial, tailFilter))
                     .build()
             }
         }
@@ -476,7 +483,9 @@ class MusicPlaybackService : MediaSessionService() {
             player = player,
             settings = sharedPrefs,
             tailRenderersFactory = { buildTailRenderersFactory() },
-            tailEffectsFactory = { session -> createTailEffects(session) }
+            tailEffectsFactory = { session -> createTailEffects(session) },
+            mainFilter = crossfadeMainFilter,
+            tailFilterProvider = { crossfadeTailFilter }
         )
 
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio

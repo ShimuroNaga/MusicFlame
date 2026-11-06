@@ -448,6 +448,40 @@ internal fun LazyListScope.settingsSongsSection(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                             }
+                            // Cuánto audio se analiza por canción: velocidad vs. precisión del final.
+                            val analysisSteps = remember { listOf(40, 60, 90, 120, 180, 240) }
+                            var analysisSeconds by remember { mutableIntStateOf(settingsRepo.getAutomixAnalysisSeconds()) }
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "Audio a analizar por canción: ${analysisSeconds / 60}:${"%02d".format(analysisSeconds % 60)} min",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                            Slider(
+                                value = analysisSteps.indexOf(analysisSeconds).coerceAtLeast(0).toFloat(),
+                                onValueChange = {
+                                    analysisSeconds = analysisSteps[Math.round(it).coerceIn(0, analysisSteps.lastIndex)]
+                                },
+                                onValueChangeFinished = { settingsRepo.saveAutomixAnalysisSeconds(analysisSeconds) },
+                                valueRange = 0f..analysisSteps.lastIndex.toFloat(),
+                                steps = analysisSteps.size - 2
+                            )
+                            val half = analysisSeconds / 2
+                            Text(
+                                "Analiza $half s del inicio y $half s del final (si la canción dura menos, la analiza entera). " +
+                                    "Tiempo de análisis ≈ ${analysisSeconds * 100 / 240} % del máximo (estimado, depende del celular). " +
+                                    when {
+                                        analysisSeconds <= 60 ->
+                                            "Muy rápido: el tempo suele salir bien, pero un cambio de ritmo a mitad de canción o un final muy distinto pueden pasar desapercibidos."
+                                        analysisSeconds <= 120 ->
+                                            "Equilibrado (recomendado): mide el tempo al inicio y confirma el último beat en el final, que es donde se hace el fundido."
+                                        else ->
+                                            "Más lento: casi toda canción se analiza completa. Ayuda poco más al fundido; úsalo si tu música cambia mucho de tempo."
+                                    } +
+                                    " Aplica a canciones nuevas; para re-analizar las ya guardadas usa \"Borrar caché de BPM\".",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                             Spacer(Modifier.height(4.dp))
                             OutlinedButton(
                                 onClick = {

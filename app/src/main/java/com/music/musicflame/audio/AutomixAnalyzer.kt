@@ -8,10 +8,12 @@ import android.media.MediaFormat
 import android.os.Handler
 import android.os.Looper
 import android.os.Process
+import android.os.SystemClock
 import android.util.Log
 import com.music.musicflame.data.AutomixCacheRepository
 import com.music.musicflame.data.AutomixData
 import com.music.musicflame.data.Song
+import com.music.musicflame.data.SettingsStore
 import java.io.File
 import java.nio.ByteOrder
 import kotlin.math.abs
@@ -60,8 +62,22 @@ object AutomixAnalyzer {
 
     private const val TARGET_RATE = 22050
 
-    /** Tope de audio que se decodifica. Más allá, el final se extrapola con el tempo medido. */
-    private const val MAX_ANALYSIS_SECONDS = 240
+    /**
+     * Presupuesto de audio que se le entrega al analizador por canción (lo elige el slider de Ajustes).
+     * Si la canción dura menos se analiza entera; si dura más se analiza la mitad del presupuesto del
+     * INICIO (tempo, fase, tonalidad) y la otra mitad del FINAL (mide el último beat en vez de
+     * extrapolarlo, y detecta cambios de tempo a mitad de canción).
+     */
+    const val PREF_ANALYSIS_SECONDS = "automix_analysis_seconds"
+    const val DEFAULT_ANALYSIS_SECONDS = 120
+    const val MIN_ANALYSIS_BUDGET_SECONDS = 40
+    const val MAX_ANALYSIS_BUDGET_SECONDS = 240
+
+    /** Archivos más largos (mixes, podcasts) solo se analizan por el inicio: no se decodifican hasta el final. */
+    private const val MAX_TAIL_FILE_SECONDS = 20 * 60
+
+    /** Con menos beats que esto en la cola, esa ventana no sirve de evidencia y se ignora. */
+    private const val MIN_TAIL_BEATS = 8
 
     /** Menos que esto no alcanza para estimar un pulso. */
     private const val MIN_ANALYSIS_SECONDS = 8
@@ -109,14 +125,19 @@ object AutomixAnalyzer {
                 val job = currentCoroutineContext()[Job]
                 val cancel: () -> Unit = { job?.ensureActive() }
                 val name = File(filePath).name
+                val budgetSec = SettingsStore.get(context.applicationContext)
+                    .getInt(PREF_ANALYSIS_SECONDS, DEFAULT_ANALYSIS_SECONDS)
+                    .coerceIn(MIN_ANALYSIS_BUDGET_SECONDS, MAX_ANALYSIS_BUDGET_SECONDS)
+                val startedAt = SystemClock.elapsedRealtime()
                 val result = mutex.withLock {
                     failReason = ""
                     AutomixStatus.set("Analizando: $name…")
-                    analyzeBlocking(filePath, modelFile, cancel)
+                    analyzeBlocking(filePath, modelFile, budgetSec, cancel)
                 }
+                val elapsedSec = (SystemClock.elapsedRealtime() - startedAt) / 1000.0
                 AutomixStatus.set(
                     if (result != null) {
-                        "Listo: $name · ${"%.1f".format(result.bpm)} BPM (confianza ${(result.confidence * 100).toInt()} %)"
+                        "Listo: $name · ${"%.1f".format(result.bpm)} BPM (confianza ${(result.confidence * 100).toInt()} %) · ${"%.1f".format(elapsedSec)} s"
                     } else {
                         "Sin datos: $name — ${failReason.ifEmpty { "motivo desconocido" }}"
                     }
@@ -176,8 +197,10 @@ object AutomixAnalyzer {
     // Análisis (bloqueante; con el mutex tomado)
     // ---------------------------------------------------------------------------------------
 
-    private fun analyzeBlocking(filePath: String, modelFile: File, cancel: () -> Unit): AutomixData? {
-        val decoded = decodeMono22050(filePath.removePrefix("file://"), cancel) ?: run {
+    private fun analyzeBlocking(filePath: String, modelFile: File, budgetSec: Int, cancel: () -> Unit): AutomixData? {
+        val headSec = budgetSec / 2
+        val tailSec = budgetSec - headSec
+        val decoded = decodeHeadTail(filePath.removePrefix("file://"), headSec, tailSec, cancel) ?: run {
             failReason = "no se pudo decodificar el audio (o dura menos de 8 s)"
             return null
         }
@@ -191,19 +214,45 @@ object AutomixAnalyzer {
             throw e
         }.also { backend = it }
 
-        val analysis = LocalSongAnalyzer(be).analyze(decoded.pcm, cancel)
-        return toAutomixData(analysis, decoded)
+        val analyzer = LocalSongAnalyzer(be)
+        val headAnalysis = analyzer.analyze(decoded.head, cancel)
+        cancel()
+        // La cola es evidencia extra: si falla por lo que sea, se sigue solo con el inicio.
+        val tailAnalysis = decoded.tail?.let { tailPcm ->
+            try {
+                analyzer.analyze(tailPcm, cancel)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                cancel() // si en realidad fue una cancelación envuelta, se propaga
+                Log.w(TAG, "No se pudo analizar el final de la canción; se usa solo el inicio", e)
+                null
+            }
+        }
+        return toAutomixData(headAnalysis, tailAnalysis, decoded)
     }
 
-    private fun toAutomixData(analysis: LocalSongAnalysis, decoded: Decoded): AutomixData? {
-        if (!analysis.pulse.quality.safeForAutomaticMix) {
+    private fun toAutomixData(head: LocalSongAnalysis, tail: LocalSongAnalysis?, decoded: Decoded): AutomixData? {
+        if (!head.pulse.quality.safeForAutomaticMix) {
             Log.w(TAG, "Rejilla de beats no apta para mezclar automáticamente")
             failReason = "rejilla de beats no apta para mezclar"
             return null
         }
-        var confidence = analysis.audio.tempoConfidence.coerceIn(0.0, 1.0)
-        val beatTimes = DoubleArray(analysis.pulse.beats.size) { analysis.pulse.beats[it].seconds }
-        val fit = fitGrid(beatTimes) ?: run {
+        var confidence = head.audio.tempoConfidence.coerceIn(0.0, 1.0)
+        val headTimes = DoubleArray(head.pulse.beats.size) { head.pulse.beats[it].seconds }
+
+        // La cola solo cuenta si su propio pulso es apto y tiene beats suficientes; sus tiempos vienen
+        // relativos al inicio de la ventana, así que se desplazan al reloj de la canción.
+        val tailTimes: DoubleArray? = if (
+            tail != null && decoded.tail != null && tail.pulse.quality.safeForAutomaticMix
+        ) {
+            DoubleArray(tail.pulse.beats.size) { tail.pulse.beats[it].seconds + decoded.tailStartSec }
+                .takeIf { it.size >= MIN_TAIL_BEATS }
+        } else {
+            null
+        }
+
+        val fit = fitGrid(headTimes, tailTimes) ?: run {
             failReason = "se detectaron muy pocos beats"
             return null
         }
@@ -213,6 +262,7 @@ object AutomixAnalyzer {
             failReason = "BPM fuera de rango (${"%.1f".format(bpm)})"
             return null
         }
+        // Con cola, el residuo también mide si el tempo se mantuvo entre el inicio y el final.
         val regular = fit.maxResidualSec <= MAX_GRID_RESIDUAL_SEC
         if (!regular) confidence *= IRREGULAR_GRID_CONFIDENCE_FACTOR
         if (confidence < MIN_CONFIDENCE) {
@@ -223,13 +273,14 @@ object AutomixAnalyzer {
         // Fase: un beat de la rejilla normalizado a [0, periodo).
         val phaseSec = ((fit.anchorSec % fit.periodSec) + fit.periodSec) % fit.periodSec
 
-        // Último beat de la canción: el observado si se analizó entera y el tempo es regular o no es
-        // extrapolable; si no, la rejilla ajustada extendida hasta el final del archivo.
+        // Último beat de la canción: si el tempo es regular, la rejilla ajustada extendida hasta el final
+        // del archivo; si no lo es (y se observó el final), el último beat realmente observado.
         val totalSec = decoded.durationMs / 1000.0
         val gridLast = fit.anchorSec + fit.periodSec * floor((totalSec - fit.anchorSec) / fit.periodSec)
-        val lastBeatSec = if (decoded.coversWholeFile && !regular) beatTimes.last() else gridLast
+        val observedLast = tailTimes?.last() ?: headTimes.last()
+        val lastBeatSec = if ((decoded.coversWholeFile || tailTimes != null) && !regular) observedLast else gridLast
 
-        val key = KEY_NAMES.indexOf(analysis.audio.keyEstimate.trim().substringBefore(' '))
+        val key = KEY_NAMES.indexOf(head.audio.keyEstimate.trim().substringBefore(' '))
         return AutomixData(
             bpm = bpm.toFloat(),
             key = key,
@@ -242,45 +293,114 @@ object AutomixAnalyzer {
     private class GridFit(val periodSec: Double, val anchorSec: Double, val maxResidualSec: Double)
 
     /**
-     * Ajusta t = ancla + periodo * k por mínimos cuadrados, asignando a cada beat su índice k según
-     * el intervalo mediano (así tolera beats faltantes). Da un BPM mucho más fino que 60 / mediana.
+     * Ajusta t = ancla + periodo * k por mínimos cuadrados.
+     *
+     * Los beats de Beat This! salen cuantizados a 20 ms (frame / 50), así que la mediana de intervalos
+     * puede errar por varios ms. Si el índice k se calculara como round((t - t0) / mediana), ese error
+     * se acumularía beat a beat y el ajuste daría BPM desviados 1-3 y residuos enormes. Por eso k se
+     * obtiene sumando el entero más cercano de cada intervalo consecutivo (tolera beats faltantes y no
+     * acumula el error del periodo).
+     *
+     * [tailTimes] (ventana del final, ya en el reloj de la canción) se engancha a la rejilla del inicio:
+     * su primer k sale del periodo ajustado en la cabeza, que es mucho más preciso que la mediana.
      */
-    private fun fitGrid(times: DoubleArray): GridFit? {
-        if (times.size < 8) return null
-        val diffs = DoubleArray(times.size - 1) { times[it + 1] - times[it] }.also { it.sort() }
+    private fun fitGrid(headTimes: DoubleArray, tailTimes: DoubleArray?): GridFit? {
+        if (headTimes.size < 8) return null
+        val diffs = DoubleArray(headTimes.size - 1) { headTimes[it + 1] - headTimes[it] }.also { it.sort() }
         val p0 = diffs[diffs.size / 2]
         if (p0 <= 0.0) return null
-        val n = times.size.toDouble()
+
+        val cap = headTimes.size + (tailTimes?.size ?: 0)
+        val ts = DoubleArray(cap)
+        val ks = DoubleArray(cap)
+        ts[0] = headTimes[0]
+        ks[0] = 0.0
+        var n = 1
+        for (i in 1 until headTimes.size) {
+            val step = round((headTimes[i] - headTimes[i - 1]) / p0)
+            if (step < 1.0) continue // beat espurio pegado al anterior: no entra al ajuste
+            ts[n] = headTimes[i]
+            ks[n] = ks[n - 1] + step
+            n++
+        }
+        val headFit = leastSquares(ts, ks, n) ?: return null
+        var period = headFit.first
+        var anchor = headFit.second
+
+        if (tailTimes != null && tailTimes.isNotEmpty()) {
+            var prevT = Double.NaN
+            var prevK = 0.0
+            for (i in tailTimes.indices) {
+                val t = tailTimes[i]
+                val k = if (i == 0) {
+                    round((t - anchor) / period)
+                } else {
+                    val step = round((t - prevT) / period)
+                    if (step < 1.0) continue
+                    prevK + step
+                }
+                ts[n] = t
+                ks[n] = k
+                n++
+                prevT = t
+                prevK = k
+            }
+            val all = leastSquares(ts, ks, n) ?: return null
+            period = all.first
+            anchor = all.second
+        }
+        if (period <= 0.0) return null
+
+        var maxRes = 0.0
+        for (i in 0 until n) maxRes = max(maxRes, abs(ts[i] - (anchor + period * ks[i])))
+        return GridFit(period, anchor, maxRes)
+    }
+
+    /** Regresión t = ancla + periodo * k. Devuelve (periodo, ancla) o null si degenera. */
+    private fun leastSquares(ts: DoubleArray, ks: DoubleArray, n: Int): Pair<Double, Double>? {
+        if (n < 2) return null
         var sumK = 0.0
         var sumT = 0.0
         var sumKK = 0.0
         var sumKT = 0.0
-        val ks = DoubleArray(times.size)
-        for (i in times.indices) {
-            val k = round((times[i] - times[0]) / p0)
-            ks[i] = k
-            sumK += k
-            sumT += times[i]
-            sumKK += k * k
-            sumKT += k * times[i]
+        for (i in 0 until n) {
+            sumK += ks[i]
+            sumT += ts[i]
+            sumKK += ks[i] * ks[i]
+            sumKT += ks[i] * ts[i]
         }
-        val denom = n * sumKK - sumK * sumK
+        val nd = n.toDouble()
+        val denom = nd * sumKK - sumK * sumK
         if (denom <= 0.0) return null
-        val period = (n * sumKT - sumK * sumT) / denom
+        val period = (nd * sumKT - sumK * sumT) / denom
         if (period <= 0.0) return null
-        val anchor = (sumT - period * sumK) / n
-        var maxRes = 0.0
-        for (i in times.indices) maxRes = max(maxRes, abs(times[i] - (anchor + period * ks[i])))
-        return GridFit(period, anchor, maxRes)
+        return Pair(period, (sumT - period * sumK) / nd)
     }
 
     // ---------------------------------------------------------------------------------------
     // Decodificación: MediaCodec -> mono -> 22050 Hz
     // ---------------------------------------------------------------------------------------
 
-    private class Decoded(val pcm: FloatArray, val coversWholeFile: Boolean, val durationMs: Long)
+    /**
+     * [head]: PCM mono 22050 Hz del inicio. [tail]: PCM de la ventana final (null si la canción cabe
+     * entera en [head] o el archivo es demasiado largo), que empieza en [tailStartSec] del reloj de la
+     * canción. [coversWholeFile]: [head] ES la canción completa.
+     */
+    private class Decoded(
+        val head: FloatArray,
+        val tail: FloatArray?,
+        val tailStartSec: Double,
+        val coversWholeFile: Boolean,
+        val durationMs: Long
+    )
 
-    private fun decodeMono22050(filePath: String, cancel: () -> Unit): Decoded? {
+    /**
+     * Decodifica en orden (sin seek: el reloj sale de contar muestras, así que no hereda el error de
+     * búsqueda de los mp3 VBR sin tabla TOC) y remuestrea el archivo entero en streaming, pero SOLO
+     * conserva los primeros [headSec] s y los últimos [tailSec] s. El analizador (lo caro) nunca ve el
+     * medio de la canción.
+     */
+    private fun decodeHeadTail(filePath: String, headSec: Int, tailSec: Int, cancel: () -> Unit): Decoded? {
         var extractor: MediaExtractor? = null
         var codec: MediaCodec? = null
         try {
@@ -302,19 +422,24 @@ object AutomixAnalyzer {
             var pcmFloat = false
             var resampler: StreamingResampler? = null
 
-            val maxOutSamples = TARGET_RATE * MAX_ANALYSIS_SECONDS
-            val expected = if (declaredDurationUs > 0) {
-                min(declaredDurationUs / 1_000_000.0 * TARGET_RATE, maxOutSamples.toDouble()).toInt()
+            val headCap = TARGET_RATE * headSec
+            val tailEnabled = tailSec > 0 &&
+                (declaredDurationUs <= 0L || declaredDurationUs <= MAX_TAIL_FILE_SECONDS * 1_000_000L)
+            val tailCap = if (tailEnabled) TARGET_RATE * tailSec else 0
+            val expectedHead = if (declaredDurationUs > 0) {
+                min(declaredDurationUs / 1_000_000.0 * TARGET_RATE, headCap.toDouble()).toInt()
             } else {
                 TARGET_RATE * 60
             }
-            val sink = FloatSink(expected + 4096)
+            val sink = HeadTailSink(headCap, tailCap, expectedHead + 4096)
             var mono = FloatArray(8192)
 
-            val maxInputUs = MAX_ANALYSIS_SECONDS * 1_000_000L
+            // Con cola se decodifica hasta el final (con tope); sin ella, solo hasta llenar la cabeza.
+            val maxInputUs = (if (tailEnabled) MAX_TAIL_FILE_SECONDS else headSec) * 1_000_000L
             var sawInputEos = false
             var sawOutputEos = false
             var coversWhole = false
+            var truncated = false
             val info = MediaCodec.BufferInfo()
 
             while (!sawOutputEos) {
@@ -330,6 +455,7 @@ object AutomixAnalyzer {
                             codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             sawInputEos = true
                         } else if (timeUs > maxInputUs) {
+                            if (tailEnabled) truncated = true // no se llegó al final real: no hay cola válida
                             codec.queueInputBuffer(inIdx, 0, 0, 0, MediaCodec.BUFFER_FLAG_END_OF_STREAM)
                             sawInputEos = true
                         } else {
@@ -385,16 +511,36 @@ object AutomixAnalyzer {
                         }
                         codec.releaseOutputBuffer(outIdx, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEos = true
-                        if (sink.size >= maxOutSamples) break // tope de memoria alcanzado
+                        if (!tailEnabled && sink.headFull) break // sin cola: con la cabeza llena ya no hace falta más
                     }
                 }
             }
             resampler?.finish(sink)
 
-            if (sink.size < TARGET_RATE * MIN_ANALYSIS_SECONDS) return null
-            val pcmDurationMs = sink.size * 1000L / TARGET_RATE
+            val total = sink.total
+            if (total < TARGET_RATE * MIN_ANALYSIS_SECONDS) return null
+            val pcmDurationMs = total * 1000L / TARGET_RATE
             val durationMs = if (declaredDurationUs > 0) declaredDurationUs / 1000L else pcmDurationMs
-            return Decoded(sink.toArray(), coversWhole && sink.size < maxOutSamples, durationMs)
+            val headArr = sink.headArray()
+            val rest = total - headArr.size
+
+            return when {
+                // Cabió entera en la cabeza.
+                rest <= 0L -> Decoded(headArr, null, 0.0, coversWhole && !truncated, durationMs)
+                // Sin cola (archivo larguísimo o presupuesto sin cola): solo el inicio, el final se extrapola.
+                !tailEnabled || truncated -> Decoded(headArr, null, 0.0, false, durationMs)
+                // Cabeza + final se tocan: es la canción completa y continua (sin costura entre ventanas).
+                rest <= tailCap -> Decoded(headArr + sink.tailArray(), null, 0.0, coversWhole, durationMs)
+                // Canción larga: inicio + final, con un hueco en medio que nunca se analiza.
+                else -> {
+                    val tail = sink.tailArray()
+                    if (tail.size < TARGET_RATE * MIN_ANALYSIS_SECONDS) {
+                        Decoded(headArr, null, 0.0, false, durationMs)
+                    } else {
+                        Decoded(headArr, tail, (total - tail.size).toDouble() / TARGET_RATE, false, durationMs)
+                    }
+                }
+            }
         } finally {
             try { codec?.stop() } catch (e: Exception) { }
             try { codec?.release() } catch (e: Exception) { }
@@ -427,6 +573,48 @@ object AutomixAnalyzer {
         }
 
         fun toArray(): FloatArray = if (size == data.size) data else data.copyOf(size)
+    }
+
+    /**
+     * Receptor del PCM remuestreado: guarda los primeros [headCap] samples y, en un anillo, los últimos
+     * [tailCap]. Memoria acotada (presupuesto de audio), sin importar cuánto dure el archivo.
+     */
+    private class HeadTailSink(private val headCap: Int, private val tailCap: Int, headExpected: Int) {
+        private val head = FloatSink(max(min(headExpected, headCap), 1024))
+        private val ring = FloatArray(tailCap)
+        private var ringPos = 0
+        private var ringCount = 0
+
+        /** Samples recibidos en total (cabeza + medio + cola). */
+        var total = 0L
+            private set
+
+        val headFull: Boolean get() = head.size >= headCap
+
+        fun add(v: Float) {
+            total++
+            if (head.size < headCap) {
+                head.add(v)
+            } else if (tailCap > 0) {
+                ring[ringPos] = v
+                ringPos = if (ringPos + 1 == tailCap) 0 else ringPos + 1
+                if (ringCount < tailCap) ringCount++
+            }
+        }
+
+        fun addAll(src: FloatArray, n: Int) {
+            for (i in 0 until n) add(src[i])
+        }
+
+        fun headArray(): FloatArray = head.toArray()
+
+        /** Los últimos samples guardados, en orden temporal. */
+        fun tailArray(): FloatArray {
+            val out = FloatArray(ringCount)
+            val start = if (ringCount < tailCap) 0 else ringPos
+            for (i in 0 until ringCount) out[i] = ring[(start + i) % tailCap]
+            return out
+        }
     }
 
     /**
@@ -465,7 +653,7 @@ object AutomixAnalyzer {
         private var total = 0L    // muestras de entrada recibidas
         private var nextOut = 0L
 
-        fun push(src: FloatArray, n: Int, sink: FloatSink) {
+        fun push(src: FloatArray, n: Int, sink: HeadTailSink) {
             if (bufLen + n > buf.size) buf = buf.copyOf(max(bufLen + n, buf.size * 2))
             System.arraycopy(src, 0, buf, bufLen, n)
             bufLen += n
@@ -473,9 +661,9 @@ object AutomixAnalyzer {
             produce(sink, isFinal = false)
         }
 
-        fun finish(sink: FloatSink) = produce(sink, isFinal = true)
+        fun finish(sink: HeadTailSink) = produce(sink, isFinal = true)
 
-        private fun produce(sink: FloatSink, isFinal: Boolean) {
+        private fun produce(sink: HeadTailSink, isFinal: Boolean) {
             while (true) {
                 val x = nextOut * step
                 val hi = floor(x + radius).toLong()

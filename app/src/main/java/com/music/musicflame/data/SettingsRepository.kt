@@ -190,6 +190,12 @@ class SettingsRepository(context: Context) {
     fun getAutomixEnabled(): Boolean = prefs.getBoolean("automix_enabled", false)
     fun saveAutomixEnabled(enabled: Boolean) = prefs.edit().putBoolean("automix_enabled", enabled).apply()
 
+    /** AUTOMIX: segundos de audio que se analizan por canción (mitad inicio, mitad final). Ver AutomixAnalyzer. */
+    fun getAutomixAnalysisSeconds(): Int =
+        prefs.getInt("automix_analysis_seconds", 120).coerceIn(40, 240)
+    fun saveAutomixAnalysisSeconds(seconds: Int) =
+        prefs.edit().putInt("automix_analysis_seconds", seconds.coerceIn(40, 240)).apply()
+
     // --- ECUALIZADOR Y AUDIO PRO ---
     fun getEqPresetSelected(): String = prefs.getString("eq_preset_selected", "Flat") ?: "Flat"
     fun saveEqPresetSelected(preset: String) = prefs.edit().putString("eq_preset_selected", preset).apply()

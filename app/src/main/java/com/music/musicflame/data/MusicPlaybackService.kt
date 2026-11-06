@@ -36,6 +36,8 @@ import com.google.common.collect.ImmutableList
 import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
+import com.music.musicflame.audio.AutomixAnalyzer
+import com.music.musicflame.audio.AutomixModelManager
 import com.music.musicflame.audio.CrossfadeFilterAudioProcessor
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
 import com.music.musicflame.audio.Spatial8DAudioProcessor
@@ -131,6 +133,10 @@ class MusicPlaybackService : MediaSessionService() {
     // propio del servicio para poder analizar canciones en segundo plano (Dispatchers.IO)
     // sin bloquear el hilo principal ni el de audio. Se cancela en onDestroy().
     private lateinit var volumeNormalizationCacheRepo: VolumeNormalizationCacheRepository
+
+    // AUTOMIX: caché de BPM/beat por canción y el trabajo de pre-análisis en segundo plano.
+    private lateinit var automixCacheRepo: AutomixCacheRepository
+    private var automixJob: Job? = null
     private val serviceJob = SupervisorJob()
     private val serviceScope = CoroutineScope(Dispatchers.Main + serviceJob)
 
@@ -170,6 +176,8 @@ class MusicPlaybackService : MediaSessionService() {
     private val eqUpdateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             if (intent?.action == "com.music.musicflame.UPDATE_EQ") {
+                // AUTOMIX: el switch de Ajustes avisa por aquí (no cuesta nada si no viene el extra).
+                if (intent.getBooleanExtra("automix_changed", false)) onAutomixSettingChanged()
                 if (intent.hasExtra("bass_boost")) {
                     currentBass = intent.getFloatExtra("bass_boost", 0f)
                     currentVirtualizer = intent.getFloatExtra("virtualizer", 0f)
@@ -419,6 +427,85 @@ class MusicPlaybackService : MediaSessionService() {
         }
     }
 
+    // ---------------------------------------------------------------------------------------
+    // AUTOMIX: pre-análisis de BPM/beat en segundo plano
+    // ---------------------------------------------------------------------------------------
+
+    /** Al arrancar el servicio: si AutoMix está activo, baja el modelo (una vez) y calienta el caché fuera del hilo principal. */
+    private fun warmUpAutomix() {
+        if (!sharedPrefs.getBoolean("automix_enabled", false)) return
+        serviceScope.launch {
+            withContext(Dispatchers.IO) { automixCacheRepo.countAnalyzed() } // parsea el JSON ya, no en el tick del fundido
+            AutomixModelManager.ensureModel(applicationContext)
+        }
+    }
+
+    /** El switch de AutoMix cambió en Ajustes. */
+    private fun onAutomixSettingChanged() {
+        if (sharedPrefs.getBoolean("automix_enabled", false)) {
+            warmUpAutomix()
+            scheduleAutomixAnalysis()
+        } else {
+            automixJob?.cancel()
+        }
+    }
+
+    private fun automixPathOf(item: MediaItem?): String? =
+        item?.mediaId?.toLongOrNull()
+            ?.let { SongLibraryHolder.findById(it)?.path }
+            ?.takeIf { it.isNotEmpty() }
+
+    /**
+     * Analiza en segundo plano la canción que suena y la SIGUIENTE (el fundido necesita los datos de
+     * las dos, y la siguiente aún no ha sonado nunca). Si ya hay datos (aunque sean de baja confianza
+     * o un intento fallido) no hace nada; si hay un fundido en curso, espera a que termine.
+     */
+    private fun scheduleAutomixAnalysis() {
+        if (!sharedPrefs.getBoolean("automix_enabled", false)) return
+        if (!::player.isInitialized) return
+        val currentPath = automixPathOf(player.currentMediaItem)
+        val nextIndex = player.nextMediaItemIndex
+        val nextPath = if (nextIndex != C.INDEX_UNSET) automixPathOf(player.getMediaItemAt(nextIndex)) else null
+
+        automixJob?.cancel()
+        automixJob = serviceScope.launch {
+            publishAutomixDiag(currentPath, nextPath)
+            for (path in listOfNotNull(currentPath, nextPath).distinct()) {
+                if (withContext(Dispatchers.IO) { automixCacheRepo.has(path) }) continue
+                var waitedMs = 0L
+                while (CrossfadeSignal.fadeActive && waitedMs < 15_000L) {
+                    kotlinx.coroutines.delay(250)
+                    waitedMs += 250
+                }
+                // analyze() corre en IO con prioridad de fondo y nunca lanza (salvo cancelación).
+                val data = AutomixAnalyzer.analyze(path, applicationContext)
+                // Si se canceló (el usuario saltó de canción), no es un fallo del archivo: no se marca.
+                if (coroutineContext[Job]?.isActive == false) return@launch
+                when {
+                    data != null -> automixCacheRepo.set(path, data)
+                    // Falló con el modelo ya disponible: se anota para no reintentar en cada reproducción.
+                    AutomixModelManager.isReady(applicationContext) -> automixCacheRepo.set(path, AutomixData.UNUSABLE)
+                }
+                publishAutomixDiag(currentPath, nextPath)
+            }
+        }
+    }
+
+    /** Escribe "BPM|confianza%" de la actual y la siguiente para la línea de diagnóstico de Ajustes. */
+    private fun publishAutomixDiag(currentPath: String?, nextPath: String?) {
+        fun fmt(path: String?): String {
+            val d = path?.let { automixCacheRepo.get(it) } ?: return ""
+            return String.format(java.util.Locale.US, "%.1f|%d", d.bpm, (d.confidence * 100).toInt())
+        }
+        try {
+            sharedPrefs.edit()
+                .putString("automix_diag_current", fmt(currentPath))
+                .putString("automix_diag_next", fmt(nextPath))
+                .apply()
+        } catch (_: Exception) {
+        }
+    }
+
     // ACTION_SCREEN_OFF/ON son "implicit broadcasts": Android ya no los entrega a
     // receivers declarados en el Manifest desde la API 26, así que SÍ o SÍ hay que
     // registrarlos así, en runtime, igual que noisyReceiver de arriba.
@@ -438,6 +525,7 @@ class MusicPlaybackService : MediaSessionService() {
         lyricsRepo = LyricsRepository(this)
         lyricsSettingsRepo = SettingsRepository(this)
         volumeNormalizationCacheRepo = VolumeNormalizationCacheRepository(this)
+        automixCacheRepo = AutomixCacheRepository(this)
         syncProEqualizerState()
 
         // Cargar valores iniciales
@@ -485,8 +573,11 @@ class MusicPlaybackService : MediaSessionService() {
             tailRenderersFactory = { buildTailRenderersFactory() },
             tailEffectsFactory = { session -> createTailEffects(session) },
             mainFilter = crossfadeMainFilter,
-            tailFilterProvider = { crossfadeTailFilter }
+            tailFilterProvider = { crossfadeTailFilter },
+            automixEnabled = { sharedPrefs.getBoolean("automix_enabled", false) },
+            automixCacheRepo = automixCacheRepo
         )
+        warmUpAutomix()
 
         // Listener para actualizar efectos y refrescar la notificación si el estado cambia por otro medio
         player.addListener(object : Player.Listener {
@@ -548,6 +639,7 @@ class MusicPlaybackService : MediaSessionService() {
                 syncWidgetState()
                 loadLyricsForCurrentSong()
                 applyVolumeNormalizationForCurrentSong()
+                scheduleAutomixAnalysis()
                 // Barato (un boolean + 11 floats de SharedPreferences) y cubre el caso de
                 // que la licencia se haya activado a media sesión sin pasar por el broadcast
                 // UPDATE_EQ (ej. justo después de validar una key nueva en Ajustes).
@@ -1089,6 +1181,7 @@ class MusicPlaybackService : MediaSessionService() {
         // en segundo plano — si no, quedaría una coroutine viva intentando decodificar un
         // archivo aunque el servicio (y el player) ya no existan.
         serviceScope.cancel()
+        AutomixAnalyzer.release()
         // Antes de liberar el player: el controlador toca su volumen y libera su reproductor "cola".
         crossfadeController?.release()
         crossfadeController = null

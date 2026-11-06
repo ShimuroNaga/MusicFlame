@@ -104,6 +104,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -395,6 +396,156 @@ internal fun LazyListScope.settingsSongsSection(
                         fontSize = 11.sp,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    // AUTOMIX: iguala tempo y beat al hacer el fundido (BeatWeave + velocidad de ExoPlayer).
+                    var automixOn by remember { mutableStateOf(settingsRepo.getAutomixEnabled()) }
+                    ListItem(
+                        headlineContent = { Text("AutoMix") },
+                        supportingContent = { Text("Sincroniza el tempo y el beat al hacer el fundido") },
+                        trailingContent = {
+                            Switch(
+                                checked = automixOn,
+                                onCheckedChange = { on ->
+                                    automixOn = on
+                                    settingsRepo.saveAutomixEnabled(on)
+                                    // Avisa al servicio (descarga el modelo y analiza la canción actual).
+                                    context.sendBroadcast(
+                                        android.content.Intent("com.music.musicflame.UPDATE_EQ")
+                                            .setPackage(context.packageName)
+                                            .putExtra("automix_changed", true)
+                                    )
+                                }
+                            )
+                        },
+                        colors = style.listItemColors
+                    )
+                    AnimatedVisibility(visible = automixOn) {
+                        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+                            val automixCache = remember { com.music.musicflame.data.AutomixCacheRepository(context) }
+                            var analyzedCount by remember { mutableIntStateOf(0) }
+                            val libraryTotal = com.music.musicflame.data.SongLibraryHolder.songs.size
+                            val libraryRunning by com.music.musicflame.audio.AutomixLibraryAnalysis.running.collectAsState()
+                            val libraryProgress by com.music.musicflame.audio.AutomixLibraryAnalysis.progress.collectAsState()
+
+                            // Contador: se refresca cada 3 s (el análisis ocurre en segundo plano).
+                            LaunchedEffect(Unit) {
+                                while (true) {
+                                    analyzedCount = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                                        automixCache.countAnalyzed()
+                                    }
+                                    kotlinx.coroutines.delay(3000)
+                                }
+                            }
+                            Text(
+                                "Analizadas: $analyzedCount / $libraryTotal canciones (el resto se analiza al reproducirse)",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            val automixStatus by com.music.musicflame.audio.AutomixStatus.text.collectAsState()
+                            if (automixStatus.isNotEmpty()) {
+                                Text(
+                                    automixStatus,
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                            Spacer(Modifier.height(4.dp))
+                            OutlinedButton(
+                                onClick = {
+                                    com.music.musicflame.audio.AutomixLibraryAnalysis.start(
+                                        context,
+                                        com.music.musicflame.data.SongLibraryHolder.songs,
+                                        automixCache
+                                    )
+                                },
+                                enabled = !libraryRunning
+                            ) {
+                                Text("Analizar biblioteca completa")
+                            }
+                            if (libraryRunning) {
+                                Spacer(Modifier.height(4.dp))
+                                androidx.compose.material3.LinearProgressIndicator(
+                                    progress = { libraryProgress },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                                TextButton(onClick = { com.music.musicflame.audio.AutomixLibraryAnalysis.cancel() }) {
+                                    Text("Cancelar análisis", fontSize = 12.sp)
+                                }
+                            }
+                            TextButton(
+                                onClick = {
+                                    automixCache.clearAll()
+                                    analyzedCount = 0
+                                }
+                            ) {
+                                Text("Borrar caché de BPM", fontSize = 12.sp)
+                            }
+
+                            // Diagnóstico de AutoMix: solo en builds de depuración o para la cuenta dueña.
+                            val showAutomixDiag = remember {
+                                com.music.musicflame.BuildConfig.DEBUG ||
+                                        com.music.musicflame.data.LicenseRepository(context).isOwnerAccount()
+                            }
+                            if (showAutomixDiag) {
+                                val diagStore = remember { com.music.musicflame.data.SettingsStore.get(context) }
+                                var diagCurrent by remember { mutableStateOf("") }
+                                var diagNext by remember { mutableStateOf("") }
+                                var diagPlan by remember { mutableStateOf("") }
+                                var phaseOffsetMs by remember { mutableStateOf(diagStore.getFloat("automix_phase_offset_ms", 0f)) }
+                                LaunchedEffect(Unit) {
+                                    while (true) {
+                                        diagCurrent = diagStore.getString("automix_diag_current", null) ?: ""
+                                        diagNext = diagStore.getString("automix_diag_next", null) ?: ""
+                                        diagPlan = diagStore.getString("automix_diag_plan", null) ?: ""
+                                        kotlinx.coroutines.delay(1000)
+                                    }
+                                }
+                                val cur = diagCurrent.split('|')
+                                val nxt = diagNext.split('|')
+                                val curBpm = cur.getOrNull(0)?.toFloatOrNull()
+                                val nxtBpm = nxt.getOrNull(0)?.toFloatOrNull()
+                                val ratioTxt = if (curBpm != null && nxtBpm != null && curBpm > 0f) {
+                                    String.format(java.util.Locale.US, "%.2fx", nxtBpm / curBpm)
+                                } else "—"
+                                Text(
+                                    "BPM actual: ${curBpm?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "—"}" +
+                                            " · siguiente: ${nxtBpm?.let { String.format(java.util.Locale.US, "%.1f", it) } ?: "—"}" +
+                                            " · ratio: $ratioTxt",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                val plan = diagPlan.split('|')
+                                val planText = when {
+                                    diagPlan.isEmpty() -> "Cue point: — (aún sin fundido)"
+                                    plan[0] == "NOTE" -> plan.drop(1).joinToString("|")
+                                    else -> {
+                                        val cueS = (plan.getOrNull(1)?.toLongOrNull() ?: 0L) / 1000L
+                                        val err = plan.getOrNull(5)?.takeIf { it != "-" }?.let { " · desfase de beat: $it ms" } ?: ""
+                                        String.format(
+                                            java.util.Locale.US, "Cue point: %02d:%02d:%02d · confianza: %s%%%s",
+                                            cueS / 3600, (cueS % 3600) / 60, cueS % 60, plan.getOrNull(4) ?: "?", err
+                                        )
+                                    }
+                                }
+                                Text(planText, fontSize = 11.sp, color = MaterialTheme.colorScheme.primary)
+                                Text(
+                                    "Ajuste de fase del beat: " + String.format(java.util.Locale.US, "%+.0f", phaseOffsetMs) +
+                                            " ms (si el beat de la cola suena siempre adelantado/atrasado, corrígelo aquí; aplica en el siguiente fundido)",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                androidx.compose.material3.Slider(
+                                    value = phaseOffsetMs,
+                                    onValueChange = { phaseOffsetMs = kotlin.math.round(it / 5f) * 5f },
+                                    onValueChangeFinished = {
+                                        diagStore.edit().putFloat("automix_phase_offset_ms", phaseOffsetMs).apply()
+                                    },
+                                    valueRange = -150f..150f,
+                                    steps = 59
+                                )
+                            }
+                            Spacer(Modifier.height(6.dp))
+                        }
+                    }
                     // Diagnóstico: solo en builds de depuración o para la cuenta dueña.
                     val showCrossfadeDiag = remember {
                         com.music.musicflame.BuildConfig.DEBUG ||

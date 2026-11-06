@@ -142,6 +142,11 @@ dependencies {
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
     // Escucha siempre: modelos de huellas de voz (assets/wake) ejecutados con ONNX Runtime
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
+    // AutoMix: análisis de BPM / tonalidad / beats con BeatWeave (módulos MIT). NO se usa el módulo
+    // "rubberband" (GPL-2.0): el stretch de la cola lo hace ExoPlayer (Sonic, Apache-2.0).
+    // OJO: BeatWeave trae onnxruntime-android 1.22.0, así que Gradle subirá la 1.20.0 de arriba a 1.22.0.
+    implementation("io.github.adrielggmotion.beatweave:analysis:0.10.0")
+    implementation("io.github.adrielggmotion.beatweave:learned-beats:0.10.0")
     implementation("com.google.accompanist:accompanist-permissions:0.34.0")
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")

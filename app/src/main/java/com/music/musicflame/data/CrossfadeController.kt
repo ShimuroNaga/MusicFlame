@@ -9,6 +9,7 @@ import androidx.media3.common.AudioAttributes
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.PlaybackException
+import androidx.media3.common.PlaybackParameters
 import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
@@ -16,9 +17,12 @@ import androidx.media3.exoplayer.RenderersFactory
 import androidx.media3.exoplayer.analytics.AnalyticsListener
 import kotlin.math.PI
 import kotlin.math.abs
+import kotlin.math.ceil
 import kotlin.math.cos
+import kotlin.math.floor
 import kotlin.math.min
 import kotlin.math.pow
+import kotlin.math.round
 import kotlin.math.sin
 
 /**
@@ -84,6 +88,16 @@ object CrossfadeSignal {
  * canciones en la cola, sin "repetir una", fuera de salas En compañía y fuera del sleep timer
  * "al terminar la canción". En cualquier otro caso la transición es la de siempre. Las canciones
  * cortas usan un fundido proporcionalmente más corto (nunca más de 1/4 de su duración).
+ *
+ * AUTOMIX (opcional, dentro de este mismo controlador): si está activado y hay datos de BPM/beat de
+ * AMBAS canciones (AutomixCacheRepository, los llena el servicio en segundo plano con BeatWeave):
+ *  1. Si los tempos difieren menos de MAX_TEMPO_DIFF_PCT, la COLA (la que sale) se estira al tempo de
+ *     la que entra con la velocidad de ExoPlayer (Sonic, pitch intacto). El principal NO se toca.
+ *  2. El inicio del fundido se retrasa, como mucho un beat, hasta que un beat de la cola caiga sobre
+ *     el primer beat de la que entra.
+ *  3. Ya sonando las dos, un lazo de fase (PLL) corrige el desfase restante con ajustes de velocidad
+ *     de como mucho +-4% (el desfase se mide con las posiciones reales de ambos reproductores).
+ * Si falta cualquier dato, o BeatWeave falló, el fundido es EXACTAMENTE el de siempre.
  */
 @UnstableApi
 class CrossfadeController(
@@ -97,7 +111,11 @@ class CrossfadeController(
     /** Filtro pasa-altos del principal (la que entra): se abre durante el fundido. */
     private val mainFilter: com.music.musicflame.audio.CrossfadeFilterAudioProcessor? = null,
     /** Proveedor del filtro pasa-bajos de la cola (la que sale): se cierra durante el fundido. */
-    private val tailFilterProvider: () -> com.music.musicflame.audio.CrossfadeFilterAudioProcessor? = { null }
+    private val tailFilterProvider: () -> com.music.musicflame.audio.CrossfadeFilterAudioProcessor? = { null },
+    /** AUTOMIX: ¿está activado en Ajustes? */
+    private val automixEnabled: () -> Boolean = { false },
+    /** AUTOMIX: caché de BPM/beat por canción (la llena el servicio en segundo plano). */
+    private val automixCacheRepo: AutomixCacheRepository? = null
 ) {
     companion object {
         private const val TAG = "Crossfade"
@@ -177,6 +195,39 @@ class CrossfadeController(
          * tiempo (es el MISMO audio en los dos, así que la suma lineal no cambia el volumen).
          */
         private const val HANDOFF_MS = 80L
+
+        // --- AUTOMIX ---
+        /** Si los BPM difieren más que esto (8 %), no hay beat matching: fundido normal. */
+        private const val MAX_TEMPO_DIFF_PCT = 0.08f
+
+        /** Confianza mínima del análisis de AMBAS canciones. */
+        private const val MIN_AUTOMIX_CONFIDENCE = 0.70f
+
+        /** Retraso inicial estimado entre disparar el fundido y que el principal suene (traspaso + arranque). Se aprende. */
+        private const val AUTOMIX_DEFAULT_DELAY_MS = 230L
+        private const val AUTOMIX_MIN_DELAY_MS = 80L
+        private const val AUTOMIX_MAX_DELAY_MS = 1500L
+
+        /** Cuánto se puede retrasar el fundido esperando el beat (como mucho ~1 beat). */
+        private const val AUTOMIX_MAX_ALIGN_WAIT_MS = 1200L
+
+        /** Si tras esperar el beat quedaría menos que esto de canción, no se alinea. */
+        private const val AUTOMIX_MIN_REMAINING_AFTER_WAIT_MS = 1500L
+
+        /** Margen para no apuntar a un beat que ya pasó mientras corre el tick. */
+        private const val AUTOMIX_TRIGGER_GUARD_MS = 30L
+
+        // Lazo de fase: cada PLL_INTERVAL_MS mide el desfase de beat y ajusta la velocidad de la cola.
+        private const val PLL_START_DELAY_MS = 500L
+        private const val PLL_INTERVAL_MS = 500L
+        private const val PLL_WINDOW_MS = 1500f
+        private const val PLL_MAX_TRIM = 0.04f
+        private const val PLL_DEADBAND_MS = 8f
+        private const val PLL_STOP_PROGRESS = 0.85f
+
+        private const val KEY_AUTOMIX_DELAY = "automix_delay_ms"
+        private const val KEY_AUTOMIX_PHASE_OFFSET = "automix_phase_offset_ms"
+        private const val KEY_AUTOMIX_PLAN_DIAG = "automix_diag_plan"
     }
 
     private val handler = Handler(Looper.getMainLooper())
@@ -232,6 +283,27 @@ class CrossfadeController(
     private var lastFadeTickAt = 0L
     private val fadeEvents = StringBuilder()
     private var lastFadeReport: String? = null
+
+    // AutoMix: plan de la canción que sale (null = fundido normal) y estado del fundido en curso.
+    private class AutomixPlan(
+        val ratio: Double,           // velocidad de la cola = BPM entrante / BPM saliente
+        val tailBpm: Float,
+        val mainBpm: Float,
+        val tailPeriodMs: Double,
+        val tailAnchorMs: Double,    // un beat REAL de la que sale, cerca de su final
+        val mainPeriodMs: Double,
+        val mainFirstBeatMs: Double, // primer beat de la rejilla de la que entra
+        val confidence: Float
+    )
+
+    private var plannedKey: String? = null
+    private var autoPlan: AutomixPlan? = null
+    private var triggerTailPos = -1L        // posición de la cola en la que se dispara el fundido (-1 = sin esperar)
+    private var automixActive = false       // la velocidad de la cola ya se cambió
+    private var tailSpeed = 1f
+    private var mainStartedAt = 0L
+    private var lastPllAt = 0L
+    private var pllLearned = false
 
     private val tickRunnable = Runnable {
         ticking = false
@@ -293,6 +365,9 @@ class CrossfadeController(
         ticking = true
         val delay = when {
             fading || settling || handoffStartedAt != 0L -> FADE_TICK_MS
+            // AutoMix esperando el beat: ticks cortos para disparar con pocos ms de error.
+            triggerTailPos >= 0L && tail != null ->
+                (triggerTailPos - (tail?.currentPosition ?: 0L)).coerceIn(2L, FADE_TICK_MS)
             tail != null -> WARM_TICK_MS
             else -> IDLE_TICK_MS
         }
@@ -569,8 +644,17 @@ class CrossfadeController(
         }
 
         if (hot) {
+            if (handoffStartedAt == 0L) {
+                // AUTOMIX: se espera (como mucho ~1 beat) a que un beat de la cola caiga sobre el
+                // primer beat de la canción que entra. Sin plan, no espera nada.
+                val ap = planAutomix(key)
+                if (ap != null && !automixBeatReached(ap, t, dur)) return
+                handoffStartedAt = SystemClock.elapsedRealtime()
+                // La velocidad se cambia AQUÍ, durante el traspaso de 80 ms: ExoPlayer la aplica tras
+                // drenar el audio ya enviado (sin saltos) y el cambio se oye un poco después.
+                autoPlan?.let { applyAutomixTempo(t, it) }
+            }
             val now = SystemClock.elapsedRealtime()
-            if (handoffStartedAt == 0L) handoffStartedAt = now
             val k = ((now - handoffStartedAt).toFloat() / HANDOFF_MS.toFloat()).coerceIn(0f, 1f)
             if (k < 1f) {
                 // Traspaso en curso: la cola sube y el principal baja, todavía sin saltar de canción.
@@ -613,7 +697,9 @@ class CrossfadeController(
             return
         }
 
-        publishStatus("Mezclando: fundido de ${fadeLenMs / 1000f} s (${if (hot) "cola caliente" else "ruta de respaldo"})")
+        val automixNote = autoPlan?.takeIf { automixActive }
+            ?.let { " · AutoMix ${String.format(java.util.Locale.US, "%.3f", it.ratio)}x" } ?: ""
+        publishStatus("Mezclando: fundido de ${fadeLenMs / 1000f} s (${if (hot) "cola caliente" else "ruta de respaldo"})$automixNote")
         fadeIndex = player.currentMediaItemIndex
         fadeMediaId = player.currentMediaItem?.mediaId
         lastFadePos = 0L
@@ -673,6 +759,7 @@ class CrossfadeController(
             ((t.currentPosition - fadeTailStartPos).toFloat() / span.toFloat()).coerceIn(0f, 1f)
         }
         applyFilters(progress)
+        automixPll(t, nowTick, progress)
         val angle = progress * (PI / 2.0).toFloat()
         val volStart = SystemClock.elapsedRealtime()
         val boost = 1f + MID_BOOST * sin(PI.toFloat() * progress)
@@ -685,6 +772,216 @@ class CrossfadeController(
             finishFadeReport("completo")
             abortAndRestore()
         }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // AUTOMIX: igualar el tempo y alinear los beats durante el fundido
+    // ---------------------------------------------------------------------------------------
+
+    private fun songPath(item: MediaItem?): String? =
+        item?.mediaId?.toLongOrNull()
+            ?.let { SongLibraryHolder.findById(it)?.path }
+            ?.takeIf { it.isNotEmpty() }
+
+    /** Publica (y loguea) por qué este fundido no usa AutoMix. */
+    private fun planDiag(text: String) {
+        Log.i(TAG, text)
+        try {
+            settings.edit().putString(KEY_AUTOMIX_PLAN_DIAG, "NOTE|$text").apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun automixDelayMs(): Float =
+        settings.getFloat(KEY_AUTOMIX_DELAY, AUTOMIX_DEFAULT_DELAY_MS.toFloat())
+
+    /** Plan de AutoMix para este fundido, calculado UNA vez por canción. null = fundido normal. */
+    private fun planAutomix(key: String): AutomixPlan? {
+        if (plannedKey == key) return autoPlan
+        plannedKey = key
+        autoPlan = null
+        triggerTailPos = -1L
+        if (!automixEnabled()) return null
+        val repo = automixCacheRepo ?: return null
+        val plan = try {
+            computePlan(repo)
+        } catch (e: Exception) {
+            Log.w(TAG, "AutoMix no pudo planear este fundido; se hace el normal", e)
+            planDiag("AutoMix: error al planear (${e.javaClass.simpleName}), fundido normal")
+            null
+        }
+        autoPlan = plan
+        return plan
+    }
+
+    private fun computePlan(repo: AutomixCacheRepository): AutomixPlan? {
+        val tailPath = songPath(player.currentMediaItem)
+        val nextIndex = player.nextMediaItemIndex
+        val mainPath = if (nextIndex != C.INDEX_UNSET) songPath(player.getMediaItemAt(nextIndex)) else null
+        if (tailPath == null || mainPath == null) {
+            planDiag("AutoMix: falta la ruta de una de las canciones, fundido normal")
+            return null
+        }
+        val tailData = repo.get(tailPath)
+        val mainData = repo.get(mainPath)
+        if (tailData == null || mainData == null) {
+            val who = if (tailData == null) "la que sale" else "la que entra"
+            planDiag("AutoMix: sin análisis fiable de $who, fundido normal")
+            return null
+        }
+        if (min(tailData.confidence, mainData.confidence) < MIN_AUTOMIX_CONFIDENCE) {
+            planDiag("AutoMix: confianza baja, fundido normal")
+            return null
+        }
+        val ratio = mainData.bpm.toDouble() / tailData.bpm.toDouble()
+        if (abs(ratio - 1.0) > MAX_TEMPO_DIFF_PCT) {
+            planDiag(
+                "AutoMix: BPM muy distintos (${String.format(java.util.Locale.US, "%.1f", tailData.bpm)} → " +
+                    "${String.format(java.util.Locale.US, "%.1f", mainData.bpm)}, " +
+                    "${String.format(java.util.Locale.US, "%.0f", abs(ratio - 1.0) * 100)} %), fundido normal"
+            )
+            return null
+        }
+        val tailPeriod = 60000.0 / tailData.bpm
+        val mainPeriod = 60000.0 / mainData.bpm
+        val anchor = if (tailData.lastBeatMs > 0L) {
+            tailData.lastBeatMs.toDouble()
+        } else {
+            val dur = player.duration.toDouble()
+            tailData.beatPhaseMs + tailPeriod * floor((dur - tailData.beatPhaseMs) / tailPeriod)
+        }
+        return AutomixPlan(
+            ratio = ratio,
+            tailBpm = tailData.bpm,
+            mainBpm = mainData.bpm,
+            tailPeriodMs = tailPeriod,
+            tailAnchorMs = anchor,
+            mainPeriodMs = mainPeriod,
+            mainFirstBeatMs = mainData.beatPhaseMs.toDouble(),
+            confidence = min(tailData.confidence, mainData.confidence)
+        )
+    }
+
+    /**
+     * true = ya se puede disparar el fundido; false = seguir esperando el beat.
+     *
+     * Se busca la posición p de la cola tal que, cuando el principal empiece a sonar (p + retraso),
+     * un beat de la cola caiga sobre el primer beat de la entrante:
+     *     p ≡ ancla − retraso − ratio * primerBeatEntrante   (mod periodo de la cola)
+     * y se toma la primera p posterior al instante actual (espera < 1 beat). Si esperar dejaría muy
+     * poca canción, o más de AUTOMIX_MAX_ALIGN_WAIT_MS, no se alinea: fundido normal.
+     */
+    private fun automixBeatReached(ap: AutomixPlan, t: ExoPlayer, dur: Long): Boolean {
+        val tailPos = t.currentPosition
+        if (triggerTailPos < 0L) {
+            val raw = ap.tailAnchorMs - automixDelayMs() - ap.ratio * ap.mainFirstBeatMs
+            val guard = tailPos + AUTOMIX_TRIGGER_GUARD_MS
+            val n = ceil((guard - raw) / ap.tailPeriodMs)
+            val target = (raw + n * ap.tailPeriodMs).toLong()
+            if (target - tailPos > AUTOMIX_MAX_ALIGN_WAIT_MS || dur - target < AUTOMIX_MIN_REMAINING_AFTER_WAIT_MS) {
+                planDiag("AutoMix: no hay tiempo para alinear el beat, fundido normal")
+                autoPlan = null
+                return true
+            }
+            triggerTailPos = target
+        }
+        return tailPos >= triggerTailPos
+    }
+
+    /** Cambia la velocidad de la cola (pitch intacto) al tempo de la canción que entra. */
+    private fun applyAutomixTempo(t: ExoPlayer, ap: AutomixPlan) {
+        try {
+            t.playbackParameters = PlaybackParameters(ap.ratio.toFloat(), 1f)
+        } catch (e: Exception) {
+            Log.w(TAG, "No se pudo cambiar el tempo de la cola; fundido normal", e)
+            autoPlan = null
+            return
+        }
+        automixActive = true
+        tailSpeed = ap.ratio.toFloat()
+        mainStartedAt = 0L
+        lastPllAt = 0L
+        pllLearned = false
+        publishPlanDiag(ap, t.currentPosition, null)
+    }
+
+    private fun publishPlanDiag(ap: AutomixPlan, cueMs: Long, errMs: Float?) {
+        try {
+            val err = if (errMs == null) "-" else String.format(java.util.Locale.US, "%.0f", errMs)
+            settings.edit().putString(
+                KEY_AUTOMIX_PLAN_DIAG,
+                String.format(
+                    java.util.Locale.US, "%.3f|%d|%.1f|%.1f|%d|%s",
+                    ap.ratio, cueMs, ap.tailBpm, ap.mainBpm, (ap.confidence * 100).toInt(), err
+                )
+            ).apply()
+        } catch (_: Exception) {
+        }
+    }
+
+    private fun posMod(x: Double, m: Double): Double {
+        val r = x % m
+        return if (r < 0.0) r + m else r
+    }
+
+    /**
+     * Lazo de fase: con las dos canciones sonando, mide cuánto se adelanta (o atrasa) el beat de la
+     * cola respecto al del principal y ajusta la velocidad de la cola (máx. +-4 %) para cerrar el
+     * desfase. Usa FRACCIONES de periodo, así no depende de la velocidad vigente.
+     * La primera medida también corrige el retraso estimado (automix_delay_ms) para el siguiente fundido.
+     */
+    private fun automixPll(t: ExoPlayer, now: Long, progress: Float) {
+        val ap = autoPlan ?: return
+        if (!automixActive || fadeTailStartPos < 0L) return
+        if (mainStartedAt == 0L) {
+            mainStartedAt = now
+            return
+        }
+        if (now - mainStartedAt < PLL_START_DELAY_MS || now - lastPllAt < PLL_INTERVAL_MS) return
+        lastPllAt = now
+        if (progress > PLL_STOP_PROGRESS) return
+
+        val fracTail = posMod(t.currentPosition - ap.tailAnchorMs, ap.tailPeriodMs) / ap.tailPeriodMs
+        val fracMain = posMod(player.currentPosition - ap.mainFirstBeatMs, ap.mainPeriodMs) / ap.mainPeriodMs
+        var dFrac = fracTail - fracMain
+        dFrac -= round(dFrac) // a (-0.5, 0.5]: >0 = la cola va adelantada
+        val errMs = (dFrac * ap.mainPeriodMs).toFloat() - settings.getFloat(KEY_AUTOMIX_PHASE_OFFSET, 0f)
+
+        if (!pllLearned) {
+            pllLearned = true
+            val learned = (automixDelayMs() + 0.5f * errMs)
+                .coerceIn(AUTOMIX_MIN_DELAY_MS.toFloat(), AUTOMIX_MAX_DELAY_MS.toFloat())
+            settings.edit().putFloat(KEY_AUTOMIX_DELAY, learned).apply()
+            publishPlanDiag(ap, fadeTailStartPos, errMs)
+        }
+        val trim = if (abs(errMs) <= PLL_DEADBAND_MS) 0f else (errMs / PLL_WINDOW_MS).coerceIn(-PLL_MAX_TRIM, PLL_MAX_TRIM)
+        val target = (ap.ratio * (1.0 - trim)).toFloat()
+        if (abs(target - tailSpeed) > 0.002f) {
+            try {
+                t.playbackParameters = PlaybackParameters(target, 1f)
+                tailSpeed = target
+            } catch (e: Exception) {
+                Log.w(TAG, "AutoMix: no se pudo ajustar la fase", e)
+            }
+        }
+    }
+
+    /** Vuelve la cola a velocidad 1.0 y olvida el plan (se llama al descartar la cola). */
+    private fun resetAutomix() {
+        if (automixActive || tailSpeed != 1f) {
+            try {
+                tail?.playbackParameters = PlaybackParameters.DEFAULT
+            } catch (_: Exception) {
+            }
+        }
+        automixActive = false
+        tailSpeed = 1f
+        plannedKey = null
+        autoPlan = null
+        triggerTailPos = -1L
+        mainStartedAt = 0L
+        lastPllAt = 0L
+        pllLearned = false
     }
 
     // ---------------------------------------------------------------------------------------
@@ -742,6 +1039,7 @@ class CrossfadeController(
     }
 
     private fun discardTail() {
+        resetAutomix()
         if (handoffStartedAt != 0L) {
             // Se canceló en pleno traspaso: devolver el volumen del principal.
             handoffStartedAt = 0L

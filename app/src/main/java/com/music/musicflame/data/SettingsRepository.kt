@@ -186,6 +186,10 @@ class SettingsRepository(context: Context) {
     fun getCrossfadeSeconds(): Int = prefs.getInt("crossfade_seconds", 5).coerceIn(5, 12)
     fun saveCrossfadeSeconds(seconds: Int) = prefs.edit().putInt("crossfade_seconds", seconds.coerceIn(5, 12)).apply()
 
+    // AutoMix (dentro del crossfade): iguala tempo y beat al hacer el fundido. Default apagado.
+    fun getAutomixEnabled(): Boolean = prefs.getBoolean("automix_enabled", false)
+    fun saveAutomixEnabled(enabled: Boolean) = prefs.edit().putBoolean("automix_enabled", enabled).apply()
+
     // --- ECUALIZADOR Y AUDIO PRO ---
     fun getEqPresetSelected(): String = prefs.getString("eq_preset_selected", "Flat") ?: "Flat"
     fun saveEqPresetSelected(preset: String) = prefs.edit().putString("eq_preset_selected", preset).apply()

@@ -192,7 +192,7 @@ class SettingsRepository(context: Context) {
 
     /** AUTOMIX: segundos de audio que se analizan por canción (mitad inicio, mitad final). Ver AutomixAnalyzer. */
     fun getAutomixAnalysisSeconds(): Int =
-        prefs.getInt("automix_analysis_seconds", 120).coerceIn(40, 240)
+        prefs.getInt("automix_analysis_seconds", 60).coerceIn(40, 240)
     fun saveAutomixAnalysisSeconds(seconds: Int) =
         prefs.edit().putInt("automix_analysis_seconds", seconds.coerceIn(40, 240)).apply()
 

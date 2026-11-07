@@ -69,7 +69,7 @@ object AutomixAnalyzer {
      * extrapolarlo, y detecta cambios de tempo a mitad de canción).
      */
     const val PREF_ANALYSIS_SECONDS = "automix_analysis_seconds"
-    const val DEFAULT_ANALYSIS_SECONDS = 120
+    const val DEFAULT_ANALYSIS_SECONDS = 60
     const val MIN_ANALYSIS_BUDGET_SECONDS = 40
     const val MAX_ANALYSIS_BUDGET_SECONDS = 240
 
@@ -93,6 +93,18 @@ object AutomixAnalyzer {
     private const val IRREGULAR_GRID_CONFIDENCE_FACTOR = 0.6
 
     private const val DEQUEUE_TIMEOUT_US = 10_000L
+
+    // Ahorro de CPU al decodificar (ver decodeHeadTail). Ambos mecanismos solo actúan si la duración
+    // declarada del archivo es conocida y el hueco entre la cabeza y la cola vale la pena.
+    /** Mínimo de hueco (s) entre el final de la cabeza y el inicio de la cola para saltarlo o no procesarlo. */
+    private const val MIN_SKIP_GAP_SEC = 10.0
+    /** Salto con seekTo: se aterriza esto (s) ANTES de la ventana de cola; el anillo descarta ese precalentamiento. */
+    private const val SEEK_SAFETY_SEC = 4.0
+    /** Si el seek aterriza más lejos que esto antes de lo pedido, el índice del contenedor no es fiable. */
+    private const val SEEK_MAX_UNDERSHOOT_US = 5_000_000L
+    /** Sin seek: se vuelve a convertir/remuestrear esto antes de la ventana de cola (la duración declarada puede errar). */
+    private const val SKIP_MARGIN_SEC = 15.0
+    private const val SKIP_MARGIN_FRACTION = 0.05
     private const val IDLE_CLOSE_MS = 45_000L
 
     private val KEY_NAMES = arrayOf("C", "C#", "D", "D#", "E", "F", "F#", "G", "G#", "A", "A#", "B")
@@ -394,13 +406,42 @@ object AutomixAnalyzer {
         val durationMs: Long
     )
 
+    /** Fallo recuperable del salto al final: el llamador repite la decodificación en orden, sin seek. */
+    private class SeekFailed(message: String) : RuntimeException(message)
+
     /**
-     * Decodifica en orden (sin seek: el reloj sale de contar muestras, así que no hereda el error de
-     * búsqueda de los mp3 VBR sin tabla TOC) y remuestrea el archivo entero en streaming, pero SOLO
-     * conserva los primeros [headSec] s y los últimos [tailSec] s. El analizador (lo caro) nunca ve el
-     * medio de la canción.
+     * Decodifica la cabeza y la cola del archivo a PCM mono 22050 Hz, conservando solo los primeros
+     * [headSec] s y los últimos [tailSec] s (el analizador, lo caro, nunca ve el medio).
+     *
+     * El reloj de la cabeza y el de la cola DEBEN ser el mismo: fitGrid() engancha la cola a la rejilla de
+     * la cabeza redondeando (t - ancla) / periodo, y exige un residuo < 60 ms. Por eso hay dos caminos:
+     *
+     *  - Contenedores con índice exacto (m4a, flac, ogg, opus, wav...): tras llenar la cabeza se hace
+     *    extractor.seekTo() unos segundos antes de la ventana final y solo se decodifica el último tramo.
+     *    El reloj de la cola sale del presentationTimeUs real de la primera salida tras el salto.
+     *  - mp3 (y cualquier caso donde el seek no sea fiable): se decodifica en orden y el reloj sale de
+     *    contar muestras, así no hereda el error de búsqueda de los mp3 VBR (con o sin tabla TOC el seek
+     *    mp3 es aproximado, y sampleTime repite esa misma estimación). Para no gastar CPU en el medio,
+     *    ese tramo se decodifica pero NO se convierte a mono ni se remuestrea; el reloj se mantiene
+     *    contando los frames de entrada.
+     *
+     * Si el seek no aterriza donde se pidió (SeekFailed) se repite todo en orden.
      */
-    private fun decodeHeadTail(filePath: String, headSec: Int, tailSec: Int, cancel: () -> Unit): Decoded? {
+    private fun decodeHeadTail(filePath: String, headSec: Int, tailSec: Int, cancel: () -> Unit): Decoded? =
+        try {
+            decodeHeadTailImpl(filePath, headSec, tailSec, cancel, allowSeek = true)
+        } catch (e: SeekFailed) {
+            Log.w(TAG, "Salto al final no fiable (${e.message}); se decodifica en orden: $filePath")
+            decodeHeadTailImpl(filePath, headSec, tailSec, cancel, allowSeek = false)
+        }
+
+    private fun decodeHeadTailImpl(
+        filePath: String,
+        headSec: Int,
+        tailSec: Int,
+        cancel: () -> Unit,
+        allowSeek: Boolean
+    ): Decoded? {
         var extractor: MediaExtractor? = null
         var codec: MediaCodec? = null
         try {
@@ -441,6 +482,24 @@ object AutomixAnalyzer {
             var coversWhole = false
             var truncated = false
             val info = MediaCodec.BufferInfo()
+
+            // --- Cómo se llega a la cola ---------------------------------------------------------
+            val declaredSec = if (declaredDurationUs > 0L) declaredDurationUs / 1_000_000.0 else 0.0
+            val canJump = tailEnabled && declaredSec > 0.0
+            val isMpeg = mime.startsWith("audio/mpeg") // mp3 / mpeg-L1 / mpeg-L2: seek aproximado
+            val seekTargetSec = declaredSec - tailSec - SEEK_SAFETY_SEC
+            val resumeSec = declaredSec - tailSec - SKIP_MARGIN_SEC - SKIP_MARGIN_FRACTION * declaredSec
+            val seekWanted = allowSeek && canJump && !isMpeg && seekTargetSec > headSec + MIN_SKIP_GAP_SEC
+            val skipMiddle = !seekWanted && canJump && resumeSec > headSec + MIN_SKIP_GAP_SEC
+
+            var modeDecided = false  // ya se eligió salto / hueco / nada al llenarse la cabeza
+            var seeked = false
+            var skipping = false     // hueco: se decodifica pero no se procesa
+            var skippedAny = false
+            var framesSeen = 0L      // frames de entrada decodificados (reloj exacto en el camino sin seek)
+            var resumeFrame = 0L
+            var segStartUs = -1L     // presentationTimeUs de la primera salida tras el seek
+            var seekSinkTotal = 0L
 
             while (!sawOutputEos) {
                 cancel()
@@ -484,27 +543,44 @@ object AutomixAnalyzer {
                                 val bytesPerSample = if (pcmFloat) 4 else 2
                                 val frames = info.size / (bytesPerSample * channels)
                                 if (frames > 0) {
-                                    if (mono.size < frames) mono = FloatArray(frames)
-                                    if (pcmFloat) {
-                                        val fb = bb.asFloatBuffer()
-                                        for (i in 0 until frames) {
-                                            var s = 0f
-                                            for (c in 0 until channels) s += fb.get()
-                                            mono[i] = s / channels
-                                        }
-                                    } else {
-                                        val sb = bb.asShortBuffer()
-                                        for (i in 0 until frames) {
-                                            var s = 0f
-                                            for (c in 0 until channels) s += sb.get() / 32768f
-                                            mono[i] = s / channels
+                                    if (seeked && segStartUs < 0L) segStartUs = info.presentationTimeUs
+
+                                    var process = true
+                                    if (skipping) {
+                                        if (framesSeen >= resumeFrame) {
+                                            // Fin del hueco: se vuelve a procesar. El reloj sale de los frames contados.
+                                            skipping = false
+                                            resampler = null
+                                            sink.jumpTo(Math.round(framesSeen.toDouble() * TARGET_RATE / sampleRate))
+                                        } else {
+                                            process = false
                                         }
                                     }
-                                    if (sampleRate == TARGET_RATE) {
-                                        sink.addAll(mono, frames)
-                                    } else {
-                                        val r = resampler ?: StreamingResampler(sampleRate, TARGET_RATE).also { resampler = it }
-                                        r.push(mono, frames, sink)
+                                    framesSeen += frames
+
+                                    if (process) {
+                                        if (mono.size < frames) mono = FloatArray(frames)
+                                        if (pcmFloat) {
+                                            val fb = bb.asFloatBuffer()
+                                            for (i in 0 until frames) {
+                                                var s = 0f
+                                                for (c in 0 until channels) s += fb.get()
+                                                mono[i] = s / channels
+                                            }
+                                        } else {
+                                            val sb = bb.asShortBuffer()
+                                            for (i in 0 until frames) {
+                                                var s = 0f
+                                                for (c in 0 until channels) s += sb.get() / 32768f
+                                                mono[i] = s / channels
+                                            }
+                                        }
+                                        if (sampleRate == TARGET_RATE) {
+                                            sink.addAll(mono, frames)
+                                        } else {
+                                            val r = resampler ?: StreamingResampler(sampleRate, TARGET_RATE).also { resampler = it }
+                                            r.push(mono, frames, sink)
+                                        }
                                     }
                                 }
                             }
@@ -512,6 +588,32 @@ object AutomixAnalyzer {
                         codec.releaseOutputBuffer(outIdx, false)
                         if (info.flags and MediaCodec.BUFFER_FLAG_END_OF_STREAM != 0) sawOutputEos = true
                         if (!tailEnabled && sink.headFull) break // sin cola: con la cabeza llena ya no hace falta más
+
+                        // La cabeza acaba de llenarse: se decide cómo llegar a la cola.
+                        if (tailEnabled && sink.headFull && !modeDecided && !sawOutputEos && !sawInputEos) {
+                            modeDecided = true
+                            if (seekWanted) {
+                                val targetUs = (seekTargetSec * 1_000_000.0).toLong()
+                                extractor.seekTo(targetUs, MediaExtractor.SEEK_TO_PREVIOUS_SYNC)
+                                val landedUs = extractor.sampleTime
+                                if (landedUs < 0L || landedUs > targetUs + 1_000_000L ||
+                                    landedUs < targetUs - SEEK_MAX_UNDERSHOOT_US
+                                ) {
+                                    throw SeekFailed("pedido ${targetUs / 1000} ms, aterrizó en ${landedUs / 1000} ms")
+                                }
+                                codec.flush() // modo síncrono: tras flush() se sigue sin llamar a start()
+                                sink.resetTail() // lo que cayó en el anillo al llenarse la cabeza no es de la cola
+                                resampler = null
+                                seeked = true
+                                seekSinkTotal = sink.total
+                                segStartUs = -1L
+                            } else if (skipMiddle) {
+                                skipping = true
+                                skippedAny = true
+                                sink.resetTail()
+                                resumeFrame = (resumeSec * sampleRate).toLong()
+                            }
+                        }
                     }
                 }
             }
@@ -525,12 +627,24 @@ object AutomixAnalyzer {
             val rest = total - headArr.size
 
             return when {
+                // Salto con seek: la cola es el anillo, fechada con el tiempo real de la primera salida.
+                seeked -> {
+                    val tail = sink.tailArray()
+                    if (segStartUs < 0L || tail.size < TARGET_RATE * MIN_ANALYSIS_SECONDS) {
+                        Decoded(headArr, null, 0.0, false, durationMs)
+                    } else {
+                        val segSamples = sink.total - seekSinkTotal
+                        val tailStartSec = segStartUs / 1_000_000.0 + (segSamples - tail.size).toDouble() / TARGET_RATE
+                        Decoded(headArr, tail, tailStartSec, false, durationMs)
+                    }
+                }
                 // Cabió entera en la cabeza.
                 rest <= 0L -> Decoded(headArr, null, 0.0, coversWhole && !truncated, durationMs)
                 // Sin cola (archivo larguísimo o presupuesto sin cola): solo el inicio, el final se extrapola.
                 !tailEnabled || truncated -> Decoded(headArr, null, 0.0, false, durationMs)
                 // Cabeza + final se tocan: es la canción completa y continua (sin costura entre ventanas).
-                rest <= tailCap -> Decoded(headArr + sink.tailArray(), null, 0.0, coversWhole, durationMs)
+                // Con hueco saltado nunca es continua, aunque el conteo parezca caber.
+                rest <= tailCap && !skippedAny -> Decoded(headArr + sink.tailArray(), null, 0.0, coversWhole, durationMs)
                 // Canción larga: inicio + final, con un hueco en medio que nunca se analiza.
                 else -> {
                     val tail = sink.tailArray()
@@ -607,6 +721,17 @@ object AutomixAnalyzer {
         }
 
         fun headArray(): FloatArray = head.toArray()
+
+        /** Descarta lo acumulado en el anillo (al saltar o abrir un hueco, esas muestras no son de la cola). */
+        fun resetTail() {
+            ringPos = 0
+            ringCount = 0
+        }
+
+        /** Avanza el reloj (en samples de salida) sin guardar nada: el hueco que no se procesó. */
+        fun jumpTo(totalSamples: Long) {
+            if (totalSamples > total) total = totalSamples
+        }
 
         /** Los últimos samples guardados, en orden temporal. */
         fun tailArray(): FloatArray {

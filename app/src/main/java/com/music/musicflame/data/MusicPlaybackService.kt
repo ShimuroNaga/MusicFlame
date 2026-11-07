@@ -37,6 +37,7 @@ import com.google.common.util.concurrent.Futures
 import com.google.common.util.concurrent.ListenableFuture
 import com.music.musicflame.R
 import com.music.musicflame.audio.AutomixAnalyzer
+import com.music.musicflame.audio.AutomixLibraryScheduler
 import com.music.musicflame.audio.AutomixModelManager
 import com.music.musicflame.audio.CrossfadeFilterAudioProcessor
 import com.music.musicflame.audio.ProBiquadEqualizerAudioProcessor
@@ -434,6 +435,8 @@ class MusicPlaybackService : MediaSessionService() {
     /** Al arrancar el servicio: si AutoMix está activo, baja el modelo (una vez) y calienta el caché fuera del hilo principal. */
     private fun warmUpAutomix() {
         if (!sharedPrefs.getBoolean("automix_enabled", false)) return
+        // Pre-análisis de toda la biblioteca solo mientras carga (idempotente: KEEP no reinicia el periodo).
+        AutomixLibraryScheduler.update(applicationContext, true)
         serviceScope.launch {
             withContext(Dispatchers.IO) { automixCacheRepo.countAnalyzed() } // parsea el JSON ya, no en el tick del fundido
             AutomixModelManager.ensureModel(applicationContext)
@@ -447,6 +450,7 @@ class MusicPlaybackService : MediaSessionService() {
             scheduleAutomixAnalysis()
         } else {
             automixJob?.cancel()
+            AutomixLibraryScheduler.update(applicationContext, false)
         }
     }
 

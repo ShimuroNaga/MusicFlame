@@ -151,6 +151,8 @@ dependencies {
     implementation("androidx.media3:media3-exoplayer:1.3.1")
     implementation("androidx.media3:media3-ui:1.3.1")
     implementation("androidx.media3:media3-session:1.3.1")
+    // AutoMix: pre-análisis de la biblioteca en segundo plano (solo cargando); sobrevive al cierre del proceso
+    implementation("androidx.work:work-runtime-ktx:2.10.0")
     // Coil (Imágenes y GIFs)
     implementation("io.coil-kt:coil-gif:2.5.0")
     implementation("io.coil-kt:coil-compose:2.6.0")

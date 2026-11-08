@@ -71,6 +71,7 @@ import kotlin.math.abs
 import com.music.musicflame.ui.components.YoutubePlayerScreen
 import com.music.musicflame.ui.screens.onboarding.OnboardingScreen
 import com.music.musicflame.R
+import com.music.musicflame.data.AccountSecurityManager
 
 // ⚠️ Reemplaza esto con tu "Web Client ID" de Google Cloud Console.
 private const val WEB_CLIENT_ID = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k.apps.googleusercontent.com"
@@ -1106,21 +1107,29 @@ class MainActivity : ComponentActivity() {
                                     onCheckForUpdates = { checkForUpdates(isManualCheck = true) },
                                     onSignInClick = { signInLauncher.launch(googleSignInClient.signInIntent) },
                                     onProfileClick = {
-                                        googleSignInClient.signOut().addOnCompleteListener {
+                                        // Solo abre el perfil — cerrar sesión ahora tiene su propio botón
+                                    },
+                                    onSignOut = {
+                                        AccountSecurityManager.signOut(context) {
                                             isUserLoggedIn = false
                                             userName = null
                                             userPhotoUrl = null
                                             isYouTubeLinked = false
                                             isDriveLinked = false
-                                            syncedFileNames = emptySet() // Limpiar al salir
-                                            // Si el desbloqueo Pro dependía de ser la cuenta dueña
-                                            // (correo) y no de una license key de pago, esto lo
-                                            // bloquea al instante en toda la app (Arcoíris, estilos
-                                            // de ecualizador, etc.). Si además hay una license key
-                                            // activa guardada, isProUnlocked() sigue dando true —
-                                            // el pago es independiente de la sesión de Google.
+                                            syncedFileNames = emptySet()
                                             com.music.musicflame.data.ProStatusHolder.refresh(context)
                                         }
+                                    },
+                                    onDeleteAccount = {
+                                        // El borrado real ya lo hizo SettingsAccount; aquí solo limpiamos el estado
+                                        isUserLoggedIn = false
+                                        userName = null
+                                        userPhotoUrl = null
+                                        isYouTubeLinked = false
+                                        isDriveLinked = false
+                                        syncedFileNames = emptySet()
+                                        com.music.musicflame.data.ProStatusHolder.refresh(context)
+                                        Toast.makeText(context, context.getString(R.string.settings_account_deleted_ok), Toast.LENGTH_LONG).show()
                                     },
                                     onRefreshUserProfile = {
                                         val account = GoogleSignIn.getLastSignedInAccount(context)

@@ -138,6 +138,7 @@ import com.music.musicflame.data.DeviceInfoProvider
 import com.music.musicflame.data.LicenseRepository
 import com.music.musicflame.data.SavingsGoalRepository
 import com.music.musicflame.data.SettingsRepository
+import com.music.musicflame.data.AccountSecurityManager
 import com.music.musicflame.together.SupabaseSalas
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import com.music.musicflame.widget.MusicFlameWidgetProvider
@@ -153,10 +154,13 @@ internal fun LazyListScope.settingsAccountSection(
     userPhotoUrl: String?,
     onSignInClick: () -> Unit,
     onProfileClick: () -> Unit,
+    onSignOut: () -> Unit,
+    onDeleteAccount: () -> Unit,
     isDriveLinked: Boolean,
     onLinkDriveClick: () -> Unit,
     context: Context,
-    avatarRefreshKeyState: MutableIntState
+    avatarRefreshKeyState: MutableIntState,
+    webClientId: String
 ) {
     var avatarRefreshKey by avatarRefreshKeyState
 
@@ -329,6 +333,88 @@ internal fun LazyListScope.settingsAccountSection(
             mediumEmphasis = style.mediumEmphasis,
             trailingColor = style.trailingColor
         )
+    }
+
+    // CERRAR SESIÓN
+    if (isUserSignedIn) {
+        item {
+            var showSignOutDialog by remember { mutableStateOf(false) }
+            Spacer(Modifier.height(4.dp))
+            SettingsRow(style, SettingsRowPos.Only) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_sign_out_title), color = MaterialTheme.colorScheme.error) },
+                    supportingContent = { Text(stringResource(R.string.settings_sign_out_desc), color = style.mediumEmphasis) },
+                    leadingContent = { Icon(Icons.Filled.Lock, null, tint = MaterialTheme.colorScheme.error) },
+                    colors = style.listItemColors,
+                    modifier = Modifier.clickable { showSignOutDialog = true }
+                )
+            }
+            if (showSignOutDialog) {
+                AlertDialog(
+                    onDismissRequest = { showSignOutDialog = false },
+                    title = { Text(stringResource(R.string.settings_sign_out_title)) },
+                    text = { Text(stringResource(R.string.settings_sign_out_confirm)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showSignOutDialog = false
+                            onSignOut()
+                        }) { Text(stringResource(R.string.settings_sign_out_title), color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showSignOutDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                    }
+                )
+            }
+        }
+
+        // BORRAR CUENTA
+        item {
+            var showDeleteDialog by remember { mutableStateOf(false) }
+            var isDeletingAccount by remember { mutableStateOf(false) }
+            Spacer(Modifier.height(4.dp))
+            SettingsRow(style, SettingsRowPos.Only) {
+                ListItem(
+                    headlineContent = { Text(stringResource(R.string.settings_delete_account_title), color = MaterialTheme.colorScheme.error) },
+                    supportingContent = { Text(stringResource(R.string.settings_delete_account_desc), color = style.mediumEmphasis) },
+                    leadingContent = {
+                        if (isDeletingAccount)
+                            CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
+                        else
+                            Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error)
+                    },
+                    colors = style.listItemColors,
+                    modifier = Modifier.clickable(enabled = !isDeletingAccount) { showDeleteDialog = true }
+                )
+            }
+            if (showDeleteDialog) {
+                AlertDialog(
+                    onDismissRequest = { showDeleteDialog = false },
+                    title = { Text(stringResource(R.string.settings_delete_account_title)) },
+                    text = { Text(stringResource(R.string.settings_delete_account_confirm)) },
+                    confirmButton = {
+                        TextButton(onClick = {
+                            showDeleteDialog = false
+                            isDeletingAccount = true
+                            AccountSecurityManager.deleteAccount(
+                                context = context,
+                                webClientId = webClientId,
+                                onSuccess = {
+                                    isDeletingAccount = false
+                                    onDeleteAccount()
+                                },
+                                onError = { msg ->
+                                    isDeletingAccount = false
+                                    Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                                }
+                            )
+                        }) { Text(stringResource(R.string.settings_delete_account_title), color = MaterialTheme.colorScheme.error) }
+                    },
+                    dismissButton = {
+                        TextButton(onClick = { showDeleteDialog = false }) { Text(stringResource(R.string.action_cancel)) }
+                    }
+                )
+            }
+        }
     }
 
     // APARIENCIA

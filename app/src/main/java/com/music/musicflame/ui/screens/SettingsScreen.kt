@@ -190,6 +190,8 @@ fun SettingsScreen(
     userPhotoUrl: String? = null,
     onSignInClick: () -> Unit = { /* Lógica de inicio de sesión por defecto */ },
     onProfileClick: () -> Unit = { /* Lógica de perfil por defecto */ },
+    onSignOut: () -> Unit = {},
+    onDeleteAccount: () -> Unit = {},
     onRefreshUserProfile: () -> Unit = { /* Lógica opcional para re-sincronizar la sesión */ },
     isDriveLinked: Boolean = false,
     onLinkDriveClick: () -> Unit = { /* Lógica para pedir el scope de Google Drive */ },
@@ -884,10 +886,13 @@ fun SettingsScreen(
                             userPhotoUrl = userPhotoUrl,
                             onSignInClick = onSignInClick,
                             onProfileClick = onProfileClick,
+                            onSignOut = onSignOut,
+                            onDeleteAccount = onDeleteAccount,
                             isDriveLinked = isDriveLinked,
                             onLinkDriveClick = onLinkDriveClick,
                             context = context,
-                            avatarRefreshKeyState = avatarRefreshKeyState
+                            avatarRefreshKeyState = avatarRefreshKeyState,
+                            webClientId = "176181653925-etnugbpe1mqhu1gl3lu1njbu9iihcn1k.apps.googleusercontent.com"
                         )
                     }
                     if (activeSection.value == "Apariencia") {

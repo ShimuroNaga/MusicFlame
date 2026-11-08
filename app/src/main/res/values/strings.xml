@@ -381,4 +381,12 @@
     <string name="settings_group_support">Apoyo</string>
     <string name="settings_group_about">Acerca de</string>
     <string name="settings_group_project">Proyecto</string>
+    <!-- Seguridad de cuenta -->
+    <string name="settings_sign_out_title">Cerrar sesión</string>
+    <string name="settings_sign_out_desc">Desvincula tu cuenta de Google de esta app</string>
+    <string name="settings_sign_out_confirm">¿Seguro que quieres cerrar sesión? Puedes volver a iniciarla cuando quieras.</string>
+    <string name="settings_delete_account_title">Borrar cuenta</string>
+    <string name="settings_delete_account_desc">Elimina tu cuenta y revoca el acceso a Google. Esta acción no se puede deshacer.</string>
+    <string name="settings_delete_account_confirm">¿Borrar tu cuenta? Se revocará el acceso a Google y se eliminará tu usuario. Esta acción es permanente.</string>
+    <string name="settings_account_deleted_ok">Cuenta eliminada correctamente.</string>
 </resources>

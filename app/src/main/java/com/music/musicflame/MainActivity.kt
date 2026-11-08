@@ -523,6 +523,15 @@ class MainActivity : ComponentActivity() {
                 }
                 // -------------------------------------------------------
 
+                // Archivo .orbita abierto desde otra app: ir a la pestaña Mix (ahí vive Órbita).
+                val pendingOrbitaUri = com.music.musicflame.data.OrbitaInbox.pendingUri
+                LaunchedEffect(pendingOrbitaUri) {
+                    if (pendingOrbitaUri != null) {
+                        val mixIndex = bottomNavItems.indexOf(Screen.Mix)
+                        if (mixIndex >= 0 && pagerState.currentPage != mixIndex) pagerState.scrollToPage(mixIndex)
+                    }
+                }
+
                 LaunchedEffect(pagerState.currentPage) {
                     val currentScreen = bottomNavItems[pagerState.currentPage]
                     isSearchActive = false
@@ -1579,6 +1588,13 @@ class MainActivity : ComponentActivity() {
         if (intent == null || intent.action != Intent.ACTION_VIEW) return
         val uri = intent.data ?: return
         if (uri.scheme == "musicflame") return // enlace de sala, no un archivo de audio
+
+        // Archivo .orbita (Órbita exportada por otro usuario): no es audio; se deja en el buzón y
+        // MixScreen/OrbitaPage muestra el preview. La navegación a Mix la hace el LaunchedEffect de abajo.
+        if (com.music.musicflame.data.OrbitaInbox.looksLikeOrbita(uri, intent.type)) {
+            com.music.musicflame.data.OrbitaInbox.pendingUri = uri
+            return
+        }
 
         // Muchos gestores de archivos solo otorgan permiso de lectura para esta
         // sesión (vía FLAG_GRANT_READ_URI_PERMISSION); si además lo dejan

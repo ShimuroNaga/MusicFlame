@@ -2,6 +2,8 @@ package com.music.musicflame.data
 
 import android.content.Context
 import org.json.JSONArray
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.runBlocking
 import org.json.JSONObject
 
 /**
@@ -89,6 +91,12 @@ object ConfigExportRepository {
         root.put("app", "musicflame")
         root.put("schemaVersion", SCHEMA_VERSION)
         root.put("settings", entries)
+        // Órbita propia (Room, no SharedPreferences). Los nodos se vuelven a enlazar con la
+        // biblioteca al restaurar (ruta o título+artista), porque los ids de MediaStore no viajan.
+        try {
+            runBlocking(Dispatchers.IO) { OrbitaRepository(context).exportOwnForBackup() }
+                ?.let { root.put("orbita", it) }
+        } catch (_: Exception) { /* un fallo aquí no debe impedir exportar los ajustes */ }
         return root.toString(2)
     }
 
@@ -137,6 +145,10 @@ object ConfigExportRepository {
         }
 
         editor.apply()
+        root.optJSONArray("orbita")?.let { arr ->
+            try { runBlocking(Dispatchers.IO) { OrbitaRepository(context).restoreOwnFromBackup(arr) } }
+            catch (_: Exception) { }
+        }
         return applied
     }
 }

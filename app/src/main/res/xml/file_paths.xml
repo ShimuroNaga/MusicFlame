@@ -3,4 +3,6 @@
     <!-- Solo exponemos la subcarpeta donde se generan los clips para compartir, nada más
          del caché de la app queda accesible a otras apps. -->
     <cache-path name="share_clips" path="share_clips/" />
+    <!-- Órbitas exportadas (.orbita) para Compartir -->
+    <cache-path name="orbita_exports" path="orbita_exports/" />
 </paths>

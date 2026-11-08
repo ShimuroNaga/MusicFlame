@@ -75,6 +75,24 @@
                 <data android:scheme="musicflame" android:host="sala" />
             </intent-filter>
 
+            <!-- Órbita exportada (.orbita, JSON): por tipo MIME propio y, para gestores/apps que mandan
+                 content:// o file:// sin tipo útil, por extensión (mismo patrón que el respaldo de audio). -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:mimeType="application/x-orbita" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="file" />
+                <data android:scheme="content" />
+                <data android:host="*" />
+                <data android:pathPattern=".*\\.orbita" />
+            </intent-filter>
+
             <!-- Reproductor de audio: mimeType audio/* (cubre la mayoría de gestores
                  de archivos modernos y de content://) -->
             <intent-filter>

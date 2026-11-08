@@ -178,7 +178,7 @@ fun MixScreen(
         }
     }
 
-    // --- PAGER CIRCULAR de 2 páginas: 0 = Mix Diario, 1 = Mezcla de Momentos. ---
+    // --- PAGER CIRCULAR de 3 páginas: 0 = Mix Diario, 1 = Mezcla de Momentos, 2 = Órbita. ---
     // Al ser circular, el swipe funciona hacia la izquierda Y hacia la derecha desde
     // cualquier página (con 2 páginas normales, un lado quedaba muerto).
     // El estado de la mezcla vive ACÁ (no dentro de la página): en un pager circular cada
@@ -187,9 +187,24 @@ fun MixScreen(
     val momentEntries = remember { mutableStateListOf<MomentMixEntry>() }
     val momentsSignature = remember { mutableStateOf("") }
     var momentsShuffleSeed by remember { mutableStateOf(0) }
-    val loopCount = 10_000
+    // loopCount múltiplo de 3 y loopCount/2 también múltiplo de 3 -> arranca en Mix Diario.
+    val loopCount = 10_002
     val pagerState = rememberPagerState(initialPage = loopCount / 2) { loopCount }
-    val onMomentsPage = pagerState.currentPage % 2 == 1
+    val onMomentsPage = pagerState.currentPage % 3 == 1
+    val onOrbitaPage = pagerState.currentPage % 3 == 2
+    // "Para Lucas" / acento verde solo para la cuenta dueña; el resto ve "Órbita" en azul-violeta.
+    val isOrbitaAdmin = remember { LicenseRepository(context).isRealOwnerAccount() }
+    val orbitaAccentColor = orbitaAccent(isOrbitaAdmin)
+    val orbitaLabel = orbitaTabLabel(isOrbitaAdmin)
+
+    // Un archivo .orbita abierto con MusicFlame: saltar directo a la página de Órbita (que muestra el preview).
+    val pendingOrbitaImport = OrbitaInbox.pendingUri
+    LaunchedEffect(pendingOrbitaImport) {
+        if (pendingOrbitaImport != null && pagerState.currentPage % 3 != 2) {
+            val cur = pagerState.currentPage
+            pagerState.scrollToPage(cur + ((2 - cur % 3) + 3) % 3)
+        }
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         // Indicador: dos puntos con su nombre; tocar uno también cambia de página.
@@ -198,14 +213,18 @@ fun MixScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf("Mix Diario", "Momentos").forEachIndexed { idx, label ->
-                val selected = (pagerState.currentPage % 2) == idx
+            listOf("Mix Diario", "Momentos", orbitaLabel).forEachIndexed { idx, label ->
+                val selected = (pagerState.currentPage % 3) == idx
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
-                            if (!selected) scope.launch { pagerState.animateScrollToPage(pagerState.currentPage + 1) }
+                            if (!selected) scope.launch {
+                                // Camino más corto: +1 o +2 páginas equivale a +1 / -1 en un ciclo de 3.
+                                val d = ((idx - pagerState.currentPage % 3) + 3) % 3
+                                pagerState.animateScrollToPage(pagerState.currentPage + (if (d == 2) -1 else d))
+                            }
                         }
                         .padding(horizontal = 10.dp, vertical = 4.dp)
                 ) {
@@ -214,7 +233,7 @@ fun MixScreen(
                             .size(if (selected) 8.dp else 6.dp)
                             .clip(CircleShape)
                             .background(
-                                if (selected) MaterialTheme.colorScheme.primary
+                                if (selected) (if (idx == 2) orbitaAccentColor else MaterialTheme.colorScheme.primary)
                                 else (if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.35f)
                             )
                     )
@@ -236,7 +255,13 @@ fun MixScreen(
             userScrollEnabled = !isSelectionMode,
             beyondViewportPageCount = 1
         ) { page ->
-            if (page % 2 == 1) {
+            if (page % 3 == 2) {
+                OrbitaPage(
+                    isVisible = onOrbitaPage,
+                    isAdmin = isOrbitaAdmin,
+                    onPlaySong = { song -> onSongClick(song, listOf(song)) }
+                )
+            } else if (page % 3 == 1) {
                 MomentsMixPage(
                     entries = momentEntries,
                     signatureState = momentsSignature,

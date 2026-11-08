@@ -28,9 +28,11 @@ import androidx.room.migration.Migration
         PlaylistSongEntity::class,
         SongCustomizationEntity::class,
         MomentEntity::class,
-        FavoriteEntity::class
+        FavoriteEntity::class,
+        OrbitaMetaEntity::class,
+        OrbitaSongEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {
@@ -41,6 +43,7 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun songCustomizationDao(): SongCustomizationDao
     abstract fun momentDao(): MomentDao
     abstract fun favoriteDao(): FavoriteDao
+    abstract fun orbitaDao(): OrbitaDao
 
     companion object {
         const val DB_NAME = "musicflame.db"

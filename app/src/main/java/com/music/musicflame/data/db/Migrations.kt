@@ -76,11 +76,30 @@ object Migrations {
         }
     }
 
+    /** v6 -> v7: Órbita (tablas orbita_meta y orbita_song). */
+    val MIGRATION_6_7: Migration = object : Migration(6, 7) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `orbita_meta` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, `autor_nombre` TEXT NOT NULL, `es_propia` INTEGER NOT NULL, " +
+                    "`fecha_import` INTEGER NOT NULL)"
+            )
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `orbita_song` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`orbita_id` INTEGER NOT NULL, `song_id` INTEGER, `path` TEXT, `titulo` TEXT NOT NULL, " +
+                    "`artista` TEXT NOT NULL, `album` TEXT NOT NULL, `nota` TEXT NOT NULL, " +
+                    "`fecha_agregada` INTEGER NOT NULL, `pos_x` REAL NOT NULL, `pos_y` REAL NOT NULL, `caratula` TEXT)"
+            )
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_orbita_song_orbita_id` ON `orbita_song` (`orbita_id`)")
+        }
+    }
+
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
         MIGRATION_4_5,
-        MIGRATION_5_6
+        MIGRATION_5_6,
+        MIGRATION_6_7
     )
 }

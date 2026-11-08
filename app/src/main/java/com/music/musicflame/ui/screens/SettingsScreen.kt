@@ -1080,9 +1080,7 @@ fun SettingsScreen(
         SettingsFontDialog(
             settingsRepo = settingsRepo,
             showFontDialog = showFontDialog,
-            appFontPref = appFontPref,
-            unlockedIds = unlockedIds,
-            showLockedFeatureToast = { id -> showLockedFeatureToast(id) }
+            appFontPref = appFontPref
         )
 
         SettingsFontSizeDialog(

@@ -424,24 +424,17 @@ internal fun SettingsEqualizerStyleDialog(
 internal fun SettingsFontDialog(
     settingsRepo: SettingsRepository,
     showFontDialog: MutableState<Boolean>,
-    appFontPref: MutableState<com.music.musicflame.ui.theme.AppFont>,
-    unlockedIds: Set<String>,
-    showLockedFeatureToast: (String) -> Unit
+    appFontPref: MutableState<com.music.musicflame.ui.theme.AppFont>
 ) {
     if (showFontDialog.value) {
         com.music.musicflame.ui.components.AppFontPickerDialog(
             currentFont = appFontPref.value,
-            // Las 5 fuentes premium se venden juntas como un solo "Paquete"
-            // (ver PaymentCatalog/LicenseRepository), así que cualquiera de
-            // sus ids representa el desbloqueo del paquete completo.
-            isUnlocked = unlockedIds.contains("font_comfortaa"),
             onDismiss = { showFontDialog.value = false },
             onConfirm = { newFont ->
                 appFontPref.value = newFont
                 settingsRepo.saveAppFont(newFont.id)
                 showFontDialog.value = false
-            },
-            onLockedFontClick = { showLockedFeatureToast("font_comfortaa") }
+            }
         )
     }
 }

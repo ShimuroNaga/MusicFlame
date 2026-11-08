@@ -32,7 +32,7 @@ object PaymentCatalog {
     data class Item(
         val id: String,
         @StringRes val sectionRes: Int,
-        // Nombre propio que no se traduce (ej. nombres de fuentes); si hay labelRes, manda labelRes.
+        // Nombre propio que no se traduce; si hay labelRes, manda labelRes.
         val label: String = "",
         @StringRes val labelRes: Int? = null,
         // Precio individual en MXN. Por defecto el mismo de siempre (PRICE_PER_ITEM_MXN);
@@ -69,12 +69,6 @@ object PaymentCatalog {
 
         Item("lyrics_custom", R.string.pay_sec_lyrics_color, labelRes = R.string.pay_it_custom),
         Item("lyrics_rainbow", R.string.pay_sec_lyrics_color, labelRes = R.string.pay_it_rainbow),
-
-        Item("font_comfortaa", R.string.pay_sec_font, label = "Comfortaa"),
-        Item("font_playfair_display", R.string.pay_sec_font, label = "Playfair Display"),
-        Item("font_orbitron", R.string.pay_sec_font, label = "Orbitron"),
-        Item("font_press_start_2p", R.string.pay_sec_font, label = "Press Start 2P"),
-        Item("font_space_mono", R.string.pay_sec_font, label = "Space Mono"),
 
         Item("pro_eq_10band", R.string.pay_sec_pro_eq, labelRes = R.string.pay_it_pro_eq, priceMxn = 20)
     )

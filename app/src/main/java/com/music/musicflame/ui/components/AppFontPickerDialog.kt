@@ -6,7 +6,6 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -19,11 +18,8 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
@@ -35,7 +31,6 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -56,10 +51,8 @@ import com.music.musicflame.ui.theme.AppFont
 @Composable
 fun AppFontPickerDialog(
     currentFont: AppFont,
-    isUnlocked: Boolean,
     onDismiss: () -> Unit,
-    onConfirm: (AppFont) -> Unit,
-    onLockedFontClick: () -> Unit = {}
+    onConfirm: (AppFont) -> Unit
 ) {
     var tempFont by remember { mutableStateOf(currentFont) }
 
@@ -68,26 +61,16 @@ fun AppFontPickerDialog(
         title = { Text(stringResource(R.string.fn_title), fontWeight = FontWeight.Bold) },
         text = {
             Column {
-                if (!isUnlocked) {
-                    Text(
-                        stringResource(R.string.fn_hint),
-                        fontSize = 12.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
-                }
                 LazyColumn(
                     verticalArrangement = Arrangement.spacedBy(8.dp),
                     contentPadding = PaddingValues(vertical = 4.dp),
                     modifier = Modifier.heightIn(max = 420.dp)
                 ) {
                     items(AppFont.entries.toList()) { font ->
-                        val locked = !isUnlocked && !font.isFree
                         AppFontCard(
                             font = font,
                             isSelected = tempFont == font,
-                            locked = locked,
-                            onClick = { if (locked) onLockedFontClick() else tempFont = font }
+                            onClick = { tempFont = font }
                         )
                     }
                 }
@@ -108,13 +91,11 @@ fun AppFontPickerDialog(
 private fun AppFontCard(
     font: AppFont,
     isSelected: Boolean,
-    locked: Boolean,
     onClick: () -> Unit
 ) {
     val accentColor = MaterialTheme.colorScheme.primary
     val borderColor = if (isSelected) accentColor else MaterialTheme.colorScheme.outlineVariant
     val containerColor = if (isSelected) accentColor.copy(alpha = 0.08f) else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.35f)
-    val contentAlpha = if (locked) 0.5f else 1f
 
     Row(
         verticalAlignment = Alignment.CenterVertically,
@@ -129,10 +110,9 @@ private fun AppFontCard(
         RadioButton(
             selected = isSelected,
             onClick = onClick,
-            enabled = !locked,
             modifier = Modifier.width(36.dp)
         )
-        Column(modifier = Modifier.weight(1f).alpha(contentAlpha)) {
+        Column(modifier = Modifier.weight(1f)) {
             // El nombre se dibuja CON la fuente real que representa: la
             // preview en sí misma.
             Text(
@@ -147,22 +127,6 @@ private fun AppFontCard(
                 fontSize = 13.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-        }
-        if (locked) {
-            Box(
-                contentAlignment = Alignment.Center,
-                modifier = Modifier.width(56.dp)
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(
-                        Icons.Filled.Lock,
-                        contentDescription = stringResource(R.string.pe_locked_desc),
-                        tint = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 2.dp)
-                    )
-                    Text("$5 MXN", fontSize = 9.sp, color = MaterialTheme.colorScheme.error, fontWeight = FontWeight.Bold)
-                }
-            }
         }
         Spacer(Modifier.width(4.dp))
     }

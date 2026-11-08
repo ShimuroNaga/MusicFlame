@@ -266,12 +266,7 @@ class LicenseRepository(context: Context) {
          * identifica la compra es el código del final del link.
          */
         val KOFI_PRODUCTS: List<KofiProduct> = listOf(
-            KofiProduct("TODO", "https://ko-fi.com/s/1be1b91e12", listOf(ALL_ITEMS_ID), nameRes = R.string.lic_whole_catalog, priceMxn = 130),
-            KofiProduct(
-                "Tipos de letra (5)", "https://ko-fi.com/s/31810100a9",
-                listOf("font_comfortaa", "font_playfair_display", "font_orbitron", "font_press_start_2p", "font_space_mono"),
-                nameRes = R.string.kofi_prod_fonts, priceMxn = 25
-            ),
+            KofiProduct("TODO", "https://ko-fi.com/s/1be1b91e12", listOf(ALL_ITEMS_ID), nameRes = R.string.lic_whole_catalog, priceMxn = 105),
             KofiProduct(
                 "Pack 1 de ecualizadores", "https://ko-fi.com/s/c213993c41",
                 listOf("eq_style_mirrored_wave", "eq_style_wave", "eq_style_pulse", "eq_style_particles", "eq_style_thin"),

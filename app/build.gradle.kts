@@ -38,6 +38,11 @@ android {
         // Supabase Storage ("En compañía"): se leen de local.properties para no subirlos a GitHub
         buildConfigField("String", "SUPABASE_URL", "\"${localProperties.getProperty("SUPABASE_URL", "")}\"")
         buildConfigField("String", "SUPABASE_KEY", "\"${localProperties.getProperty("SUPABASE_KEY", "")}\"")
+        // Secreto HMAC para firmar las consultas de compras de Ko-fi (anti-IDOR).
+        // Genera uno con: openssl rand -hex 32
+        // Pégalo también en el servidor: alter database postgres set app.kofi_hmac_secret = '<valor>';
+        buildConfigField("String", "KOFI_HMAC_SECRET", "\"${localProperties.getProperty("KOFI_HMAC_SECRET", "")}\"")
+
     }
 
     signingConfigs {

@@ -73,7 +73,6 @@
     <string name="es_style_hint">\"Barras clásicas\" es gratis. Los demás estilos son de pago (Ajustes > Pagos).</string>
     <string name="es_style_title">Estilo de ecualizador gráfico</string>
     <string name="fn_title">Tipo de letra</string>
-    <string name="fn_hint">Roboto, Lato, Open Sans, Inter, Asap Sharp y Nunito son gratis. Las demás son de pago (Ajustes > Pagos).</string>
     <string name="dt_label">Subtítulo de visualización (solo en la app)</string>
     <string name="dt_placeholder">Ej: §bMi Canción§r</string>
     <string name="dt_support">No modifica el archivo mp3, solo cómo se ve aquí</string>

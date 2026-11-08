@@ -176,12 +176,8 @@ fun MusicFlameTheme(
         else -> if (isDarkBackground) Color.White else Color.Black // "Adaptativo": mismo default histórico del componente
     }
 
-    // Blinda el tipo de letra igual que el color de texto/Now Playing: si lo
-    // guardado es una fuente de pago y el usuario no está desbloqueado, cae
-    // a Roboto en vez de seguir mostrando la fuente premium sin haber pagado.
-    val storedFont = AppFont.fromId(appFontIdState.value)
-    val effectiveFont =
-        if (!storedFont.isFree && !unlockedIds.contains("font_${storedFont.id}")) AppFont.DEFAULT else storedFont
+    // Todas las fuentes son gratis: se usa la guardada tal cual (o Roboto si el id no existe).
+    val effectiveFont = AppFont.fromId(appFontIdState.value)
     // 16sp es el tamaño original de bodyLarge en M3 (sin cambios = escala 1f).
     val fontScale = appFontSizeState.value / 16f
     // Mismo motivo que finalColorScheme arriba: remember para no reconstruir los 15

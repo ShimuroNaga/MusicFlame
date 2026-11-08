@@ -24,7 +24,6 @@
     <string name="kofi_network_error">No connection or the server did not respond. Check your internet and try again.</string>
     <string name="kofi_opening_pack">Opening “%1$s” ($%2$d MXN) on Ko-fi…</string>
     <string name="kofi_buy_pack">Buy on Ko-fi</string>
-    <string name="kofi_prod_fonts">Fonts (5)</string>
     <string name="kofi_prod_eq_pack1">Equalizer pack 1</string>
     <string name="kofi_prod_eq_pack2">Equalizer pack 2</string>
     <string name="kofi_prod_colors">Color pack</string>

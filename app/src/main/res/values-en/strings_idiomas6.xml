@@ -73,7 +73,6 @@
     <string name="es_style_hint">\"Classic bars\" is free. The other styles are paid (Settings > Payments).</string>
     <string name="es_style_title">Graphic equalizer style</string>
     <string name="fn_title">Font</string>
-    <string name="fn_hint">Roboto, Lato, Open Sans, Inter, Asap Sharp and Nunito are free. The rest are paid (Settings > Payments).</string>
     <string name="dt_label">Display subtitle (in the app only)</string>
     <string name="dt_placeholder">e.g. §bMy Song§r</string>
     <string name="dt_support">Doesn\'t modify the mp3 file, only how it looks here</string>

@@ -27,6 +27,7 @@
 --   b) Solo el anfitrión sabe el CODIGO_SALA que usa como prefijo.
 --   c) Los archivos se borran al cerrar la sala (delete en TogetherManager).
 -- Si en el futuro añades Firebase Auth <-> Supabase Auth, restringe a auth.role() = 'authenticated'.
+drop policy if exists "salas_insert" on storage.objects;
 create policy "salas_insert"
   on storage.objects for insert
   with check (bucket_id = 'salas');
@@ -37,6 +38,7 @@ create policy "salas_insert"
 -- Como el nombre de objeto incluye un UUID v4 (128 bits de aleatoriedad), adivinarlo
 -- es computacionalmente imposible. Esta policy permite SELECT a cualquiera con la key,
 -- pero sin conocer la ruta nadie puede acceder a nada.
+drop policy if exists "salas_select" on storage.objects;
 create policy "salas_select"
   on storage.objects for select
   using (bucket_id = 'salas');
@@ -47,6 +49,7 @@ create policy "salas_select"
 -- TogetherManager.deleteUploadedFiles() borra con la misma key publishable que subió.
 -- Mismo razonamiento que SELECT: sin la ruta exacta (guardada solo en memoria de la app),
 -- nadie puede borrar archivos ajenos.
+drop policy if exists "salas_delete" on storage.objects;
 create policy "salas_delete"
   on storage.objects for delete
   using (bucket_id = 'salas');

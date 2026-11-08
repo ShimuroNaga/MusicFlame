@@ -49,7 +49,7 @@ declare
 begin
   -- Lee el secreto desde la configuración del servidor (no accesible con la clave publishable).
   -- Si usas Supabase Vault: select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'kofi_hmac_secret';
-  v_secret := current_setting('app.kofi_hmac_secret', true);  -- true = sin error si no existe
+  select decrypted_secret into v_secret from vault.decrypted_secrets where name = 'kofi_hmac_secret';
 
   -- Si el secreto no está configurado, falla de forma segura (no devuelve nada).
   if v_secret is null or v_secret = '' then

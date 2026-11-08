@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Órbita (tercera sub-página de Mix) -->
+    <string name="orbita_tab_default">Órbita</string>
+    <string name="orbita_tab_admin">Para Lucas</string>
+    <string name="orbita_own_name">Mi Órbita</string>
+    <string name="orbita_select_title">¿Qué quieres explorar?</string>
+    <string name="orbita_by_author">por %1$s</string>
+    <string name="orbita_songs_count">%1$d canciones</string>
+    <string name="orbita_imported_on">importada el %1$s</string>
+    <string name="orbita_add_here">¿Añadir canción aquí?</string>
+    <string name="orbita_pick_library">Elegir de biblioteca</string>
+    <string name="orbita_add_fab">Añadir canción</string>
+    <string name="orbita_picker_title">Elige una canción</string>
+    <string name="orbita_search_hint">Buscar</string>
+    <string name="orbita_limit_reached">Tu Órbita está llena (máx. %1$d canciones)</string>
+    <string name="orbita_duplicate">Esa canción ya está en tu Órbita</string>
+    <string name="orbita_note_label">Nota personal</string>
+    <string name="orbita_note_empty">Toca el lápiz para escribir una nota</string>
+    <string name="orbita_note_hint">Escribe algo sobre esta canción</string>
+    <string name="orbita_edit">Editar</string>
+    <string name="orbita_save">Guardar</string>
+    <string name="orbita_cancel">Cancelar</string>
+    <string name="orbita_added_on">Agregada el %1$s</string>
+    <string name="orbita_play">Reproducir</string>
+    <string name="orbita_not_in_library">Esta canción no está en tu biblioteca</string>
+    <string name="orbita_remove">Quitar de Órbita</string>
+    <string name="orbita_remove_note">No se elimina del dispositivo</string>
+    <string name="orbita_export">Exportar</string>
+    <string name="orbita_export_title">Tu Órbita está lista</string>
+    <string name="orbita_export_save">Guardar en dispositivo</string>
+    <string name="orbita_export_share">Compartir</string>
+    <string name="orbita_export_saved">Órbita guardada</string>
+    <string name="orbita_export_failed">No se pudo exportar la Órbita</string>
+    <string name="orbita_import_title">¿Guardar esta Órbita?</string>
+    <string name="orbita_import_summary">De %1$s · %2$d canciones</string>
+    <string name="orbita_import_anonymous">alguien</string>
+    <string name="orbita_import_save">Guardar</string>
+    <string name="orbita_import_invalid">Ese archivo .orbita no es válido</string>
+    <string name="orbita_import_exists_title">Ya tienes una Órbita de %1$s</string>
+    <string name="orbita_import_replace">Reemplazar</string>
+    <string name="orbita_import_new">Guardar como nueva</string>
+    <string name="orbita_imported_name">Órbita de %1$s</string>
+    <string name="orbita_delete_title">¿Eliminar esta Órbita?</string>
+    <string name="orbita_delete_msg">Se borra de MusicFlame; el archivo original que te enviaron no se toca.</string>
+    <string name="orbita_delete">Eliminar</string>
+    <string name="orbita_back">Volver</string>
+    <string name="orbita_empty_hint">Toca el espacio para añadir tu primera canción</string>
+    <string name="orbita_readonly">Solo lectura</string>
+    <string name="orbita_import_file">Importar archivo .orbita</string>
+</resources>

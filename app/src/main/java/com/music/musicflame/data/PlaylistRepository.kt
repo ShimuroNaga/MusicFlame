@@ -47,7 +47,7 @@ private const val MOST_PLAYED_LIMIT = 30
 fun buildMostPlayedPlaylist(context: Context): Playlist {
     val statsRepo = StatsRepository(context)
     val libraryIds = SongLibraryHolder.songs.map { it.id }.toSet()
-    val topIds = statsRepo.getTopPlayed(MOST_PLAYED_LIMIT)
+    val topIds = statsRepo.getTopPlayed(MOST_PLAYED_LIMIT, minPlayCount = 1)
         .filter { (id, stat) -> stat.playCount > 0 && id in libraryIds }
         .map { it.first }
     val coverUri = SettingsRepository(context).getMostPlayedCoverUri()

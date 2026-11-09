@@ -99,7 +99,7 @@ fun MixScreen(
         val songsById = com.music.musicflame.data.SongLibraryHolder.songs.associateBy { it.id }
         while (true) {
             hasAnyStatsRecorded.value = statsRepo.getAllStats().isNotEmpty()
-            val top = statsRepo.getTopPlayed(20)
+            val top = statsRepo.getTopPlayed(20, minPlayCount = 1)
             val rows = top.mapNotNull { (id, stat) ->
                 val song = songsById[id] ?: return@mapNotNull null
                 SongStatRow(song = song, stat = stat, isFavorite = favoritesRepo.isFavorite(id))
@@ -178,7 +178,7 @@ fun MixScreen(
         }
     }
 
-    // --- PAGER CIRCULAR de 3 páginas: 0 = Mix Diario, 1 = Mezcla de Momentos, 2 = Órbita. ---
+    // --- PAGER CIRCULAR de 4 páginas: 0 = Mix Diario, 1 = Mezcla de Momentos, 2 = Estadísticas, 3 = Órbita. ---
     // Al ser circular, el swipe funciona hacia la izquierda Y hacia la derecha desde
     // cualquier página (con 2 páginas normales, un lado quedaba muerto).
     // El estado de la mezcla vive ACÁ (no dentro de la página): en un pager circular cada
@@ -187,11 +187,12 @@ fun MixScreen(
     val momentEntries = remember { mutableStateListOf<MomentMixEntry>() }
     val momentsSignature = remember { mutableStateOf("") }
     var momentsShuffleSeed by remember { mutableStateOf(0) }
-    // loopCount múltiplo de 3 y loopCount/2 también múltiplo de 3 -> arranca en Mix Diario.
-    val loopCount = 10_002
+    // loopCount múltiplo de 4 y loopCount/2 también múltiplo de 4 -> arranca en Mix Diario.
+    val loopCount = 10_000
     val pagerState = rememberPagerState(initialPage = loopCount / 2) { loopCount }
-    val onMomentsPage = pagerState.currentPage % 3 == 1
-    val onOrbitaPage = pagerState.currentPage % 3 == 2
+    val onMomentsPage = pagerState.currentPage % 4 == 1
+    val onStatsPage = pagerState.currentPage % 4 == 2
+    val onOrbitaPage = pagerState.currentPage % 4 == 3
     // "Para Lucas" / acento verde solo para la cuenta dueña; el resto ve "Órbita" en azul-violeta.
     val isOrbitaAdmin = remember { LicenseRepository(context).isRealOwnerAccount() }
     val orbitaAccentColor = orbitaAccent(isOrbitaAdmin)
@@ -200,9 +201,9 @@ fun MixScreen(
     // Un archivo .orbita abierto con MusicFlame: saltar directo a la página de Órbita (que muestra el preview).
     val pendingOrbitaImport = OrbitaInbox.pendingUri
     LaunchedEffect(pendingOrbitaImport) {
-        if (pendingOrbitaImport != null && pagerState.currentPage % 3 != 2) {
+        if (pendingOrbitaImport != null && pagerState.currentPage % 4 != 3) {
             val cur = pagerState.currentPage
-            pagerState.scrollToPage(cur + ((2 - cur % 3) + 3) % 3)
+            pagerState.scrollToPage(cur + ((3 - cur % 4) + 4) % 4)
         }
     }
 
@@ -213,27 +214,27 @@ fun MixScreen(
             horizontalArrangement = Arrangement.Center,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            listOf("Mix Diario", "Momentos", orbitaLabel).forEachIndexed { idx, label ->
-                val selected = (pagerState.currentPage % 3) == idx
+            listOf("Mix Diario", "Momentos", "Estadísticas", orbitaLabel).forEachIndexed { idx, label ->
+                val selected = (pagerState.currentPage % 4) == idx
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier
                         .clip(RoundedCornerShape(12.dp))
                         .clickable {
                             if (!selected) scope.launch {
-                                // Camino más corto: +1 o +2 páginas equivale a +1 / -1 en un ciclo de 3.
-                                val d = ((idx - pagerState.currentPage % 3) + 3) % 3
-                                pagerState.animateScrollToPage(pagerState.currentPage + (if (d == 2) -1 else d))
+                                // Camino más corto en un ciclo de 4.
+                                val d = ((idx - pagerState.currentPage % 4) + 4) % 4
+                                pagerState.animateScrollToPage(pagerState.currentPage + (if (d > 2) -(4 - d) else d))
                             }
                         }
-                        .padding(horizontal = 10.dp, vertical = 4.dp)
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
                 ) {
                     Box(
                         modifier = Modifier
                             .size(if (selected) 8.dp else 6.dp)
                             .clip(CircleShape)
                             .background(
-                                if (selected) (if (idx == 2) orbitaAccentColor else MaterialTheme.colorScheme.primary)
+                                if (selected) (if (idx == 3) orbitaAccentColor else MaterialTheme.colorScheme.primary)
                                 else (if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface).copy(alpha = 0.35f)
                             )
                     )
@@ -255,13 +256,20 @@ fun MixScreen(
             userScrollEnabled = !isSelectionMode,
             beyondViewportPageCount = 1
         ) { page ->
-            if (page % 3 == 2) {
+            if (page % 4 == 3) {
                 OrbitaPage(
                     isVisible = onOrbitaPage,
                     isAdmin = isOrbitaAdmin,
                     onPlaySong = { song -> onSongClick(song, listOf(song)) }
                 )
-            } else if (page % 3 == 1) {
+            } else if (page % 4 == 2) {
+                StatsPage(
+                    statsRows = statsRows,
+                    hasAnyStatsRecorded = hasAnyStatsRecorded.value,
+                    hasBackgroundImage = hasBackgroundImage,
+                    isRounded = isRounded
+                )
+            } else if (page % 4 == 1) {
                 MomentsMixPage(
                     entries = momentEntries,
                     signatureState = momentsSignature,
@@ -363,130 +371,6 @@ fun MixScreen(
                                 )
                             }
 
-                            // --- ESTADÍSTICAS: top 20 canciones más escuchadas, en vivo ---
-                            item { Spacer(Modifier.height(8.dp)) }
-
-                            item {
-                                val statsTextColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
-                                Card(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clip(RoundedCornerShape(headerRadius))
-                                        .clickable { showStats.value = !showStats.value },
-                                    colors = CardDefaults.cardColors(
-                                        containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.secondaryContainer
-                                    ),
-                                    shape = RoundedCornerShape(headerRadius)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth().padding(16.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(Icons.Filled.BarChart, null, tint = statsTextColor)
-                                        Spacer(Modifier.width(12.dp))
-                                        Column(Modifier.weight(1f)) {
-                                            Text(stringResource(R.string.mix_stats), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = statsTextColor)
-                                            val topSongLabel = statsRows.firstOrNull()?.song?.title
-                                            Text(
-                                                if (topSongLabel != null) stringResource(R.string.mix_most_played, topSongLabel) else stringResource(R.string.mix_top20),
-                                                fontSize = 12.sp,
-                                                color = statsTextColor.copy(alpha = 0.8f)
-                                            )
-                                        }
-                                        Icon(
-                                            if (showStats.value) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
-                                            null,
-                                            tint = statsTextColor
-                                        )
-                                    }
-                                }
-                            }
-
-                            if (showStats.value) {
-                                if (statsRows.isEmpty()) {
-                                    item {
-                                        Text(
-                                            // NUEVO: mensaje distinto según el caso real. Antes decía
-                                            // siempre "reproduce algo para empezar", incluso si ya
-                                            // llevabas horas escuchando música pero ninguna canción
-                                            // había llegado todavía a las 10 reproducciones mínimas
-                                            // para aparecer en este Top 20 — lo que parecía un bug
-                                            // (como si nada se estuviera registrando) sin serlo.
-                                            if (hasAnyStatsRecorded.value)
-                                                stringResource(R.string.mix_stats_empty_threshold)
-                                            else
-                                                stringResource(R.string.mix_stats_empty),
-                                            fontSize = 13.sp,
-                                            color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
-                                        )
-                                    }
-                                } else {
-                                    itemsIndexed(statsRows, key = { _, row -> "stat_${row.song.id}" }) { index, row ->
-                                        val rowTextColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
-                                        Card(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            colors = CardDefaults.cardColors(
-                                                containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceContainerHigh
-                                            ),
-                                            shape = RoundedCornerShape(itemRadius)
-                                        ) {
-                                            Row(
-                                                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
-                                                verticalAlignment = Alignment.CenterVertically
-                                            ) {
-                                                Text(
-                                                    "${index + 1}",
-                                                    fontSize = 13.sp,
-                                                    fontWeight = FontWeight.ExtraBold,
-                                                    color = rowTextColor.copy(alpha = 0.6f),
-                                                    modifier = Modifier.width(24.dp)
-                                                )
-                                                Column(Modifier.weight(1f).padding(end = 8.dp)) {
-                                                    Text(
-                                                        row.song.title,
-                                                        fontSize = 14.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = rowTextColor,
-                                                        maxLines = 1,
-                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                    )
-                                                    Text(
-                                                        row.song.artist,
-                                                        fontSize = 12.sp,
-                                                        color = rowTextColor.copy(alpha = 0.7f),
-                                                        maxLines = 1,
-                                                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
-                                                    )
-                                                }
-                                                if (row.isFavorite) {
-                                                    Icon(
-                                                        Icons.Filled.Favorite,
-                                                        contentDescription = stringResource(R.string.mix_favorite),
-                                                        tint = MaterialTheme.colorScheme.primary,
-                                                        modifier = Modifier.size(16.dp)
-                                                    )
-                                                    Spacer(Modifier.width(10.dp))
-                                                }
-                                                Column(horizontalAlignment = Alignment.End) {
-                                                    Text(
-                                                        "${row.stat.playCount}x",
-                                                        fontSize = 13.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = rowTextColor
-                                                    )
-                                                    Text(
-                                                        formatListenedTime(row.stat.totalListenedMs),
-                                                        fontSize = 11.sp,
-                                                        color = rowTextColor.copy(alpha = 0.7f)
-                                                    )
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
                             // Espacio extra para que la lista no quede oculta detrás de los botones flotantes
                             item { Spacer(Modifier.height(140.dp)) }
                         }
@@ -567,6 +451,136 @@ fun MixScreen(
             },
             dismissButton = { TextButton(onClick = { showSaveDialog.value = false }) { Text(stringResource(R.string.action_cancel)) } }
         )
+    }
+}
+
+/**
+ * Página 2 del Mix: "Estadísticas". Muestra el top 20 de canciones más escuchadas
+ * (separado del Mix Diario para mantener la continuidad del pager).
+ */
+@Composable
+private fun StatsPage(
+    statsRows: List<SongStatRow>,
+    hasAnyStatsRecorded: Boolean,
+    hasBackgroundImage: Boolean,
+    isRounded: Boolean
+) {
+    val isRoundedLocal = LocalUseRoundCorners.current
+    val itemRadius = if (isRoundedLocal) 12.dp else 0.dp
+    val headerRadius = if (isRoundedLocal) 20.dp else 0.dp
+    val statsTextColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSecondaryContainer
+
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        // Cabecera
+        item {
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.5f) else MaterialTheme.colorScheme.secondaryContainer
+                ),
+                shape = RoundedCornerShape(headerRadius)
+            ) {
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(Icons.Filled.BarChart, null, tint = statsTextColor)
+                    Spacer(Modifier.width(12.dp))
+                    Column(Modifier.weight(1f)) {
+                        Text(stringResource(R.string.mix_stats), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = statsTextColor)
+                        val topSongLabel = statsRows.firstOrNull()?.song?.title
+                        Text(
+                            if (topSongLabel != null) stringResource(R.string.mix_most_played, topSongLabel) else stringResource(R.string.mix_top20),
+                            fontSize = 12.sp,
+                            color = statsTextColor.copy(alpha = 0.8f)
+                        )
+                    }
+                }
+            }
+        }
+
+        if (statsRows.isEmpty()) {
+            item {
+                Text(
+                    if (hasAnyStatsRecorded)
+                        stringResource(R.string.mix_stats_empty_threshold)
+                    else
+                        stringResource(R.string.mix_stats_empty),
+                    fontSize = 13.sp,
+                    color = if (hasBackgroundImage) Color.White.copy(alpha = 0.8f) else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)
+                )
+            }
+        } else {
+            itemsIndexed(statsRows, key = { _, row -> "stat_${row.song.id}" }) { index, row ->
+                val rowTextColor = if (hasBackgroundImage) Color.White else MaterialTheme.colorScheme.onSurface
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = if (hasBackgroundImage) Color.Black.copy(alpha = 0.35f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                    ),
+                    shape = RoundedCornerShape(itemRadius)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            "${index + 1}",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = rowTextColor.copy(alpha = 0.6f),
+                            modifier = Modifier.width(24.dp)
+                        )
+                        Column(Modifier.weight(1f).padding(end = 8.dp)) {
+                            Text(
+                                row.song.title,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = rowTextColor,
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                            Text(
+                                row.song.artist,
+                                fontSize = 12.sp,
+                                color = rowTextColor.copy(alpha = 0.7f),
+                                maxLines = 1,
+                                overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                            )
+                        }
+                        if (row.isFavorite) {
+                            Icon(
+                                Icons.Filled.Favorite,
+                                contentDescription = stringResource(R.string.mix_favorite),
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(Modifier.width(10.dp))
+                        }
+                        Column(horizontalAlignment = Alignment.End) {
+                            Text(
+                                "${row.stat.playCount}x",
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = rowTextColor
+                            )
+                            Text(
+                                formatListenedTime(row.stat.totalListenedMs),
+                                fontSize = 11.sp,
+                                color = rowTextColor.copy(alpha = 0.7f)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        item { Spacer(Modifier.height(24.dp)) }
     }
 }
 

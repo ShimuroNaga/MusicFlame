@@ -7,7 +7,7 @@
     <string name="mix_stats">Estadísticas</string>
     <string name="mix_most_played">Más escuchada: %1$s</string>
     <string name="mix_top20">Top 20 canciones más escuchadas</string>
-    <string name="mix_stats_empty_threshold">Todavía ninguna canción llegó a las 3 reproducciones necesarias para aparecer acá (no hace falta que sean seguidas). ¡Sigue escuchando!</string>
+    <string name="mix_stats_empty_threshold">Todavía no hay estadísticas registradas. ¡Reproduce alguna canción para empezar!</string>
     <string name="mix_stats_empty">Aún no hay estadísticas. ¡Reproduce alguna canción para empezar a registrar!</string>
     <string name="mix_favorite">Favorita</string>
     <string name="mix_save">Guardar Mix</string>

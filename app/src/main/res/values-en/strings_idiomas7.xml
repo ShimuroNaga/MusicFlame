@@ -7,7 +7,7 @@
     <string name="mix_stats">Statistics</string>
     <string name="mix_most_played">Most played: %1$s</string>
     <string name="mix_top20">Top 20 most played songs</string>
-    <string name="mix_stats_empty_threshold">No song has reached the 3 plays needed to show up here yet (they don\'t have to be in a row). Keep listening!</string>
+    <string name="mix_stats_empty_threshold">No statistics recorded yet. Play a song to start!</string>
     <string name="mix_stats_empty">No statistics yet. Play a song to start recording!</string>
     <string name="mix_favorite">Favorite</string>
     <string name="mix_save">Save Mix</string>

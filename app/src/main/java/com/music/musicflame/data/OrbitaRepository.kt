@@ -66,7 +66,7 @@ class OrbitaRepository(context: Context) {
     private fun dao() = AppDatabase.getInstance(appContext).orbitaDao()
 
     companion object {
-        const val MAX_SONGS = 100
+        const val MAX_SONGS = 20
         const val MIME_ORBITA = "application/x-orbita"
         const val EXPORT_DIR = "orbita_exports"
         private const val FORMAT_VERSION = 1

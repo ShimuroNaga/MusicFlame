@@ -7,6 +7,12 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -35,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
@@ -326,6 +333,18 @@ private fun OrbitaBackground(isVisible: Boolean, accent: Color) {
             topLeft = Offset(0f, ay), size = Size(w, ah)
         )
 
+        // Estrella fugaz: una cada ~9s, trayectoria distinta según el ciclo.
+        val cyc = (t % 9f) / 1.1f
+        if (cyc in 0f..1f) {
+            val k = (t / 9f).toInt() % 3
+            val head = Offset(w * (0.2f + 0.25f * k) + cyc * w * 0.35f, h * (0.06f + 0.05f * k) + cyc * h * 0.22f)
+            val tail = Offset(head.x - w * 0.10f, head.y - h * 0.06f)
+            drawLine(
+                brush = Brush.linearGradient(listOf(Color.Transparent, Color.White.copy(alpha = 0.85f * (1f - cyc))), start = tail, end = head),
+                start = tail, end = head, strokeWidth = 1.6f * density
+            )
+        }
+
         // Estrellas con parpadeo individual; las grandes con halo del color de acento.
         for (s in stars) {
             val a = 0.25f + 0.75f * (0.5f + 0.5f * sin(t * s.speed + s.phase))
@@ -395,7 +414,7 @@ private fun OrbitaSelector(
                     }
                     Text(
                         stringResource(R.string.orbita_songs_count, m.cantidad) +
-                            if (!m.esPropia) " · " + stringResource(R.string.orbita_imported_on, dateFmt.format(Date(m.fechaImport))) else "",
+                                if (!m.esPropia) " · " + stringResource(R.string.orbita_imported_on, dateFmt.format(Date(m.fechaImport))) else "",
                         color = Color.White.copy(alpha = 0.6f), fontSize = 12.sp
                     )
                 }
@@ -450,6 +469,12 @@ private fun OrbitaSpace(
         songs = s
     }
 
+    // Flotación suave de los nodos (cada uno con su fase).
+    val floatT by rememberInfiniteTransition(label = "orbitaFloat").animateFloat(
+        initialValue = 0f, targetValue = 6.2832f,
+        animationSpec = infiniteRepeatable(tween(7000, easing = LinearEasing), RepeatMode.Restart),
+        label = "orbitaFloatT"
+    )
     var tapFraction by remember { mutableStateOf<Offset?>(null) }   // posición tocada (fracciones 0..1)
     var showAsk by remember { mutableStateOf(false) }
     var showPicker by remember { mutableStateOf(false) }
@@ -506,11 +531,23 @@ private fun OrbitaSpace(
                     }
                 } else Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f)) {
-                    Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                     Text(
-                        if (editable) "${songs.size}/${OrbitaRepository.MAX_SONGS}" else stringResource(R.string.orbita_readonly),
-                        color = accent.copy(alpha = 0.85f), fontSize = 11.sp
+                        "✦ " + title.uppercase(Locale.getDefault()),
+                        color = Color.White, fontWeight = FontWeight.Bold, fontSize = 16.sp,
+                        letterSpacing = 3.sp, maxLines = 1, overflow = TextOverflow.Ellipsis,
+                        style = androidx.compose.ui.text.TextStyle(
+                            shadow = androidx.compose.ui.graphics.Shadow(color = accent.copy(alpha = 0.9f), blurRadius = 22f)
+                        )
                     )
+                    Box(
+                        Modifier.padding(top = 2.dp).clip(RoundedCornerShape(50))
+                            .background(accent.copy(alpha = 0.16f)).padding(horizontal = 8.dp, vertical = 1.dp)
+                    ) {
+                        Text(
+                            if (editable) "${songs.size}/${OrbitaRepository.MAX_SONGS}" else stringResource(R.string.orbita_readonly),
+                            color = accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold
+                        )
+                    }
                 }
                 if (editable) {
                     IconButton(onClick = onImport) {
@@ -562,6 +599,18 @@ private fun OrbitaSpace(
 
                     // Constelación: líneas punteadas entre nodos cercanos (máx. 3 por nodo).
                     Canvas(Modifier.fillMaxSize()) {
+                        // Anillos orbitales tenues al centro: dan sensación de órbita.
+                        val ringDash = PathEffect.dashPathEffect(floatArrayOf(4f * density, 14f * density))
+                        for (i in 1..3) {
+                            val rx = size.width * 0.17f * i
+                            val ry = size.height * 0.12f * i
+                            drawOval(
+                                color = accent.copy(alpha = 0.07f),
+                                topLeft = Offset(size.width / 2f - rx, size.height / 2f - ry),
+                                size = Size(rx * 2f, ry * 2f),
+                                style = Stroke(width = 1f * density, pathEffect = ringDash)
+                            )
+                        }
                         val items = songs.mapNotNull { s ->
                             val p = live[s.id] ?: return@mapNotNull null
                             val sz = nodeSizeDp(s.id) * density
@@ -608,6 +657,9 @@ private fun OrbitaSpace(
                                             (p.x * (wPx - sizePx).coerceAtLeast(0f)).roundToInt(),
                                             (p.y * (hPx - sizePx).coerceAtLeast(0f)).roundToInt()
                                         )
+                                    }
+                                    .graphicsLayer {
+                                        translationY = sin(floatT + s.id * 1.3f) * 3.5f * density
                                     }
                                     .pointerInput(s.id) {
                                         detectTapGestures(

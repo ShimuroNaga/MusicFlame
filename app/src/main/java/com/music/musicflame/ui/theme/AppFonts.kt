@@ -119,6 +119,20 @@ enum class AppFont(
         fontFamily = FontFamily(
             Font(R.font.spacemono_regular, FontWeight.Normal)
         )
+    ),
+    GOOGLE_SANS(
+        id = "google_sans",
+        displayName = "Google Sans",
+        fontFamily = FontFamily(
+            Font(R.font.googlesans_regular, FontWeight.Normal)
+        )
+    ),
+    RUBIK(
+        id = "rubik",
+        displayName = "Rubik",
+        fontFamily = FontFamily(
+            Font(R.font.rubik_regular, FontWeight.Normal)
+        )
     );
 
     companion object {

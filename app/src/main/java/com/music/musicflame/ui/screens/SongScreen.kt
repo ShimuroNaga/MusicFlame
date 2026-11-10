@@ -250,7 +250,10 @@ fun SongsScreen(
                 if (idx != -1) {
                     var updated = songs[idx]
                     if (patch.newTitle != null) updated = updated.copy(title = patch.newTitle)
-                    if (patch.newCoverUri != null) updated = updated.copy(albumArtUri = patch.newCoverUri)
+                    if (patch.newCoverUri != null) updated = updated.copy(
+                        albumArtUri = patch.newCoverUri,
+                        hasCustomCover = true  // indica a AlbumArt que esta URI es manual, no de MediaStore
+                    )
                     // --- NUEVO: editor de etiquetas/metadata (artista y álbum) ---
                     if (patch.newArtist != null) updated = updated.copy(artist = patch.newArtist)
                     if (patch.newAlbum != null) updated = updated.copy(album = patch.newAlbum)

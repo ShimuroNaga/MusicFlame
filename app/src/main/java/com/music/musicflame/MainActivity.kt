@@ -1050,6 +1050,8 @@ class MainActivity : ComponentActivity() {
                                     // muestran 5 y el resto se alcanza deslizando (en cualquier dirección,
                                     // con inercia, como el selector de íconos). Siempre se centra sola en la
                                     // pantalla activa, también cuando cambias de pantalla deslizando el contenido.
+                                    val navBarStyleValue = com.music.musicflame.ui.components.NavBarStyleHolder.state(settingsRepo).value
+                                    if (navBarStyleValue == com.music.musicflame.ui.components.NavBarStyle.CLASSIC) {
                                     BoxWithConstraints(
                                         modifier = Modifier
                                             .fillMaxWidth()
@@ -1085,6 +1087,30 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             }
                                         }
+                                    }
+                                    } else {
+                                        com.music.musicflame.ui.components.GlassNavBar(
+                                            style = navBarStyleValue,
+                                            items = bottomNavItems,
+                                            selectedIndex = pagerState.currentPage,
+                                            listState = navBarListState,
+                                            roundCorners = useRoundCornersState.value,
+                                            hasBackgroundImage = hasBackgroundImage,
+                                            modifier = Modifier.padding(top = 8.dp),
+                                            onItemClick = { index ->
+                                                selectedPlaylist = null
+                                                selectedAlbum = null
+                                                selectedArtist = null
+                                                selectedGenre = null
+                                                showSettings = false
+                                                showTogether = false
+                                                isSearchActive = false
+                                                searchQuery = ""
+                                                selectedSongs.clear(); manualSongSelectionMode = false
+                                                selectedPlaylists.clear(); manualPlaylistSelectionMode = false
+                                                coroutineScope.launch { pagerState.animateScrollToPage(index) }
+                                            }
+                                        )
                                     }
                                 }
                               }
@@ -1436,6 +1462,12 @@ class MainActivity : ComponentActivity() {
                                         showEditSongDialog = false
                                         pendingSongPatches = patches
                                         songsPatchTrigger++
+                                        // Regenera LibraryIndex para que AlbumScreen/ArtistScreen
+                                        // reflejen el nuevo artista/álbum/carátula al instante,
+                                        // sin esperar al onResume.
+                                        coroutineScope.launch(Dispatchers.IO) {
+                                            SongLibraryHolder.refresh(context)
+                                        }
                                         val count = selectedSongs.size
                                         selectedSongs.clear(); manualSongSelectionMode = false
                                         Toast.makeText(

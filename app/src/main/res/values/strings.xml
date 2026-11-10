@@ -389,4 +389,8 @@
     <string name="settings_delete_account_desc">Elimina tu cuenta y revoca el acceso a Google. Esta acción no se puede deshacer.</string>
     <string name="settings_delete_account_confirm">¿Borrar tu cuenta? Se revocará el acceso a Google y se eliminará tu usuario. Esta acción es permanente.</string>
     <string name="settings_account_deleted_ok">Cuenta eliminada correctamente.</string>
+    <string name="settings_nav_bar_style">Estilo de la barra inferior</string>
+    <string name="settings_nav_bar_classic">Clásica</string>
+    <string name="settings_nav_bar_glass_notch">Vidrio con muesca</string>
+    <string name="settings_nav_bar_glass_bubble">Vidrio con burbuja</string>
 </resources>

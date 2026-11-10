@@ -96,6 +96,12 @@ class SettingsRepository(context: Context) {
     fun getUseRoundCorners(): Boolean = prefs.getBoolean("use_round_corners", true)
     fun saveUseRoundCorners(enabled: Boolean) = prefs.edit().putBoolean("use_round_corners", enabled).apply()
 
+    // Estilo de la barra inferior (CLASSIC / GLASS_NOTCH / GLASS_BUBBLE). Por defecto: vidrio con muesca.
+    fun getNavBarStyle(): com.music.musicflame.ui.components.NavBarStyle =
+        com.music.musicflame.ui.components.NavBarStyle.fromName(prefs.getString("nav_bar_style", null))
+    fun saveNavBarStyle(style: com.music.musicflame.ui.components.NavBarStyle) =
+        prefs.edit().putString("nav_bar_style", style.name).apply()
+
     // Opacidad del fondo gris del widget de home screen (0f = transparente, 1f = opaco)
     fun getWidgetBackgroundOpacity(): Float = prefs.getFloat("widget_bg_opacity", 0.8f)
     fun saveWidgetBackgroundOpacity(value: Float) = prefs.edit().putFloat("widget_bg_opacity", value).apply()

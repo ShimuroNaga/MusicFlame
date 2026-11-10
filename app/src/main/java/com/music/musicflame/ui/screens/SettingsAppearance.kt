@@ -648,6 +648,38 @@ internal fun LazyListScope.settingsAppearanceSection(
 
     item {
         SettingsRow(style, SettingsRowPos.Middle) {
+            val navBarStyleState = com.music.musicflame.ui.components.NavBarStyleHolder.state(settingsRepo)
+            ListItem(
+                headlineContent = { Text(stringResource(R.string.settings_nav_bar_style)) },
+                supportingContent = {
+                    Row(
+                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        listOf(
+                            com.music.musicflame.ui.components.NavBarStyle.CLASSIC to R.string.settings_nav_bar_classic,
+                            com.music.musicflame.ui.components.NavBarStyle.GLASS_NOTCH to R.string.settings_nav_bar_glass_notch,
+                            com.music.musicflame.ui.components.NavBarStyle.GLASS_BUBBLE to R.string.settings_nav_bar_glass_bubble
+                        ).forEach { (option, labelRes) ->
+                            androidx.compose.material3.FilterChip(
+                                selected = navBarStyleState.value == option,
+                                onClick = {
+                                    navBarStyleState.value = option
+                                    settingsRepo.saveNavBarStyle(option)
+                                },
+                                label = { Text(stringResource(labelRes)) }
+                            )
+                        }
+                    }
+                },
+                colors = style.listItemColors
+            )
+            SettingsDivider(style)
+        }
+    }
+
+    item {
+        SettingsRow(style, SettingsRowPos.Middle) {
             ListItem(
                 headlineContent = { Text(stringResource(R.string.settings_forma_de_la_caratula)) },
                 supportingContent = {

@@ -389,4 +389,8 @@
     <string name="settings_delete_account_desc">Deletes your account and revokes Google access. This cannot be undone.</string>
     <string name="settings_delete_account_confirm">Delete your account? Google access will be revoked and your user will be removed. This is permanent.</string>
     <string name="settings_account_deleted_ok">Account deleted successfully.</string>
+    <string name="settings_nav_bar_style">Bottom bar style</string>
+    <string name="settings_nav_bar_classic">Classic</string>
+    <string name="settings_nav_bar_glass_notch">Glass with notch</string>
+    <string name="settings_nav_bar_glass_bubble">Glass with bubble</string>
 </resources>

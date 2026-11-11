@@ -354,7 +354,7 @@ private fun ChatTopBar(manager: TogetherManager, accent: State<Color>, onBack: (
                 Box(Modifier.width((32 + 20 * (shown.size - 1)).dp).height(32.dp)) {
                     shown.forEachIndexed { i, m ->
                         Box(Modifier.padding(start = (i * 20).dp)) {
-                            MemberAvatar(accent = accent, name = m.name, online = true, avatar = m.avatar, avatarSize = 32.dp)
+                            MemberAvatar(accent = accent, name = m.name, online = true, avatar = m.avatar, avatarSize = 32.dp, uid = m.uid)
                         }
                     }
                 }
@@ -556,7 +556,7 @@ private fun ChatBubbleRow(
     ) {
         if (!mine) {
             if (showHeader) {
-                MemberAvatar(accent = accent, name = msg.name, online = true, avatar = avatar, avatarSize = 34.dp)
+                MemberAvatar(accent = accent, name = msg.name, online = true, avatar = avatar, avatarSize = 34.dp, uid = msg.uid)
             } else {
                 Spacer(Modifier.size(34.dp))
             }
@@ -636,7 +636,7 @@ private fun ChatBubbleRow(
         if (mine) {
             Spacer(Modifier.size(8.dp))
             if (showHeader) {
-                MemberAvatar(accent = accent, name = msg.name, online = true, avatar = avatar, avatarSize = 34.dp)
+                MemberAvatar(accent = accent, name = msg.name, online = true, avatar = avatar, avatarSize = 34.dp, uid = msg.uid)
             } else {
                 Spacer(Modifier.size(34.dp))
             }

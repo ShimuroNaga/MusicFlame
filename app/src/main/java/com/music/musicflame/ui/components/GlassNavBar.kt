@@ -36,7 +36,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -47,6 +46,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathOperation
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalDensity
@@ -58,6 +58,7 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.navigation.Screen
 import kotlin.math.roundToInt
+import kotlin.math.sqrt
 
 /**
  * Estilos de la barra inferior (Ajustes > Apariencia).
@@ -122,7 +123,7 @@ fun GlassNavBar(
         modifier = modifier
             .fillMaxWidth()
             .height(barHeight + rise)
-            .clipToBounds()
+        // Sin clipToBounds: antes recortaba la cima y el brillo de la joroba (se veía aplastada).
     ) {
         val itemWidth = maxWidth / 5f
         val widthPx = with(density) { maxWidth.toPx() }
@@ -135,7 +136,7 @@ fun GlassNavBar(
         val targetCx by remember(itemWidthPx, selectedIndex) {
             derivedStateOf {
                 (selectedIndex - listState.firstVisibleItemIndex) * itemWidthPx -
-                    listState.firstVisibleItemScrollOffset + itemWidthPx / 2f
+                        listState.firstVisibleItemScrollOffset + itemWidthPx / 2f
             }
         }
         val cxAnim = animateFloatAsState(
@@ -149,95 +150,126 @@ fun GlassNavBar(
         val bubbleCenterY = risePx + notchDepthPx - bubbleRadiusPx - with(density) { 3.dp.toPx() }
 
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val cx = cxAnim.value
-            val w = size.width
-            val y0 = risePx
-            val r = if (roundCorners) 28.dp.toPx() else 0f
-            val margin = 40.dp.toPx()
+            // Recorte solo a los lados (la cima/brillo de la joroba sí pueden sobresalir por arriba).
+            // Así lo que queda fuera de la barra (pestaña activa desplazada fuera de vista) no se dibuja sobre la pantalla.
+            clipRect(left = 0f, top = -12.dp.toPx(), right = size.width, bottom = size.height) {
+                val cx = cxAnim.value
+                val w = size.width
+                val y0 = risePx
+                val r = if (roundCorners) 28.dp.toPx() else 0f
+                val margin = 40.dp.toPx()
 
-            val base = Path().apply {
-                addRoundRect(RoundRect(Rect(0f, y0, w, y0 + barHeightPx), CornerRadius(r, r)))
-            }
-
-            val inRange = cx > -margin && cx < w + margin
-            val bar: Path = when {
-                !inRange -> base
-                isBubble -> {
-                    // Muesca cóncava donde se aloja la burbuja.
-                    val nw = 46.dp.toPx()
-                    val up = 4.dp.toPx()
-                    val notch = Path().apply {
-                        moveTo(cx - nw, y0 - up)
-                        lineTo(cx - nw, y0)
-                        cubicTo(cx - nw * 0.45f, y0, cx - nw * 0.55f, y0 + notchDepthPx, cx, y0 + notchDepthPx)
-                        cubicTo(cx + nw * 0.55f, y0 + notchDepthPx, cx + nw * 0.45f, y0, cx + nw, y0)
-                        lineTo(cx + nw, y0 - up)
-                        close()
-                    }
-                    Path.combine(PathOperation.Difference, base, notch)
+                val base = Path().apply {
+                    addRoundRect(RoundRect(Rect(0f, y0, w, y0 + barHeightPx), CornerRadius(r, r)))
                 }
-                else -> {
-                    // Joroba convexa sobre la pestaña activa.
-                    val bw = minOf(50.dp.toPx(), cx - 4.dp.toPx(), w - cx - 4.dp.toPx()).coerceAtLeast(18.dp.toPx())
-                    val bump = rise.toPx()
-                    val inside = 24.dp.toPx()
-                    val bumpPath = Path().apply {
-                        moveTo(cx - bw, y0 + inside)
-                        lineTo(cx - bw, y0)
-                        cubicTo(cx - bw * 0.5f, y0, cx - bw * 0.5f, y0 - bump, cx, y0 - bump)
-                        cubicTo(cx + bw * 0.5f, y0 - bump, cx + bw * 0.5f, y0, cx + bw, y0)
-                        lineTo(cx + bw, y0 + inside)
-                        close()
-                    }
-                    Path.combine(PathOperation.Union, base, bumpPath)
-                }
-            }
 
-            // Vidrio: tinte translúcido + reflejo superior + borde fino.
-            val tint = colors.surfaceContainer.copy(alpha = if (hasBackgroundImage) 0.42f else 0.78f)
-            drawPath(bar, tint)
-            drawPath(
-                bar,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (isDark) 0.16f else 0.55f),
-                        Color.White.copy(alpha = if (isDark) 0.04f else 0.12f)
+                val inRange = cx > -margin && cx < w + margin
+                val bar: Path = when {
+                    !inRange -> base
+                    isBubble -> {
+                        // Muesca cóncava donde se aloja la burbuja.
+                        val nw = 46.dp.toPx()
+                        val up = 4.dp.toPx()
+                        val notch = Path().apply {
+                            moveTo(cx - nw, y0 - up)
+                            lineTo(cx - nw, y0)
+                            cubicTo(cx - nw * 0.45f, y0, cx - nw * 0.55f, y0 + notchDepthPx, cx, y0 + notchDepthPx)
+                            cubicTo(cx + nw * 0.55f, y0 + notchDepthPx, cx + nw * 0.45f, y0, cx + nw, y0)
+                            lineTo(cx + nw, y0 - up)
+                            close()
+                        }
+                        Path.combine(PathOperation.Difference, base, notch)
+                    }
+                    else -> {
+                        // Joroba convexa sobre la pestaña activa. Sus flancos arrancan sobre el borde de la
+                        // barra con la misma tangente (también en las esquinas redondeadas), así que no
+                        // queda ninguna esquina cuadrada ni punta cuando la pestaña está en un extremo.
+                        val bump = rise.toPx()
+                        val bw = 50.dp.toPx()
+                        val minX = 6.dp.toPx()
+                        val minHalf = 8.dp.toPx()
+                        // Cerca de un extremo la joroba se angosta IGUAL por los dos lados (simétrica),
+                        // en vez de recortar solo el lado de afuera (eso la deformaba).
+                        val half = minOf(bw, cx - minX, (w - cx) - minX)
+                        val xl = cx - half
+                        val xr = cx + half
+                        fun drop(x: Float): Float {
+                            if (r <= 0f) return 0f
+                            val d = (r - x).coerceAtLeast(0f)
+                            return r - sqrt((r * r - d * d).coerceAtLeast(1f))
+                        }
+                        fun slope(x: Float): Float {
+                            if (r <= 0f) return 0f
+                            val d = (r - x).coerceAtLeast(0f)
+                            return d / sqrt((r * r - d * d).coerceAtLeast(1f))
+                        }
+                        if (half < minHalf) {
+                            base
+                        } else {
+                            val yl = y0 + drop(xl)
+                            val yr = y0 + drop(w - xr)
+                            val kl = (cx - xl) * 0.4f
+                            val kr = (xr - cx) * 0.4f
+                            val inside = 24.dp.toPx()
+                            val bumpPath = Path().apply {
+                                moveTo(xl, yl + inside)
+                                lineTo(xl, yl)
+                                cubicTo(xl + kl, yl - slope(xl) * kl, cx - (cx - xl) * 0.5f, y0 - bump, cx, y0 - bump)
+                                cubicTo(cx + (xr - cx) * 0.5f, y0 - bump, xr - kr, yr - slope(w - xr) * kr, xr, yr)
+                                lineTo(xr, yr + inside)
+                                close()
+                            }
+                            Path.combine(PathOperation.Union, base, bumpPath)
+                        }
+                    }
+                }
+
+                // Vidrio: tinte translúcido + reflejo superior + borde fino.
+                val tint = colors.surfaceContainer.copy(alpha = if (hasBackgroundImage) 0.42f else 0.78f)
+                drawPath(bar, tint)
+                drawPath(
+                    bar,
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = if (isDark) 0.16f else 0.55f),
+                            Color.White.copy(alpha = if (isDark) 0.04f else 0.12f)
+                        )
                     )
                 )
-            )
-            val edge = if (isDark) Color.White else colors.onSurface
-            drawPath(
-                bar,
-                Brush.verticalGradient(
-                    listOf(
-                        Color.White.copy(alpha = if (isDark) 0.50f else 0.90f),
-                        edge.copy(alpha = 0.10f)
+                val edge = if (isDark) Color.White else colors.onSurface
+                drawPath(
+                    bar,
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.White.copy(alpha = if (isDark) 0.50f else 0.90f),
+                            edge.copy(alpha = 0.10f)
+                        )
+                    ),
+                    style = Stroke(width = 1.dp.toPx())
+                )
+
+                if (inRange && !isBubble) {
+                    // Borde turquesa brillante que se desvanece lejos de la pestaña activa.
+                    val glow = Brush.horizontalGradient(
+                        listOf(Color.Transparent, primary, Color.Transparent),
+                        startX = cx - 90.dp.toPx(),
+                        endX = cx + 90.dp.toPx()
                     )
-                ),
-                style = Stroke(width = 1.dp.toPx())
-            )
+                    drawPath(bar, glow, alpha = 0.28f, style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round))
+                    drawPath(bar, glow, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
+                }
 
-            if (inRange && !isBubble) {
-                // Borde turquesa brillante que se desvanece lejos de la pestaña activa.
-                val glow = Brush.horizontalGradient(
-                    listOf(Color.Transparent, primary, Color.Transparent),
-                    startX = cx - 90.dp.toPx(),
-                    endX = cx + 90.dp.toPx()
-                )
-                drawPath(bar, glow, alpha = 0.28f, style = Stroke(width = 7.dp.toPx(), cap = StrokeCap.Round))
-                drawPath(bar, glow, style = Stroke(width = 2.dp.toPx(), cap = StrokeCap.Round))
-            }
-
-            if (inRange && isBubble) {
-                val radius = bubbleRadiusPx * bubbleScale.value
-                val center = Offset(cx, bubbleCenterY)
-                drawCircle(primary.copy(alpha = 0.92f), radius, center)
-                drawCircle(
-                    Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)),
-                    radius,
-                    center
-                )
-                drawCircle(Color.White.copy(alpha = 0.5f), radius, center, style = Stroke(width = 1.dp.toPx()))
+                if (inRange && isBubble) {
+                    val radius = bubbleRadiusPx * bubbleScale.value
+                    val center = Offset(cx, bubbleCenterY)
+                    drawCircle(primary.copy(alpha = 0.92f), radius, center)
+                    drawCircle(
+                        Brush.verticalGradient(listOf(Color.White.copy(alpha = 0.35f), Color.Transparent)),
+                        radius,
+                        center
+                    )
+                    drawCircle(Color.White.copy(alpha = 0.5f), radius, center, style = Stroke(width = 1.dp.toPx()))
+                }
             }
         }
 
@@ -304,6 +336,8 @@ fun GlassNavBar(
                     .graphicsLayer {
                         scaleX = bubbleScale.value
                         scaleY = bubbleScale.value
+                        // El ícono se desvanece al salir por los lados (ya no hay clipToBounds general).
+                        alpha = (minOf(cxAnim.value, widthPx - cxAnim.value) / 12.dp.toPx()).coerceIn(0f, 1f)
                     },
                 contentAlignment = Alignment.Center
             ) {

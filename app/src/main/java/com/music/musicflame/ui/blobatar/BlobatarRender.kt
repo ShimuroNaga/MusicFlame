@@ -3,7 +3,7 @@
  * versión de referencia 2.4.0. Basado en la mitad determinista de packages/blobatar/src/render.ts y en el
  * port a Dart. Licencia MIT, Copyright (c) 2026 Alain. Texto completo en LICENSE.blobatar (esta carpeta).
  *
- * La pose y el movimiento por tiempo viven en sus propios archivos (parte 3).
+ * La pose (BlobatarExpression.kt) y el movimiento por tiempo (BlobatarMotion.kt) viven en sus propios archivos.
  */
 package com.music.musicflame.ui.blobatar
 
@@ -21,6 +21,7 @@ enum class Backdrop { NONE, SQUARE, CIRCLE, SQUIRCLE }
  * @property contrast Exige las razones mínimas de contraste. Por defecto true.
  * @property background El fondo que dibuja el renderizador. Null = el del estilo (en gen-2, ninguno).
  * @property backgroundColor Color del fondo `#rgb`/`#rrggbb`; conserva la garantía de contraste. `palette["bg"]` gana si van ambos.
+ * @property expression La pose estática a aplicar. Omitida e idle son equivalentes.
  */
 data class BlobatarOptions(
     val palette: Map<String, String>? = null,
@@ -30,7 +31,8 @@ data class BlobatarOptions(
     val normalize: Boolean = true,
     val contrast: Boolean = true,
     val background: Backdrop? = null,
-    val backgroundColor: String? = null
+    val backgroundColor: String? = null,
+    val expression: Expression? = null
 )
 
 /** Las entradas ya resueltas: el lector de rasgos y la paleta final. */
@@ -84,12 +86,18 @@ object BlobatarRender {
     }
 
     /** El layout numérico completo de un nombre. */
-    fun layoutFor(name: String, opts: BlobatarOptions = BlobatarOptions()): BlobatarLayout =
-        style.layout(resolve(name, opts).t)
+    fun layoutFor(name: String, opts: BlobatarOptions = BlobatarOptions()): BlobatarLayout {
+        val layout = style.layout(resolve(name, opts).t)
+        val expression = opts.expression ?: return layout
+        return BlobatarExpressions.bakePose(layout, expression.pose)
+    }
 
     /** Layout y paleta juntos, para quien dibuja. */
     fun partsFor(name: String, opts: BlobatarOptions = BlobatarOptions()): Pair<BlobatarLayout, Map<String, String>> {
         val r = resolve(name, opts)
-        return style.layout(r.t) to r.palette
+        val layout = style.layout(r.t)
+        val expression = opts.expression ?: return layout to r.palette
+        return BlobatarExpressions.bakePose(layout, expression.pose) to
+            BlobatarExpressions.expressionPalette(r.palette, expression)
     }
 }

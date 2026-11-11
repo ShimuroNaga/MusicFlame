@@ -240,6 +240,14 @@ internal fun LazyListScope.settingsAccountSection(
     item {
         SettingsRow(style, SettingsRowPos.Middle) {
             var avatarB64 by remember { mutableStateOf(com.music.musicflame.together.TogetherAvatar.load(context)) }
+            // Sin icono propio se muestra mi blobatar (semilla = uid, igual que ven los demás en la sala).
+            val myUid = remember(isUserSignedIn) {
+                if (!isUserSignedIn) {
+                    null
+                } else {
+                    try { com.google.firebase.auth.FirebaseAuth.getInstance().currentUser?.uid } catch (_: Throwable) { null }
+                }
+            }
             val avatarBitmap = remember(avatarB64) {
                 com.music.musicflame.together.TogetherAvatar.decode(avatarB64)?.asImageBitmap()
             }
@@ -274,6 +282,12 @@ internal fun LazyListScope.settingsAccountSection(
                                     contentDescription = stringResource(R.string.settings_together_icon_title),
                                     contentScale = ContentScale.Crop,
                                     modifier = Modifier.fillMaxSize()
+                                )
+                            } else if (myUid != null) {
+                                com.music.musicflame.ui.blobatar.Blobatar(
+                                    name = myUid,
+                                    modifier = Modifier.fillMaxSize(),
+                                    contentDescription = stringResource(R.string.settings_together_icon_title)
                                 )
                             } else {
                                 Icon(Icons.Filled.Add, null, tint = style.trailingColor)

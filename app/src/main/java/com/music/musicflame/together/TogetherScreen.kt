@@ -487,7 +487,7 @@ private fun TogetherScreenContent(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp)
                     ) {
-                        MemberAvatar(accent = accent, name = m.name, online = m.online, avatar = m.avatar)
+                        MemberAvatar(accent = accent, name = m.name, online = m.online, avatar = m.avatar, uid = m.uid)
                         Spacer(Modifier.width(12.dp))
                         Column(Modifier.weight(1f)) {
                             Text(
@@ -957,9 +957,12 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
     }
 }
 
-/** Avatar circular: icono de la persona si lo puso; si no, la inicial. Gris si está desconectada. */
+/**
+ * Avatar circular: icono de la persona si lo puso; si no, su blobatar (semilla = [uid]); y sin uid, la inicial.
+ * Gris y sin movimiento si está desconectada.
+ */
 @Composable
-internal fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatar: String? = null, avatarSize: Dp = 42.dp) {
+internal fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, avatar: String? = null, avatarSize: Dp = 42.dp, uid: String? = null) {
     val initial = name.trim().firstOrNull()?.uppercase() ?: "?"
     val image = remember(avatar) { TogetherAvatar.decode(avatar)?.asImageBitmap() }
     Box(
@@ -978,6 +981,14 @@ internal fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, a
                 contentDescription = name,
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clip(CircleShape)
+            )
+        } else if (uid != null) {
+            com.music.musicflame.ui.blobatar.Blobatar(
+                name = uid,
+                modifier = Modifier.fillMaxSize(),
+                animated = online,
+                desaturated = !online,
+                contentDescription = name
             )
         } else {
             Text(

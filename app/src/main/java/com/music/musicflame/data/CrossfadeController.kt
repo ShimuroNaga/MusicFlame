@@ -410,7 +410,7 @@ class CrossfadeController(
         if (!fading && !settling) return
         val t = SystemClock.elapsedRealtime() - fadeStartedAt
         Log.w(TAG, "Evento a los $t ms del fundido: $text")
-        if (fadeEvents.length < 500) {
+        if (fadeEvents.length < 1500) {
             fadeEvents.append("[").append(t / 100 / 10f).append(" s] ").append(text).append("; ")
         }
     }
@@ -462,6 +462,53 @@ class CrossfadeController(
 
         override fun onAudioSinkError(eventTime: AnalyticsListener.EventTime, audioSinkError: Exception) {
             noteEvent("$who: error en la salida de audio")
+        }
+
+        // DIAGNOSTICO (nov 2026): el logcat de este celular no deja pasar los logs de la app, asi que
+        // estos eventos se anotan en el reporte del fundido (Ajustes > Canciones > Diagnostico).
+        // Sirven para saber QUE reinicia la salida de audio del reproductor a mitad del fundido.
+        override fun onAudioEnabled(
+            eventTime: AnalyticsListener.EventTime,
+            counters: androidx.media3.exoplayer.DecoderCounters
+        ) {
+            noteEvent("$who: audio ACTIVADO (se reinicia el renderer)")
+        }
+
+        override fun onAudioDisabled(
+            eventTime: AnalyticsListener.EventTime,
+            counters: androidx.media3.exoplayer.DecoderCounters
+        ) {
+            noteEvent("$who: audio DESACTIVADO")
+        }
+
+        override fun onAudioDecoderInitialized(
+            eventTime: AnalyticsListener.EventTime,
+            decoderName: String,
+            initializedTimestampMs: Long,
+            initializationDurationMs: Long
+        ) {
+            noteEvent("$who: decodificador nuevo ($decoderName, $initializationDurationMs ms)")
+        }
+
+        override fun onAudioDecoderReleased(eventTime: AnalyticsListener.EventTime, decoderName: String) {
+            noteEvent("$who: decodificador liberado")
+        }
+
+        override fun onAudioSessionIdChanged(eventTime: AnalyticsListener.EventTime, audioSessionId: Int) {
+            noteEvent("$who: cambio de sesion de audio ($audioSessionId)")
+        }
+
+        override fun onTimelineChanged(eventTime: AnalyticsListener.EventTime, reason: Int) {
+            // Se modifico la cola de reproduccion (agregar, quitar, mover, mezclar).
+            noteEvent("$who: cambio la cola (motivo $reason)")
+        }
+
+        override fun onPlayWhenReadyChanged(
+            eventTime: AnalyticsListener.EventTime,
+            playWhenReady: Boolean,
+            reason: Int
+        ) {
+            noteEvent("$who: playWhenReady=$playWhenReady (motivo $reason)")
         }
     }
 

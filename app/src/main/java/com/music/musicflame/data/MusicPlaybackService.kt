@@ -261,8 +261,22 @@ class MusicPlaybackService : MediaSessionService() {
             // Ajuste manual de volumen de la cola (Ajustes > Canciones > Diagnóstico, dB): sirve para
             // igualar su volumen al del principal si en este celular suena distinto.
             val trimDb = sharedPrefs.getFloat("crossfade_tail_gain_db", 0f)
-            setEnabled(sharedPrefs.getBoolean("volume_normalization_enabled", false) || trimDb != 0f)
-            setGainDb(volumeNormalizationProcessor.currentGainDb() + trimDb)
+            val normEnabled = sharedPrefs.getBoolean("volume_normalization_enabled", false)
+            setEnabled(normEnabled || trimDb != 0f)
+            // CORRECCIÓN BAJÓN AL INICIO: antes se usaba volumeNormalizationProcessor.currentGainDb(),
+            // que devuelve 0 si la normalización todavía está analizando la canción actual
+            // (applyVolumeNormalizationForCurrentSong lanzó la corutina pero aún no terminó).
+            // Ahora se lee el gain DIRECTAMENTE del caché con la ruta de la canción que sale:
+            // si ya está en caché (caso habitual) la cola arranca exactamente igual que el principal;
+            // si no está en caché, ambos están en 0 dB, así que tampoco hay diferencia.
+            val tailSongPath = player.currentMediaItem?.mediaId?.toLongOrNull()
+                ?.let { SongLibraryHolder.findById(it)?.path }
+            val cachedGainDb = if (normEnabled && tailSongPath != null) {
+                volumeNormalizationCacheRepo.get(tailSongPath) ?: 0f
+            } else {
+                0f
+            }
+            setGainDb(cachedGainDb + trimDb)
         }
         val tailSpatial = Spatial8DAudioProcessor().apply {
             setEnabled(sharedPrefs.getBoolean("audio8d_enabled", false))

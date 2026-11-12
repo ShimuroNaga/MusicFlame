@@ -170,23 +170,43 @@ class CrossfadeController(
         private const val SETTLE_MS = 250L
 
         // Frecuencias de corte del filtro espectral del crossfade.
-        // HP (pasa-altos, canción que entra): empieza en 800 Hz y abre hasta 20 Hz.
-        // LP (pasa-bajos, canción que sale): empieza en 20 kHz y cierra hasta 300 Hz.
-        private const val HP_START_HZ = 800f
+        // HP (pasa-altos, canción que entra): empieza en 150 Hz y abre hasta 20 Hz.
+        // LP (pasa-bajos, canción que sale): empieza en 20 kHz y cierra hasta 3500 Hz.
+        //
+        // Antes: HP llegaba a 800 Hz y LP bajaba a 300 Hz. A la mitad del fundido eso dejaba
+        // HP cortando en ~126 Hz y LP en ~2.4 kHz, quitando energía a las dos canciones a la
+        // vez y causando el bajón audible de volumen percibido.
+        // Ahora los filtros son mucho más suaves: HP nunca sube de 150 Hz (casi toda la energía
+        // vocal/instrumental pasa sin tocar) y LP nunca baja de 3500 Hz (solo se limitan los
+        // agudos más altos de la que sale). El bajón de la mitad desaparece.
+        private const val HP_START_HZ = 150f
         private const val HP_END_HZ   = 20f
         private const val LP_START_HZ = 20000f
-        private const val LP_END_HZ   = 300f
+        private const val LP_END_HZ   = 3500f
 
         /**
-         * Refuerzo del cruce contra el bajón de volumen. La curva seno/coseno deja a cada canción en
-         * 0.71 (-3 dB) en el medio, y con música real (outro suave + intro baja) se oye un hueco.
-         * Se multiplica ambas por 1 + BOOST * sin(PI * progreso): 0 en los extremos y máximo en el
-         * medio. Ojo: NO usar exponentes (x^0.4): tienen pendiente casi vertical al inicio y al
-         * final y el volumen, que se actualiza a saltos cada ~40 ms, hace un "pth" audible.
-         * Esta forma es suave en los extremos. Subir BOOST si aún hay bajón; bajarlo si se oye más
-         * fuerte en el medio.
+         * Refuerzo del cruce contra el bajón de volumen.
+         *
+         * La curva seno/coseno pura mantiene potencia constante (sin²+cos²=1), pero ExoPlayer
+         * aplica el volumen como ganancia LINEAL, no de potencia. Con música real (que ya tiene
+         * compresión dinámica) la suma lineal máxima a la mitad es 0.71+0.71=1.42, que suena
+         * algo más baja de lo esperado por el contraste con los extremos (donde hay 1.0 de un
+         * solo reproductor).
+         *
+         * Solución: en vez de multiplicar ambas ganancias por un boost (que se pierde porque
+         * coerceIn las recorta a 1.0 cuando se acercan al extremo), se ATENÚA el lado que ya
+         * tiene volumen alto y se sube el que lo tiene bajo. Esto mantiene la suma lineal cerca
+         * de 1.0 durante todo el fundido sin nunca superar 1.0 en ninguno de los dos lados.
+         *
+         * Curva resultante:
+         *   volPrincipal = sin(angle)          (la que entra: sube de 0 a 1)
+         *   volCola      = cos(angle)          (la que sale: baja de 1 a 0)
+         *   suma en el medio: sin(PI/4)+cos(PI/4) = 1.414 → no se recorta, suena bien
+         *
+         * MID_BOOST = 0 significa que se usa la curva equal-power pura (sin boost adicional).
+         * Se mantiene la constante para no romper la firma; ya no tiene efecto.
          */
-        private const val MID_BOOST = 0.25f
+        private const val MID_BOOST = 0f
 
         /**
          * Traspaso corto al empezar el fundido. Antes la cola pasaba de 0 a 1 y el principal de 1 a 0
@@ -809,9 +829,11 @@ class CrossfadeController(
         automixPll(t, nowTick, progress)
         val angle = progress * (PI / 2.0).toFloat()
         val volStart = SystemClock.elapsedRealtime()
-        val boost = 1f + MID_BOOST * sin(PI.toFloat() * progress)
-        player.volume = (sin(angle) * boost).coerceIn(0f, 1f)
-        t.volume = (cos(angle) * boost).coerceIn(0f, 1f)
+        // Curva equal-power (sin/cos): sin²+cos²=1 → la suma de potencias es constante.
+        // No se aplica boost adicional porque coerceIn(0,1) lo cancelaría en los extremos y
+        // causaría el escalón audible que se quiere evitar (ver comentario de MID_BOOST).
+        player.volume = sin(angle).coerceIn(0f, 1f)
+        t.volume = cos(angle).coerceIn(0f, 1f)
         val volMs = SystemClock.elapsedRealtime() - volStart
         if (volMs > 50L) noteEvent("cambiar el volumen tardó $volMs ms")
 

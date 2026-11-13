@@ -63,7 +63,7 @@ Se retiró: mantenerla requería un backend de pago en Firebase, insostenible pa
 
 ## 👥 Testers
 
-Gracias a **naofresita18** y **deivid-boop** por su ayuda en *testing* y reporte de errores. 🧪🐛
+Gracias a **naofresita18** y **brutus** por su ayuda en *testing* y reporte de errores. 🧪🐛
 
 ---
 

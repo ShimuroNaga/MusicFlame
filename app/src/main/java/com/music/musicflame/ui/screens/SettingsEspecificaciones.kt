@@ -243,14 +243,14 @@ internal fun LazyListScope.settingsEspecificacionesSection(
         SettingsRow(style, SettingsRowPos.Last) {
             ListItem(
                 headlineContent = { Text("Tester") },
-                supportingContent = { Text("deivid-boop") },
+                supportingContent = { Text("brutus") },
                 leadingContent = {
                     AsyncImage(
                         model = ImageRequest.Builder(context)
-                            .data("https://github.com/deivid-boop.png")
+                            .data("https://avatars.githubusercontent.com/u/352221358?v=4")
                             .crossfade(true)
                             .build(),
-                        contentDescription = stringResource(R.string.settings_avatar_de_deivid_boop),
+                        contentDescription = stringResource(R.string.settings_avatar_de_brutus),
                         contentScale = ContentScale.Crop,
                         placeholder = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.surfaceVariant),
                         error = androidx.compose.ui.graphics.painter.ColorPainter(MaterialTheme.colorScheme.errorContainer),

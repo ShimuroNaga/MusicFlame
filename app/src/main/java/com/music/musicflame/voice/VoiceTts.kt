@@ -9,7 +9,7 @@ object VoiceTts {
 
     /** Configura un TextToSpeech ya inicializado. Si la voz guardada ya no existe, usa la del sistema. */
     fun apply(t: TextToSpeech, s: VoiceSettings, lang: String) {
-        t.language = Locale(lang)
+        t.language = com.music.musicflame.data.JarvisLang.ttsLocale(lang)
         val saved = s.getTtsVoice()
         if (saved.isNotEmpty()) {
             try { t.voices?.firstOrNull { it.name == saved }?.let { t.voice = it } } catch (_: Exception) {}
@@ -23,6 +23,6 @@ object VoiceTts {
     fun voicesFor(t: TextToSpeech, lang: String): List<Voice> = try {
         t.voices.orEmpty()
             .filter { it.locale.language == lang && !it.features.contains(TextToSpeech.Engine.KEY_FEATURE_NOT_INSTALLED) }
-            .sortedWith(compareByDescending<Voice> { it.quality }.thenBy { it.name })
+            .sortedWith(compareByDescending<Voice> { lang == "pt" && it.locale.country == "BR" }.thenByDescending { it.quality }.thenBy { it.name })
     } catch (_: Exception) { emptyList() }
 }

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_crossfade_title">Crossfade (transição entre músicas)</string>
+    <string name="settings_crossfade_desc">Mistura o final de uma música com o início da seguinte em vez de cortar. Desativado por padrão.</string>
+    <string name="settings_crossfade_duration">Duração da transição: %1$d s</string>
+    <string name="settings_crossfade_note">Somente com arquivos locais. Não se aplica em Momentos, salas Juntos, \"repetir uma\" nem com o timer ao terminar a música.</string>
+</resources>

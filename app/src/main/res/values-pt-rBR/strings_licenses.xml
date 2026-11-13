@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="section_third_party_licenses">Licenças de terceiros</string>
+    <string name="settings_third_party_licenses_sub">Bibliotecas, fontes e tecnologias que o MusicFlame usa</string>
+    <string name="tpl_intro">O MusicFlame usa as seguintes bibliotecas, fontes e tecnologias de terceiros. Cada uma mantém a sua própria licença; o código próprio do MusicFlame é © 2026 ShimuroNaga, todos os direitos reservados.</string>
+    <string name="tpl_license_label">Licença: %1$s</string>
+    <string name="tpl_open_license">Ver licença</string>
+    <string name="tpl_open_source">Ver projeto</string>
+    <string name="tpl_lgpl_title">Aviso sobre o JAudioTagger (LGPL)</string>
+    <string name="tpl_lgpl_body">O MusicFlame usa o JAudioTagger para gravar tags (capa, título, artista, álbum) nos arquivos de áudio. O JAudioTagger é distribuído sob a licença GNU LGPL 2.1 ou posterior. É usado como biblioteca independente e sem modificações; o código-fonte e a licença completa estão disponíveis nos links acima.</string>
+    <string name="tpl_google_note">Firebase, Google Sign-In e as bibliotecas de Google API são usados sob os termos de serviço do Google.</string>
+</resources>

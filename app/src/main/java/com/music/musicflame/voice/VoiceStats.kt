@@ -16,12 +16,13 @@ object VoiceStats {
 
     fun answer(ctx: Context, kind: String, lang: String, nowPlaying: Song?): String {
         val en = lang == "en"
+        val pt = lang == "pt"
         if (kind == "now_playing") {
-            return if (nowPlaying == null) (if (en) "Nothing is playing right now." else "Ahora mismo no suena nada.")
-            else if (en) "Now playing «${nowPlaying.title}» by ${nowPlaying.artist}." else "Suena «${nowPlaying.title}» de ${nowPlaying.artist}."
+            return if (nowPlaying == null) (if (en) "Nothing is playing right now." else if (pt) "Agora não está tocando nada." else "Ahora mismo no suena nada.")
+            else if (en) "Now playing «${nowPlaying.title}» by ${nowPlaying.artist}." else if (pt) "Está tocando «${nowPlaying.title}» de ${nowPlaying.artist}." else "Suena «${nowPlaying.title}» de ${nowPlaying.artist}."
         }
         val stats = StatsRepository(ctx).getAllStats().filter { it.value.playCount > 0 }
-        if (stats.isEmpty()) return if (en) "I don't have enough listening history yet." else "Aún no tengo suficiente historial de escucha."
+        if (stats.isEmpty()) return if (en) "I don't have enough listening history yet." else if (pt) "Ainda não tenho histórico de audição suficiente." else "Aún no tengo suficiente historial de escucha."
         val byId = SongLibraryHolder.songs.associateBy { it.id }
         val topSong = stats.entries.sortedByDescending { it.value.playCount }
             .firstNotNullOfOrNull { e -> byId[e.key]?.let { it to e.value.playCount } }
@@ -30,16 +31,16 @@ object VoiceStats {
             .groupBy({ it.first }, { it.second }).mapValues { it.value.sum() }
             .maxByOrNull { it.value }
         val minutes = stats.values.sumOf { it.totalListenedMs } / 60_000L
-        val time = if (minutes >= 120) (if (en) "${minutes / 60} hours" else "${minutes / 60} horas") else (if (en) "$minutes minutes" else "$minutes minutos")
+        val time = if (minutes >= 120) (if (en) "${minutes / 60} hours" else if (pt) "${minutes / 60} horas" else "${minutes / 60} horas") else (if (en) "$minutes minutes" else if (pt) "$minutes minutos" else "$minutes minutos")
 
-        val song = topSong?.let { if (en) "your most played song is «${it.first.title}» with ${it.second} plays" else "tu canción más escuchada es «${it.first.title}» con ${it.second} reproducciones" }
-        val artist = topArtist?.let { if (en) "your top artist is ${it.key}" else "tu artista más escuchado es ${it.key}" }
-        val total = if (en) "you've listened for about $time" else "llevas unos $time escuchando"
+        val song = topSong?.let { if (en) "your most played song is «${it.first.title}» with ${it.second} plays" else if (pt) "sua música mais ouvida é «${it.first.title}» com ${it.second} reproduções" else "tu canción más escuchada es «${it.first.title}» con ${it.second} reproducciones" }
+        val artist = topArtist?.let { if (en) "your top artist is ${it.key}" else if (pt) "seu artista mais ouvido é ${it.key}" else "tu artista más escuchado es ${it.key}" }
+        val total = if (en) "you've listened for about $time" else if (pt) "você já ouviu cerca de $time" else "llevas unos $time escuchando"
         return when (kind) {
-            "top_song" -> song?.replaceFirstChar { it.uppercase() }?.plus(".") ?: (if (en) "I couldn't find a top song." else "No encontré una canción top.")
-            "top_artist" -> artist?.replaceFirstChar { it.uppercase() }?.plus(".") ?: (if (en) "I couldn't find a top artist." else "No encontré un artista top.")
+            "top_song" -> song?.replaceFirstChar { it.uppercase() }?.plus(".") ?: (if (en) "I couldn't find a top song." else if (pt) "Não encontrei uma música top." else "No encontré una canción top.")
+            "top_artist" -> artist?.replaceFirstChar { it.uppercase() }?.plus(".") ?: (if (en) "I couldn't find a top artist." else if (pt) "Não encontrei um artista top." else "No encontré un artista top.")
             "minutes" -> total.replaceFirstChar { it.uppercase() } + "."
-            else -> listOfNotNull(song, artist, total).joinToString(if (en) "; " else "; ").replaceFirstChar { it.uppercase() } + "."
+            else -> listOfNotNull(song, artist, total).joinToString(if (en) "; " else if (pt) "; " else "; ").replaceFirstChar { it.uppercase() } + "."
         }
     }
 }

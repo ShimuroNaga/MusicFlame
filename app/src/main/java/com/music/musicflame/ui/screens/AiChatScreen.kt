@@ -239,7 +239,7 @@ fun AiChatScreen(
         messages.add(AiMessage(System.nanoTime(), true, text))
         persist()
         val replyId = System.nanoTime()
-        val lang = context.resources.configuration.locales[0].language
+        val lang = com.music.musicflame.data.JarvisLang.fromContext(context)
         val parsed = AiCommands.parse(text)
         if (parsed == null) {
             upsertReply(replyId, context.getString(R.string.ai_cmd_unknown, AiCommands.labels(lang)))
@@ -396,7 +396,7 @@ fun AiChatScreen(
 
     /** Toca un comando del menú: abre el selector, lo ejecuta o lo deja escrito para completar el argumento. */
     fun pickCommand(cmd: AiCommand, send: (String) -> Unit) {
-        val lang = context.resources.configuration.locales[0].language
+        val lang = com.music.musicflame.data.JarvisLang.fromContext(context)
         slashOpen = false
         if (!onlineMode) {
             input = ""
@@ -435,7 +435,7 @@ fun AiChatScreen(
         }
         val lastUiUpdate = AtomicLong(0L)
         val librarySnapshot = SongLibraryHolder.songs
-        val lang = context.resources.configuration.locales[0].language   // idioma de la app (es/en)
+        val lang = com.music.musicflame.data.JarvisLang.fromContext(context)   // idioma de la app (es/en)
         val statsSnapshot = stats
         scope.launch {
             var fallbackText: String? = null
@@ -536,7 +536,7 @@ fun AiChatScreen(
             songs = librarySongs, max = AiCommands.MAX_SONGS,
             onConfirm = { picked ->
                 pickerFor = null
-                val pickLang = context.resources.configuration.locales[0].language
+                val pickLang = com.music.musicflame.data.JarvisLang.fromContext(context)
                 // Los títulos escritos en el mensaje son solo para que el historial se lea bien: las canciones ya vienen elegidas.
                 runCommand("/" + cmd.label(pickLang) + " " + picked.joinToString("; ") { it.title }, picked)
             },
@@ -550,7 +550,7 @@ fun AiChatScreen(
     val panelColor = scheme.surfaceContainer.copy(alpha = if (hasBackgroundImage) 0.78f else 0.92f)
     val onPanel = scheme.onSurface
     val pillColor = scheme.surfaceContainerHigh.copy(alpha = if (hasBackgroundImage) 0.90f else 0.97f)
-    val lang = context.resources.configuration.locales[0].language
+    val lang = com.music.musicflame.data.JarvisLang.fromContext(context)
     val showPanel = activeTermsAccepted && ((slashOpen && input.isEmpty()) || (input.startsWith("/") && !input.any { it.isWhitespace() }))
     val panelCommands = remember(input, slashOpen, lang) {
         val q = input.removePrefix("/").lowercase()

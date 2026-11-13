@@ -21,7 +21,7 @@
 
 ## 🆕 Novedades 3.2
 
-* **Idiomas:** la app ahora está en español e inglés (selector dentro de la app)
+* **Idiomas:** la app ahora está en español, inglés y portugués de Brasil (selector dentro de la app)
 * **En compañía:** salas para escuchar música juntos, con sincronización de reproducción; los invitados escuchan lo que pone el anfitrión aunque no tengan el archivo (con permiso del anfitrión y notificación)
 * **Momentos y Mix:** marca tu fragmento favorito de una canción (ej. el coro), "Mezcla de Momentos" junto al Mix Diario (ahora de 40 canciones) y comparte un Momento como video vertical
 * **Ecualizador Pro de 10 bandas** con preamp, comparación A/B, presets y normalización de volumen entre canciones; más presets para el ecualizador normal

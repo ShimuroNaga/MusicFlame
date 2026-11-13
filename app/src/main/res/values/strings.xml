@@ -45,6 +45,7 @@
     <string name="language_english">English</string>
     <string name="language_hint">El cambio se aplica al instante. «Idioma del sistema» sigue el idioma de tu teléfono.</string>
     <string name="language_spanish">Español</string>
+    <string name="language_portuguese">Português (Brasil)</string>
     <string name="language_system">Idioma del sistema</string>
     <string name="language_title">Idioma</string>
     <string name="option_adaptive">Adaptativo</string>

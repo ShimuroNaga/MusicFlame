@@ -145,7 +145,7 @@ class VoiceAssistantActivity : ComponentActivity() {
         if (intent?.getBooleanExtra(WakeWordService.EXTRA_FROM_WAKE, false) == true) {
             setShowWhenLocked(true); setTurnScreenOn(true)     // abierto por "oye <nombre>": se ve aunque el teléfono esté bloqueado
         }
-        lang = resources.configuration.locales[0].language.let { if (it == "en") "en" else "es" }
+        lang = com.music.musicflame.data.JarvisLang.fromContext(this)
         reply = greeting(null)
 
         setContent { MusicFlameTheme { VoiceOverlay() } }
@@ -387,7 +387,7 @@ class VoiceAssistantActivity : ComponentActivity() {
             val undo = VoiceUndo.capture(ctx, others + timers, pm)
             val plays = others.any { it.problem == null && it.call.tool.id.startsWith("play_") }
             var spokenFirst = false
-            if (plays) { speak(a.say.ifBlank { if (lang == "en") "On it." else "Enseguida." }); spokenFirst = true }
+            if (plays) { speak(a.say.ifBlank { if (lang == "en") "On it." else if (lang == "pt") "Pode deixar." else "Enseguida." }); spokenFirst = true }
 
             val lines = ArrayList<String>()
             for (t in timers) {
@@ -593,7 +593,7 @@ class VoiceAssistantActivity : ComponentActivity() {
                 })
                 sr.startListening(Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
                     putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, if (lang == "en") "en-US" else "es-MX")
+                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, com.music.musicflame.data.JarvisLang.speechTag(lang))
                     putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
                 })
                 cont.invokeOnCancellation { try { sr.destroy() } catch (_: Exception) {} }

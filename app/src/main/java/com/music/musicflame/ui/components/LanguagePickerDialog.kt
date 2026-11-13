@@ -32,12 +32,13 @@ import androidx.compose.ui.unit.sp
 import com.music.musicflame.R
 import com.music.musicflame.data.AppLanguage
 
-/** Nombre legible de cada idioma. Español/English siempre se muestran en su propio idioma. */
+/** Nombre legible de cada idioma. Español/English/Português siempre se muestran en su propio idioma. */
 @Composable
 fun appLanguageLabel(language: AppLanguage): String = when (language) {
     AppLanguage.SYSTEM -> stringResource(R.string.language_system)
     AppLanguage.SPANISH -> stringResource(R.string.language_spanish)
     AppLanguage.ENGLISH -> stringResource(R.string.language_english)
+    AppLanguage.PORTUGUESE_BR -> stringResource(R.string.language_portuguese)
 }
 
 /**

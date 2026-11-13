@@ -205,7 +205,7 @@ internal fun LazyListScope.settingsAiSection(style: SettingsStyle) {
         var ttsVoices by remember { mutableStateOf<List<Voice>>(emptyList()) }
         var ttsReady by remember { mutableStateOf(false) }
         var ttsMenu by remember { mutableStateOf(false) }
-        val ttsLang = remember { if (context.resources.configuration.locales[0].language == "en") "en" else "es" }
+        val ttsLang = remember { com.music.musicflame.data.JarvisLang.fromContext(context) }
         val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
 
         // Se re-consulta al volver de los ajustes del sistema (ON_RESUME).

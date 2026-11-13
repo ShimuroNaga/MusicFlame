@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="jarvis_confirm_yes">Sim</string>
+    <string name="jarvis_confirm_no">Não</string>
+    <string name="jarvis_cancelled">Pronto, não mexi em nada.</string>
+</resources>

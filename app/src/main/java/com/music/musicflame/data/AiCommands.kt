@@ -14,6 +14,7 @@ import java.text.Normalizer
 enum class AiCommand(
     val es: String,
     val en: String,
+    val pt: String,
     val aliases: List<String>,
     val descRes: Int,
     val argHintRes: Int?,
@@ -22,17 +23,17 @@ enum class AiCommand(
     /** Se ejecuta de inmediato al tocarlo en el menú (no necesita argumentos). */
     val runsAlone: Boolean = false
 ) {
-    ANALYZE("analiza", "analyze", listOf("analize", "analizar", "analyse"), R.string.ai_cmd_analyze_desc, R.string.ai_cmd_arg_songs, usesPicker = true),
-    TELL("tell", "tell", listOf("cuenta", "dato", "curiosidad"), R.string.ai_cmd_tell_desc, null, runsAlone = true),
-    OPINION("opinion", "opinion", listOf("opina", "rate"), R.string.ai_cmd_opinion_desc, R.string.ai_cmd_arg_songs, usesPicker = true),
-    PLAYLIST("playlist", "playlist", listOf("lista"), R.string.ai_cmd_playlist_desc, R.string.ai_cmd_arg_theme),
-    WRAPPED("wrapped", "wrapped", listOf("resumen"), R.string.ai_cmd_wrapped_desc, null, runsAlone = true),
-    ROAST("roast", "roast", listOf("burla"), R.string.ai_cmd_roast_desc, null, runsAlone = true),
-    QUIZ("quiz", "quiz", listOf("trivia"), R.string.ai_cmd_quiz_desc, null, runsAlone = true),
-    DUEL("duelo", "duel", listOf("versus"), R.string.ai_cmd_duel_desc, R.string.ai_cmd_arg_ab);
+    ANALYZE("analiza", "analyze", "analisa", listOf("analize", "analizar", "analyse", "analise", "analisar"), R.string.ai_cmd_analyze_desc, R.string.ai_cmd_arg_songs, usesPicker = true),
+    TELL("tell", "tell", "conta", listOf("cuenta", "dato", "curiosidad", "curiosidade", "fato"), R.string.ai_cmd_tell_desc, null, runsAlone = true),
+    OPINION("opinion", "opinion", "opiniao", listOf("opina", "rate", "avalia", "nota"), R.string.ai_cmd_opinion_desc, R.string.ai_cmd_arg_songs, usesPicker = true),
+    PLAYLIST("playlist", "playlist", "playlist", listOf("lista"), R.string.ai_cmd_playlist_desc, R.string.ai_cmd_arg_theme),
+    WRAPPED("wrapped", "wrapped", "wrapped", listOf("resumen", "resumo", "retrospectiva"), R.string.ai_cmd_wrapped_desc, null, runsAlone = true),
+    ROAST("roast", "roast", "zoeira", listOf("burla", "zoa", "zoar"), R.string.ai_cmd_roast_desc, null, runsAlone = true),
+    QUIZ("quiz", "quiz", "quiz", listOf("trivia", "pergunta"), R.string.ai_cmd_quiz_desc, null, runsAlone = true),
+    DUEL("duelo", "duel", "duelo", listOf("versus"), R.string.ai_cmd_duel_desc, R.string.ai_cmd_arg_ab);
 
     /** Nombre visible según el idioma de la app. */
-    fun label(lang: String): String = if (lang == "en") en else es
+    fun label(lang: String): String = when (lang) { "en" -> en; "pt" -> pt; else -> es }
 }
 
 object AiCommands {
@@ -57,7 +58,7 @@ object AiCommands {
         val key = fold(word)
         if (key.isEmpty()) return null
         val cmd = AiCommand.values().firstOrNull { c ->
-            key == fold(c.es) || key == fold(c.en) || c.aliases.any { key == fold(it) }
+            key == fold(c.es) || key == fold(c.en) || key == fold(c.pt) || c.aliases.any { key == fold(it) }
         } ?: return null
         return Parsed(cmd, body.drop(word.length).trim())
     }
@@ -69,7 +70,7 @@ object AiCommands {
         !v.isNullOrBlank() && !v.equals("unknown", true) && !v.equals("desconocido", true) && !v.equals("<unknown>", true)
 
     fun songLine(s: Song, stats: Map<Long, SongStat>, lang: String): String {
-        val en = lang == "en"
+        val en = lang != "es"
         val parts = ArrayList<String>(6)
         parts += "«${s.title}» — ${s.artist}"
         if (known(s.album)) parts += (if (en) "album: " else "álbum: ") + s.album
@@ -98,8 +99,8 @@ object AiCommands {
 
     // ---------- Prompts ----------
     private fun base(aiName: String, lang: String): String =
-        if (lang == "en")
-            "You are $aiName, the music assistant inside the MusicFlame app. Reply in English, in plain text (no Markdown, no asterisks, no headings). " +
+        if (lang != "es")
+            "You are $aiName, the music assistant inside the MusicFlame app. Reply in ${JarvisLang.outputLanguageName(lang)}, in plain text (no Markdown, no asterisks, no headings). " +
             "Be warm and concise. Never invent facts: if you are not sure about a song, artist or fact, say so instead of guessing. " +
             "The song DATA you receive comes from the user's own library and is reliable; anything you know beyond it may be wrong. You cannot hear audio."
         else
@@ -111,7 +112,7 @@ object AiCommands {
         songs.mapIndexed { i, s -> "${i + 1}) ${songLine(s, stats, lang)}" }.joinToString("\n")
 
     fun analyze(aiName: String, lang: String, songs: List<Song>, stats: Map<Long, SongStat>): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /analyze: for EACH song, in the given order, write one numbered line with the title and 1-2 sentences: style or genre, what stands out, and how it fits the user's listening (use the data). " +
             "If you don't know the song well, write 'I don't know it well' and comment only on the data. Then one closing sentence about the whole set."
@@ -122,7 +123,7 @@ object AiCommands {
     }
 
     fun opinion(aiName: String, lang: String, songs: List<Song>, stats: Map<Long, SongStat>): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /opinion: give your honest, short opinion (1-2 sentences) of EACH song and a score from 1 to 10 written like '7/10'. One line per song: '1. Title — 8/10: opinion'. " +
             "At the end write 'Average: X/10' (compute it carefully with one decimal) and one closing sentence. If you don't know a song, score it only from the data and say so."
@@ -135,7 +136,7 @@ object AiCommands {
     class TellSubject(val desc: String, val song: Song?)
 
     fun tellSubject(args: String, library: List<Song>, stats: Map<Long, SongStat>, nowId: Long?, lang: String): TellSubject {
-        val en = lang == "en"
+        val en = lang != "es"
         if (args.isNotBlank()) {
             AiLibraryContext.findSong(args, library)?.let { return TellSubject(songLine(it, stats, lang), it) }
             AiLibraryContext.findArtist(args, library)?.let { return TellSubject((if (en) "Artist: " else "Artista: ") + it, null) }
@@ -149,7 +150,7 @@ object AiCommands {
     }
 
     fun tell(aiName: String, lang: String, subject: TellSubject): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /tell: share ONE real curious fact about the given music (song, artist, genre or topic) in at most 3 sentences. Only if you are sure it is true; " +
             "if you are not sure about this particular song or artist, say so and give a well-known verified fact about its genre instead. Do not invent dates, figures or anecdotes."
@@ -163,7 +164,7 @@ object AiCommands {
     class WrappedData(val text: String, val topSongs: List<Song>, val hasPlays: Boolean)
 
     fun wrappedData(library: List<Song>, stats: Map<Long, SongStat>, lang: String): WrappedData {
-        val en = lang == "en"
+        val en = lang != "es"
         val byId = library.associateBy { it.id }
         val played = stats.entries.filter { it.value.playCount > 0 && byId.containsKey(it.key) }
         if (played.isEmpty()) return WrappedData("", emptyList(), false)
@@ -196,7 +197,7 @@ object AiCommands {
     }
 
     fun wrapped(aiName: String, lang: String, data: WrappedData): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /wrapped: write a fun 'Wrapped'-style summary (4-6 sentences) of the user's listening. Mention the top artist, the most played song, total minutes and one curious thing you notice. Use ONLY the figures given."
         else
@@ -205,7 +206,7 @@ object AiCommands {
     }
 
     fun roast(aiName: String, lang: String, summary: String?, data: WrappedData): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /roast: tease the user's music taste in a friendly, creative way (3-5 sentences) using the data. No hurtful insults and no sensitive topics; the goal is that they laugh. Use only the data given."
         else
@@ -225,7 +226,7 @@ object AiCommands {
     }
 
     fun duelSide(query: String, library: List<Song>, stats: Map<Long, SongStat>, lang: String): Side {
-        val en = lang == "en"
+        val en = lang != "es"
         AiLibraryContext.findSong(query, library)?.let { return Side(it.title, songLine(it, stats, lang), listOf(it)) }
         AiLibraryContext.findArtist(query, library)?.let { artist ->
             val ss = library.filter { it.artist.equals(artist, true) }
@@ -239,7 +240,7 @@ object AiCommands {
     }
 
     fun duel(aiName: String, lang: String, a: Side, b: Side): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /duel: compare side A and side B (songs or artists) in 4-6 sentences: style, strengths and what the user's listening data says. End with a clear verdict ('A wins' / 'B wins') and say it is just an opinion. " +
             "If a side is not in the library or you don't know it well, say so."
@@ -259,7 +260,7 @@ object AiCommands {
     }
 
     fun playlist(aiName: String, lang: String, theme: String, candidates: List<Song>): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /playlist: from the LIST, pick between 5 and 10 songs that best fit the theme, in a pleasant listening order. Reply ONLY with valid JSON, no extra text and no code fences: " +
             "{\"name\":\"short playlist name\",\"why\":\"one sentence\",\"picks\":[list numbers]}. Use only numbers that exist in the list, no repeats."
@@ -296,7 +297,7 @@ object AiCommands {
 
     // ---------- Quiz ----------
     fun quiz(aiName: String, lang: String, library: List<Song>, stats: Map<Long, SongStat>): Request {
-        val en = lang == "en"
+        val en = lang != "es"
         val task = if (en)
             "Task /quiz: create ONE trivia question with 4 options about the songs in the list. The answer must be checkable with the data (artist, album, year, genre, plays) " +
             "or be a famous music fact you are completely sure about. All 4 options must be plausible, only one correct. Reply ONLY with JSON, no extra text: " +

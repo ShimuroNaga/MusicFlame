@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="nav_ai">IA</string>
+    <string name="section_ai">IA</string>
+    <string name="settings_ai_section_sub">Chat, nome, balões e fundo</string>
+
+    <!-- Tela de chat -->
+    <string name="ai_tagline">Pergunte-me sobre música</string>
+    <string name="ai_typing">digitando…</string>
+    <string name="ai_input_hint">Pergunte-me sobre música…</string>
+    <string name="ai_send">Enviar</string>
+    <string name="ai_copy">Copiar</string>
+    <string name="ai_copied">Mensagem copiada</string>
+    <string name="ai_clear_chat">Limpar chat</string>
+    <string name="ai_error_message">Não consegui responder: %1$s</string>
+
+    <!-- Configurações > IA -->
+    <string name="settings_ai_key_remove">Remover</string>
+    <string name="settings_ai_name_title">Nome da IA</string>
+    <string name="settings_ai_name_label">Nome (máx. 24 letras)</string>
+    <string name="settings_ai_bubbles_title">Cor dos balões</string>
+    <string name="settings_ai_bubbles_adaptive">Adaptável (Material You)</string>
+    <string name="settings_ai_bubbles_custom">Personalizado</string>
+    <string name="settings_ai_bubbles_rainbow">Arco-íris</string>
+    <string name="settings_ai_bubbles_rainbow_desc">Percorre o espectro bem devagar para não causar tontura.</string>
+
+    <!-- IA local (Gemma 4) -->
+    <string name="ai_no_model_message">Ainda não baixei o meu modelo. Vá em Configurações › IA e toque em «Baixar modelo» (uma única vez, com Wi‑Fi).</string>
+    <string name="ai_terms_required">Para conversar, primeiro aceite os termos da IA.</string>
+    <string name="ai_terms_view">Ver termos</string>
+    <string name="ai_terms_title">Termos da IA</string>
+    <string name="ai_terms_accept">Aceitar</string>
+    <string name="ai_terms_not_now">Agora não</string>
+    <string name="ai_terms_close">Fechar</string>
+    <string name="ai_terms_link_model">Ver modelo</string>
+    <string name="ai_terms_link_license">Licença do modelo</string>
+    <string name="ai_terms_what_t">O que é</string>
+    <string name="ai_terms_what_b">O chat usa um modelo de linguagem pequeno que você baixa em Configurações › IA (Gemma 4 E2B). Ele roda no seu celular com o LiteRT-LM do Google. É baixado uma única vez, do Hugging Face.</string>
+    <string name="ai_terms_privacy_t">Privacidade</string>
+    <string name="ai_terms_privacy_b">No modo local, o modelo funciona no seu celular sem internet: suas mensagens não saem do dispositivo. Somente o download do modelo usa internet. O MusicFlame não recebe suas conversas.</string>
+    <string name="ai_terms_limits_t">Limites</string>
+    <string name="ai_terms_limits_b">É um modelo pequeno e pode errar ou inventar dados (anos, BPM, álbuns, letras). Confira as informações importantes. Não use para decisões médicas, jurídicas, financeiras ou de segurança. É oferecido «como está», sem garantias.</string>
+    <string name="ai_terms_device_t">Seu celular</string>
+    <string name="ai_terms_device_b">Ocupa cerca de 2,6 GB de armazenamento e bastante RAM enquanto responde. Pode demorar vários segundos, esquentar o celular e gastar bateria. Você pode apagar o modelo quando quiser em Configurações › IA.</string>
+    <string name="ai_terms_license_t">Licença</string>
+    <string name="ai_terms_license_b">O Gemma 4 e o LiteRT-LM são distribuídos sob a licença Apache 2.0, que permite seu uso e redistribuição com aviso de licença (veja Configurações › Licenças de terceiros). O MusicFlame é um projeto independente: não é afiliado nem endossado pelo Google.</string>
+    <string name="settings_ai_engine_title">Modelo de IA</string>
+    <string name="settings_ai_local_desc">Modelo local, licença Apache 2.0. Download único de %1$s; funciona sem conexão.</string>
+    <string name="settings_ai_local_wifi">Recomendado baixar com Wi‑Fi. Se a conexão cair, continua de onde parou.</string>
+    <string name="settings_ai_local_download">Baixar modelo</string>
+    <string name="settings_ai_local_ready">Modelo pronto (%1$s MB no seu celular)</string>
+    <string name="settings_ai_local_delete">Apagar modelo</string>
+    <string name="settings_ai_local_delete_title">Apagar o modelo?</string>
+    <string name="settings_ai_local_delete_body">O espaço será liberado. Você poderá baixá-lo de novo quando quiser.</string>
+    <string name="settings_ai_local_fail">Não foi possível baixar: %1$s</string>
+    <string name="settings_ai_terms_button">Ver termos da IA</string>
+    <string name="ai_listening">Ouvindo: %1$s</string>
+    <string name="ai_play_all">Tocar todas</string>
+    <string name="ai_trait_plays">%1$d reproduções</string>
+    <string name="ai_trait_unplayed">nunca ouvida</string>
+
+    <!-- Seletor de modelos -->
+    <string name="settings_ai_models_hint">Escolha um modelo. Você só pode ter um baixado por vez: para trocar, apague o atual e baixe outro.</string>
+    <string name="settings_ai_model_meta">%1$s · %2$s</string>
+    <string name="settings_ai_model_locked">Apague o modelo baixado para poder usar este.</string>
+    <string name="ai_model_desc_gemma4">O recomendado: o mais inteligente e, com aceleração MTP, rápido em celulares com GPU razoável. Download grande (≈2,6 GB); recomendado 6 GB de RAM ou mais. Se você o baixou antes de maio de 2026, apague e baixe de novo para ativar a aceleração.</string>
+
+    <!-- Comandos do chat (/) -->
+    <string name="ai_cmd_open">Comandos</string>
+    <string name="ai_cmd_empty_hint">Digite / para ver os comandos</string>
+    <string name="ai_cmd_online_only">Os comandos exigem IA online (Groq). Ative em Configurações › IA.</string>
+    <string name="ai_cmd_unknown">Não conheço esse comando. Tente: %1$s</string>
+    <string name="ai_cmd_analyze_desc">Analisa até 10 músicas da sua biblioteca</string>
+    <string name="ai_cmd_tell_desc">Uma curiosidade sobre a música que está tocando, uma sua ou um tema</string>
+    <string name="ai_cmd_opinion_desc">Dá opinião e nota de 1 a 10 para até 10 músicas</string>
+    <string name="ai_cmd_playlist_desc">Monta uma playlist com a sua biblioteca (pergunto antes de salvar)</string>
+    <string name="ai_cmd_wrapped_desc">Resumo do que você mais ouve</string>
+    <string name="ai_cmd_roast_desc">Uma zoeira amigável com o seu gosto musical</string>
+    <string name="ai_cmd_quiz_desc">Quiz de 4 opções com as suas músicas</string>
+    <string name="ai_cmd_duel_desc">Compara duas músicas ou artistas</string>
+    <string name="ai_cmd_arg_songs">&lt;músicas&gt;</string>
+    <string name="ai_cmd_arg_theme">&lt;tema&gt;</string>
+    <string name="ai_cmd_arg_ab">A vs B</string>
+    <string name="ai_cmd_picker_title">Escolha até %1$d músicas</string>
+    <string name="ai_cmd_picker_search">Buscar música…</string>
+    <string name="ai_cmd_picker_confirm">Pronto (%1$d)</string>
+    <string name="ai_cmd_picker_empty">Sem resultados</string>
+    <string name="ai_cmd_cancel">Cancelar</string>
+    <string name="ai_cmd_no_library">Sua biblioteca está vazia: adicione músicas primeiro.</string>
+    <string name="ai_cmd_need_songs">Diga quais músicas: escreva-as separadas por vírgula ou escolha na lista.</string>
+    <string name="ai_cmd_not_found">Não encontrei na sua biblioteca: %1$s</string>
+    <string name="ai_cmd_too_many">Só uso %1$d músicas; peguei as primeiras.</string>
+    <string name="ai_cmd_duel_need">Use o formato: /duelo A vs B</string>
+    <string name="ai_cmd_wrapped_empty">Você ainda não tem reproduções registradas: toque alguma música e volte.</string>
+    <string name="ai_cmd_parse_fail">Não consegui montar a resposta, tente de novo.</string>
+    <string name="ai_cmd_playlist_ready">Montei «%1$s» com %2$d músicas. %3$s</string>
+    <string name="ai_cmd_playlist_ask">Salvo nas suas playlists?</string>
+    <string name="ai_cmd_playlist_save">Salvar playlist</string>
+    <string name="ai_cmd_playlist_discard">Não, obrigado</string>
+    <string name="ai_cmd_playlist_saved">Pronto, salvei «%1$s» com %2$d músicas nas suas playlists.</string>
+    <string name="ai_cmd_playlist_discarded">Ok, não salvei.</string>
+    <string name="ai_cmd_quiz_correct">Correto!</string>
+    <string name="ai_cmd_quiz_wrong">Quase. A correta era: %1$s</string>
+    <string name="ai_cmd_quiz_again">Digite /quiz para outra pergunta.</string>
+    <string name="ai_status_online">Online · %1$s</string>
+    <string name="ai_status_local">No seu celular</string>
+</resources>

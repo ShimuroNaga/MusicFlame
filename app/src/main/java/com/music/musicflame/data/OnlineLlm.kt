@@ -74,7 +74,7 @@ object OnlineLlm {
         val messages = JSONArray().put(JSONObject().put("role", "system").put("content", system))
         turns.forEachIndexed { i, t ->
             val text = if (i == turns.lastIndex && context.isNotBlank())
-                context + "\n\n" + (if (lang == "en") "User message:\n" else "Mensaje del usuario:\n") + t.text
+                context + "\n\n" + (if (lang != "es") "User message:\n" else "Mensaje del usuario:\n") + t.text
             else t.text
             messages.put(JSONObject().put("role", if (t.user) "user" else "assistant").put("content", text))
         }

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="voice_exp_badge">Experimental</string>
+    <string name="voice_exp_title">O que ele pode e o que não pode (por enquanto)</string>
+    <string name="voice_exp_intro">Esta seção é experimental e continua em atualização: pode falhar ou mudar.</string>
+    <string name="voice_exp_can_title">O que pode</string>
+    <string name="voice_exp_can1">Tocar músicas: «toca Patient A».</string>
+    <string name="voice_exp_can2">Criar playlists: aleatórias ou por artista, gênero ou tema («faz uma playlist aleatória de 500 músicas», «faz uma playlist da Ado»).</string>
+    <string name="voice_exp_can3">Controles básicos: pausa, próxima, anterior e volume.</string>
+    <string name="voice_exp_why">Avança devagar porque o celular de testes do desenvolvedor oculta os registros (logcat) desta seção e, sem eles, não dá para ver os erros e melhorá-la.</string>
+</resources>

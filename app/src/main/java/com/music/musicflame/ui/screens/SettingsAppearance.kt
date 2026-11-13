@@ -399,7 +399,7 @@ internal fun LazyListScope.settingsAppearanceSection(
 
     item {
         SettingsRow(style, SettingsRowPos.Last) {
-            // Idioma de la app (es / en / sistema). Ver LanguageManager.kt
+            // Idioma de la app (es / en / pt-BR / sistema). Ver LanguageManager.kt
             ListItem(
                 headlineContent = { Text(stringResource(R.string.language_title)) },
                 supportingContent = {

@@ -45,6 +45,7 @@
     <string name="language_english">English</string>
     <string name="language_hint">The change applies instantly. “System language” follows your phone\'s language.</string>
     <string name="language_spanish">Español</string>
+    <string name="language_portuguese">Português (Brasil)</string>
     <string name="language_system">System language</string>
     <string name="language_title">Language</string>
     <string name="option_adaptive">Adaptive</string>

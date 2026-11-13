@@ -96,31 +96,31 @@ object JarvisBrain {
         RE_SEP.replace(RE_MARKS.replace(Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD), ""), " ").trim()
 
     // ---------- Atajos sin IA (instantáneos, 0 tokens, funcionan sin internet) ----------
-    private val RE_PAUSE = Regex("^(pon )?(pausa|pausar|pause|detente|deten la musica|para la musica|stop|stop the music)$")
-    private val RE_RESUME = Regex("^(continua|continuar|reanuda|reanudar|resume|play|reproduce|dale play|sigue)$")
-    private val RE_NEXT = Regex("^(siguiente|sig|next|skip|salta|saltar|siguiente cancion|next song|salta la cancion|skip song)$")
-    private val RE_PREV = Regex("^(anterior|previous|atras|cancion anterior|previous song|regresa)$")
-    private val RE_SLEEP = Regex("(apagate|apaga|duermete|temporizador|sleep timer|sleep|apagar)( en| de| a los| in| for)? (\\d{1,3}) ?(min|minuto|minutos|m|minutes)")
-    private val RE_SLEEP_OFF = Regex("(cancela|quita|apaga|cancel|stop) (el )?(temporizador|sleep timer|timer)")
-    private val RE_VOL_SET = Regex("(volumen|volume) (al |a |to |at )?(\\d{1,3})")
-    private val RE_VOL_UP = Regex("^(sube|subele|sube el volumen|subele al volumen|aumenta el volumen|volume up|turn it up|louder)$")
-    private val RE_VOL_DOWN = Regex("^(baja|bajale|baja el volumen|bajale al volumen|reduce el volumen|volume down|turn it down|quieter)$")
+    private val RE_PAUSE = Regex("^(pon )?(pausa|pausar|pause|detente|deten la musica|para la musica|stop|stop the music|pare|parar|pare a musica|parar a musica|pausa a musica|pausar a musica)$")
+    private val RE_RESUME = Regex("^(continua|continuar|reanuda|reanudar|resume|play|reproduce|dale play|sigue|continue|retoma|retomar|toca|tocar|toque|da play|de play|segue)$")
+    private val RE_NEXT = Regex("^(siguiente|sig|next|skip|salta|saltar|siguiente cancion|next song|salta la cancion|skip song|proxima|proximo|proxima musica|proxima faixa|pula|pule|pular|pula a musica|pular musica|avanca|avancar)$")
+    private val RE_PREV = Regex("^(anterior|previous|atras|cancion anterior|previous song|regresa|voltar|volta|volte|musica anterior|faixa anterior|volta a musica)$")
+    private val RE_SLEEP = Regex("(apagate|apaga|duermete|temporizador|sleep timer|sleep|apagar|desligar|desliga|desligue|dormir|durma|timer)( en| de| a los| in| for| em| daqui a| daqui| por)? (\\d{1,3}) ?(min|minuto|minutos|m|minutes)")
+    private val RE_SLEEP_OFF = Regex("(cancela|quita|apaga|cancel|stop|cancelar|cancele|remove|remova|desativa|desative|desativar|para|pare) (el |o |a )?(temporizador|sleep timer|timer)")
+    private val RE_VOL_SET = Regex("(volumen|volume) (al |a |to |at |ao |em |para |no |na )?(\\d{1,3})")
+    private val RE_VOL_UP = Regex("^(sube|subele|sube el volumen|subele al volumen|aumenta el volumen|volume up|turn it up|louder|aumenta|aumentar|aumente|aumenta o volume|aumente o volume|sobe|suba|sobe o volume|suba o volume|mais alto|mais volume)$")
+    private val RE_VOL_DOWN = Regex("^(baja|bajale|baja el volumen|bajale al volumen|reduce el volumen|volume down|turn it down|quieter|abaixa|abaixar|abaixe|abaixa o volume|abaixe o volume|baixa|baixe|baixa o volume|baixe o volume|diminui|diminua|diminui o volume|diminua o volume|mais baixo|menos volume)$")
 
     // ---------- Crear playlists aleatorias sin depender del modelo ----------
-    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|arroja|arrojame|muestrame|ensename|dame|quiero|necesito|create|make|build|generate|show|want|need|give)\\b")
-    private val RE_MK_PLAYLIST = Regex("play ?lists?|listas? de reproduccion")
-    private val RE_MK_RANDOM = Regex("aleatori|al azar|random|sorpresa|variad|revuelt")
+    private val RE_MK_VERB = Regex("\\b(crea|creame|crear|haz|hazme|hacer|arma|armame|armar|genera|generame|generar|arroja|arrojame|muestrame|ensename|dame|quiero|necesito|create|make|build|generate|show|want|need|give|cria|crie|criar|faz|faca|fazer|monta|monte|montar|gera|gere|gerar|mostra|mostre|me de|me da|quero|preciso)\\b")
+    private val RE_MK_PLAYLIST = Regex("play ?lists?|listas? de reproduccion|listas? de reproducao")
+    private val RE_MK_RANDOM = Regex("aleatori|al azar|random|sorpresa|variad|revuelt|surpresa|misturad|embaralhad|ao acaso")
     // "una tabla de mis canciones para elegirlas": sin tema ni artista, la tabla se arma con una muestra de la biblioteca.
-    private val RE_MK_PICK = Regex("\\btabla\\b|elegir|escoger|seleccionar|mis canciones|mi musica|table|pick|choose")
-    private val RE_MK_COUNT = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|songs|tracks)")
-    private val RE_MK_THEMED = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by) (?!mis\\b|mi\\b|todas\\b|toda\\b|\\d)")
-    private val RE_MK_SONGS = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|musicas|songs|tracks|piezas)")
+    private val RE_MK_PICK = Regex("\\btabla\\b|elegir|escoger|seleccionar|mis canciones|mi musica|table|pick|choose|\\btabela\\b|escolher|selecionar|minhas musicas|minha musica")
+    private val RE_MK_COUNT = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|songs|tracks|musicas|musica|faixas|faixa)")
+    private val RE_MK_THEMED = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by|do|da|dos|das|com) (?!mis\\b|mi\\b|todas\\b|toda\\b|minhas\\b|minha\\b|\\d)")
+    private val RE_MK_SONGS = Regex("(\\d{1,3}|[a-z]+) (canciones|cancion|temas|musicas|musica|songs|tracks|piezas|faixas|faixa)")
     private val RE_MK_LISTS = Regex("(\\d{1,2}|[a-z]+) (playlists?|listas)")
     private val NUM_WORDS = mapOf(
         "un" to 1, "una" to 1, "dos" to 2, "tres" to 3, "cuatro" to 4, "cinco" to 5, "seis" to 6, "diez" to 10, "quince" to 15,
         "veinte" to 20, "veinticinco" to 25, "treinta" to 30, "cuarenta" to 40, "cincuenta" to 50, "sesenta" to 60,
         "setenta" to 70, "ochenta" to 80, "noventa" to 90, "cien" to 100, "quinientas" to 500, "quinientos" to 500, "ciento" to 100, "doscientas" to 200, "doscientos" to 200,
-        "ten" to 10, "fifteen" to 15, "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "hundred" to 100, "five hundred" to 500
+        "ten" to 10, "fifteen" to 15, "twenty" to 20, "thirty" to 30, "forty" to 40, "fifty" to 50, "hundred" to 100, "five hundred" to 500, "um" to 1, "dois" to 2, "duas" to 2, "dez" to 10, "quinze" to 15, "vinte" to 20, "trinta" to 30, "quarenta" to 40, "cinquenta" to 50, "sessenta" to 60, "setenta" to 70, "oitenta" to 80, "cem" to 100, "duzentas" to 200, "duzentos" to 200, "quinhentas" to 500, "quinhentos" to 500
     )
     private fun numOf(tok: String): Int? = tok.toIntOrNull() ?: NUM_WORDS[tok]
 
@@ -148,7 +148,7 @@ object JarvisBrain {
         val lists = RE_MK_LISTS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull() ?: 1
         val count = perList.coerceIn(1, MAX_SONGS_PER_CALL)
         val n = if (browse) 1 else lists.coerceIn(1, 4)
-        val base = if (browse) (if (lang == "en") "My picks" else "Mi selección") else if (lang == "en") "Random mix" else "Mezcla aleatoria"
+        val base = if (browse) (if (lang == "en") "My picks" else if (lang == "pt") "Minha seleção" else "Mi selección") else if (lang == "en") "Random mix" else if (lang == "pt") "Mix aleatório" else "Mezcla aleatoria"
         val calls = (1..n).map { i ->
             JarvisCall(
                 JarvisTool.CREATE_PLAYLIST,
@@ -159,11 +159,11 @@ object JarvisBrain {
         return JarvisPlan(null, calls)
     }
 
-    private val RE_MK_TOPIC = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by) (.+)")
-    private val RE_MK_LEAD = Regex("^(canciones|cancion|temas|musica|songs|music)\\s+(de|del|of|by)\\s+")
-    private val RE_MK_EDGE = Regex("^(de|del|con|of|with|by|para|for)\\s+|\\s+(de|del|con|of|with|by|para|for)$")
-    private val RE_MK_TAIL = Regex("\\s+(songs|tracks|music|canciones|cancion|temas|musica)$")
-    private val RE_MK_PICKTAIL = Regex("\\s+((para|pa|to)\\s+)?(elegir|escoger|seleccionar|pick|choose)\\w*$")
+    private val RE_MK_TOPIC = Regex("\\b(playlists?|listas?) (de|del|con|of|with|by|do|da|dos|das|com) (.+)")
+    private val RE_MK_LEAD = Regex("^(canciones|cancion|temas|musica|songs|music|musicas|faixas|faixa)\\s+(de|del|of|by|do|da)\\s+")
+    private val RE_MK_EDGE = Regex("^(de|del|con|of|with|by|para|for|do|da|com)\\s+|\\s+(de|del|con|of|with|by|para|for|do|da|com)$")
+    private val RE_MK_TAIL = Regex("\\s+(songs|tracks|music|canciones|cancion|temas|musica|musicas|faixas|faixa)$")
+    private val RE_MK_PICKTAIL = Regex("\\s+((para|pa|to)\\s+)?(elegir|escoger|seleccionar|pick|choose|escolher|selecionar)\\w*$")
 
     /**
      * Respaldo para "hazme una playlist de Ado / de rock": si el modelo contesta con charla en vez de create_playlist,
@@ -265,21 +265,22 @@ object JarvisBrain {
     // ---------- Confirmaciones ----------
     fun confirmQuestion(steps: List<JarvisStep>, lang: String): String? {
         val en = lang == "en"
+        val pt = lang == "pt"
         val parts = ArrayList<String>()
         for (s in steps) {
             if (s.problem != null) continue
             val n = s.songs.size
             when (s.call.tool) {
-                JarvisTool.UNFAVORITE -> if (n >= 3) parts += if (en) "remove $n songs from favorites" else "quitar $n canciones de favoritos"
+                JarvisTool.UNFAVORITE -> if (n >= 3) parts += if (en) "remove $n songs from favorites" else if (pt) "remover $n músicas dos favoritos" else "quitar $n canciones de favoritos"
                 JarvisTool.REMOVE_FROM_PLAYLIST -> if (n >= 3)
-                    parts += if (en) "remove $n songs from «${s.label}»" else "quitar $n canciones de «${s.label}»"
-                JarvisTool.FAVORITE -> if (n >= 15) parts += if (en) "mark $n songs as favorites" else "marcar $n canciones como favoritas"
+                    parts += if (en) "remove $n songs from «${s.label}»" else if (pt) "remover $n músicas de «${s.label}»" else "quitar $n canciones de «${s.label}»"
+                JarvisTool.FAVORITE -> if (n >= 15) parts += if (en) "mark $n songs as favorites" else if (pt) "marcar $n músicas como favoritas" else "marcar $n canciones como favoritas"
                 else -> {}
             }
         }
         if (parts.isEmpty()) return null
         val list = parts.joinToString(", ")
-        return if (en) "That changes a lot at once: $list. Shall I go ahead?" else "Esto cambia varias cosas a la vez: $list. ¿Lo hago?"
+        return if (en) "That changes a lot at once: $list. Shall I go ahead?" else if (pt) "Isso muda várias coisas de uma vez: $list. Posso fazer?" else "Esto cambia varias cosas a la vez: $list. ¿Lo hago?"
     }
 
     // ---------- Resolver contra la biblioteca real ----------
@@ -292,10 +293,10 @@ object JarvisBrain {
         regular.firstOrNull { fold(it.name) == q }?.let { return NamedList(it.name, it.songIds, if (it.isDefault) null else it.id) }
         if (q.contains("favorit")) return NamedList("Favoritos", FavoritesRepository(ctx).getAllFavoriteIds().toList(), null)
         val most = buildMostPlayedPlaylist(ctx)
-        if (fold(most.name) == q || q.contains("sonado") || q.contains("most played") || q.contains("mas escuchad"))
+        if (fold(most.name) == q || q.contains("sonado") || q.contains("most played") || q.contains("mas escuchad") || q.contains("mais tocad") || q.contains("mais ouvid"))
             return NamedList(most.name, most.songIds, null)
         val never = buildNeverPlayedPlaylist(ctx)
-        if (fold(never.name) == q || q.contains("descubrir") || q.contains("discover") || q.contains("never played"))
+        if (fold(never.name) == q || q.contains("descubrir") || q.contains("discover") || q.contains("never played") || q.contains("descobrir") || q.contains("nunca ouvid"))
             return NamedList(never.name, never.songIds, null)
         regular.firstOrNull { val n = fold(it.name); n.isNotEmpty() && (n.contains(q) || q.contains(n)) }
             ?.let { return NamedList(it.name, it.songIds, if (it.isDefault) null else it.id) }
@@ -356,12 +357,13 @@ object JarvisBrain {
     suspend fun prepare(ctx: Context, lang: String, calls: List<JarvisCall>, nowId: Long?): List<JarvisStep> =
         withContext(Dispatchers.Default) {
             val en = lang == "en"
+            val pt = lang == "pt"
             val library = SongLibraryHolder.songs
             val stats = StatsRepository(ctx).getAllStats()
             val favIds = FavoritesRepository(ctx).getAllFavoriteIds()
             val steps = ArrayList<JarvisStep>()
 
-            fun missing(what: String?) = if (en) "I couldn't find «${what ?: "?"}» in your library." else "No encontré «${what ?: "?"}» en tu biblioteca."
+            fun missing(what: String?) = if (en) "I couldn't find «${what ?: "?"}» in your library." else if (pt) "Não encontrei «${what ?: "?"}» na sua biblioteca." else "No encontré «${what ?: "?"}» en tu biblioteca."
 
             for (c in calls) {
                 when (c.tool) {
@@ -372,8 +374,8 @@ object JarvisBrain {
                         if (r.songs.isEmpty()) {
                             val q = sel?.query ?: sel?.theme ?: c.name
                             val msg = if (r.candidates.isNotEmpty())
-                                (if (en) "I couldn't find exactly «$q». Maybe one of these?" else "No encontré exactamente «$q». ¿Será alguna de estas?")
-                            else if (sel?.source != null) (if (en) "I found no songs for that in your library." else "No encontré canciones para eso en tu biblioteca.")
+                                (if (en) "I couldn't find exactly «$q». Maybe one of these?" else if (pt) "Não encontrei exatamente «$q». Será que é alguma destas?" else "No encontré exactamente «$q». ¿Será alguna de estas?")
+                            else if (sel?.source != null) (if (en) "I found no songs for that in your library." else if (pt) "Não encontrei músicas para isso na sua biblioteca." else "No encontré canciones para eso en tu biblioteca.")
                             else missing(q)
                             steps += JarvisStep(c, candidates = r.candidates, problem = msg)
                         } else {
@@ -411,8 +413,8 @@ object JarvisBrain {
                         val list = findList(ctx, q)
                         val songs = list?.ids?.mapNotNull { id -> library.firstOrNull { it.id == id } } ?: emptyList()
                         val shuffled = if (c.shuffle || c.songs?.shuffle == true) songs.shuffled() else songs
-                        steps += if (list == null) JarvisStep(c, problem = if (en) "I don't see a playlist called «$q»." else "No veo una playlist llamada «$q».")
-                        else if (shuffled.isEmpty()) JarvisStep(c, problem = if (en) "«${list.name}» has no playable songs yet." else "«${list.name}» aún no tiene canciones para reproducir.")
+                        steps += if (list == null) JarvisStep(c, problem = if (en) "I don't see a playlist called «$q»." else if (pt) "Não vejo uma playlist chamada «$q»." else "No veo una playlist llamada «$q».")
+                        else if (shuffled.isEmpty()) JarvisStep(c, problem = if (en) "«${list.name}» has no playable songs yet." else if (pt) "«${list.name}» ainda não tem músicas para tocar." else "«${list.name}» aún no tiene canciones para reproducir.")
                         else JarvisStep(c, songs = shuffled, label = list.name)
                     }
                     JarvisTool.CREATE_PLAYLIST -> {
@@ -428,15 +430,15 @@ object JarvisBrain {
                         } else if (r.songs.isEmpty()) {
                             val candIds = r.candidates.map { it.id }.toHashSet()
                             val all = r.candidates + rest.filter { it.id !in candIds }
-                            JarvisStep(c, candidates = all, label = name, problem = if (en) "I found no songs to build «$name»." else "No encontré canciones para armar «$name».")
+                            JarvisStep(c, candidates = all, label = name, problem = if (en) "I found no songs to build «$name»." else if (pt) "Não encontrei músicas para montar «$name»." else "No encontré canciones para armar «$name».")
                         } else JarvisStep(c, songs = r.songs, extra = rest, label = name)
                     }
                     JarvisTool.ADD_TO_PLAYLIST, JarvisTool.REMOVE_FROM_PLAYLIST -> {
                         val list = findList(ctx, c.playlist ?: c.name)
                         if (list == null || list.editableId == null) {
                             steps += JarvisStep(c, problem = if (list == null)
-                                (if (en) "I don't see a playlist called «${c.playlist ?: c.name}»." else "No veo una playlist llamada «${c.playlist ?: c.name}».")
-                            else (if (en) "«${list.name}» can't be edited by hand." else "«${list.name}» no se puede editar a mano."))
+                                (if (en) "I don't see a playlist called «${c.playlist ?: c.name}»." else if (pt) "Não vejo uma playlist chamada «${c.playlist ?: c.name}»." else "No veo una playlist llamada «${c.playlist ?: c.name}».")
+                            else (if (en) "«${list.name}» can't be edited by hand." else if (pt) "«${list.name}» não pode ser editada manualmente." else "«${list.name}» no se puede editar a mano."))
                         } else {
                             val r = resolveSongs(c.songs, library, stats, favIds, nowId, list, 10)
                             val songs = if (c.tool == JarvisTool.REMOVE_FROM_PLAYLIST) r.songs.filter { it.id in list.ids } else r.songs
@@ -447,19 +449,19 @@ object JarvisBrain {
                     JarvisTool.RENAME_PLAYLIST -> {
                         val list = findList(ctx, c.playlist)
                         val newName = c.name?.trim()?.take(40)
-                        steps += if (list == null) JarvisStep(c, problem = if (en) "I don't see a playlist called «${c.playlist}»." else "No veo una playlist llamada «${c.playlist}».")
-                        else if (list.editableId == null) JarvisStep(c, problem = if (en) "«${list.name}» can't be renamed." else "«${list.name}» no se puede renombrar.")
-                        else if (newName.isNullOrBlank()) JarvisStep(c, problem = if (en) "What should the new name be?" else "¿Cómo quieres que se llame?")
+                        steps += if (list == null) JarvisStep(c, problem = if (en) "I don't see a playlist called «${c.playlist}»." else if (pt) "Não vejo uma playlist chamada «${c.playlist}»." else "No veo una playlist llamada «${c.playlist}».")
+                        else if (list.editableId == null) JarvisStep(c, problem = if (en) "«${list.name}» can't be renamed." else if (pt) "«${list.name}» não pode ser renomeada." else "«${list.name}» no se puede renombrar.")
+                        else if (newName.isNullOrBlank()) JarvisStep(c, problem = if (en) "What should the new name be?" else if (pt) "Como você quer que se chame?" else "¿Cómo quieres que se llame?")
                         else JarvisStep(c, label = newName, playlistId = list.editableId)
                     }
                     JarvisTool.EQ_PRESET -> {
                         val name = com.music.musicflame.audio.EqVoice.findPreset(ctx, c.name)
-                        steps += if (name == null) JarvisStep(c, problem = if (en) "I don't have an equalizer preset called «${c.name}»." else "No tengo un preset de ecualizador llamado «${c.name}».")
+                        steps += if (name == null) JarvisStep(c, problem = if (en) "I don't have an equalizer preset called «${c.name}»." else if (pt) "Não tenho um preset de equalizador chamado «${c.name}»." else "No tengo un preset de ecualizador llamado «${c.name}».")
                         else JarvisStep(c, label = name)
                     }
                     JarvisTool.EQ_BAND -> {
                         val ok = com.music.musicflame.audio.EqVoice.BAND_IDS.contains(c.name?.trim()?.lowercase())
-                        steps += if (ok) JarvisStep(c) else JarvisStep(c, problem = if (en) "Which band: bass, low mids, mids, high mids or treble?" else "¿Qué banda: graves, medios graves, medios, medios agudos o agudos?")
+                        steps += if (ok) JarvisStep(c) else JarvisStep(c, problem = if (en) "Which band: bass, low mids, mids, high mids or treble?" else if (pt) "Qual banda: graves, médios graves, médios, médios agudos ou agudos?" else "¿Qué banda: graves, medios graves, medios, medios agudos o agudos?")
                     }
                     JarvisTool.SONG_TITLE, JarvisTool.SONG_COVER -> {
                         // La canción objetivo es la que dijo el usuario o, si no dijo ninguna, la que suena.
@@ -467,14 +469,14 @@ object JarvisBrain {
                         val r = resolveSongs(sel, library, stats, favIds, nowId, null, 1)
                         val target = r.songs.firstOrNull()
                         if (target == null) {
-                            steps += JarvisStep(c, problem = if (sel.source == "now_playing") (if (en) "Nothing is playing right now." else "Ahora mismo no suena nada.") else missing(sel.query))
+                            steps += JarvisStep(c, problem = if (sel.source == "now_playing") (if (en) "Nothing is playing right now." else if (pt) "Agora não está tocando nada." else "Ahora mismo no suena nada.") else missing(sel.query))
                         } else if (c.tool == JarvisTool.SONG_COVER && c.direction != "reset") {
                             // songs = [canción a cambiar, canción de la que se copia la carátula]
                             val src = c.name?.let { AiLibraryContext.findSong(it, library) }
                             steps += if (src == null) JarvisStep(c, problem = missing(c.name))
                             else JarvisStep(c, songs = listOf(target, src))
                         } else if (c.tool == JarvisTool.SONG_TITLE && c.direction != "reset" && c.name.isNullOrBlank()) {
-                            steps += JarvisStep(c, problem = if (en) "What should the new title be?" else "¿Cómo quieres que se llame?")
+                            steps += JarvisStep(c, problem = if (en) "What should the new title be?" else if (pt) "Como você quer que se chame?" else "¿Cómo quieres que se llame?")
                         } else steps += JarvisStep(c, songs = listOf(target), label = c.name?.trim()?.take(80))
                     }
                     else -> steps += JarvisStep(c)   // controles del reproductor: no necesitan canciones
@@ -488,6 +490,7 @@ object JarvisBrain {
         player: MusicPlayerManager?, play: (Song, List<Song>) -> Unit
     ): JarvisOutcome {
         val en = lang == "en"
+        val pt = lang == "pt"
         val lines = ArrayList<String>()
         val ids = LinkedHashSet<Long>()
         var plChanged = false
@@ -501,25 +504,25 @@ object JarvisBrain {
                     JarvisTool.PLAY_SONG, JarvisTool.PLAY_ARTIST, JarvisTool.PLAY_ALBUM, JarvisTool.PLAY_GENRE,
                     JarvisTool.PLAY_PLAYLIST, JarvisTool.PLAY_SELECTION -> {
                         val first = s.songs.firstOrNull()
-                        if (first == null) { lines += if (en) "Nothing to play." else "No hay nada que reproducir."; continue }
+                        if (first == null) { lines += if (en) "Nothing to play." else if (pt) "Não há nada para tocar." else "No hay nada que reproducir."; continue }
                         withContext(Dispatchers.Main) { play(first, s.songs) }
                         lines += when (s.call.tool) {
-                            JarvisTool.PLAY_SONG -> if (en) "Playing «${first.title}» by ${first.artist}" else "Reproduciendo «${first.title}» de ${first.artist}"
-                            else -> if (en) "Playing ${s.label ?: "your selection"} (${s.songs.size} songs)" else "Reproduciendo ${s.label ?: "tu selección"} (${s.songs.size} canciones)"
+                            JarvisTool.PLAY_SONG -> if (en) "Playing «${first.title}» by ${first.artist}" else if (pt) "Tocando «${first.title}» de ${first.artist}" else "Reproduciendo «${first.title}» de ${first.artist}"
+                            else -> if (en) "Playing ${s.label ?: "your selection"} (${s.songs.size} songs)" else if (pt) "Tocando ${s.label ?: "sua seleção"} (${s.songs.size} músicas)" else "Reproduciendo ${s.label ?: "tu selección"} (${s.songs.size} canciones)"
                         }
                     }
                     JarvisTool.QUEUE_NEXT, JarvisTool.QUEUE_ADD -> {
                         val p = player
-                        if (p == null) { lines += if (en) "I couldn't reach the player." else "No pude acceder al reproductor."; continue }
+                        if (p == null) { lines += if (en) "I couldn't reach the player." else if (pt) "Não consegui acessar o player." else "No pude acceder al reproductor."; continue }
                         val idle = p.currentSong.value == null
                         withContext(Dispatchers.Main) {
                             if (idle) play(s.songs.first(), s.songs)
                             else if (s.call.tool == JarvisTool.QUEUE_NEXT) p.playNext(s.songs) else p.addToQueue(s.songs)
                         }
-                        val what = if (s.songs.size == 1) "«${s.songs[0].title}»" else (if (en) "${s.songs.size} songs" else "${s.songs.size} canciones")
-                        lines += if (idle) (if (en) "Nothing was playing, so I started $what" else "No sonaba nada, así que puse $what")
-                        else if (s.call.tool == JarvisTool.QUEUE_NEXT) (if (en) "$what will play next" else "$what sonará después")
-                        else (if (en) "Added $what to the queue" else "Agregué $what a la cola")
+                        val what = if (s.songs.size == 1) "«${s.songs[0].title}»" else (if (en) "${s.songs.size} songs" else if (pt) "${s.songs.size} músicas" else "${s.songs.size} canciones")
+                        lines += if (idle) (if (en) "Nothing was playing, so I started $what" else if (pt) "Não estava tocando nada, então coloquei $what" else "No sonaba nada, así que puse $what")
+                        else if (s.call.tool == JarvisTool.QUEUE_NEXT) (if (en) "$what will play next" else if (pt) "$what toca em seguida" else "$what sonará después")
+                        else (if (en) "Added $what to the queue" else if (pt) "Adicionei $what à fila" else "Agregué $what a la cola")
                     }
                     JarvisTool.FAVORITE, JarvisTool.UNFAVORITE -> withContext(Dispatchers.IO) {
                         val repo = FavoritesRepository(ctx)
@@ -529,16 +532,16 @@ object JarvisBrain {
                             if (repo.isFavorite(song.id) != add) { if (add) repo.addFavorite(song.id) else repo.removeFavorite(song.id); changed++ }
                         }
                         val same = s.songs.size - changed
-                        val tail = if (same > 0) (if (en) " ($same already were)" else " ($same ya estaban así)") else ""
-                        lines += if (add) (if (en) "Marked $changed song(s) as favorites$tail" else "Marqué $changed canción(es) como favoritas$tail")
-                        else (if (en) "Removed $changed song(s) from favorites$tail" else "Quité $changed canción(es) de favoritos$tail")
+                        val tail = if (same > 0) (if (en) " ($same already were)" else if (pt) " ($same já estavam assim)" else " ($same ya estaban así)") else ""
+                        lines += if (add) (if (en) "Marked $changed song(s) as favorites$tail" else if (pt) "Marquei $changed música(s) como favorita(s)$tail" else "Marqué $changed canción(es) como favoritas$tail")
+                        else (if (en) "Removed $changed song(s) from favorites$tail" else if (pt) "Removi $changed música(s) dos favoritos$tail" else "Quité $changed canción(es) de favoritos$tail")
                         if (s.songs.size <= 5) ids += s.songs.map { it.id }
                         Unit
                     }
                     JarvisTool.CREATE_PLAYLIST -> withContext(Dispatchers.IO) {
                         val created = PlaylistRepository(ctx).createPlaylistWithSongs(s.label ?: "MusicFlame", s.songs.map { it.id })
                         plChanged = true
-                        lines += if (en) "Created «${created.name}» with ${created.songIds.size} songs" else "Creé «${created.name}» con ${created.songIds.size} canciones"
+                        lines += if (en) "Created «${created.name}» with ${created.songIds.size} songs" else if (pt) "Criei «${created.name}» com ${created.songIds.size} músicas" else "Creé «${created.name}» con ${created.songIds.size} canciones"
                         ids += s.songs.take(8).map { it.id }
                         Unit
                     }
@@ -546,34 +549,34 @@ object JarvisBrain {
                         val repo = PlaylistRepository(ctx)
                         s.songs.forEach { repo.addSongToPlaylist(s.playlistId!!, it.id) }
                         plChanged = true
-                        lines += if (en) "Added ${s.songs.size} song(s) to «${s.label}»" else "Agregué ${s.songs.size} canción(es) a «${s.label}»"
+                        lines += if (en) "Added ${s.songs.size} song(s) to «${s.label}»" else if (pt) "Adicionei ${s.songs.size} música(s) a «${s.label}»" else "Agregué ${s.songs.size} canción(es) a «${s.label}»"
                         Unit
                     }
                     JarvisTool.REMOVE_FROM_PLAYLIST -> withContext(Dispatchers.IO) {
                         PlaylistRepository(ctx).removeSongsFromPlaylist(s.playlistId!!, s.songs.map { it.id }.toSet())
                         plChanged = true
-                        lines += if (en) "Removed ${s.songs.size} song(s) from «${s.label}» (the files stay untouched)" else "Quité ${s.songs.size} canción(es) de «${s.label}» (los archivos no se tocan)"
+                        lines += if (en) "Removed ${s.songs.size} song(s) from «${s.label}» (the files stay untouched)" else if (pt) "Removi ${s.songs.size} música(s) de «${s.label}» (os arquivos não são mexidos)" else "Quité ${s.songs.size} canción(es) de «${s.label}» (los archivos no se tocan)"
                         Unit
                     }
                     JarvisTool.PAUSE, JarvisTool.RESUME, JarvisTool.NEXT, JarvisTool.PREVIOUS,
                     JarvisTool.SLEEP_TIMER, JarvisTool.CANCEL_SLEEP_TIMER -> {
                         val p = player
-                        if (p == null) { lines += if (en) "I couldn't reach the player." else "No pude acceder al reproductor."; continue }
+                        if (p == null) { lines += if (en) "I couldn't reach the player." else if (pt) "Não consegui acessar o player." else "No pude acceder al reproductor."; continue }
                         withContext(Dispatchers.Main) {
                             when (s.call.tool) {
-                                JarvisTool.PAUSE -> { p.pause(); lines += if (en) "Paused" else "En pausa" }
+                                JarvisTool.PAUSE -> { p.pause(); lines += if (en) "Paused" else if (pt) "Em pausa" else "En pausa" }
                                 JarvisTool.RESUME -> {
-                                    if (p.currentSong.value == null) lines += if (en) "Nothing is loaded yet. Tell me what to play." else "Aún no hay nada cargado. Dime qué reproducir."
-                                    else { if (!p.isPlayingState.value) p.togglePlayPause(); lines += if (en) "Playing" else "Reproduciendo" }
+                                    if (p.currentSong.value == null) lines += if (en) "Nothing is loaded yet. Tell me what to play." else if (pt) "Ainda não há nada carregado. Diga o que tocar." else "Aún no hay nada cargado. Dime qué reproducir."
+                                    else { if (!p.isPlayingState.value) p.togglePlayPause(); lines += if (en) "Playing" else if (pt) "Tocando" else "Reproduciendo" }
                                 }
-                                JarvisTool.NEXT -> { p.skipNext(); lines += if (en) "Next song" else "Siguiente canción" }
-                                JarvisTool.PREVIOUS -> { p.skipPrevious(); lines += if (en) "Previous song" else "Canción anterior" }
+                                JarvisTool.NEXT -> { p.skipNext(); lines += if (en) "Next song" else if (pt) "Próxima música" else "Siguiente canción" }
+                                JarvisTool.PREVIOUS -> { p.skipPrevious(); lines += if (en) "Previous song" else if (pt) "Música anterior" else "Canción anterior" }
                                 JarvisTool.SLEEP_TIMER -> {
                                     val m = (s.call.value ?: 0).coerceIn(1, 600)
                                     p.startSleepTimer(m)
-                                    lines += if (en) "I'll stop the music in $m min" else "Me apago en $m min"
+                                    lines += if (en) "I'll stop the music in $m min" else if (pt) "Vou desligar em $m min" else "Me apago en $m min"
                                 }
-                                else -> { p.cancelSleepTimer(); lines += if (en) "Sleep timer cancelled" else "Temporizador cancelado" }
+                                else -> { p.cancelSleepTimer(); lines += if (en) "Sleep timer cancelled" else if (pt) "Timer cancelado" else "Temporizador cancelado" }
                             }
                             Unit
                         }
@@ -581,12 +584,12 @@ object JarvisBrain {
                     JarvisTool.RENAME_PLAYLIST -> withContext(Dispatchers.IO) {
                         PlaylistRepository(ctx).renamePlaylist(s.playlistId!!, s.label!!)
                         plChanged = true
-                        lines += if (en) "Renamed it to «${s.label}»" else "La renombré a «${s.label}»"
+                        lines += if (en) "Renamed it to «${s.label}»" else if (pt) "Renomeei para «${s.label}»" else "La renombré a «${s.label}»"
                         Unit
                     }
                     JarvisTool.REPEAT, JarvisTool.SHUFFLE_MODE -> {
                         val p = player
-                        if (p == null) { lines += if (en) "I couldn't reach the player." else "No pude acceder al reproductor."; continue }
+                        if (p == null) { lines += if (en) "I couldn't reach the player." else if (pt) "Não consegui acessar o player." else "No pude acceder al reproductor."; continue }
                         withContext(Dispatchers.Main) {
                             val cur = p.cycleMode.value
                             var shuffle = cur == PlaybackCycle.SHUFFLE || cur == PlaybackCycle.SHUFFLE_REPEAT_ALL
@@ -605,33 +608,33 @@ object JarvisBrain {
                                 else -> PlaybackCycle.NORMAL
                             }
                             p.setCycleMode(target)
-                            lines += if (s.call.tool == JarvisTool.SHUFFLE_MODE) (if (shuffle) (if (en) "Shuffle on" else "Mezclar activado") else (if (en) "Shuffle off" else "Mezclar desactivado"))
+                            lines += if (s.call.tool == JarvisTool.SHUFFLE_MODE) (if (shuffle) (if (en) "Shuffle on" else if (pt) "Aleatório ativado" else "Mezclar activado") else (if (en) "Shuffle off" else if (pt) "Aleatório desativado" else "Mezclar desactivado"))
                             else when (rep) {
-                                "one" -> if (en) "Repeating this song" else "Repitiendo esta canción"
-                                "all" -> if (en) "Repeating the list" else "Repitiendo la lista"
-                                else -> if (en) "Repeat off" else "Repetir desactivado"
+                                "one" -> if (en) "Repeating this song" else if (pt) "Repetindo esta música" else "Repitiendo esta canción"
+                                "all" -> if (en) "Repeating the list" else if (pt) "Repetindo a lista" else "Repitiendo la lista"
+                                else -> if (en) "Repeat off" else if (pt) "Repetição desativada" else "Repetir desactivado"
                             }
                             Unit
                         }
                     }
                     JarvisTool.EQ_PRESET -> {
                         com.music.musicflame.audio.EqVoice.applyPreset(ctx, s.label)
-                        lines += if (en) "Equalizer set to ${s.label}" else "Ecualizador en ${s.label}"
+                        lines += if (en) "Equalizer set to ${s.label}" else if (pt) "Equalizador em ${s.label}" else "Ecualizador en ${s.label}"
                     }
                     JarvisTool.EQ_BAND -> {
                         val up = s.call.direction != "down"
                         com.music.musicflame.audio.EqVoice.nudgeBand(ctx, s.call.name, up)
-                        lines += if (en) "${if (up) "Raised" else "Lowered"} the ${s.call.name?.replace('_', ' ')} band" else "${if (up) "Subí" else "Bajé"} la banda ${s.call.name?.replace('_', ' ')}"
+                        lines += if (en) "${if (up) "Raised" else "Lowered"} the ${s.call.name?.replace('_', ' ')} band" else if (pt) "${if (up) "Aumentei" else "Diminuí"} a banda ${s.call.name?.replace('_', ' ')}" else "${if (up) "Subí" else "Bajé"} la banda ${s.call.name?.replace('_', ' ')}"
                     }
                     JarvisTool.SONG_TITLE -> withContext(Dispatchers.IO) {
                         val song = s.songs[0]
                         val repo = SongCustomizationRepository(ctx)
                         if (s.call.direction == "reset") {
                             repo.setCustomization(song.id, clearTitle = true)
-                            lines += if (en) "Restored the original title of «${song.title}»" else "Restauré el título original de «${song.title}»"
+                            lines += if (en) "Restored the original title of «${song.title}»" else if (pt) "Restaurei o título original de «${song.title}»" else "Restauré el título original de «${song.title}»"
                         } else {
                             repo.setCustomization(song.id, title = s.label)
-                            lines += if (en) "Renamed «${song.title}» to «${s.label}»" else "Renombré «${song.title}» a «${s.label}»"
+                            lines += if (en) "Renamed «${song.title}» to «${s.label}»" else if (pt) "Renomeei «${song.title}» para «${s.label}»" else "Renombré «${song.title}» a «${s.label}»"
                         }
                         Unit
                     }
@@ -641,12 +644,12 @@ object JarvisBrain {
                         val srcCover = s.songs.getOrNull(1)?.albumArtUri
                         if (s.call.direction == "reset") {
                             repo.setCustomization(song.id, clearCover = true)
-                            lines += if (en) "Restored the original cover of «${song.title}»" else "Restauré la carátula original de «${song.title}»"
+                            lines += if (en) "Restored the original cover of «${song.title}»" else if (pt) "Restaurei a capa original de «${song.title}»" else "Restauré la carátula original de «${song.title}»"
                         } else if (srcCover.isNullOrBlank()) {
-                            lines += if (en) "«${s.songs[1].title}» has no cover to copy." else "«${s.songs[1].title}» no tiene carátula para copiar."
+                            lines += if (en) "«${s.songs[1].title}» has no cover to copy." else if (pt) "«${s.songs[1].title}» não tem capa para copiar." else "«${s.songs[1].title}» no tiene carátula para copiar."
                         } else {
                             repo.setCustomization(song.id, coverUri = srcCover)
-                            lines += if (en) "Gave «${song.title}» the cover of «${s.songs[1].title}»" else "Le puse a «${song.title}» la carátula de «${s.songs[1].title}»"
+                            lines += if (en) "Gave «${song.title}» the cover of «${s.songs[1].title}»" else if (pt) "Coloquei em «${song.title}» a capa de «${s.songs[1].title}»" else "Le puse a «${song.title}» la carátula de «${s.songs[1].title}»"
                         }
                         Unit
                     }
@@ -661,13 +664,13 @@ object JarvisBrain {
                             else -> cur + (max / 8).coerceAtLeast(1)
                         }.coerceIn(0, max)
                         am.setStreamVolume(AudioManager.STREAM_MUSIC, target, AudioManager.FLAG_SHOW_UI)
-                        lines += if (en) "Volume at ${target * 100 / max}%" else "Volumen al ${target * 100 / max}%"
+                        lines += if (en) "Volume at ${target * 100 / max}%" else if (pt) "Volume em ${target * 100 / max}%" else "Volumen al ${target * 100 / max}%"
                     }
                 }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
             } catch (e: Exception) {
-                lines += if (en) "Something failed with that action (${e.javaClass.simpleName})." else "Algo falló con esa acción (${e.javaClass.simpleName})."
+                lines += if (en) "Something failed with that action (${e.javaClass.simpleName})." else if (pt) "Algo deu errado com essa ação (${e.javaClass.simpleName})." else "Algo falló con esa acción (${e.javaClass.simpleName})."
             }
         }
         return JarvisOutcome(lines, ids.toList(), plChanged)

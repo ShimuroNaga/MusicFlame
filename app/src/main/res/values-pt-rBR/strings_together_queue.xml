@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Juntos: vários proprietários, fila de espera e votos para pular -->
+    <string name="tgq_only_owners">Só os proprietários da sala podem escolher músicas</string>
+    <string name="tgq_rules_hint">Faltam atualizar as regras do Firebase para usar vários proprietários. Esta música toca só no seu celular.</string>
+    <string name="tgq_queue_full">A fila de espera está cheia (máximo de %1$d músicas)</string>
+    <string name="tgq_added_to_queue">«%1$s» adicionada à fila de espera</string>
+    <string name="tgq_song_not_found">Não encontrei «%1$s» neste celular; passo para a próxima</string>
+    <string name="tgq_max_owners">Máximo de %1$d proprietários por sala</string>
+    <string name="tgq_host_changed">%1$s agora é o anfitrião</string>
+    <string name="tgq_you_are_host_now">Agora você é o anfitrião da sala</string>
+    <string name="tgq_queue_title">Fila de espera</string>
+    <string name="tgq_queue_empty">Não há músicas na espera. Se outro proprietário escolher uma música enquanto outra toca, ela aparecerá aqui.</string>
+    <string name="tgq_queue_hint_owner">Mantenha pressionada uma música e arraste para mudar a ordem</string>
+    <string name="tgq_added_by">Adicionada por %1$s</string>
+    <string name="tgq_added_by_short">por %1$s</string>
+    <string name="tgq_you_control">Você está no controle</string>
+    <string name="tgq_you_control_hint">O que você tocar agora todos ouvem. As músicas dos outros proprietários esperam a vez na fila.</string>
+    <string name="tgq_pick_a_song">Escolha uma música da sua biblioteca</string>
+    <string name="tgq_skip_song">Pular música</string>
+    <string name="tgq_vote_skip">Votar para pular (%1$d/%2$d)</string>
+    <string name="tgq_vote_skip_done">Você votou para pular (%1$d/%2$d) · toque para retirar</string>
+    <string name="tgq_remove_from_queue">Remover da fila</string>
+    <string name="tgq_member_owner_online">proprietário · online</string>
+    <string name="tgq_member_menu">Opções do membro</string>
+    <string name="tgq_make_owner">Tornar proprietário</string>
+    <string name="tgq_remove_owner">Remover proprietário</string>
+    <string name="tgq_make_host">Passar o anfitrião para esta pessoa</string>
+    <string name="tgq_kick_member">Expulsar da sala</string>
+    <string name="tgq_kick_title">Expulsar %1$s?</string>
+    <string name="tgq_kick_text">Não poderá voltar a entrar nesta sala, mas poderá entrar em outras.</string>
+    <string name="tgq_kick_confirm">Expulsar</string>
+    <string name="tgq_kicked_toast">%1$s foi expulso(a) da sala</string>
+    <string name="tgm_kicked_you">O anfitrião expulsou você da sala</string>
+    <string name="tgm_banned_here">Você não pode entrar nesta sala: o anfitrião expulsou você</string>
+    <string name="tgm_room_full">A sala está cheia (máximo de %1$d pessoas)</string>
+    <string name="tg_qr">QR</string>
+    <string name="tg_qr_title">Entrar com QR</string>
+    <string name="tg_qr_hint">Peça para escanearem com a câmera do celular: abre o link e leva todos à sala.</string>
+    <string name="tg_qr_error">Não foi possível criar o QR</string>
+</resources>

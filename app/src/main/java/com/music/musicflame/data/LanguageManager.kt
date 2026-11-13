@@ -16,11 +16,20 @@ import java.util.Locale
 enum class AppLanguage(val tag: String?) {
     SYSTEM(null),
     SPANISH("es"),
-    ENGLISH("en");
+    ENGLISH("en"),
+    PORTUGUESE_BR("pt-BR");
 
     companion object {
-        fun fromTag(tag: String?): AppLanguage =
-            entries.firstOrNull { it.tag != null && it.tag == tag } ?: SYSTEM
+        /**
+         * Acepta la etiqueta exacta ("pt-BR") o solo el idioma ("pt", "es-MX"):
+         * si no hay coincidencia exacta, compara por el código de idioma.
+         */
+        fun fromTag(tag: String?): AppLanguage {
+            if (tag.isNullOrBlank()) return SYSTEM
+            entries.firstOrNull { it.tag.equals(tag, ignoreCase = true) }?.let { return it }
+            val lang = tag.substringBefore('-').lowercase()
+            return entries.firstOrNull { it.tag?.substringBefore('-') == lang } ?: SYSTEM
+        }
     }
 }
 
@@ -34,7 +43,8 @@ enum class AppLanguage(val tag: String?) {
  *   SharedPreferences y lo aplica en MainActivity.attachBaseContext() vía [wrap].
  *
  * Los textos de la UI viven en res/values/strings.xml (español, idioma base) y
- * res/values-en/strings.xml (inglés); Android elige la carpeta según el
+ * res/values-en/strings.xml (inglés) y res/values-pt-rBR/strings.xml (portugués de
+ * Brasil); Android elige la carpeta según el
  * idioma que fije este objeto.
  */
 object LanguageManager {
@@ -45,7 +55,7 @@ object LanguageManager {
     fun current(context: Context): AppLanguage {
         if (Build.VERSION.SDK_INT >= 33) {
             val locales = context.getSystemService(LocaleManager::class.java).applicationLocales
-            return if (locales.isEmpty()) AppLanguage.SYSTEM else AppLanguage.fromTag(locales[0].language)
+            return if (locales.isEmpty()) AppLanguage.SYSTEM else AppLanguage.fromTag(locales[0].toLanguageTag())
         }
         return AppLanguage.fromTag(
             context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY_TAG, null)

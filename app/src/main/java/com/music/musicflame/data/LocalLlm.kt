@@ -303,8 +303,8 @@ object LocalLlm {
     ): String {
         val last = turns.last().text   // buildTurns garantiza que el último turno es del usuario
         val prior = turns.dropLast(1)
-        val uLabel = if (lang == "en") "User" else "Usuario"
-        val aLabel = if (lang == "en") "Assistant" else "Asistente"
+        val uLabel = if (lang != "es") "User" else "Usuario"
+        val aLabel = if (lang != "es") "Assistant" else "Asistente"
         val sampler = SamplerConfig(topK = 40, topP = 0.9, temperature = 0.6)   // baja temperatura = inventa menos
 
         fun needsReset(c: Conversation): Boolean =
@@ -323,12 +323,12 @@ object LocalLlm {
             val userText = buildString {
                 if (withHistory) {
                     // Conversación nueva con chat previo: el historial corto va como texto.
-                    append(if (lang == "en") "Conversation so far:\n" else "Conversación hasta ahora:\n")
+                    append(if (lang != "es") "Conversation so far:\n" else "Conversación hasta ahora:\n")
                     prior.forEach { append(if (it.user) uLabel else aLabel).append(": ").append(it.text).append('\n') }
                     append('\n')
                 }
                 if (context.isNotBlank()) append(context).append("\n\n")
-                if (withHistory || context.isNotBlank()) append(if (lang == "en") "User message:\n" else "Mensaje del usuario:\n")
+                if (withHistory || context.isNotBlank()) append(if (lang != "es") "User message:\n" else "Mensaje del usuario:\n")
                 append(last)
             }
             val acc = StringBuilder()
@@ -420,10 +420,10 @@ object LocalLlm {
      * mensajes, LiteRT-LM lo procesa una sola vez por conversación. Lo que cambia va en [buildUserContext].
      */
     internal fun buildSystem(aiName: String, lang: String): String =
-        if (lang == "en") {
+        if (lang != "es") {
             "You are $aiName, the music assistant inside the MusicFlame app, talking to someone listening to music on their phone.\n" +
             "Rules:\n" +
-            "1. Answer directly what the user just wrote, in English, in plain text (no Markdown), in at most 3 sentences. Do not greet unless the user greets you first (then one short sentence).\n" +
+            "1. Answer directly what the user just wrote, in ${JarvisLang.outputLanguageName(lang)}, in plain text (no Markdown), in at most 3 sentences. Do not greet unless the user greets you first (then one short sentence).\n" +
             "2. Only mention songs, artists or albums that appear in the DATA; never invent any.\n" +
             "3. If the question is not about music, answer in 1-2 sentences and offer help with music."
         } else {
@@ -440,7 +440,7 @@ object LocalLlm {
      * Las tarjetas ya muestran las canciones, así que se le pide una respuesta CORTA (generar es lo más lento).
      */
     internal fun buildUserContext(nowPlaying: String?, summary: String?, block: String?, lang: String): String {
-        val en = lang == "en"
+        val en = lang != "es"
         val parts = ArrayList<String>(4)
         if (!nowPlaying.isNullOrBlank()) parts += if (en) "Now playing: \"$nowPlaying\"." else "Ahora suena: \"$nowPlaying\"."
         if (!summary.isNullOrBlank()) parts += (if (en) "DATA - user's library: " else "DATOS - biblioteca del usuario: ") + summary

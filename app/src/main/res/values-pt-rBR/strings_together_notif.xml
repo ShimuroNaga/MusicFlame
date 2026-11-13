@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tgn_channel_name">Músicas para a sala</string>
+    <string name="tgn_channel_desc">Avisa quando alguém da sala não tem a música que você colocou e deixa você permitir ou negar que ela seja enviada.</string>
+    <string name="tgn_allow">Permitir</string>
+    <string name="tgn_deny">Negar</string>
+    <string name="tgn_progress_channel_name">Envio de músicas</string>
+    <string name="tgn_progress_channel_desc">Mostra o progresso enquanto você envia uma música para a sala.</string>
+    <string name="tgn_uploading_title">Enviando música…</string>
+</resources>

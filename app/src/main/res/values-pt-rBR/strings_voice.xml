@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Assistente de voz: tile e tela de escuta -->
+    <string name="tile_voice">Assistente de voz</string>
+    <string name="voice_listening">Estou ouvindo…</string>
+    <string name="voice_tap_to_finish">Toque no círculo quando terminar de falar</string>
+    <string name="voice_transcribing">Entendendo o que você disse…</string>
+    <string name="voice_thinking">Pensando…</string>
+    <string name="voice_whisper_fallback">O Whisper não está disponível; repita usando o reconhecimento do Android</string>
+    <string name="voice_not_heard">Não ouvi você. Tente de novo.</string>
+    <string name="voice_error">Algo deu errado. Tente de novo.</string>
+    <string name="voice_mic_busy">Não consegui usar o microfone (outro app está usando?)</string>
+    <string name="voice_no_mic_permission">Preciso da permissão de microfone para ouvir você</string>
+    <string name="voice_disabled">O assistente de voz está desligado. Ative em Configurações > IA.</string>
+    <string name="voice_no_playlists">Você ainda não tem playlists com músicas.</string>
+    <string name="voice_playlist_empty">Essa playlist não tem músicas disponíveis.</string>
+    <string name="voice_playlist_favorites">Favoritas</string>
+    <string name="voice_close">Fechar</string>
+
+    <!-- Configurações > IA > Assistente de voz -->
+    <string name="settings_voice_title">Assistente de voz</string>
+    <string name="settings_voice_card_title">Fale com o MusicFlame</string>
+    <string name="settings_voice_desc">Converse com ela e peça músicas, suas playlists (incluindo Favoritas e as inteligentes) ou que pause e troque de música; ela chama você pelo seu nome e conversa como uma pessoa. Entende a sua voz com o Whisper (usa a mesma API key do Groq de cima, sem configurar mais nada) e, se não houver internet ou a cota acabar, usa o reconhecimento de voz do Android.</string>
+    <string name="settings_voice_enable">Ativar assistente de voz</string>
+    <string name="settings_voice_enable_sub">Enquanto estiver desligado, nem o botão power nem o tile fazem nada.</string>
+    <string name="settings_voice_speak">Responder em voz alta</string>
+    <string name="settings_voice_speak_sub">Usa a voz do sistema (não ocupa espaço extra).</string>
+    <string name="settings_voice_whisper_ok">Whisper pronto: será usada a sua API key do Groq.</string>
+    <string name="settings_voice_whisper_nokey">Sem API key do Groq: será usado o reconhecimento de voz do Android.</string>
+    <string name="settings_voice_power_title">Botão power</string>
+    <string name="settings_voice_power_body">O Android não deixa um app capturar o botão power sozinho. O que ele permite é escolher o MusicFlame como assistente digital: assim, ao manter pressionado o botão de ligar, ele abre. Quanto tempo é preciso segurar é o Android que decide (em alguns celulares dá para ajustar em Configurações do sistema > Botão de ligar); o app não consegue fixar em 2 ou 4 segundos.</string>
+    <string name="settings_voice_power_status_on">O MusicFlame é o seu assistente digital ✔</string>
+    <string name="settings_voice_power_status_off">O MusicFlame ainda não é o seu assistente digital</string>
+    <string name="settings_voice_power_button">Escolher assistente no sistema</string>
+    <string name="settings_voice_tile_title">Tile do painel de controle</string>
+    <string name="settings_voice_tile_body">Deslize o painel rápido, toque no lápis (editar) e arraste o tile "Assistente de voz" para o seu painel.</string>
+    <string name="settings_voice_test">Testar agora</string>
+    <string name="settings_voice_enable_first">Primeiro ative o assistente de voz</string>
+    <string name="voice_greet_morning">Bom dia</string>
+    <string name="voice_greet_afternoon">Boa tarde</string>
+    <string name="voice_greet_night">Boa noite</string>
+    <string name="voice_hint_listening">Fale, estou ouvindo · toque na esfera quando terminar</string>
+    <string name="voice_hint_speaking">Toque na esfera para me interromper</string>
+    <string name="voice_chip_my_playlists">Quais playlists eu tenho?</string>
+    <string name="voice_chip_surprise">Me surpreenda</string>
+    <string name="voice_chip_next">Próxima</string>
+    <string name="voice_song_not_found">Não encontrei «%1$s» na sua biblioteca. Vamos tentar outra?</string>
+    <string name="settings_voice_name_label">Como devo chamar você? (vazio = seu nome do Google)</string>
+    <!-- Voz: personalidade e estilo -->
+    <string name="settings_voice_mode_title">Atitude do assistente</string>
+    <string name="settings_voice_mode_sub">Muda a forma de falar, a velocidade e o tom da voz. Vale a partir da próxima vez que você abri-lo.</string>
+    <string name="voice_mode_butler">Mordomo</string>
+    <string name="voice_mode_friend">Amigo</string>
+    <string name="voice_mode_hype">Hype</string>
+    <string name="voice_mode_zen">Zen</string>
+    <string name="voice_mode_sarcastic">Sarcástico leve</string>
+    <string name="voice_mode_butler_desc">Elegante e cortês, com humor refinado.</string>
+    <string name="voice_mode_friend_desc">Próximo e descontraído, como bater papo com um amigo.</string>
+    <string name="voice_mode_hype_desc">Muita energia e entusiasmo; fala mais rápido e mais agudo.</string>
+    <string name="voice_mode_zen_desc">Calmo e pausado; fala mais devagar e mais grave.</string>
+    <string name="voice_mode_sarcastic_desc">Brinca com carinho, sem exagerar.</string>
+    <string name="settings_voice_prompt_label">Prompt personalizado (só para a voz)</string>
+    <string name="settings_voice_prompt_hint">Conte como você quer que ela fale. Só muda a personalidade e o estilo, nunca as regras de ações. Não afeta o chat escrito.</string>
+    <string name="voice_prompt_ex1_label">Direto</string>
+    <string name="voice_prompt_ex1">Seja breve e direto. Sem rodeios nem perguntas a mais.</string>
+    <string name="voice_prompt_ex2_label">Com humor</string>
+    <string name="voice_prompt_ex2">Use humor leve e uma piada de música de vez em quando, nunca ofensiva.</string>
+    <string name="voice_prompt_ex3_label">Motivador</string>
+    <string name="voice_prompt_ex3">Fale comigo como um coach: me motive e comemore comigo quando eu descobrir música nova.</string>
+    <string name="voice_prompt_ex4_label">Poético</string>
+    <string name="voice_prompt_ex4">Fale com um toque poético e metáforas musicais, sem exagerar.</string>
+    <string name="settings_voice_memory_clear">Esquecer conversas anteriores</string>
+    <string name="settings_voice_memory_cleared">Pronto, esqueci as conversas anteriores</string>
+    <!-- Voz fase 2: ações, tabela de playlist e confirmações -->
+    <string name="voice_draft_title">Playlist: %1$s</string>
+    <string name="voice_draft_save">Salvar</string>
+    <string name="voice_draft_discard">Descartar</string>
+    <string name="voice_draft_ask">Montei «%1$s» com %2$d músicas. Você pode mudar o nome ou desmarcar as que não quiser. Posso salvar?</string>
+    <string name="voice_draft_ask_candidates">Não encontrei exatamente isso, mas há candidatas. Marque as que quiser e diga sim para salvar «%1$s».</string>
+    <string name="voice_draft_ask_pick">Aqui está a sua biblioteca. Marque as músicas que quiser e diga sim para salvar «%1$s».</string>
+    <string name="voice_draft_discarded">Pronto, não salvei.</string>
+    <string name="voice_draft_none_checked">Você não marcou nenhuma música, então não salvei.</string>
+    <string name="voice_draft_all">Todas</string>
+    <string name="voice_draft_none">Nenhuma</string>
+    <string name="voice_draft_name_label">Nome da playlist</string>
+    <string name="voice_draft_play_ask">Quer que eu toque «%1$s» agora?</string>
+    <string name="voice_draft_playing">Tocando «%1$s».</string>
+    <string name="voice_nothing_to_undo">Não tenho nada para desfazer.</string>
+    <string name="voice_undone">Pronto, desfiz.</string>
+    <string name="voice_cancelled">Cancelado, não mudei nada.</string>
+    <string name="voice_no_answer">Não ouvi você, deixo como está.</string>
+    <string name="voice_sleep_set">Vou desligar em %1$d min.</string>
+    <string name="voice_sleep_off">Timer cancelado.</string>
+    <string name="voice_together_no_app">Abra o MusicFlame por um momento e eu tento de novo.</string>
+    <string name="voice_together_failed">Não consegui criar a sala. Verifique a sua conexão.</string>
+    <string name="voice_together_created">Pronto, a sala %1$s foi criada.</string>
+    <string name="voice_together_existing">Você já está na sala %1$s.</string>
+    <string name="voice_together_invite">Abri as opções para convidar para a sala %1$s.</string>
+    <!-- Voz fase 3: seletor de vozes do sistema, velocidade e tom -->
+    <string name="settings_voice_tts_title">Voz do assistente</string>
+    <string name="settings_voice_tts_sub">Vozes do sistema instaladas no seu celular. A atitude já ajusta o ritmo e o tom; estes controles se somam a ela.</string>
+    <string name="voice_tts_auto">Automática (voz padrão do sistema)</string>
+    <string name="voice_tts_voice_item">%1$s · voz %2$d</string>
+    <string name="voice_tts_network">precisa de internet</string>
+    <string name="settings_voice_tts_rate">Velocidade: %1$d%%</string>
+    <string name="settings_voice_tts_pitch">Tom: %1$d%%</string>
+    <string name="settings_voice_tts_test">Testar voz</string>
+    <string name="settings_voice_tts_reset">Redefinir voz</string>
+    <string name="settings_voice_tts_empty">Não encontrei vozes do sistema para este idioma. Instale-as nas configurações de saída de texto para voz do seu celular.</string>
+    <string name="voice_tts_sample">Olá, eu sou %1$s. É assim que eu soo com esta configuração.</string>
+</resources>

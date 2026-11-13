@@ -3,6 +3,7 @@ package com.music.musicflame.voice
 import android.content.Context
 import com.music.musicflame.data.JarvisBrain
 import com.music.musicflame.data.JarvisCall
+import com.music.musicflame.data.JarvisLang
 import com.music.musicflame.data.JarvisTool
 import com.music.musicflame.data.OnlineLlm
 import com.music.musicflame.data.PlaylistKind
@@ -57,7 +58,7 @@ object VoiceBrain {
         RE_MARKS.replace(Normalizer.normalize(s.lowercase(), Normalizer.Form.NFD), "").filter { it.isLetterOrDigit() || it == ' ' }.trim()
 
     suspend fun decide(ctx: Context, vc: VoiceContext, dialog: List<Pair<Boolean, String>>): VoiceAction {
-        val en = vc.lang == "en"
+        val en = vc.lang != "es"   // en/pt: el prompt va en inglés y se le pide responder en el idioma de la app
         val names = vc.playlists.take(80).joinToString("\n") { "- " + it.name.take(60) }
         val who = if (vc.userName.isNotBlank()) vc.userName else if (en) "the user" else "el usuario"
         val moment = when (vc.hour) { in 5..11 -> if (en) "morning" else "mañana"; in 12..18 -> if (en) "afternoon" else "tarde"; else -> if (en) "night" else "noche" }
@@ -67,7 +68,7 @@ object VoiceBrain {
                     "Talk like a person: natural, a bit playful, curious, never robotic. Use their name now and then (not every sentence). You can chat about music, answer questions and keep the conversation going, AND you obey music commands. " +
                     "The text comes from speech recognition and may have mistakes. Currently playing: $np.\n" +
                     "Reply ONLY with one JSON object (no Markdown): {\"action\":\"chat|play_playlist|play_song|pause|resume|next|previous|act|stats|undo|end\",\"playlist\":\"\",\"song\":\"\",\"shuffle\":false,\"say\":\"\",\"listen\":true,\"actions\":[],\"stat\":\"\"}\n" +
-                    "- say: what you speak aloud, in English, 1-3 short sentences (max ~35 words). For direct commands keep it very short (max 8 words). ONLY when the user explicitly asks you to tell or explain something (\"tell me\", \"explain\", \"cuéntame\", \"explícame\") you may answer longer: up to ~110 words, in flowing spoken sentences.\n" +
+                    "- say: what you speak aloud, in ${JarvisLang.outputLanguageName(vc.lang)}, 1-3 short sentences (max ~35 words). For direct commands keep it very short (max 8 words). ONLY when the user explicitly asks you to tell or explain something (\"tell me\", \"explain\", \"cuéntame\", \"explícame\", \"me conta\", \"me explica\") you may answer longer: up to ~110 words, in flowing spoken sentences.\n" +
                     "- play_playlist: 'playlist' must be EXACTLY one of the names below. play_song: 'song' = the title as the user said it, plus the artist if they said it. Never invent playlists.\n" +
                     "- If the user wants music but is vague, don't just ask 'which playlist?': suggest 2-3 options with personality (from their playlists below) and ask, with action chat and listen true. If they ask what playlists they have, name them (the first 4-5) in 'say'.\n" +
                     "- Your personality: an elite personal assistant in the style of JARVIS: professional, warm and a little witty. You talk naturally, anticipate what the user needs and suggest the next step without being pushy.\n" +
@@ -115,6 +116,7 @@ object VoiceBrain {
 
     private fun parse(raw: String, vc: VoiceContext): VoiceAction? {
         val en = vc.lang == "en"
+        val pt = vc.lang == "pt"
         val a = raw.indexOf('{'); val b = raw.lastIndexOf('}')
         val o = if (a >= 0 && b > a) try { JSONObject(raw.substring(a, b + 1)) } catch (_: Exception) { null } else null
         if (o == null) {
@@ -127,13 +129,13 @@ object VoiceBrain {
         return when (o.optString("action", "chat").lowercase()) {
             "play_playlist", "play" -> {
                 val pl = findPlaylist(o.optString("playlist", ""), vc.playlists)
-                if (pl != null) VoiceAction.PlayPlaylist(pl, o.optBoolean("shuffle", false), say.ifBlank { if (en) "On it." else "Enseguida." })
-                else VoiceAction.Chat(if (en) "I couldn't find that playlist. Which one did you mean?" else "No encontré esa playlist. ¿Cuál era?")
+                if (pl != null) VoiceAction.PlayPlaylist(pl, o.optBoolean("shuffle", false), say.ifBlank { if (en) "On it." else if (pt) "Pode deixar." else "Enseguida." })
+                else VoiceAction.Chat(if (en) "I couldn't find that playlist. Which one did you mean?" else if (pt) "Não encontrei essa playlist. Qual era?" else "No encontré esa playlist. ¿Cuál era?")
             }
             "play_song" -> {
                 val q = o.optString("song", "").trim()
-                if (q.isNotEmpty()) VoiceAction.PlaySong(q, say.ifBlank { if (en) "Coming right up." else "Va." })
-                else VoiceAction.Chat(if (en) "Which song?" else "¿Cuál canción?")
+                if (q.isNotEmpty()) VoiceAction.PlaySong(q, say.ifBlank { if (en) "Coming right up." else if (pt) "Já vai." else "Va." })
+                else VoiceAction.Chat(if (en) "Which song?" else if (pt) "Qual música?" else "¿Cuál canción?")
             }
             "pause" -> VoiceAction.Control(VoiceControl.PAUSE, say)
             "resume" -> VoiceAction.Control(VoiceControl.RESUME, say)
@@ -144,14 +146,14 @@ object VoiceBrain {
                 // Lista blanca: JarvisBrain.parsePlan descarta cualquier herramienta que no esté en JarvisTool.
                 val calls = JarvisBrain.parsePlan(raw.substring(a, b + 1))?.calls.orEmpty()
                 if (calls.isNotEmpty()) VoiceAction.Act(calls, say, listen)
-                else VoiceAction.Chat(say.ifBlank { if (en) "I couldn't do that one. What else?" else "Eso no lo pude hacer. ¿Algo más?" }, true)
+                else VoiceAction.Chat(say.ifBlank { if (en) "I couldn't do that one. What else?" else if (pt) "Isso eu não consegui fazer. Mais alguma coisa?" else "Eso no lo pude hacer. ¿Algo más?" }, true)
             }
             "stats" -> {
                 val kind = o.optString("stat", "").trim().lowercase()
-                if (kind in VoiceStats.KINDS) VoiceAction.Stats(kind, say) else VoiceAction.Chat(say.ifBlank { if (en) "Which stat?" else "¿Qué dato quieres?" }, true)
+                if (kind in VoiceStats.KINDS) VoiceAction.Stats(kind, say) else VoiceAction.Chat(say.ifBlank { if (en) "Which stat?" else if (pt) "Qual dado você quer?" else "¿Qué dato quieres?" }, true)
             }
             "undo" -> VoiceAction.Undo(say)
-            else -> VoiceAction.Chat(say.ifBlank { if (en) "Go on, I'm listening." else "Dime, te escucho." }, listen || say.endsWith("?"))
+            else -> VoiceAction.Chat(say.ifBlank { if (en) "Go on, I'm listening." else if (pt) "Fala, estou ouvindo." else "Dime, te escucho." }, listen || say.endsWith("?"))
         }
     }
 
@@ -169,8 +171,8 @@ object VoiceBrain {
             .filter { it.second > 0 }.maxByOrNull { it.second }?.first
     }
 
-    private val NO_WORDS = setOf("no", "nope", "nel", "cancela", "cancelar", "descarta", "descartar", "descartala", "descartalo", "cancel", "discard")
-    private val YES_WORDS = setOf("si", "sip", "claro", "dale", "va", "ok", "okay", "yes", "yeah", "yep", "sure", "guardala", "guardalo", "guardar", "hazlo", "adelante", "save", "go")
+    private val NO_WORDS = setOf("no", "nope", "nel", "cancela", "cancelar", "descarta", "descartar", "descartala", "descartalo", "cancel", "discard", "nao", "cancele", "descarte", "descarta", "descartar")
+    private val YES_WORDS = setOf("si", "sip", "claro", "dale", "va", "ok", "okay", "yes", "yeah", "yep", "sure", "guardala", "guardalo", "guardar", "hazlo", "adelante", "save", "go", "sim", "bora", "beleza", "pode", "salva", "salvar", "faz", "faca", "manda", "vai", "vamos")
 
     /** true = sí, false = no, null = no quedó claro. "No" gana si aparece (ej. "mejor no"). */
     fun yesNo(text: String?): Boolean? {
@@ -181,11 +183,12 @@ object VoiceBrain {
         return null
     }
 
-    private val VERBS = Regex("^(pon(me|er)?|reproduce|reproducir|play|quiero escuchar|quiero oir|escuchar|toca|ponla|ponlo)\\s+(la cancion|la rola|el tema|the song)?\\s*")
+    private val VERBS = Regex("^(pon(me|er)?|reproduce|reproducir|play|quiero escuchar|quiero oir|escuchar|toca|ponla|ponlo|coloca|coloque|colocar|tocar|toque|bota|reproduz|reproduzir|quero ouvir|ouvir|poe)\\s+(la cancion|la rola|el tema|the song|a musica|a faixa|o tema)?\\s*")
 
     /** Respaldo sin IA: palabras clave + nombre de playlist o canción. */
     fun local(text: String, vc: VoiceContext): VoiceAction {
         val en = vc.lang == "en"
+        val pt = vc.lang == "pt"
         val t = fold(text)
         // Palabra/frase completa (así "Don't Stop Me Now" no cuenta como "stop") y, si es un pedido largo con
         // verbo de reproducir ("pon Don't Stop Me Now"), nunca se toma como control.
@@ -193,34 +196,34 @@ object VoiceBrain {
         fun has(vararg w: String) = w.any { padded.contains(" $it ") }
         val songRequest = VERBS.containsMatchIn(t) && t.split(' ').size > 2
         val name = if (vc.userName.isNotBlank()) ", ${vc.userName}" else ""
-        if (has("deshaz", "deshacer", "revierte", "undo that", "take that back")) return VoiceAction.Undo("")
-        if (has("que suena", "que esta sonando", "whats playing", "what is playing", "whats this song")) return VoiceAction.Stats("now_playing", "")
+        if (has("deshaz", "deshacer", "revierte", "undo that", "take that back", "desfaz", "desfazer", "reverte")) return VoiceAction.Undo("")
+        if (has("que suena", "que esta sonando", "whats playing", "what is playing", "whats this song", "o que esta tocando", "o que ta tocando", "que musica e essa", "qual musica e essa")) return VoiceAction.Stats("now_playing", "")
         // Atajos sin IA que también funcionan sin internet: volumen y temporizador de sueño.
         JarvisBrain.quickPlan(text)?.takeIf { p -> p.calls.all { it.tool == JarvisTool.VOLUME || it.tool == JarvisTool.SLEEP_TIMER || it.tool == JarvisTool.CANCEL_SLEEP_TIMER } }
             ?.let { return VoiceAction.Act(it.calls, "") }
         return when {
-            !songRequest && has("gracias", "adios", "hasta luego", "thanks", "bye", "thats all") -> VoiceAction.End(if (en) "Anytime$name." else "Para eso estoy$name.")
-            !songRequest && has("pausa", "pausar", "detente", "para la musica", "pause", "stop") -> VoiceAction.Control(VoiceControl.PAUSE, if (en) "Paused." else "Pausado.")
-            !songRequest && has("siguiente", "next", "salta", "skip") -> VoiceAction.Control(VoiceControl.NEXT, if (en) "Next one." else "Siguiente.")
-            !songRequest && has("anterior", "previous", "atras", "go back") -> VoiceAction.Control(VoiceControl.PREVIOUS, if (en) "Going back." else "Anterior.")
-            !songRequest && has("continua", "reanuda", "resume", "continue") -> VoiceAction.Control(VoiceControl.RESUME, if (en) "Resuming." else "Continuando.")
-            has("que playlists", "mis playlists", "what playlists", "my playlists") -> {
+            !songRequest && has("gracias", "adios", "hasta luego", "thanks", "bye", "thats all", "obrigado", "obrigada", "valeu", "tchau", "ate logo", "so isso") -> VoiceAction.End(if (en) "Anytime$name." else if (pt) "Para isso estou aqui$name." else "Para eso estoy$name.")
+            !songRequest && has("pausa", "pausar", "detente", "para la musica", "pause", "stop", "pare", "parar", "para a musica", "pausar a musica") -> VoiceAction.Control(VoiceControl.PAUSE, if (en) "Paused." else if (pt) "Pausado." else "Pausado.")
+            !songRequest && has("siguiente", "next", "salta", "skip", "proxima", "proximo", "pula", "pular", "avancar") -> VoiceAction.Control(VoiceControl.NEXT, if (en) "Next one." else if (pt) "Próxima." else "Siguiente.")
+            !songRequest && has("anterior", "previous", "atras", "go back", "voltar", "volta", "volte") -> VoiceAction.Control(VoiceControl.PREVIOUS, if (en) "Going back." else if (pt) "Anterior." else "Anterior.")
+            !songRequest && has("continua", "reanuda", "resume", "continue", "retoma", "retomar", "continuar") -> VoiceAction.Control(VoiceControl.RESUME, if (en) "Resuming." else if (pt) "Continuando." else "Continuando.")
+            has("que playlists", "mis playlists", "what playlists", "my playlists", "quais playlists", "minhas playlists") -> {
                 val list = vc.playlists.take(5).joinToString(", ") { it.name }
-                VoiceAction.Chat(if (en) "You have: $list. Which one?" else "Tienes: $list. ¿Cuál te pongo?")
+                VoiceAction.Chat(if (en) "You have: $list. Which one?" else if (pt) "Você tem: $list. Qual eu coloco?" else "Tienes: $list. ¿Cuál te pongo?")
             }
             else -> {
                 val pl = findPlaylist(text, vc.playlists)
-                val shuffle = has("aleatorio", "mezcla", "shuffle", "random")
+                val shuffle = has("aleatorio", "mezcla", "shuffle", "random", "aleatoria", "misturar", "embaralhar")
                 val rest = VERBS.replace(t, "").trim()
                 when {
-                    pl != null -> VoiceAction.PlayPlaylist(pl, shuffle, if (en) "Playing ${pl.name}." else "Reproduciendo ${pl.name}.")
-                    VERBS.containsMatchIn(t) && rest.length >= 2 && !rest.matches(Regex("(musica|something|algo|una playlist|playlist|lista)")) ->
-                        VoiceAction.PlaySong(rest, if (en) "Looking for it." else "Buscándola.")
-                    has("pon", "reproduce", "musica", "play", "playlist", "lista", "escuchar", "listen") -> {
+                    pl != null -> VoiceAction.PlayPlaylist(pl, shuffle, if (en) "Playing ${pl.name}." else if (pt) "Tocando ${pl.name}." else "Reproduciendo ${pl.name}.")
+                    VERBS.containsMatchIn(t) && rest.length >= 2 && !rest.matches(Regex("(musica|something|algo|una playlist|playlist|lista|uma playlist|alguma coisa|qualquer coisa|uma musica)")) ->
+                        VoiceAction.PlaySong(rest, if (en) "Looking for it." else if (pt) "Procurando." else "Buscándola.")
+                    has("pon", "reproduce", "musica", "play", "playlist", "lista", "escuchar", "listen", "toca", "tocar", "coloca", "colocar", "bota", "ouvir") -> {
                         val opts = vc.playlists.take(3).joinToString(", ") { it.name }
-                        VoiceAction.Chat(if (en) "Sure$name. Want $opts, or a specific song?" else "Claro$name. ¿Te pongo $opts, o alguna canción en especial?")
+                        VoiceAction.Chat(if (en) "Sure$name. Want $opts, or a specific song?" else if (pt) "Claro$name. Coloco $opts, ou alguma música em especial?" else "Claro$name. ¿Te pongo $opts, o alguna canción en especial?")
                     }
-                    else -> VoiceAction.Chat(if (en) "I didn't catch that$name." else "No te entendí bien$name.")
+                    else -> VoiceAction.Chat(if (en) "I didn't catch that$name." else if (pt) "Não entendi bem$name." else "No te entendí bien$name.")
                 }
             }
         }

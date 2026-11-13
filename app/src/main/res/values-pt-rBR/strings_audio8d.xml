@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="audio8d_title">Áudio 8D</string>
+    <string name="audio8d_desc">O som gira em volta da sua cabeça. Você também pode ajustar o balanço esquerda / direita.</string>
+    <string name="audio8d_enable">Ativar Áudio 8D</string>
+    <string name="audio8d_speed">Velocidade: uma volta a cada %1$d s</string>
+    <string name="audio8d_intensity">Intensidade: %1$d%%</string>
+    <string name="audio8d_balance">Balanço: %1$s</string>
+    <string name="audio8d_balance_center">centro</string>
+    <string name="audio8d_balance_left">esquerda %1$d%%</string>
+    <string name="audio8d_balance_right">direita %1$d%%</string>
+    <string name="audio8d_headphones_tip">Dá para apreciar com fones de ouvido; com o alto-falante do celular quase não se nota.</string>
+    <string name="audio8d_reset">Redefinir</string>
+</resources>

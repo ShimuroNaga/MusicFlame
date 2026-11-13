@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="settings_color_texto_en_compania">Cor do texto de Juntos</string>
+    <string name="settings_color_texto_en_compania_desc">Cor dos textos, do cabeçalho e dos botões da tela Juntos e da barra do chat dela.</string>
+    <string name="settings_together_text_adaptive_desc">Usa a mesma cor de texto que o app já usa</string>
+    <string name="settings_adaptativo_color_de_texto">Adaptável (cor de texto do app)</string>
+</resources>

@@ -59,7 +59,7 @@ object VoiceMemory {
 
     /** Todo lo que el modelo "recuerda" del usuario, listo para el prompt ("" si no hay nada). */
     fun build(ctx: Context, lang: String): String {
-        val en = lang == "en"
+        val en = lang != "es"
         val parts = ArrayList<String>()
         try { statsSummary(ctx, en).takeIf { it.isNotBlank() }?.let { parts += it } } catch (_: Exception) {}
         val lines = loadLines(ctx)

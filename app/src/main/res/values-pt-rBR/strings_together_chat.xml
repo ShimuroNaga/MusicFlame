@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="tgc_chats">Chats</string>
+    <string name="tgc_title">Chat da sala</string>
+    <string name="tgc_back">Voltar</string>
+    <string name="tgc_hint">Escreva uma mensagem…</string>
+    <string name="tgc_send">Enviar</string>
+    <string name="tgc_empty">Ainda não há mensagens. Quebre o gelo!</string>
+    <string name="tgc_copy">Copiar</string>
+    <string name="tgc_delete">Apagar</string>
+    <string name="tgc_copied">Mensagem copiada</string>
+    <string name="tgc_mute">Expulsar do chat</string>
+    <string name="tgc_unmute">Perdoar</string>
+    <string name="tgc_sys_muted">%1$s foi expulso(a) do chat</string>
+    <string name="tgc_sys_unmuted">%1$s foi perdoado(a) e pode voltar a escrever</string>
+    <string name="tgc_you_muted">Um proprietário expulsou você do chat. Você pode continuar ouvindo, mas não escrever.</string>
+    <string name="tgc_unread_desc">Mensagens não lidas</string>
+    <string name="tgc_notif_channel">Chat do Juntos</string>
+    <string name="tgc_notif_channel_desc">Avisa quando alguém escreve no chat da sua sala enquanto você não está com ele aberto.</string>
+    <string name="tgc_notif_title_one">Nova mensagem na sala</string>
+    <string name="tgc_notif_title_many">%1$d novas mensagens na sala</string>
+    <string name="tgc_members_online">%1$d na sala</string>
+    <string name="tgc_today">Hoje</string>
+    <string name="tgc_reply">Responder</string>
+    <string name="tgc_you">Você</string>
+    <string name="tgc_replying_to">Respondendo a %1$s</string>
+    <string name="tgc_reply_cancel">Cancelar resposta</string>
+    <string name="tgc_reply_gone">A mensagem original não existe mais</string>
+</resources>

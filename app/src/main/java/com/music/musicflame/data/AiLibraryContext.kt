@@ -63,26 +63,27 @@ object AiLibraryContext {
     private val STOP = setOf(
         "de", "la", "el", "los", "las", "un", "una", "y", "o", "en", "que", "me", "mi", "tu", "te", "se", "es", "lo",
         "por", "para", "con", "del", "al", "the", "a", "an", "of", "to", "in", "and", "my", "you", "is", "it",
-        "cancion", "canciones", "musica", "algo", "parecido", "parecida", "similar", "como", "recomienda", "recomiendame"
+        "cancion", "canciones", "musica", "algo", "parecido", "parecida", "similar", "como", "recomienda", "recomiendame", "do", "da", "dos", "das", "uns", "umas", "no", "na", "meu", "minha", "musicas", "recomende", "recomenda"
     )
 
     // ---------- Intención ----------
     private val RECO_WORDS = listOf(
         "recomiend", "sugier", "sugiere", "parecid", "similar", "como esa", "como esta", "algo asi", "otra como",
-        "mas como", "dame cancion", "ponme", "pon algo", "que escucho", "que escuchar", "playlist", "mezcla", "recommend", "similar to"
+        "mas como", "dame cancion", "ponme", "pon algo", "que escucho", "que escuchar", "playlist", "mezcla", "recommend", "similar to",
+        "recomend", "sugest", "algo assim", "outra como", "o que ouvir", "o que escutar", "mistura"
     )
-    private val LIBRARY_WORDS = listOf("tengo", "mis canciones", "mi biblioteca", "mi musica", "canciones de", "musica de", "rolas de", "my songs", "my library")
-    private val NOW_WORDS = listOf("esta cancion", "esta rola", "esta musica", "la que suena", "la que esta sonando", "lo que suena", "this song", "currently")
+    private val LIBRARY_WORDS = listOf("tengo", "mis canciones", "mi biblioteca", "mi musica", "canciones de", "musica de", "rolas de", "my songs", "my library", "tenho", "minhas musicas", "minha biblioteca", "minha musica", "musicas de", "musica de")
+    private val NOW_WORDS = listOf("esta cancion", "esta rola", "esta musica", "la que suena", "la que esta sonando", "lo que suena", "this song", "currently", "essa musica", "esta musica", "a que esta tocando", "o que esta tocando")
 
     /** Palabras de ánimo/actividad → fragmentos de género (en MediaStore los géneros vienen en texto libre). */
     private val MOODS: List<Pair<List<String>, List<String>>> = listOf(
-        listOf("correr", "gym", "entrenar", "ejercicio", "workout", "energia", "animad", "fiesta", "bailar") to
+        listOf("correr", "gym", "entrenar", "ejercicio", "workout", "energia", "animad", "fiesta", "bailar", "treino", "treinar", "malhar", "festa", "dancar") to
             listOf("rock", "metal", "punk", "dance", "electro", "edm", "house", "techno", "reggaeton", "hip", "rap", "pop"),
-        listOf("dormir", "relaj", "tranquil", "calma", "sleep", "chill", "suave") to
+        listOf("dormir", "relaj", "tranquil", "calma", "sleep", "chill", "suave", "relax") to
             listOf("ambient", "classical", "clasic", "acoustic", "acust", "jazz", "lofi", "lo fi", "chill", "folk", "new age"),
-        listOf("estudiar", "concentr", "trabajar", "focus", "study") to
+        listOf("estudiar", "concentr", "trabajar", "focus", "study", "estudar", "trabalhar", "foco") to
             listOf("ambient", "classical", "clasic", "instrumental", "lofi", "lo fi", "jazz", "electro", "soundtrack"),
-        listOf("triste", "llorar", "melanc", "sad") to
+        listOf("triste", "llorar", "melanc", "sad", "chorar") to
             listOf("balada", "ballad", "blues", "acoustic", "acust", "soul", "indie", "folk", "pop")
     )
 
@@ -178,7 +179,7 @@ object AiLibraryContext {
      */
     fun summary(songs: List<Song>, stats: Map<Long, SongStat>, lang: String): String? {
         if (songs.isEmpty()) return null
-        val en = lang == "en"
+        val en = lang != "es"
         if (summaryFor !== songs || summaryLang != lang || summaryBase == null) {
             fun known(v: String?) = !v.isNullOrBlank() && !v.equals("unknown", true) && !v.equals("desconocido", true) && !v.equals("<unknown>", true)
             val artists = songs.asSequence().map { it.artist }.filter { known(it) }

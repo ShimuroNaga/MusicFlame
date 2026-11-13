@@ -166,23 +166,129 @@ internal fun LazyListScope.settingsAccountSection(
 
     item { SettingsSectionHeader(style, stringResource(R.string.section_account)) }
 
+    // PERFIL: banner horizontal (toca el banner para elegir imagen y recortarla) + avatar + nombre
     item {
         SettingsRow(style, SettingsRowPos.First) {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            var bannerBitmap by remember {
+                mutableStateOf(com.music.musicflame.data.ProfileBanner.load(context)?.asImageBitmap())
+            }
+            var bannerUri by remember { mutableStateOf<Uri?>(null) }
+            val bannerPicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+                if (uri != null) bannerUri = uri
+            }
+            val avatarSize = 72.dp
+
+            androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
+                val bannerAspect = bannerBitmap
+                    ?.let { it.width.toFloat() / it.height }
+                    ?.coerceIn(
+                        com.music.musicflame.data.ProfileBanner.MIN_ASPECT,
+                        com.music.musicflame.data.ProfileBanner.MAX_ASPECT
+                    ) ?: com.music.musicflame.data.ProfileBanner.ASPECT
+                val bannerHeight = maxWidth / bannerAspect
+
+                Column(Modifier.fillMaxWidth()) {
+                    // BANNER: todo el área es tocable
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(bannerHeight)
+                            .background(
+                                androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                    listOf(
+                                        style.trailingColor.copy(alpha = 0.35f),
+                                        MaterialTheme.colorScheme.surfaceVariant
+                                    )
+                                )
+                            )
+                            .clickable { bannerPicker.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val bmp = bannerBitmap
+                        if (bmp != null) {
+                            Image(
+                                bitmap = bmp,
+                                contentDescription = stringResource(R.string.settings_banner_desc),
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                            IconButton(
+                                onClick = {
+                                    com.music.musicflame.data.ProfileBanner.clear(context)
+                                    bannerBitmap = null
+                                },
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .size(36.dp)
+                                    .clip(CircleShape)
+                                    .background(Color.Black.copy(alpha = 0.45f))
+                            ) {
+                                Icon(
+                                    Icons.Filled.Delete,
+                                    stringResource(R.string.settings_banner_remove),
+                                    tint = Color.White,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        } else {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Filled.Image, null, tint = style.mediumEmphasis)
+                                Spacer(Modifier.width(8.dp))
+                                Text(
+                                    stringResource(R.string.settings_banner_hint),
+                                    fontSize = 13.sp,
+                                    color = style.mediumEmphasis
+                                )
+                            }
+                        }
+                    }
+
+                    // Nombre a la derecha del avatar (el avatar se dibuja encima, solapando el banner)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = avatarSize / 2 + 24.dp)
+                            .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() }
+                            .padding(start = 16.dp + avatarSize + 14.dp, end = 16.dp, top = 8.dp, bottom = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column {
+                            if (isUserSignedIn && !userName.isNullOrEmpty()) {
+                                Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
+                                Text(stringResource(R.string.settings_toca_para_ver_tu_cuenta), fontSize = 13.sp, color = style.mediumEmphasis)
+                            } else {
+                                Text(
+                                    stringResource(R.string.settings_sin_usuario_por_favor_registrese),
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = style.mediumEmphasis
+                                )
+                                Text(
+                                    stringResource(R.string.settings_inicia_sesion_con_google),
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = style.trailingColor
+                                )
+                            }
+                        }
+                    }
+                }
+
+                // AVATAR superpuesto a la esquina inferior izquierda del banner
                 Box(
                     modifier = Modifier
-                        .size(64.dp)
+                        .padding(start = 16.dp, top = bannerHeight - avatarSize / 2)
+                        .size(avatarSize)
+                        .clip(CircleShape)
+                        .background(MaterialTheme.colorScheme.surface)
+                        .padding(3.dp)
                         .clip(CircleShape)
                         .background(
                             if (isUserSignedIn) Color.Transparent
                             else MaterialTheme.colorScheme.surfaceVariant
-                        ),
+                        )
+                        .clickable { if (isUserSignedIn) onProfileClick() else onSignInClick() },
                     contentAlignment = Alignment.Center
                 ) {
                     if (isUserSignedIn && !userPhotoUrl.isNullOrEmpty()) {
@@ -202,37 +308,32 @@ internal fun LazyListScope.settingsAccountSection(
                         Icon(
                             imageVector = Icons.Filled.AccountCircle,
                             contentDescription = stringResource(R.string.settings_sin_foto_de_perfil),
-                            modifier = Modifier.size(64.dp),
+                            modifier = Modifier.fillMaxSize(),
                             tint = if (isUserSignedIn) style.trailingColor
                             else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
-                        )
-                    }
-                }
-
-                Spacer(Modifier.width(14.dp))
-
-                Column {
-                    if (isUserSignedIn && !userName.isNullOrEmpty()) {
-                        Text(userName, fontSize = 19.sp, fontWeight = FontWeight.Bold, color = style.highEmphasis)
-                        Text(stringResource(R.string.settings_toca_para_ver_tu_cuenta), fontSize = 13.sp, color = style.mediumEmphasis)
-                    } else {
-                        Text(
-                            stringResource(R.string.settings_sin_usuario_por_favor_registrese),
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            color = style.mediumEmphasis
-                        )
-                        Text(
-                            stringResource(R.string.settings_inicia_sesion_con_google),
-                            fontSize = 13.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = style.trailingColor
                         )
                     }
                 }
             }
 
             SettingsDivider(style)
+
+            // Editor de recorte libre: el recuadro se mueve y se deforma arrastrando esquinas/bordes
+            bannerUri?.let { uri ->
+                com.music.musicflame.ui.components.FreeCropDialog(
+                    uri = uri,
+                    outMaxWidth = com.music.musicflame.data.ProfileBanner.WIDTH_PX,
+                    initialAspect = com.music.musicflame.data.ProfileBanner.ASPECT,
+                    minAspect = com.music.musicflame.data.ProfileBanner.MIN_ASPECT,
+                    maxAspect = com.music.musicflame.data.ProfileBanner.MAX_ASPECT,
+                    onDismiss = { bannerUri = null },
+                    onConfirm = { bmp ->
+                        com.music.musicflame.data.ProfileBanner.save(context, bmp)
+                        bannerBitmap = bmp.asImageBitmap()
+                        bannerUri = null
+                    }
+                )
+            }
         }
     }
 

@@ -64,14 +64,19 @@ import androidx.compose.ui.graphics.nativeCanvas
  * arrastra para mover y pellizca o usa el slider para el zoom (sin rotación).
  * El cuadrado de la rejilla es lo que se guarda; el círculo marca cómo lo verán los demás.
  *
- * [onConfirm] recibe un Bitmap cuadrado de [outSize] px.
+ * [onConfirm] recibe un Bitmap de [outSize] px de ancho y [outSize]/[aspect] de alto.
+ *
+ * [aspect] = ancho/alto del recuadro. 1f = cuadrado (avatar); 3f = banner horizontal (3:1).
+ * El círculo guía solo se dibuja en cuadrados ([showCircleGuide]).
  */
 @Composable
 fun AvatarCropDialog(
     uri: Uri,
     onDismiss: () -> Unit,
     onConfirm: (Bitmap) -> Unit,
-    outSize: Int = 256
+    outSize: Int = 256,
+    aspect: Float = 1f,
+    showCircleGuide: Boolean = aspect == 1f
 ) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<Bitmap?>(null) }
@@ -85,7 +90,7 @@ fun AvatarCropDialog(
     // Estado del editor
     var zoom by remember { mutableFloatStateOf(1f) }        // 1 = la imagen justo cubre el cuadrado
     var offset by remember { mutableStateOf(Offset.Zero) }  // px de pantalla, relativo al centro
-    var cropSidePx by remember { mutableFloatStateOf(0f) }
+    var cropW by remember { mutableFloatStateOf(0f) }   // ancho del recuadro en px de pantalla
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -111,7 +116,7 @@ fun AvatarCropDialog(
                     enabled = source != null,
                     onClick = {
                         val src = source ?: return@IconButton
-                        onConfirm(renderCrop(src, outSize, cropSidePx, zoom, offset))
+                        onConfirm(renderCrop(src, outSize, aspect, cropW, zoom, offset))
                     }
                 ) { Icon(Icons.Filled.Check, null, tint = if (source != null) Color.White else Color.Gray) }
             }
@@ -132,16 +137,19 @@ fun AvatarCropDialog(
                             .pointerInput(Unit) {
                                 detectTransformGestures { _, pan, gestureZoom, _ ->
                                     zoom = (zoom * gestureZoom).coerceIn(1f, 5f)
-                                    offset = clampOffset(src, cropSidePx, zoom, offset + pan)
+                                    offset = clampOffset(src, cropW, aspect, zoom, offset + pan)
                                 }
                             }
                     ) {
                         Canvas(Modifier.fillMaxSize()) {
-                            val side = min(size.width, size.height) * 0.86f
-                            cropSidePx = side
+                            val maxW = size.width * (if (aspect > 1f) 0.92f else 0.86f)
+                            val maxH = size.height * 0.86f
+                            val cw = min(maxW, maxH * aspect)
+                            val ch = cw / aspect
+                            cropW = cw
                             val cx = size.width / 2f
                             val cy = size.height / 2f
-                            val cover = side / min(src.width, src.height)
+                            val cover = max(cw / src.width, ch / src.height)
                             val s = cover * zoom
 
                             // Imagen transformada (se ve completa por fuera del recorte)
@@ -155,26 +163,29 @@ fun AvatarCropDialog(
                                 }
                             }
 
-                            val left = cx - side / 2f
-                            val top = cy - side / 2f
+                            val left = cx - cw / 2f
+                            val top = cy - ch / 2f
 
                             // Oscurece lo que queda fuera del cuadrado
                             val shade = Path().apply {
                                 fillType = PathFillType.EvenOdd
                                 addRect(androidx.compose.ui.geometry.Rect(0f, 0f, size.width, size.height))
-                                addRect(androidx.compose.ui.geometry.Rect(left, top, left + side, top + side))
+                                addRect(androidx.compose.ui.geometry.Rect(left, top, left + cw, top + ch))
                             }
                             drawPath(shade, Color.Black.copy(alpha = 0.45f))
 
                             // Marco + rejilla 3x3
-                            drawRect(Color.White, Offset(left, top), Size(side, side), style = Stroke(2.dp.toPx()))
+                            drawRect(Color.White, Offset(left, top), Size(cw, ch), style = Stroke(2.dp.toPx()))
                             for (i in 1..2) {
-                                val d = side / 3f * i
-                                drawLine(Color.White.copy(alpha = 0.6f), Offset(left + d, top), Offset(left + d, top + side), 1.dp.toPx())
-                                drawLine(Color.White.copy(alpha = 0.6f), Offset(left, top + d), Offset(left + side, top + d), 1.dp.toPx())
+                                val dx = cw / 3f * i
+                                val dy = ch / 3f * i
+                                drawLine(Color.White.copy(alpha = 0.6f), Offset(left + dx, top), Offset(left + dx, top + ch), 1.dp.toPx())
+                                drawLine(Color.White.copy(alpha = 0.6f), Offset(left, top + dy), Offset(left + cw, top + dy), 1.dp.toPx())
                             }
-                            // Círculo guía: así lo verán los demás
-                            drawCircle(Color.White.copy(alpha = 0.85f), radius = side / 2f, center = Offset(cx, cy), style = Stroke(1.5.dp.toPx()))
+                            // Círculo guía: así lo verán los demás (solo en recortes cuadrados)
+                            if (showCircleGuide) {
+                                drawCircle(Color.White.copy(alpha = 0.85f), radius = min(cw, ch) / 2f, center = Offset(cx, cy), style = Stroke(1.5.dp.toPx()))
+                            }
                         }
                     }
                 }
@@ -190,7 +201,7 @@ fun AvatarCropDialog(
                     value = zoom,
                     onValueChange = {
                         zoom = it
-                        source?.let { src -> offset = clampOffset(src, cropSidePx, zoom, offset) }
+                        source?.let { src -> offset = clampOffset(src, cropW, aspect, zoom, offset) }
                     },
                     valueRange = 1f..5f,
                     modifier = Modifier.padding(horizontal = 24.dp)
@@ -205,29 +216,32 @@ fun AvatarCropDialog(
     }
 }
 
-/** Mantiene la imagen cubriendo todo el cuadrado (sin huecos), como en Discord. */
-private fun clampOffset(src: Bitmap, side: Float, zoom: Float, o: Offset): Offset {
-    if (side <= 0f) return o
-    val s = side / min(src.width, src.height) * zoom
-    val maxX = max(0f, src.width * s / 2f - side / 2f)
-    val maxY = max(0f, src.height * s / 2f - side / 2f)
+/** Mantiene la imagen cubriendo todo el recuadro (sin huecos), como en Discord. */
+private fun clampOffset(src: Bitmap, cropW: Float, aspect: Float, zoom: Float, o: Offset): Offset {
+    if (cropW <= 0f) return o
+    val cropH = cropW / aspect
+    val s = max(cropW / src.width, cropH / src.height) * zoom
+    val maxX = max(0f, src.width * s / 2f - cropW / 2f)
+    val maxY = max(0f, src.height * s / 2f - cropH / 2f)
     return Offset(o.x.coerceIn(-maxX, maxX), o.y.coerceIn(-maxY, maxY))
 }
 
-/** Dibuja en un bitmap cuadrado exactamente lo que se ve dentro del recuadro del editor. */
+/** Dibuja en un bitmap exactamente lo que se ve dentro del recuadro del editor. */
 private fun renderCrop(
-    src: Bitmap, outSize: Int, cropSidePx: Float, zoom: Float, offsetRaw: Offset
+    src: Bitmap, outW: Int, aspect: Float, cropWPx: Float, zoom: Float, offsetRaw: Offset
 ): Bitmap {
-    val side = if (cropSidePx > 0f) cropSidePx else outSize.toFloat()
-    val offset = clampOffset(src, side, zoom, offsetRaw)
-    val k = outSize / side                       // pantalla -> salida
-    val cover = side / min(src.width, src.height)
+    val outH = max(1, (outW / aspect).toInt())
+    val cw = if (cropWPx > 0f) cropWPx else outW.toFloat()
+    val ch = cw / aspect
+    val offset = clampOffset(src, cw, aspect, zoom, offsetRaw)
+    val k = outW / cw                            // pantalla -> salida
+    val cover = max(cw / src.width, ch / src.height)
     val m = Matrix().apply {
         postTranslate(-src.width / 2f, -src.height / 2f)
         postScale(cover * zoom * k, cover * zoom * k)
-        postTranslate(outSize / 2f + offset.x * k, outSize / 2f + offset.y * k)
+        postTranslate(outW / 2f + offset.x * k, outH / 2f + offset.y * k)
     }
-    val out = Bitmap.createBitmap(outSize, outSize, Bitmap.Config.ARGB_8888)
+    val out = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(out)
     canvas.drawColor(android.graphics.Color.BLACK) // JPEG no tiene transparencia
     canvas.drawBitmap(src, m, Paint(Paint.FILTER_BITMAP_FLAG))
@@ -235,7 +249,7 @@ private fun renderCrop(
 }
 
 /** Decodifica la imagen reduciéndola a [maxSide] px (respeta la orientación EXIF vía ImageDecoder). */
-private fun decodeSampled(context: android.content.Context, uri: Uri, maxSide: Int): Bitmap {
+internal fun decodeSampled(context: android.content.Context, uri: Uri, maxSide: Int): Bitmap {
     val source = ImageDecoder.createSource(context.contentResolver, uri)
     return ImageDecoder.decodeBitmap(source) { decoder, info, _ ->
         decoder.allocator = ImageDecoder.ALLOCATOR_SOFTWARE

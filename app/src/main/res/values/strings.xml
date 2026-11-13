@@ -393,4 +393,9 @@
     <string name="settings_nav_bar_classic">Clásica</string>
     <string name="settings_nav_bar_glass_notch">Vidrio con muesca</string>
     <string name="settings_nav_bar_glass_bubble">Vidrio con burbuja</string>
+    <string name="settings_banner_hint">Toca para elegir tu banner</string>
+    <string name="settings_banner_remove">Quitar banner</string>
+    <string name="settings_banner_desc">Banner del perfil</string>
+    <string name="banner_crop_hint">Arrastra las esquinas o los bordes para elegir la zona</string>
+    <string name="banner_crop_reset">Restablecer</string>
 </resources>

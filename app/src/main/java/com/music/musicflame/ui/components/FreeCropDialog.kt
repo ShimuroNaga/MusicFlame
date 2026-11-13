@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -50,6 +51,8 @@ import androidx.compose.ui.window.DialogProperties
 import com.music.musicflame.R
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
 import kotlin.math.abs
 import kotlin.math.max
 import kotlin.math.min
@@ -71,8 +74,10 @@ fun FreeCropDialog(
     aspect: Float = 3f
 ) {
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
     var source by remember { mutableStateOf<Bitmap?>(null) }
     var loadFailed by remember { mutableStateOf(false) }
+    var isRendering by remember { mutableStateOf(false) }
     var areaSize by remember { mutableStateOf(IntSize.Zero) }
     var crop by remember { mutableStateOf<Rect?>(null) }
 
@@ -114,15 +119,27 @@ fun FreeCropDialog(
                     color = Color.White, fontSize = 18.sp, fontWeight = FontWeight.SemiBold,
                     modifier = Modifier.weight(1f).padding(start = 8.dp)
                 )
-                val ready = source != null && crop != null
+                val ready = source != null && crop != null && !isRendering
                 IconButton(
                     enabled = ready,
                     onClick = {
                         val src = source ?: return@IconButton
                         val c = crop ?: return@IconButton
-                        onConfirm(renderFreeCrop(src, areaSize, c, outWidth, aspect))
+                        isRendering = true
+                        scope.launch {
+                            val bmp = withContext(Dispatchers.IO) {
+                                renderFreeCrop(src, areaSize, c, outWidth, aspect)
+                            }
+                            isRendering = false
+                            onConfirm(bmp)
+                        }
                     }
-                ) { Icon(Icons.Filled.Check, null, tint = if (ready) Color.White else Color.Gray) }
+                ) {
+                    if (isRendering)
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), color = Color.White, strokeWidth = 2.dp)
+                    else
+                        Icon(Icons.Filled.Check, null, tint = if (ready) Color.White else Color.Gray)
+                }
             }
 
             // Zona de edición
@@ -144,8 +161,6 @@ fun FreeCropDialog(
                                 var mode = DragMode.None
                                 val slop = 28.dp.toPx()
                                 val minSide = 56.dp.toPx()
-                                val area = Size(size.width.toFloat(), size.height.toFloat())
-                                val bounds = fitRect(area, src.width, src.height)
                                 detectDragGestures(
                                     onDragStart = { p -> mode = crop?.let { hitTest(it, p, slop) } ?: DragMode.None },
                                     onDragEnd = { mode = DragMode.None },
@@ -154,7 +169,11 @@ fun FreeCropDialog(
                                         val r = crop
                                         if (r != null && mode != DragMode.None) {
                                             change.consume()
-                                            crop = applyDrag(r, mode, delta, bounds, minSide, aspect)
+                                            val area = Size(size.width.toFloat(), size.height.toFloat())
+                                            if (area.width > 0f && area.height > 0f) {
+                                                val bounds = fitRect(area, src.width, src.height)
+                                                crop = applyDrag(r, mode, delta, bounds, minSide, aspect)
+                                            }
                                         }
                                     }
                                 )

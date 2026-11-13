@@ -179,13 +179,7 @@ internal fun LazyListScope.settingsAccountSection(
             val avatarSize = 72.dp
 
             androidx.compose.foundation.layout.BoxWithConstraints(Modifier.fillMaxWidth()) {
-                val bannerAspect = bannerBitmap
-                    ?.let { it.width.toFloat() / it.height }
-                    ?.coerceIn(
-                        com.music.musicflame.data.ProfileBanner.MIN_ASPECT,
-                        com.music.musicflame.data.ProfileBanner.MAX_ASPECT
-                    ) ?: com.music.musicflame.data.ProfileBanner.ASPECT
-                val bannerHeight = maxWidth / bannerAspect
+                val bannerHeight = maxWidth / com.music.musicflame.data.ProfileBanner.ASPECT
 
                 Column(Modifier.fillMaxWidth()) {
                     // BANNER: todo el área es tocable
@@ -318,14 +312,12 @@ internal fun LazyListScope.settingsAccountSection(
 
             SettingsDivider(style)
 
-            // Editor de recorte libre: el recuadro se mueve y se deforma arrastrando esquinas/bordes
+            // Editor de recorte de proporción fija (3:1): el recuadro se mueve y se agranda/achica sin deformarse
             bannerUri?.let { uri ->
                 com.music.musicflame.ui.components.FreeCropDialog(
                     uri = uri,
-                    outMaxWidth = com.music.musicflame.data.ProfileBanner.WIDTH_PX,
-                    initialAspect = com.music.musicflame.data.ProfileBanner.ASPECT,
-                    minAspect = com.music.musicflame.data.ProfileBanner.MIN_ASPECT,
-                    maxAspect = com.music.musicflame.data.ProfileBanner.MAX_ASPECT,
+                    outWidth = com.music.musicflame.data.ProfileBanner.WIDTH_PX,
+                    aspect = com.music.musicflame.data.ProfileBanner.ASPECT,
                     onDismiss = { bannerUri = null },
                     onConfirm = { bmp ->
                         com.music.musicflame.data.ProfileBanner.save(context, bmp)

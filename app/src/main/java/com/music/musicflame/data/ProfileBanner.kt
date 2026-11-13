@@ -6,14 +6,13 @@ import android.graphics.BitmapFactory
 import java.io.File
 
 /**
- * Banner horizontal del perfil (3:1 por defecto; el usuario puede deformar el recorte entre 1.5:1 y 4:1) de Cuenta, guardado en local como JPEG.
+ * Banner horizontal del perfil de Cuenta: tamaño exacto WIDTH_PX x HEIGHT_PX (proporción fija 3:1), guardado en local como JPEG.
  * Se guarda en un archivo (no en SharedPreferences) porque pesa más que el avatar.
  */
 object ProfileBanner {
     const val ASPECT = 3f
-    const val MIN_ASPECT = 1.5f
-    const val MAX_ASPECT = 4f
     const val WIDTH_PX = 960
+    const val HEIGHT_PX = 320 // WIDTH_PX / ASPECT
     private const val FILE_NAME = "profile_banner.jpg"
 
     private fun file(context: Context) = File(context.applicationContext.filesDir, FILE_NAME)

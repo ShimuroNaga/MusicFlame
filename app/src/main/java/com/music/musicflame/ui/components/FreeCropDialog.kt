@@ -56,21 +56,19 @@ import kotlin.math.min
 import kotlin.math.roundToInt
 
 /**
- * Recorte LIBRE: la imagen se ve completa y fija; el recuadro se mueve (arrastrando dentro) y se
- * deforma arrastrando sus esquinas o bordes. La proporción queda limitada a [minAspect]..[maxAspect]
- * (ancho/alto) para que el banner nunca quede ridículamente alto o fino.
+ * Recorte de PROPORCIÓN FIJA: la imagen se ve completa y fija; el recuadro se mueve (arrastrando
+ * dentro) y se agranda o achica arrastrando sus esquinas o bordes, pero SIEMPRE conserva la
+ * proporción [aspect] (ancho/alto), así la selección nunca se deforma.
  *
- * [onConfirm] recibe el trozo elegido con su propia proporción, de como mucho [outMaxWidth] px de ancho.
+ * [onConfirm] recibe el recorte con el tamaño exacto [outWidth] x ([outWidth] / [aspect]) px.
  */
 @Composable
 fun FreeCropDialog(
     uri: Uri,
     onDismiss: () -> Unit,
     onConfirm: (Bitmap) -> Unit,
-    outMaxWidth: Int = 960,
-    initialAspect: Float = 3f,
-    minAspect: Float = 1.5f,
-    maxAspect: Float = 4f
+    outWidth: Int = 960,
+    aspect: Float = 3f
 ) {
     val context = LocalContext.current
     var source by remember { mutableStateOf<Bitmap?>(null) }
@@ -83,11 +81,11 @@ fun FreeCropDialog(
         if (bmp == null) loadFailed = true else source = bmp
     }
 
-    // Recuadro inicial: el más grande con proporción [initialAspect] que cabe en la imagen
+    // Recuadro inicial: el más grande con proporción [aspect] que cabe en la imagen
     fun defaultCrop(src: Bitmap, area: IntSize): Rect {
         val ir = fitRect(Size(area.width.toFloat(), area.height.toFloat()), src.width, src.height)
-        val cw = min(ir.width, ir.height * initialAspect)
-        val ch = cw / initialAspect
+        val cw = min(ir.width, ir.height * aspect)
+        val ch = cw / aspect
         val l = ir.left + (ir.width - cw) / 2f
         val t = ir.top + (ir.height - ch) / 2f
         return Rect(l, t, l + cw, t + ch)
@@ -122,7 +120,7 @@ fun FreeCropDialog(
                     onClick = {
                         val src = source ?: return@IconButton
                         val c = crop ?: return@IconButton
-                        onConfirm(renderFreeCrop(src, areaSize, c, outMaxWidth))
+                        onConfirm(renderFreeCrop(src, areaSize, c, outWidth, aspect))
                     }
                 ) { Icon(Icons.Filled.Check, null, tint = if (ready) Color.White else Color.Gray) }
             }
@@ -156,7 +154,7 @@ fun FreeCropDialog(
                                         val r = crop
                                         if (r != null && mode != DragMode.None) {
                                             change.consume()
-                                            crop = applyDrag(r, mode, delta, bounds, minSide, minAspect, maxAspect)
+                                            crop = applyDrag(r, mode, delta, bounds, minSide, aspect)
                                         }
                                     }
                                 )
@@ -217,13 +215,10 @@ fun FreeCropDialog(
             ) {
                 Text(stringResource(R.string.banner_crop_hint), color = Color.White.copy(alpha = 0.8f), fontSize = 12.sp)
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    val c = crop
-                    if (c != null && c.height > 0f) {
-                        Text(
-                            "%.1f : 1".format(c.width / c.height),
-                            color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
-                        )
-                    }
+                    Text(
+                        "%d × %d px".format(outWidth, (outWidth / aspect).roundToInt()),
+                        color = Color.White, fontSize = 12.sp, fontWeight = FontWeight.SemiBold
+                    )
                     TextButton(onClick = {
                         val src = source
                         if (src != null && areaSize.width > 0) crop = defaultCrop(src, areaSize)
@@ -267,42 +262,81 @@ private fun hitTest(r: Rect, p: Offset, slop: Float): DragMode {
     }
 }
 
+/** Ajusta [w] a [lo]..[hi]; si el espacio disponible es menor que el mínimo, manda el disponible. */
+private fun clampW(w: Float, lo: Float, hi: Float): Float = if (hi <= lo) hi else w.coerceIn(lo, hi)
+
+/**
+ * Mueve o redimensiona el recuadro SIN cambiar su proporción [aspect] (ancho/alto):
+ *  - Move: desplaza el recuadro dentro de la imagen.
+ *  - Esquinas: la esquina opuesta queda fija y el recuadro crece/encoge hacia la esquina arrastrada.
+ *  - Bordes: el borde opuesto queda fijo y el otro eje se ajusta centrado para mantener la proporción.
+ * Siempre queda dentro de [bounds] (la imagen) y con al menos [minSide] px de alto.
+ */
 private fun applyDrag(
     r: Rect, mode: DragMode, d: Offset, bounds: Rect,
-    minSide: Float, minAspect: Float, maxAspect: Float
+    minSide: Float, aspect: Float
 ): Rect {
     if (mode == DragMode.Move) {
         val dx = d.x.coerceIn(bounds.left - r.left, bounds.right - r.right)
         val dy = d.y.coerceIn(bounds.top - r.top, bounds.bottom - r.bottom)
         return r.translate(dx, dy)
     }
-    var l = r.left; var t = r.top; var rt = r.right; var b = r.bottom
-    if (mode == DragMode.L || mode == DragMode.TL || mode == DragMode.BL)
-        l = (l + d.x).coerceIn(bounds.left, rt - minSide)
-    if (mode == DragMode.R || mode == DragMode.TR || mode == DragMode.BR)
-        rt = (rt + d.x).coerceIn(l + minSide, bounds.right)
-    if (mode == DragMode.T || mode == DragMode.TL || mode == DragMode.TR)
-        t = (t + d.y).coerceIn(bounds.top, b - minSide)
-    if (mode == DragMode.B || mode == DragMode.BL || mode == DragMode.BR)
-        b = (b + d.y).coerceIn(t + minSide, bounds.bottom)
-    val aspect = (rt - l) / (b - t)
-    // Fuera del rango permitido: se ignora este movimiento (el recuadro se queda como estaba)
-    if (aspect < minAspect || aspect > maxAspect) return r
-    return Rect(l, t, rt, b)
+    val minW = minSide * aspect
+    val maxWAll = min(bounds.width, bounds.height * aspect)
+
+    return when (mode) {
+        DragMode.L, DragMode.R -> {
+            val right = mode == DragMode.R
+            val rawW = if (right) (r.right + d.x) - r.left else r.right - (r.left + d.x)
+            val avail = if (right) bounds.right - r.left else r.right - bounds.left
+            val w = clampW(rawW, minW, min(avail, maxWAll))
+            val h = w / aspect
+            val left = if (right) r.left else r.right - w
+            val top = (r.center.y - h / 2f).coerceIn(bounds.top, bounds.bottom - h)
+            Rect(left, top, left + w, top + h)
+        }
+        DragMode.T, DragMode.B -> {
+            val bottom = mode == DragMode.B
+            val rawH = if (bottom) (r.bottom + d.y) - r.top else r.bottom - (r.top + d.y)
+            val avail = if (bottom) bounds.bottom - r.top else r.bottom - bounds.top
+            val h = clampW(rawH, minSide, min(avail, maxWAll / aspect))
+            val w = h * aspect
+            val top = if (bottom) r.top else r.bottom - h
+            val left = (r.center.x - w / 2f).coerceIn(bounds.left, bounds.right - w)
+            Rect(left, top, left + w, top + h)
+        }
+        else -> { // TL, TR, BL, BR
+            val leftCorner = mode == DragMode.TL || mode == DragMode.BL
+            val topCorner = mode == DragMode.TL || mode == DragMode.TR
+            val ax = if (leftCorner) r.right else r.left     // esquina opuesta (fija)
+            val ay = if (topCorner) r.bottom else r.top
+            val px = (if (leftCorner) r.left else r.right) + d.x
+            val py = (if (topCorner) r.top else r.bottom) + d.y
+            val wx = if (leftCorner) ax - px else px - ax
+            val hy = if (topCorner) ay - py else py - ay
+            val rawW = (wx + hy * aspect) / 2f
+            val availW = if (leftCorner) ax - bounds.left else bounds.right - ax
+            val availH = if (topCorner) ay - bounds.top else bounds.bottom - ay
+            val w = clampW(rawW, minW, min(availW, availH * aspect))
+            val h = w / aspect
+            val left = if (leftCorner) ax - w else ax
+            val top = if (topCorner) ay - h else ay
+            Rect(left, top, left + w, top + h)
+        }
+    }
 }
 
-/** Recorta de la imagen original exactamente lo que encierra el recuadro. */
-private fun renderFreeCrop(src: Bitmap, area: IntSize, c: Rect, outMaxWidth: Int): Bitmap {
+/** Recorta de la imagen original lo que encierra el recuadro y lo deja en el tamaño exacto pedido. */
+private fun renderFreeCrop(src: Bitmap, area: IntSize, c: Rect, outWidth: Int, aspect: Float): Bitmap {
     val ir = fitRect(Size(area.width.toFloat(), area.height.toFloat()), src.width, src.height)
     val k = src.width / ir.width                       // canvas -> píxeles de la imagen
     val sl = ((c.left - ir.left) * k).coerceIn(0f, src.width - 1f)
     val st = ((c.top - ir.top) * k).coerceIn(0f, src.height - 1f)
     val sr = ((c.right - ir.left) * k).coerceIn(sl + 1f, src.width.toFloat())
     val sb = ((c.bottom - ir.top) * k).coerceIn(st + 1f, src.height.toFloat())
-    val regionW = sr - sl
-    val regionH = sb - st
-    val outW = min(outMaxWidth.toFloat(), regionW).roundToInt().coerceAtLeast(1)
-    val outH = max(1, (outW * regionH / regionW).roundToInt())
+    // Tamaño de salida EXACTO (ancho fijo y alto según la proporción), sin importar el tamaño de la selección
+    val outW = outWidth.coerceAtLeast(1)
+    val outH = max(1, (outW / aspect).roundToInt())
     val out = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(out)
     canvas.drawColor(android.graphics.Color.BLACK) // JPEG no tiene transparencia

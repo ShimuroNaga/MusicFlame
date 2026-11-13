@@ -322,10 +322,31 @@ private fun TogetherScreenContent(
                         }
                     }
                     manager.transferText?.let {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            CircularProgressIndicator(modifier = Modifier.size(14.dp), strokeWidth = 2.dp, color = accent.value)
-                            Spacer(Modifier.width(8.dp))
-                            Text(it, fontSize = 12.sp)
+                        val progress = manager.transferProgress
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text(it, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                                if (progress != null) {
+                                    Text(
+                                        "${(progress * 100).toInt()}%",
+                                        fontSize = 12.sp,
+                                        color = LocalContentColor.current.copy(alpha = 0.7f)
+                                    )
+                                }
+                            }
+                            if (progress != null) {
+                                LinearProgressIndicator(
+                                    progress = { progress },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = accent.value
+                                )
+                            } else {
+                                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = accent.value)
+                            }
                         }
                     }
                 }

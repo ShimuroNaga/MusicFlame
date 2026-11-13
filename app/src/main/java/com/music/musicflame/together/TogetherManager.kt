@@ -173,6 +173,9 @@ class TogetherManager(
     /** "Subiendo…" / "Descargando…" mientras hay una transferencia en curso. */
     var transferText by mutableStateOf<String?>(null)
         private set
+    /** Avance 0f..1f de la subida/descarga en curso; null = aún no se sabe (barra indeterminada). */
+    var transferProgress by mutableStateOf<Float?>(null)
+        private set
     private val _busy = mutableStateOf(false)
     val busy: State<Boolean> = _busy
 
@@ -493,7 +496,7 @@ class TogetherManager(
         status = Status.DISCONNECTED
         statusDetail = appContext.getString(R.string.tgm_disconnected_hint)
         nowPlayingText = null; missingSongText = null; nowAddedByName = null
-        uploadPrompt = null; transferText = null
+        uploadPrompt = null; transferText = null; transferProgress = null
     }
 
     /** Botón Reconectar: reinicia la conexión con Firebase y vuelve a sincronizar. */
@@ -873,7 +876,7 @@ class TogetherManager(
         controllerUid = null; currentTrackId = null; iHaveTrack = false; claiming = false
         skipVotes = 0; iVotedSkip = false; nowAddedByName = null
         nowPlayingText = null; missingSongText = null
-        uploadPrompt = null; transferText = null
+        uploadPrompt = null; transferText = null; transferProgress = null
         declinedKeys.clear(); reportedMissing = null
         status = Status.IDLE; statusDetail = ""
         prefs.edit().remove(KEY_ROOM).remove(KEY_IS_HOST).apply()
@@ -1634,9 +1637,26 @@ class TogetherManager(
         val objectPath = "$code/${UUID.randomUUID()}.$ext"
         uploading = true
         transferText = "Subiendo «${song.title}»…"
+        transferProgress = 0f
+        notifyUploadProgress(song.title, 0f)
         scope.launch {
             try {
-                SupabaseSalas.upload(appContext, file, objectPath, SupabaseSalas.mimeFor(ext))
+                var lastPct = -1
+                var lastNotifAt = 0L
+                SupabaseSalas.upload(appContext, file, objectPath, SupabaseSalas.mimeFor(ext)) { sent, total ->
+                    val pct = if (total > 0) (sent * 100 / total).toInt() else -1
+                    if (pct != lastPct) { // solo cuando cambia el porcentaje, para no recomponer de más
+                        lastPct = pct
+                        val fraction = if (pct >= 0) pct / 100f else null
+                        transferProgress = fraction
+                        // La notificación se refresca como máximo cada medio segundo (Android descarta las muy seguidas).
+                        val now = System.currentTimeMillis()
+                        if (pct >= 100 || now - lastNotifAt >= 500L) {
+                            lastNotifAt = now
+                            notifyUploadProgress(song.title, fraction)
+                        }
+                    }
+                }
                 uploadedPaths[key] = objectPath
                 persistUploadedPaths()
                 publishNow() // ahora el estado incluye filePath y los invitados la descargan
@@ -1648,7 +1668,17 @@ class TogetherManager(
             } finally {
                 uploading = false
                 transferText = null
+                transferProgress = null
+                try { TogetherNotifications.cancelUploadProgress(appContext) } catch (_: Throwable) {}
             }
+        }
+    }
+
+    private fun notifyUploadProgress(title: String, fraction: Float?) {
+        try {
+            TogetherNotifications.showUploadProgress(appContext, title, fraction)
+        } catch (t: Throwable) {
+            Log.w(TAG, "No se pudo mostrar la notificación de progreso", t)
         }
     }
 
@@ -1658,11 +1688,21 @@ class TogetherManager(
         if (downloadingKey == st.key) return
         downloadingKey = st.key
         transferText = "Descargando «${st.title}»…"
+        transferProgress = null
         scope.launch {
             try {
                 val dir = File(appContext.cacheDir, DOWNLOAD_DIR).apply { mkdirs() }
                 val dest = File(dir, path.substringAfterLast('/'))
-                if (!dest.isFile) SupabaseSalas.download(appContext, path, dest)
+                if (!dest.isFile) {
+                    var lastPct = -2
+                    SupabaseSalas.download(appContext, path, dest) { received, total ->
+                        val pct = if (total > 0) (received * 100 / total).toInt() else -1
+                        if (pct != lastPct) {
+                            lastPct = pct
+                            transferProgress = if (pct >= 0) pct / 100f else null
+                        }
+                    }
+                }
                 downloaded[st.key] = Song(
                     id = -(abs(st.key.hashCode().toLong()) + 1000L), // id sintético negativo: no choca con la biblioteca
                     title = st.title,
@@ -1680,6 +1720,7 @@ class TogetherManager(
             } finally {
                 downloadingKey = null
                 transferText = null
+                transferProgress = null
             }
         }
     }

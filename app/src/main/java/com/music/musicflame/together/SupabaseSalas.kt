@@ -57,8 +57,17 @@ object SupabaseSalas {
         else -> "application/octet-stream"
     }
 
-    /** Sube [file] a "{objectPath}". Lanza IOException si Supabase lo rechaza. */
-    suspend fun upload(context: android.content.Context, file: File, objectPath: String, mime: String) = withContext(Dispatchers.IO) {
+    /**
+     * Sube [file] a "{objectPath}". Lanza IOException si Supabase lo rechaza.
+     * [onProgress] recibe (bytes enviados, bytes totales) mientras sube.
+     */
+    suspend fun upload(
+        context: android.content.Context,
+        file: File,
+        objectPath: String,
+        mime: String,
+        onProgress: (sent: Long, total: Long) -> Unit = { _, _ -> }
+    ) = withContext(Dispatchers.IO) {
         if (file.length() > MAX_BYTES) throw IOException(context.getString(com.music.musicflame.R.string.sb_file_too_big, MAX_BYTES / (1024L * 1024L)))
         val conn = open(objectPath, "POST")
         try {
@@ -66,7 +75,21 @@ object SupabaseSalas {
             conn.setFixedLengthStreamingMode(file.length())
             conn.setRequestProperty("Content-Type", mime)
             conn.setRequestProperty("x-upsert", "false")
-            file.inputStream().use { input -> conn.outputStream.use { out -> input.copyTo(out) } }
+            val total = file.length()
+            onProgress(0L, total)
+            file.inputStream().use { input ->
+                conn.outputStream.use { out ->
+                    val buf = ByteArray(16 * 1024)
+                    var sent = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        sent += n
+                        onProgress(sent, total)
+                    }
+                }
+            }
             val code = conn.responseCode
             if (code !in 200..299) throw IOException("Supabase respondió $code ${errorText(conn)}")
         } finally {
@@ -74,14 +97,36 @@ object SupabaseSalas {
         }
     }
 
-    /** Descarga "{objectPath}" en [dest] (escribe a .part y renombra al terminar). */
-    suspend fun download(context: android.content.Context, objectPath: String, dest: File) = withContext(Dispatchers.IO) {
+    /**
+     * Descarga "{objectPath}" en [dest] (escribe a .part y renombra al terminar).
+     * [onProgress] recibe (bytes recibidos, bytes totales); el total es -1 si el servidor no lo dice.
+     */
+    suspend fun download(
+        context: android.content.Context,
+        objectPath: String,
+        dest: File,
+        onProgress: (received: Long, total: Long) -> Unit = { _, _ -> }
+    ) = withContext(Dispatchers.IO) {
         val conn = open(objectPath, "GET")
         val part = File(dest.parentFile, dest.name + ".part")
         try {
             val code = conn.responseCode
             if (code !in 200..299) throw IOException("Supabase respondió $code ${errorText(conn)}")
-            conn.inputStream.use { input -> part.outputStream().use { out -> input.copyTo(out) } }
+            val total = conn.contentLengthLong
+            onProgress(0L, total)
+            conn.inputStream.use { input ->
+                part.outputStream().use { out ->
+                    val buf = ByteArray(16 * 1024)
+                    var received = 0L
+                    while (true) {
+                        val n = input.read(buf)
+                        if (n < 0) break
+                        out.write(buf, 0, n)
+                        received += n
+                        onProgress(received, total)
+                    }
+                }
+            }
             if (dest.exists()) dest.delete()
             if (!part.renameTo(dest)) throw IOException(context.getString(com.music.musicflame.R.string.sb_save_failed))
         } catch (t: Throwable) {

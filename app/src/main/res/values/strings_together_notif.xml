@@ -4,4 +4,7 @@
     <string name="tgn_channel_desc">Avisa cuando a alguien de la sala le falta la canción que pusiste y te deja permitir o negar que se la pases.</string>
     <string name="tgn_allow">Permitir</string>
     <string name="tgn_deny">Negar</string>
+    <string name="tgn_progress_channel_name">Subida de canciones</string>
+    <string name="tgn_progress_channel_desc">Muestra el avance mientras subes una canción para la sala.</string>
+    <string name="tgn_uploading_title">Subiendo canción…</string>
 </resources>

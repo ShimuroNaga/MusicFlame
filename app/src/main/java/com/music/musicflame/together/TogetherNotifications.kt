@@ -105,6 +105,62 @@ object TogetherNotifications {
         NotificationManagerCompat.from(ctx).cancel(NOTIF_ID)
     }
 
+    // ---------------- Avance de la subida ----------------
+    const val PROGRESS_CHANNEL_ID = "together_upload_progress"
+    private const val PROGRESS_NOTIF_ID = 7303
+
+    private fun ensureProgressChannel(ctx: Context) {
+        val nm = ctx.getSystemService(NotificationManager::class.java) ?: return
+        if (nm.getNotificationChannel(PROGRESS_CHANNEL_ID) != null) return
+        val channel = NotificationChannel(
+            PROGRESS_CHANNEL_ID,
+            ctx.getString(R.string.tgn_progress_channel_name),
+            NotificationManager.IMPORTANCE_LOW // sin sonido ni ventana emergente: solo la barra
+        ).apply {
+            description = ctx.getString(R.string.tgn_progress_channel_desc)
+            setShowBadge(false)
+            lockscreenVisibility = Notification.VISIBILITY_PUBLIC
+        }
+        nm.createNotificationChannel(channel)
+    }
+
+    /**
+     * Notificación con barra de progreso mientras se sube la canción.
+     * [fraction] va de 0f a 1f; null muestra una barra indeterminada.
+     */
+    @SuppressLint("MissingPermission") // se comprueba en canNotify()
+    fun showUploadProgress(ctx: Context, songTitle: String, fraction: Float?) {
+        if (!canNotify(ctx)) return
+        ensureProgressChannel(ctx)
+
+        val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
+            it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+            PendingIntent.getActivity(ctx, 4, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
+        }
+        val builder = NotificationCompat.Builder(ctx, PROGRESS_CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_together_notif)
+            .setContentTitle(ctx.getString(R.string.tgn_uploading_title))
+            .setContentText(songTitle)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setCategory(NotificationCompat.CATEGORY_PROGRESS)
+            .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+            .setOnlyAlertOnce(true)
+            .setOngoing(true)
+            .setSilent(true)
+        if (open != null) builder.setContentIntent(open)
+        if (fraction == null) {
+            builder.setProgress(0, 0, true)
+        } else {
+            val pct = (fraction * 100).toInt().coerceIn(0, 100)
+            builder.setProgress(100, pct, false).setSubText("$pct%")
+        }
+        NotificationManagerCompat.from(ctx).notify(PROGRESS_NOTIF_ID, builder.build())
+    }
+
+    fun cancelUploadProgress(ctx: Context) {
+        NotificationManagerCompat.from(ctx).cancel(PROGRESS_NOTIF_ID)
+    }
+
     // ---------------- Chat de la sala ----------------
     const val CHAT_CHANNEL_ID = "together_chat"
     /** Extra del intent de la notificación: al abrir la app, ir directo al chat de la sala. */

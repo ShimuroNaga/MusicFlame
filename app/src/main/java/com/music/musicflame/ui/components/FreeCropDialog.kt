@@ -3,6 +3,7 @@ package com.music.musicflame.ui.components
 import android.graphics.Bitmap
 import android.graphics.Paint
 import android.net.Uri
+import android.util.Log
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectDragGestures
@@ -58,6 +59,8 @@ import kotlin.math.max
 import kotlin.math.min
 import kotlin.math.roundToInt
 
+private const val TAG = "MF_CROP"
+
 /**
  * Recorte de PROPORCIÓN FIJA: la imagen se ve completa y fija; el recuadro se mueve (arrastrando
  * dentro) y se agranda o achica arrastrando sus esquinas o bordes, pero SIEMPRE conserva la
@@ -73,6 +76,7 @@ fun FreeCropDialog(
     outWidth: Int = 960,
     aspect: Float = 3f
 ) {
+    Log.d(TAG, "01 FreeCropDialog compose: uri=$uri outWidth=$outWidth aspect=$aspect")
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var source by remember { mutableStateOf<Bitmap?>(null) }
@@ -80,9 +84,16 @@ fun FreeCropDialog(
     var isRendering by remember { mutableStateOf(false) }
     var areaSize by remember { mutableStateOf(IntSize.Zero) }
     var crop by remember { mutableStateOf<Rect?>(null) }
+    var drawLogged by remember { mutableStateOf(false) }
 
     LaunchedEffect(uri) {
-        val bmp = withContext(Dispatchers.IO) { runCatching { decodeSampled(context, uri, 1600) }.getOrNull() }
+        Log.d(TAG, "02 decode: inicio uri=$uri")
+        val bmp = withContext(Dispatchers.IO) {
+            runCatching { decodeSampled(context, uri, 1600) }
+                .onFailure { Log.e(TAG, "02 decode: FALLÓ", it) }
+                .getOrNull()
+        }
+        Log.d(TAG, "02 decode: fin bmp=${bmp?.width}x${bmp?.height} config=${bmp?.config}")
         if (bmp == null) loadFailed = true else source = bmp
     }
 
@@ -93,13 +104,20 @@ fun FreeCropDialog(
         val ch = cw / aspect
         val l = ir.left + (ir.width - cw) / 2f
         val t = ir.top + (ir.height - ch) / 2f
+        Log.d(TAG, "03 defaultCrop: area=${area.width}x${area.height} src=${src.width}x${src.height} ir=$ir -> crop=($l,$t,${l + cw},${t + ch})")
         return Rect(l, t, l + cw, t + ch)
     }
 
     LaunchedEffect(source, areaSize) {
         val src = source
+        Log.d(TAG, "04 LaunchedEffect(source,areaSize): source=${src != null} areaSize=$areaSize crop=$crop")
         if (src != null && crop == null && areaSize.width > 0 && areaSize.height > 0) {
-            crop = defaultCrop(src, areaSize)
+            try {
+                crop = defaultCrop(src, areaSize)
+            } catch (e: Throwable) {
+                Log.e(TAG, "04 defaultCrop: EXCEPCIÓN", e)
+                throw e
+            }
         }
     }
 
@@ -125,13 +143,23 @@ fun FreeCropDialog(
                     onClick = {
                         val src = source ?: return@IconButton
                         val c = crop ?: return@IconButton
+                        Log.d(TAG, "10 CONFIRMAR: crop=$c areaSize=$areaSize src=${src.width}x${src.height}")
                         isRendering = true
                         scope.launch {
-                            val bmp = withContext(Dispatchers.IO) {
-                                renderFreeCrop(src, areaSize, c, outWidth, aspect)
+                            try {
+                                val bmp = withContext(Dispatchers.IO) {
+                                    renderFreeCrop(src, areaSize, c, outWidth, aspect)
+                                }
+                                Log.d(TAG, "11 render OK: ${bmp.width}x${bmp.height}")
+                                isRendering = false
+                                Log.d(TAG, "12 llamando onConfirm...")
+                                onConfirm(bmp)
+                                Log.d(TAG, "13 onConfirm terminó OK")
+                            } catch (e: Throwable) {
+                                Log.e(TAG, "10-13 CONFIRMAR: EXCEPCIÓN", e)
+                                isRendering = false
+                                throw e
                             }
-                            isRendering = false
-                            onConfirm(bmp)
                         }
                     }
                 ) {
@@ -152,19 +180,25 @@ fun FreeCropDialog(
                     if (loadFailed) Text(stringResource(R.string.avatar_editor_load_failed), color = Color.White)
                     else CircularProgressIndicator(color = Color.White)
                 } else {
-                    val image = remember(src) { src.asImageBitmap() }
+                    val image = remember(src) {
+                        Log.d(TAG, "05 asImageBitmap: ${src.width}x${src.height} config=${src.config} recycled=${src.isRecycled}")
+                        src.asImageBitmap()
+                    }
                     Canvas(
                         Modifier
                             .fillMaxSize()
-                            .onSizeChanged { areaSize = it }
+                            .onSizeChanged { Log.d(TAG, "03b onSizeChanged: $it"); areaSize = it }
                             .pointerInput(src) {
                                 var mode = DragMode.None
                                 val slop = 28.dp.toPx()
                                 val minSide = 56.dp.toPx()
                                 detectDragGestures(
-                                    onDragStart = { p -> mode = crop?.let { hitTest(it, p, slop) } ?: DragMode.None },
-                                    onDragEnd = { mode = DragMode.None },
-                                    onDragCancel = { mode = DragMode.None },
+                                    onDragStart = { p ->
+                                        mode = crop?.let { hitTest(it, p, slop) } ?: DragMode.None
+                                        Log.d(TAG, "06 dragStart p=$p mode=$mode crop=$crop")
+                                    },
+                                    onDragEnd = { Log.d(TAG, "09 dragEnd crop=$crop"); mode = DragMode.None },
+                                    onDragCancel = { Log.d(TAG, "09 dragCancel"); mode = DragMode.None },
                                     onDrag = { change, delta ->
                                         val r = crop
                                         if (r != null && mode != DragMode.None) {
@@ -172,13 +206,21 @@ fun FreeCropDialog(
                                             val area = Size(size.width.toFloat(), size.height.toFloat())
                                             if (area.width > 0f && area.height > 0f) {
                                                 val bounds = fitRect(area, src.width, src.height)
-                                                crop = applyDrag(r, mode, delta, bounds, minSide, aspect)
+                                                try {
+                                                    val n = applyDrag(r, mode, delta, bounds, minSide, aspect)
+                                                    Log.v(TAG, "07 drag mode=$mode delta=$delta -> $n")
+                                                    crop = n
+                                                } catch (e: Throwable) {
+                                                    Log.e(TAG, "08 applyDrag: EXCEPCIÓN mode=$mode delta=$delta r=$r bounds=$bounds minSide=$minSide aspect=$aspect", e)
+                                                    // Se traga el error para que no crashee; el log queda arriba
+                                                }
                                             }
                                         }
                                     }
                                 )
                             }
                     ) {
+                        if (!drawLogged) { drawLogged = true; Log.d(TAG, "14 primer draw: canvas=$size crop=$crop") }
                         val ir = fitRect(size, src.width, src.height)
                         drawImage(
                             image,
@@ -347,6 +389,7 @@ private fun applyDrag(
 
 /** Recorta de la imagen original lo que encierra el recuadro y lo deja en el tamaño exacto pedido. */
 private fun renderFreeCrop(src: Bitmap, area: IntSize, c: Rect, outWidth: Int, aspect: Float): Bitmap {
+    Log.d(TAG, "R1 renderFreeCrop: src=${src.width}x${src.height} recycled=${src.isRecycled} area=$area c=$c outWidth=$outWidth")
     val ir = fitRect(Size(area.width.toFloat(), area.height.toFloat()), src.width, src.height)
     val k = src.width / ir.width                       // canvas -> píxeles de la imagen
     val sl = ((c.left - ir.left) * k).coerceIn(0f, src.width - 1f)
@@ -354,8 +397,10 @@ private fun renderFreeCrop(src: Bitmap, area: IntSize, c: Rect, outWidth: Int, a
     val sr = ((c.right - ir.left) * k).coerceIn(sl + 1f, src.width.toFloat())
     val sb = ((c.bottom - ir.top) * k).coerceIn(st + 1f, src.height.toFloat())
     // Tamaño de salida EXACTO (ancho fijo y alto según la proporción), sin importar el tamaño de la selección
+    Log.d(TAG, "R2 src rect=($sl,$st,$sr,$sb) k=$k ir=$ir")
     val outW = outWidth.coerceAtLeast(1)
     val outH = max(1, (outW / aspect).roundToInt())
+    Log.d(TAG, "R3 createBitmap ${outW}x$outH")
     val out = Bitmap.createBitmap(outW, outH, Bitmap.Config.ARGB_8888)
     val canvas = android.graphics.Canvas(out)
     canvas.drawColor(android.graphics.Color.BLACK) // JPEG no tiene transparencia
@@ -365,5 +410,6 @@ private fun renderFreeCrop(src: Bitmap, area: IntSize, c: Rect, outWidth: Int, a
         android.graphics.RectF(0f, 0f, outW.toFloat(), outH.toFloat()),
         Paint(Paint.FILTER_BITMAP_FLAG)
     )
+    Log.d(TAG, "R4 renderFreeCrop terminó OK")
     return out
 }

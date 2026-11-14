@@ -196,7 +196,9 @@ fun SettingsScreen(
     isDriveLinked: Boolean = false,
     onLinkDriveClick: () -> Unit = { /* Lógica para pedir el scope de Google Drive */ },
     onCheckForUpdates: () -> Unit,
-    playerManager: com.music.musicflame.data.MusicPlayerManager
+    playerManager: com.music.musicflame.data.MusicPlayerManager,
+    /** Sección a abrir directamente al entrar (usado desde GlassSettingsSidebar). null = menú principal. */
+    initialSection: String? = null
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -276,7 +278,8 @@ fun SettingsScreen(
     val nowPlayingCustomColorHexPref = remember { mutableStateOf(settingsRepo.getNowPlayingCustomColorHex()) }
 
     // --- NAVEGACIÓN POR SUB-PÁGINAS: null = muestra las cards de categorías, si no, muestra solo esa sección ---
-    val activeSection = remember { mutableStateOf<String?>(null) }
+    // initialSection permite abrir una sección directamente desde GlassSettingsSidebar.
+    val activeSection = remember { mutableStateOf<String?>(initialSection) }
 
     // Si estás dentro de una sub-sección (Cuenta, Apariencia, etc.), el botón de
     // volver (gesto o botón físico) te regresa a la pantalla principal de

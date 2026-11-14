@@ -399,4 +399,13 @@
     <string name="settings_banner_desc">Profile banner</string>
     <string name="banner_crop_hint">Drag the corners or edges to choose the area</string>
     <string name="banner_crop_reset">Reset</string>
+
+    <!-- Phase 1: Glass Settings Sidebar -->
+    <string name="glass_sidebar_close">Close panel</string>
+    <string name="glass_sidebar_no_account">Not signed in</string>
+    <string name="glass_sidebar_google_account">Google Account</string>
+    <string name="settings_access_style_label">Settings access</string>
+    <string name="settings_access_style_current">Current style (full screen)</string>
+    <string name="settings_access_style_glass_sidebar">Glass sidebar</string>
+    <string name="section_lyrics">Lyrics</string>
 </resources>

@@ -399,4 +399,13 @@
     <string name="settings_banner_desc">Banner del perfil</string>
     <string name="banner_crop_hint">Arrastra las esquinas o los bordes para elegir la zona</string>
     <string name="banner_crop_reset">Restablecer</string>
+
+    <!-- Fase 1: Barra lateral de vidrio -->
+    <string name="glass_sidebar_close">Cerrar panel</string>
+    <string name="glass_sidebar_no_account">Sin sesión</string>
+    <string name="glass_sidebar_google_account">Cuenta de Google</string>
+    <string name="settings_access_style_label">Acceso a configuración</string>
+    <string name="settings_access_style_current">Estilo actual (pantalla completa)</string>
+    <string name="settings_access_style_glass_sidebar">Barra lateral de vidrio</string>
+    <string name="section_lyrics">Lyrics</string>
 </resources>

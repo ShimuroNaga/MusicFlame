@@ -510,4 +510,28 @@ class SettingsRepository(context: Context) {
     fun saveNeverPlayedCoverUri(uri: String) {
         prefs.edit().putString("never_played_cover_uri", if (uri.isBlank()) null else uri).apply()
     }
+
+    // --- FASE 1: ESTILO DE ACCESO A CONFIGURACIÓN ---
+    // ACTUAL  → abre SettingsScreen como pantalla completa (comportamiento de siempre).
+    // BARRA_LATERAL_VIDRIO → abre GlassSettingsSidebar en lugar de la pantalla.
+    // En la Fase 3 esto se moverá a StyleConfig; por ahora vive aquí como ajuste temporal.
+    fun getSettingsAccessStyle(): String =
+        prefs.getString("settings_access_style", SettingsAccessStyle.ACTUAL.name)
+            ?: SettingsAccessStyle.ACTUAL.name
+
+    fun saveSettingsAccessStyle(style: SettingsAccessStyle) =
+        prefs.edit().putString("settings_access_style", style.name).apply()
+}
+
+/** Estilos de acceso al menú de configuración. */
+enum class SettingsAccessStyle {
+    /** Pantalla completa de siempre. */
+    ACTUAL,
+    /** Panel flotante de vidrio anclado al borde derecho. */
+    BARRA_LATERAL_VIDRIO;
+
+    companion object {
+        fun fromName(name: String?): SettingsAccessStyle =
+            values().firstOrNull { it.name == name } ?: ACTUAL
+    }
 }

@@ -394,4 +394,13 @@
     <string name="settings_nav_bar_classic">Clássica</string>
     <string name="settings_nav_bar_glass_notch">Vidro com entalhe</string>
     <string name="settings_nav_bar_glass_bubble">Vidro com bolha</string>
+
+    <!-- Fase 1: Barra lateral de vidro -->
+    <string name="glass_sidebar_close">Fechar painel</string>
+    <string name="glass_sidebar_no_account">Sem sessão</string>
+    <string name="glass_sidebar_google_account">Conta do Google</string>
+    <string name="settings_access_style_label">Acesso às configurações</string>
+    <string name="settings_access_style_current">Estilo atual (tela cheia)</string>
+    <string name="settings_access_style_glass_sidebar">Barra lateral de vidro</string>
+    <string name="section_lyrics">Letras</string>
 </resources>

@@ -394,6 +394,10 @@
     <string name="settings_nav_bar_classic">Clássica</string>
     <string name="settings_nav_bar_glass_notch">Vidro com entalhe</string>
     <string name="settings_nav_bar_glass_bubble">Vidro com bolha</string>
+    <string name="settings_nav_bar_sliding_pill">Pílula deslizante</string>
+    <string name="settings_nav_bar_liquid_bulge">Volume líquido</string>
+    <string name="settings_nav_bar_icon_fill">Ícone preenchido</string>
+    <string name="nav_plus_coming_soon">Em breve</string>
 
     <!-- Fase 1: Barra lateral de vidro -->
     <string name="glass_sidebar_close">Fechar painel</string>

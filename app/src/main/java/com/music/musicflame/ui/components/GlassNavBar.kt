@@ -65,9 +65,14 @@ import kotlin.math.sqrt
  *  - CLASSIC: la barra de siempre (NavigationBarItem).
  *  - GLASS_NOTCH: barra de vidrio con una "joroba" animada sobre la pestaña activa y borde brillante.
  *  - GLASS_BUBBLE: barra de vidrio con una muesca donde sube una burbuja con el ícono activo.
+ *  - SLIDING_PILL / LIQUID_BULGE / ICON_FILL: ver MotionNavBar.kt.
  */
 enum class NavBarStyle {
-    CLASSIC, GLASS_NOTCH, GLASS_BUBBLE;
+    CLASSIC, GLASS_NOTCH, GLASS_BUBBLE, SLIDING_PILL, LIQUID_BULGE, ICON_FILL;
+
+    /** Estilos que dibuja [MotionNavBar] (píldora deslizante, bulto líquido, ícono relleno). */
+    val usesMotionBar: Boolean
+        get() = this == SLIDING_PILL || this == LIQUID_BULGE || this == ICON_FILL
 
     companion object {
         fun fromName(name: String?): NavBarStyle = values().firstOrNull { it.name == name } ?: GLASS_NOTCH
@@ -87,7 +92,7 @@ object NavBarStyleHolder {
 
 /**
  * Barra inferior de vidrio con animación. Mantiene el comportamiento de la barra clásica:
- * se ven 5 pestañas a la vez y la lista se desliza ([listState] es el mismo de MainActivity).
+ * se ven 4 pestañas a la vez (NAV_VISIBLE_ITEMS) y la lista se desliza ([listState] es el mismo de MainActivity).
  * [style] debe ser GLASS_NOTCH o GLASS_BUBBLE.
  */
 @Composable
@@ -125,9 +130,9 @@ fun GlassNavBar(
             .height(barHeight + rise)
         // Sin clipToBounds: antes recortaba la cima y el brillo de la joroba (se veía aplastada).
     ) {
-        val itemWidth = maxWidth / 5f
+        val itemWidth = maxWidth / NAV_VISIBLE_ITEMS.toFloat()
         val widthPx = with(density) { maxWidth.toPx() }
-        val itemWidthPx = widthPx / 5f
+        val itemWidthPx = widthPx / NAV_VISIBLE_ITEMS
         val risePx = with(density) { rise.toPx() }
         val barHeightPx = with(density) { barHeight.toPx() }
 

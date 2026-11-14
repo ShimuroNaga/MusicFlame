@@ -659,7 +659,10 @@ internal fun LazyListScope.settingsAppearanceSection(
                         listOf(
                             com.music.musicflame.ui.components.NavBarStyle.CLASSIC to R.string.settings_nav_bar_classic,
                             com.music.musicflame.ui.components.NavBarStyle.GLASS_NOTCH to R.string.settings_nav_bar_glass_notch,
-                            com.music.musicflame.ui.components.NavBarStyle.GLASS_BUBBLE to R.string.settings_nav_bar_glass_bubble
+                            com.music.musicflame.ui.components.NavBarStyle.GLASS_BUBBLE to R.string.settings_nav_bar_glass_bubble,
+                            com.music.musicflame.ui.components.NavBarStyle.SLIDING_PILL to R.string.settings_nav_bar_sliding_pill,
+                            com.music.musicflame.ui.components.NavBarStyle.LIQUID_BULGE to R.string.settings_nav_bar_liquid_bulge,
+                            com.music.musicflame.ui.components.NavBarStyle.ICON_FILL to R.string.settings_nav_bar_icon_fill
                         ).forEach { (option, labelRes) ->
                             androidx.compose.material3.FilterChip(
                                 selected = navBarStyleState.value == option,

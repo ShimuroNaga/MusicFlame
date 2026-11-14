@@ -394,6 +394,10 @@
     <string name="settings_nav_bar_classic">Classic</string>
     <string name="settings_nav_bar_glass_notch">Glass with notch</string>
     <string name="settings_nav_bar_glass_bubble">Glass with bubble</string>
+    <string name="settings_nav_bar_sliding_pill">Sliding pill</string>
+    <string name="settings_nav_bar_liquid_bulge">Liquid bulge</string>
+    <string name="settings_nav_bar_icon_fill">Icon fill</string>
+    <string name="nav_plus_coming_soon">Coming soon</string>
     <string name="settings_banner_hint">Tap to choose your banner</string>
     <string name="settings_banner_remove">Remove banner</string>
     <string name="settings_banner_desc">Profile banner</string>

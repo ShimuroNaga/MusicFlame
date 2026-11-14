@@ -337,7 +337,7 @@ class MainActivity : ComponentActivity() {
                 val navBarListState = androidx.compose.foundation.lazy.rememberLazyListState()
                 LaunchedEffect(pagerState.currentPage) {
                     // Solo desliza la barra si la pestaña activa no se ve completa (así siempre
-                    // se ven 5 y el 6to aparece al deslizar o al ir a esa pantalla).
+                    // se ven 4 y las demás aparecen al deslizar o al ir a esa pantalla).
                     val info = navBarListState.layoutInfo
                     val target = info.visibleItemsInfo.firstOrNull { it.index == pagerState.currentPage }
                     if (target == null) {
@@ -1064,10 +1064,13 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     // Barra deslizable: con 6 pantallas ya no caben todas a la vez, así que se
-                                    // muestran 5 y el resto se alcanza deslizando (en cualquier dirección,
+                                    // muestran 4 (a la izquierda del botón "+") y el resto se alcanza deslizando (en cualquier dirección,
                                     // con inercia, como el selector de íconos). Siempre se centra sola en la
                                     // pantalla activa, también cuando cambias de pantalla deslizando el contenido.
                                     val navBarStyleValue = com.music.musicflame.ui.components.NavBarStyleHolder.state(settingsRepo).value
+                                    // La píldora con las pantallas ocupa todo el ancho menos el botón "+" fijo de la derecha.
+                                    Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                                    Box(modifier = Modifier.weight(1f)) {
                                     if (navBarStyleValue == com.music.musicflame.ui.components.NavBarStyle.CLASSIC) {
                                     BoxWithConstraints(
                                         modifier = Modifier
@@ -1076,7 +1079,7 @@ class MainActivity : ComponentActivity() {
                                             .clip(RoundedCornerShape(if (useRoundCornersState.value) 24.dp else 0.dp))
                                             .background(if (hasBackgroundImage) MaterialTheme.colorScheme.surfaceContainer.copy(alpha = 0.70f) else MaterialTheme.colorScheme.surfaceContainer)
                                     ) {
-                                        val navItemWidth = maxWidth / 5f
+                                        val navItemWidth = maxWidth / com.music.musicflame.ui.components.NAV_VISIBLE_ITEMS.toFloat()
                                         androidx.compose.foundation.lazy.LazyRow(
                                             state = navBarListState,
                                             modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp)
@@ -1106,15 +1109,7 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                     } else {
-                                        com.music.musicflame.ui.components.GlassNavBar(
-                                            style = navBarStyleValue,
-                                            items = bottomNavItems,
-                                            selectedIndex = pagerState.currentPage,
-                                            listState = navBarListState,
-                                            roundCorners = useRoundCornersState.value,
-                                            hasBackgroundImage = hasBackgroundImage,
-                                            modifier = Modifier.padding(top = 8.dp),
-                                            onItemClick = { index ->
+                                        val navItemClick: (Int) -> Unit = { index ->
                                                 selectedPlaylist = null
                                                 selectedAlbum = null
                                                 selectedArtist = null
@@ -1126,8 +1121,33 @@ class MainActivity : ComponentActivity() {
                                                 selectedSongs.clear(); manualSongSelectionMode = false
                                                 selectedPlaylists.clear(); manualPlaylistSelectionMode = false
                                                 coroutineScope.launch { pagerState.animateScrollToPage(index) }
-                                            }
-                                        )
+                                        }
+                                        if (navBarStyleValue.usesMotionBar) {
+                                            com.music.musicflame.ui.components.MotionNavBar(
+                                                style = navBarStyleValue,
+                                                items = bottomNavItems,
+                                                selectedIndex = pagerState.currentPage,
+                                                listState = navBarListState,
+                                                roundCorners = useRoundCornersState.value,
+                                                hasBackgroundImage = hasBackgroundImage,
+                                                modifier = Modifier.padding(top = 8.dp),
+                                                onItemClick = navItemClick
+                                            )
+                                        } else {
+                                            com.music.musicflame.ui.components.GlassNavBar(
+                                                style = navBarStyleValue,
+                                                items = bottomNavItems,
+                                                selectedIndex = pagerState.currentPage,
+                                                listState = navBarListState,
+                                                roundCorners = useRoundCornersState.value,
+                                                hasBackgroundImage = hasBackgroundImage,
+                                                modifier = Modifier.padding(top = 8.dp),
+                                                onItemClick = navItemClick
+                                            )
+                                        }
+                                    }
+                                    }
+                                    com.music.musicflame.ui.components.NavPlusButton(style = navBarStyleValue)
                                     }
                                 }
                               }

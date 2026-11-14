@@ -13,14 +13,14 @@
     <string name="kofi_purchases_title">Suas compras</string>
     <string name="kofi_purchases_sub">As compras são detectadas pelo e-mail com que você pagou no Ko-fi.</string>
     <string name="kofi_none_yet">Ainda não há compras restauradas neste dispositivo.</string>
-    <string name="kofi_email_label">E-mail usado no Ko-fi (opcional)</string>
-    <string name="kofi_email_hint">Deixe vazio para usar o da sua conta do Google</string>
+    <string name="kofi_email_label">Conta do Google usada no Ko-fi</string>
+    <string name="kofi_email_hint">Escolha a conta (e-mail) com que você pagou no Ko-fi. Se não escolher nenhuma, usa-se a conta com sessão iniciada.</string>
     <string name="kofi_restore">Restaurar compras</string>
     <string name="kofi_clear">Remover compras deste dispositivo</string>
     <string name="kofi_restored">Pronto! Foi desbloqueado: %1$s. Obrigado pelo seu apoio.</string>
     <string name="kofi_unrecognized">Encontrei compras com esse e-mail, mas ainda não reconheço o que elas desbloqueiam. Avise o desenvolvedor.</string>
-    <string name="kofi_nothing_found">Não encontrei compras com esse e-mail. Se você acabou de pagar, espere um minuto e tente de novo; se pagou com outro e-mail, escreva-o acima.</string>
-    <string name="kofi_need_email">Entre com o Google ou escreva o e-mail que você usou no Ko-fi.</string>
+    <string name="kofi_nothing_found">Não encontrei compras com essa conta. Se você acabou de pagar, espere um minuto e tente de novo; se pagou com outro e-mail, escolha essa conta acima.</string>
+    <string name="kofi_need_email">Escolha sua conta do Google (a que usou no Ko-fi) ou entre com o Google.</string>
     <string name="kofi_network_error">Sem conexão ou o servidor não respondeu. Verifique a sua internet e tente de novo.</string>
     <string name="kofi_opening_pack">Abrindo «%1$s» ($%2$d MXN) no Ko-fi…</string>
     <string name="kofi_buy_pack">Comprar no Ko-fi</string>
@@ -29,4 +29,8 @@
     <string name="kofi_prod_colors">Pack de cores</string>
     <string name="kofi_prod_pro_eq">EQ PRO</string>
     <string name="kofi_prod_vinyl">Widget vinil</string>
+    <string name="kofi_pick_account">Escolher conta do Google</string>
+    <string name="kofi_picked_account">Conta: %1$s (toque para trocar)</string>
+    <string name="kofi_consent_done">Permissão concedida. Toque em \"Restaurar compras\" de novo.</string>
+    <string name="kofi_consent_needed">Preciso da sua permissão para confirmar que essa conta é sua. Tente de novo.</string>
 </resources>

@@ -678,43 +678,6 @@ internal fun LazyListScope.settingsAppearanceSection(
         }
     }
 
-    // --- FASE 1 (ajuste temporal hasta la Fase 3): Acceso a configuración ---
-    // Reemplazado por StyleConfig.settingsAccess en la Fase 3; este item se elimina entonces.
-    item {
-        SettingsRow(style, SettingsRowPos.Middle) {
-            val accessStyleState = remember {
-                mutableStateOf(
-                    com.music.musicflame.data.SettingsAccessStyle.fromName(settingsRepo.getSettingsAccessStyle())
-                )
-            }
-            ListItem(
-                headlineContent = { Text(stringResource(R.string.settings_access_style_label)) },
-                supportingContent = {
-                    Row(
-                        modifier = Modifier.horizontalScroll(rememberScrollState()).padding(top = 8.dp),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        listOf(
-                            com.music.musicflame.data.SettingsAccessStyle.ACTUAL to R.string.settings_access_style_current,
-                            com.music.musicflame.data.SettingsAccessStyle.BARRA_LATERAL_VIDRIO to R.string.settings_access_style_glass_sidebar
-                        ).forEach { (option, labelRes) ->
-                            androidx.compose.material3.FilterChip(
-                                selected = accessStyleState.value == option,
-                                onClick = {
-                                    accessStyleState.value = option
-                                    settingsRepo.saveSettingsAccessStyle(option)
-                                },
-                                label = { Text(stringResource(labelRes)) }
-                            )
-                        }
-                    }
-                },
-                colors = style.listItemColors
-            )
-            SettingsDivider(style)
-        }
-    }
-
     item {
         SettingsRow(style, SettingsRowPos.Middle) {
             ListItem(

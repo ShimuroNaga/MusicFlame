@@ -3,6 +3,7 @@ package com.music.musicflame.data
 import android.content.Context
 import androidx.annotation.StringRes
 import com.google.android.gms.auth.api.signin.GoogleSignIn
+import android.content.Intent
 import org.json.JSONArray
 import java.security.MessageDigest
 import com.music.musicflame.R
@@ -44,6 +45,8 @@ sealed class RestoreResult {
     object Unrecognized : RestoreResult()
     object NothingFound : RestoreResult()
     object NeedEmail : RestoreResult()
+    /** Google pide un permiso la primera vez con esa cuenta: lanzar [intent] y volver a tocar Restaurar. */
+    data class NeedsConsent(val intent: Intent) : RestoreResult()
     object NetworkError : RestoreResult()
 }
 
@@ -52,7 +55,7 @@ sealed class RestoreResult {
  *
  * Las compras se hacen en la tienda de Ko-fi (fuera de la app). Ko-fi avisa por webhook a
  * Supabase (ver supabase/functions/kofi-webhook) y la app consulta ahí, con el correo de la
- * cuenta de Google (o el que el usuario escriba), qué productos compró ([KofiPurchasesApi]).
+ * cuenta de Google (o la que el usuario elija en el selector), qué productos compró ([KofiPurchasesApi]).
  * Lo restaurado se guarda localmente (SharedPreferences, mismo patrón que otros repositorios)
  * para que los candados funcionen sin internet. Es solo aditivo: restaurar nunca quita compras.
  */
@@ -83,7 +86,7 @@ class LicenseRepository(context: Context) {
         prefs.edit().putString(KEY_CODES, JSONArray(codes.toList()).toString()).apply()
     }
 
-    /** Correo que el usuario escribió a mano la última vez que restauró con éxito (null si nunca lo hizo). */
+    /** Cuenta de Google que el usuario eligió la última vez que restauró con éxito (null si nunca lo hizo). */
     fun getRestoreEmail(): String? = prefs.getString(KEY_EMAIL, null)
 
     /** Productos conocidos de la app que este dispositivo ya tiene comprados. */
@@ -187,14 +190,15 @@ class LicenseRepository(context: Context) {
     // ---------------------------------------------------------------------
 
     /**
-     * Consulta a Supabase las compras de: el correo escrito a mano ([manualEmail]), el último
-     * correo manual que funcionó, y el de la cuenta de Google con sesión iniciada. Las
+     * Consulta a Supabase las compras de: la cuenta de Google elegida en el selector ([pickedEmail]),
+     * la última cuenta elegida que funcionó, y la cuenta de Google con sesión iniciada. El servidor
+     * verifica con Google que de verdad eres dueño de cada cuenta (ID token). Las
      * compras encontradas se SUMAN a las que ya había. Debe llamarse desde una corrutina.
      */
-    suspend fun restorePurchases(manualEmail: String?): RestoreResult {
-        val typed = manualEmail?.trim()?.lowercase().orEmpty()
+    suspend fun restorePurchases(pickedEmail: String?): RestoreResult {
+        val picked = pickedEmail?.trim()?.lowercase().orEmpty()
         val emails = linkedSetOf<String>()
-        if (typed.isNotEmpty()) emails.add(typed)
+        if (picked.isNotEmpty()) emails.add(picked)
         getRestoreEmail()?.takeIf { it.isNotBlank() }?.let { emails.add(it) }
         googleEmail()?.let { emails.add(it) }
         if (emails.isEmpty()) return RestoreResult.NeedEmail
@@ -202,16 +206,22 @@ class LicenseRepository(context: Context) {
         val found = mutableSetOf<String>()
         var anyOk = false
         for (email in emails) {
-            when (val r = KofiPurchasesApi.fetchPurchasedCodes(email)) {
-                is KofiPurchasesApi.Result.Ok -> { anyOk = true; found.addAll(r.codes) }
-                KofiPurchasesApi.Result.Failure -> Unit
+            when (val t = GoogleIdTokenHelper.get(appContext, email)) {
+                is GoogleIdTokenHelper.Result.Ok -> when (val r = KofiPurchasesApi.fetchPurchasedCodes(t.token)) {
+                    is KofiPurchasesApi.Result.Ok -> { anyOk = true; found.addAll(r.codes) }
+                    KofiPurchasesApi.Result.Failure -> Unit
+                }
+                is GoogleIdTokenHelper.Result.NeedsConsent ->
+                    // Solo se pide el permiso para la cuenta que el usuario eligio a proposito.
+                    if (email == picked) return RestoreResult.NeedsConsent(t.intent)
+                GoogleIdTokenHelper.Result.Failure -> Unit
             }
         }
         if (!anyOk) return RestoreResult.NetworkError
         if (found.isEmpty()) return RestoreResult.NothingFound
 
         savePurchasedCodes(getPurchasedCodes() + found)
-        if (typed.isNotEmpty()) prefs.edit().putString(KEY_EMAIL, typed).apply()
+        if (picked.isNotEmpty()) prefs.edit().putString(KEY_EMAIL, picked).apply()
 
         val recognized = recognizedProducts()
         if (recognized.isEmpty()) return RestoreResult.Unrecognized
@@ -230,7 +240,8 @@ class LicenseRepository(context: Context) {
         if (emails.isEmpty()) return
         val found = mutableSetOf<String>()
         for (email in emails) {
-            val r = KofiPurchasesApi.fetchPurchasedCodes(email)
+            val t = GoogleIdTokenHelper.get(appContext, email) as? GoogleIdTokenHelper.Result.Ok ?: continue
+            val r = KofiPurchasesApi.fetchPurchasedCodes(t.token)
             if (r is KofiPurchasesApi.Result.Ok) found.addAll(r.codes)
         }
         if (found.isNotEmpty()) savePurchasedCodes(getPurchasedCodes() + found)

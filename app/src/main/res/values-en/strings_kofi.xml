@@ -13,14 +13,14 @@
     <string name="kofi_purchases_title">Your purchases</string>
     <string name="kofi_purchases_sub">Purchases are detected by the email you paid with on Ko-fi.</string>
     <string name="kofi_none_yet">No purchases restored on this device yet.</string>
-    <string name="kofi_email_label">Email used on Ko-fi (optional)</string>
-    <string name="kofi_email_hint">Leave empty to use your Google account email</string>
+    <string name="kofi_email_label">Google account used on Ko-fi</string>
+    <string name="kofi_email_hint">Pick the account (email) you paid with on Ko-fi. If you pick none, the signed-in account is used.</string>
     <string name="kofi_restore">Restore purchases</string>
     <string name="kofi_clear">Remove purchases from this device</string>
     <string name="kofi_restored">Done! Unlocked: %1$s. Thanks for your support.</string>
     <string name="kofi_unrecognized">I found purchases for that email, but I don\'t recognize what they unlock yet. Please tell the developer.</string>
-    <string name="kofi_nothing_found">I found no purchases for that email. If you just paid, wait a minute and try again; if you paid with another email, type it above.</string>
-    <string name="kofi_need_email">Sign in with Google or type the email you used on Ko-fi.</string>
+    <string name="kofi_nothing_found">I found no purchases for that account. If you just paid, wait a minute and try again; if you paid with another email, pick that account above.</string>
+    <string name="kofi_need_email">Pick your Google account (the one you used on Ko-fi) or sign in with Google.</string>
     <string name="kofi_network_error">No connection or the server did not respond. Check your internet and try again.</string>
     <string name="kofi_opening_pack">Opening “%1$s” ($%2$d MXN) on Ko-fi…</string>
     <string name="kofi_buy_pack">Buy on Ko-fi</string>
@@ -29,4 +29,8 @@
     <string name="kofi_prod_colors">Color pack</string>
     <string name="kofi_prod_pro_eq">PRO EQ</string>
     <string name="kofi_prod_vinyl">Vinyl widget</string>
+    <string name="kofi_pick_account">Pick Google account</string>
+    <string name="kofi_picked_account">Account: %1$s (tap to change)</string>
+    <string name="kofi_consent_done">Permission granted. Tap \"Restore purchases\" again.</string>
+    <string name="kofi_consent_needed">I need your permission to check that this account is yours. Try again.</string>
 </resources>

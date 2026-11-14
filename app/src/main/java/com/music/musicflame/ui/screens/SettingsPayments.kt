@@ -470,29 +470,57 @@ internal fun LazyListScope.settingsPaymentsSection(
 
                 Spacer(Modifier.height(16.dp))
 
-                // Opcional: solo hace falta si pagaste en Ko-fi con un correo distinto al de tu cuenta de Google.
-                OutlinedTextField(
-                    value = restoreEmail,
-                    onValueChange = { restoreEmail = it },
-                    label = { Text(stringResource(R.string.kofi_email_label)) },
-                    placeholder = { Text(stringResource(R.string.kofi_email_hint)) },
-                    singleLine = true,
+                // Selector de cuentas de Google del dispositivo (como un "iniciar sesión"): se elige la cuenta
+                // con la que pagaste en Ko-fi. Si no eliges ninguna, se usa la cuenta con sesión iniciada.
+                val accountPickerLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+                    res.data?.getStringExtra(android.accounts.AccountManager.KEY_ACCOUNT_NAME)
+                        ?.takeIf { it.isNotBlank() }
+                        ?.let { restoreEmail = it; errorMessage = null }
+                }
+                val consentLauncher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { res ->
+                    errorMessage = if (res.resultCode == android.app.Activity.RESULT_OK) null
+                    else context.getString(R.string.kofi_consent_needed)
+                    if (res.resultCode == android.app.Activity.RESULT_OK) {
+                        Toast.makeText(context, context.getString(R.string.kofi_consent_done), Toast.LENGTH_LONG).show()
+                    }
+                }
+                OutlinedButton(
+                    onClick = {
+                        accountPickerLauncher.launch(
+                            com.google.android.gms.common.AccountPicker.newChooseAccountIntent(
+                                com.google.android.gms.common.AccountPicker.AccountChooserOptions.Builder()
+                                    .setAllowableAccountsTypes(listOf("com.google"))
+                                    .setAlwaysShowAccountPicker(true)
+                                    .build()
+                            )
+                        )
+                    },
                     enabled = !isRestoring && !paymentsSectionLocked,
                     modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        if (restoreEmail.isBlank()) stringResource(R.string.kofi_pick_account)
+                        else stringResource(R.string.kofi_picked_account, restoreEmail)
+                    )
+                }
+                Text(
+                    stringResource(R.string.kofi_email_hint),
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp)
                 )
 
                 Spacer(Modifier.height(12.dp))
 
                 Button(
                     onClick = {
-                        val typedEmail = restoreEmail
+                        val pickedEmail = restoreEmail
                         isRestoring = true
                         errorMessage = null
                         paymentsScope.launch {
-                            when (val result = licenseRepo.restorePurchases(typedEmail)) {
+                            when (val result = licenseRepo.restorePurchases(pickedEmail)) {
                                 is RestoreResult.Success -> {
                                     purchased = licenseRepo.recognizedProducts()
-                                    restoreEmail = ""
                                     errorMessage = null
                                     // Activa lo comprado al instante en toda la app (tema, reproductor, etc.).
                                     com.music.musicflame.data.ProStatusHolder.refresh(context)
@@ -506,6 +534,7 @@ internal fun LazyListScope.settingsPaymentsSection(
                                 RestoreResult.NothingFound -> errorMessage = context.getString(R.string.kofi_nothing_found)
                                 RestoreResult.NeedEmail -> errorMessage = context.getString(R.string.kofi_need_email)
                                 RestoreResult.NetworkError -> errorMessage = context.getString(R.string.kofi_network_error)
+                                is RestoreResult.NeedsConsent -> consentLauncher.launch(result.intent)
                             }
                             isRestoring = false
                         }

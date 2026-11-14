@@ -393,13 +393,7 @@ class MainActivity : ComponentActivity() {
                 var showSettings by remember { mutableStateOf(false) }
                 var showTogether by remember { mutableStateOf(false) }
                 // Fase 1: sidebar de vidrio
-                var showGlassSidebar by remember { mutableStateOf(false) }
                 var pendingSidebarSection by remember { mutableStateOf<String?>(null) }
-                var sidebarBanner by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
-                LaunchedEffect(showGlassSidebar) {
-                    // Se recarga al abrir el panel, por si cambiaste el banner en Cuenta
-                    if (showGlassSidebar) sidebarBanner = com.music.musicflame.data.ProfileBanner.load(context)
-                }
                 // Se recalcula cada vez que el usuario cierra Settings por si lo cambió dentro.
                 var settingsAccessStyle by remember {
                     mutableStateOf(
@@ -963,11 +957,7 @@ class MainActivity : ComponentActivity() {
 
                                                 IconButton(onClick = { showTogether = true }) { Icon(Icons.Filled.Groups, stringResource(R.string.main_together)) }
                                                 IconButton(onClick = {
-                                                    if (settingsAccessStyle == com.music.musicflame.data.SettingsAccessStyle.BARRA_LATERAL_VIDRIO) {
-                                                        showGlassSidebar = true
-                                                    } else {
-                                                        showSettings = true
-                                                    }
+                                                    showSettings = true
                                                 }) { Icon(Icons.Filled.Settings, stringResource(R.string.main_settings)) }
                                             }
                                             if (selectedPlaylist != null) {
@@ -1583,26 +1573,6 @@ class MainActivity : ComponentActivity() {
                                 )
                             }
                         }
-
-                        // --- Fase 1: Panel lateral de vidrio (overlay sobre toda la app) ---
-                        com.music.musicflame.ui.components.GlassSettingsSidebar(
-                            visible      = showGlassSidebar,
-                            onDismiss    = { showGlassSidebar = false },
-                            onNavigate   = { key ->
-                                showGlassSidebar = false
-                                // Abre SettingsScreen y navega directamente a la sección tocada
-                                showSettings = true
-                                pendingSidebarSection = key
-                            },
-                            onOpenAccount = {
-                                showGlassSidebar = false
-                                showSettings = true
-                                pendingSidebarSection = "Cuenta"
-                            },
-                            userName     = userName,
-                            userPhotoUrl = userPhotoUrl,
-                            banner       = sidebarBanner
-                        )
 
                         // --- Onboarding de primer uso: cubre toda la pantalla hasta completarse ---
                         if (showOnboarding) {

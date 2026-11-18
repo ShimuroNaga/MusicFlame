@@ -168,20 +168,40 @@ private fun TogetherScreenContent(
 
         // ---- Nombre ----
         item {
-            OutlinedTextField(
-                value = manager.userName,
-                onValueChange = { manager.changeUserName(it) },
-                label = { Text(stringResource(R.string.tg_your_name)) },
-                leadingIcon = { Icon(Icons.Filled.Person, null) },
-                singleLine = true,
-                shape = RoundedCornerShape(16.dp),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = accent.value,
-                    focusedLabelColor = accent.value,
-                    cursorColor = accent.value
-                ),
-                modifier = Modifier.fillMaxWidth()
-            )
+            val guestName = stringResource(R.string.tgm_guest)
+            val appCtx = androidx.compose.ui.platform.LocalContext.current
+            // Foto propia (si la puso en Ajustes); si no, el previo muestra su blobatar.
+            val ownAvatar = remember { TogetherAvatar.load(appCtx) }
+            // Pequeña espera al escribir para no recalcular la forma en cada tecla.
+            var previewName by remember { mutableStateOf(manager.userName) }
+            LaunchedEffect(manager.userName) {
+                kotlinx.coroutines.delay(250)
+                previewName = manager.userName
+            }
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                // Previo: así te verán los demás; cambia según el nombre que escribas.
+                MemberAvatar(
+                    accent = accent,
+                    name = previewName.trim().ifBlank { guestName },
+                    online = true,
+                    avatar = ownAvatar,
+                    avatarSize = 56.dp
+                )
+                OutlinedTextField(
+                    value = manager.userName,
+                    onValueChange = { manager.changeUserName(it) },
+                    label = { Text(stringResource(R.string.tg_your_name)) },
+                    leadingIcon = { Icon(Icons.Filled.Person, null) },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = accent.value,
+                        focusedLabelColor = accent.value,
+                        cursorColor = accent.value
+                    ),
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
 
         if (!inRoom) {
@@ -979,7 +999,7 @@ private fun QueueList(manager: TogetherManager, accent: State<Color>) {
 }
 
 /**
- * Avatar circular: icono de la persona si lo puso; si no, su blobatar (semilla = [uid]); y sin uid, la inicial.
+ * Avatar circular: icono de la persona si lo puso; si no, su blobatar (la forma sale de su nombre); y sin nombre, la inicial.
  * Gris y sin movimiento si está desconectada.
  */
 @Composable
@@ -1003,9 +1023,9 @@ internal fun MemberAvatar(accent: State<Color>, name: String, online: Boolean, a
                 contentScale = androidx.compose.ui.layout.ContentScale.Crop,
                 modifier = Modifier.fillMaxSize().clip(CircleShape)
             )
-        } else if (uid != null) {
+        } else if (name.isNotBlank()) {
             com.music.musicflame.ui.blobatar.Blobatar(
-                name = uid,
+                name = name.trim(),
                 modifier = Modifier.fillMaxSize(),
                 animated = online,
                 desaturated = !online,

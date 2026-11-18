@@ -1818,6 +1818,12 @@ class TogetherManager(
         private const val ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // sin 0/O/1/I para no confundir
         private const val CODE_LEN = 6
         const val MAX_MEMBERS = 8
+        /** Nombre actual de En compañía (el que ven los demás y el que da forma al blobatar). */
+        fun currentName(context: Context): String {
+            val guest = context.getString(R.string.tgm_guest)
+            val saved = context.getSharedPreferences("together_prefs", Context.MODE_PRIVATE).getString(KEY_NAME, null)
+            return (saved ?: GoogleSignIn.getLastSignedInAccount(context)?.displayName ?: guest).trim().ifBlank { guest }
+        }
         /** Instancia activa, para que los botones de la notificación lleguen al manager. */
         @Volatile var current: TogetherManager? = null
         private const val CHAT_LIMIT = 100              // mensajes que se cargan/muestran

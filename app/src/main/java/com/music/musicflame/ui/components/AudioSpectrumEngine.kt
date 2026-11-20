@@ -9,9 +9,13 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.withFrameNanos
+import androidx.compose.ui.platform.LocalLifecycleOwner
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import kotlin.math.exp
 import kotlin.math.max
 import kotlin.math.min
@@ -266,9 +270,28 @@ fun rememberAudioSpectrum(
         }
     }
 
+    // Detecta si la app (Activity) está en primer plano. Cuando va a background (pantalla
+    // apagada, app minimizada) se pausa el loop de animación del ecualizador — no hay nada
+    // que dibujar y cada withFrameNanos pedía frames aunque nadie los viera.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val isAppInForeground = remember { mutableStateOf(true) }
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            isAppInForeground.value = event != Lifecycle.Event.ON_STOP
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
     LaunchedEffect(barCount) {
         var lastFrameNanos = 0L
         while (true) {
+            if (!isAppInForeground.value) {
+                // App en background: resetea el dt para que no haya salto brusco al volver.
+                lastFrameNanos = 0L
+                kotlinx.coroutines.delay(500)
+                continue
+            }
             withFrameNanos { frameNanos ->
                 val dt = if (lastFrameNanos == 0L) 0f else (frameNanos - lastFrameNanos) / 1_000_000_000f
                 lastFrameNanos = frameNanos

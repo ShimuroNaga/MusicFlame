@@ -103,7 +103,8 @@ class WakeWordService : Service() {
                 val pm = getSystemService(PowerManager::class.java)
                 wakeLock = pm?.newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "MusicFlame:wake")?.apply { setReferenceCounted(false) }
             }
-            wakeLock?.takeIf { !it.isHeld }?.acquire()
+            // Con timeout: si algo falla, el sistema libera el wakelock solo (dura un poco más que el auto-apagado).
+            wakeLock?.takeIf { !it.isHeld }?.acquire(IDLE_TIMEOUT_MS + 60_000L)
         } catch (_: Exception) { /* sin wake lock igual funciona, solo menos fiable con la pantalla apagada */ }
     }
 
@@ -121,9 +122,22 @@ class WakeWordService : Service() {
         var sysPause: WakeState? = null
         var lastSys = 0L
         var music = false
+        // Marca de tiempo del último wake word detectado (o del arranque del servicio).
+        // Si pasan IDLE_TIMEOUT_MS sin ninguna detección, el servicio se apaga solo.
+        var lastActivityAt = SystemClock.elapsedRealtime()
         try {
             while (currentCoroutineContext().isActive) {
                 val now = SystemClock.elapsedRealtime()
+
+                // Auto-apagado por inactividad: 12 h sin detectar nada = se apaga y avisa.
+                if (now - lastActivityAt >= IDLE_TIMEOUT_MS) {
+                    WakeAudio.releaseSafely(rec); rec = null
+                    vs.setWakeRunning(false)
+                    WakeNotifications.stopped(this, R.string.wake_notif_stopped_system)
+                    WakeWord.state.value = WakeState.OFF
+                    stopSelf()
+                    return
+                }
                 if (now - lastSys >= 1000L) {                    // cada ~1 s: pregunta al sistema (llamada, música alta)
                     lastSys = now
                     sysPause = WakeWord.systemPause(this)
@@ -154,7 +168,7 @@ class WakeWordService : Service() {
                 }
                 WakeWord.state.value = WakeState.LISTENING
                 val step = detector.process(buf, music)
-                if (step.fired) onFired()
+                if (step.fired) { lastActivityAt = SystemClock.elapsedRealtime(); onFired() }
             }
         } catch (e: CancellationException) {
             throw e
@@ -186,7 +200,11 @@ class WakeWordService : Service() {
     }
 
     companion object {
-        const val ACTION_START = "com.music.musicflame.wake.START"
+        /** Auto-apagado por inactividad: si no se detecta ningún wake word en este tiempo, el servicio
+         *  se apaga solo y avisa con una notificación para que el usuario lo reactive si quiere. */
+        private const val IDLE_TIMEOUT_MS = 12 * 60 * 60 * 1000L  // 12 horas
+
+        const val ACTION_START  = "com.music.musicflame.wake.START"
         const val ACTION_STOP = "com.music.musicflame.wake.STOP"
         const val EXTRA_FROM_WAKE = "from_wake_word"
 
@@ -233,7 +251,7 @@ object WakeLauncher {
             val wm = app.getSystemService(WindowManager::class.java)
             try {
                 // Con una ventana invisible a la vista, el sistema permite abrir la actividad desde segundo plano.
-                if (Settings.canDrawOverlays(app) && wm != null) {
+                if (Settings.canDrawOverlays(app)) {
                     val v = View(app)
                     val lp = WindowManager.LayoutParams(
                         1, 1, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -246,7 +264,7 @@ object WakeLauncher {
             } catch (_: Exception) {}
             try { app.startActivity(intent) } catch (_: Exception) {}
             val v = overlay
-            if (v != null && wm != null) main.postDelayed({ try { wm.removeView(v) } catch (_: Exception) {} }, 3000)
+            if (v != null) main.postDelayed({ try { wm.removeView(v) } catch (_: Exception) {} }, 3000)
         }
     }
 }

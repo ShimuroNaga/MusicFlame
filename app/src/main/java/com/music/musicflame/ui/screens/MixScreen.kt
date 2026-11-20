@@ -69,7 +69,10 @@ fun MixScreen(
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
     // NUEVO: id de la canción sonando ahora, para el icono al lado del título.
-    currentPlayingSongId: Long? = null
+    currentPlayingSongId: Long? = null,
+    // Guard de visibilidad: cuando no es la tab activa se suspende el loop de stats para
+    // no hacer lecturas de disco innecesarias en background.
+    isScreenVisible: Boolean = true,
 ) {
     val context = LocalContext.current
     val settingsRepo = remember { SettingsRepository(context) }
@@ -90,7 +93,8 @@ fun MixScreen(
     // lo cual era engañoso si ya llevabas horas escuchando música.
     val hasAnyStatsRecorded = remember { mutableStateOf(false) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(isScreenVisible) {
+        if (!isScreenVisible) return@LaunchedEffect   // tab inactiva: no leer disco
         val statsRepo = StatsRepository(context)
         val favoritesRepo = FavoritesRepository(context)
         // La lista de canciones del dispositivo no cambia a cada tick, así que la

@@ -26,11 +26,11 @@ private const val RAINBOW_CYCLE_MS = (360_000f / RAINBOW_DEGREES_PER_SECOND).toL
 // Cuántas veces por segundo se actualiza el color mientras Arcoiris está
 // activo. Antes esto se movía a 60 veces por segundo (un frame de
 // animación = una recomposición de CADA Text que use el color). El ojo no
-// distingue 60 pasos por segundo de, digamos, 18-20 en un degradado de
-// color que tarda 6s en dar la vuelta completa — así que bajarlo a esto
-// se ve prácticamente idéntico y recompone ~70% menos seguido mientras el
-// modo está prendido.
-private const val RAINBOW_UPDATES_PER_SECOND = 18
+// distingue 60 pasos por segundo de, digamos, 10 en un degradado de
+// color que tarda 6s en dar la vuelta completa (10 pasos → el hue avanza
+// ~6° por tick, imperceptible) — así que bajarlo a esto recompone ~83%
+// menos seguido que a 60fps y ~44% menos que el 18 anterior.
+private const val RAINBOW_UPDATES_PER_SECOND = 10
 private const val RAINBOW_TICK_MS = 1000L / RAINBOW_UPDATES_PER_SECOND
 
 /** Nombre del modo, tal cual se guarda en SettingsRepository (mismo patrón de

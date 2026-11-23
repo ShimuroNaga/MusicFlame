@@ -68,6 +68,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlin.math.abs
+import com.music.musicflame.ui.components.SelectionActionsSheet
+import com.music.musicflame.ui.components.SheetAction
+import com.music.musicflame.ui.components.SheetStyle
 import com.music.musicflame.ui.components.YoutubePlayerScreen
 import com.music.musicflame.ui.screens.onboarding.OnboardingScreen
 import com.music.musicflame.R
@@ -627,26 +630,22 @@ class MainActivity : ComponentActivity() {
                                         actions = {
                                             IconButton(onClick = { showSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, stringResource(R.string.main_options)) }
 
-                                            DropdownMenu(expanded = showSelectionMenu, onDismissRequest = { showSelectionMenu = false }) {
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_select_all)) } },
-                                                    onClick = {
+                                            if (showSelectionMenu) {
+                                                val allSelectedAreFavorites = selectedSongs.isNotEmpty() && selectedSongs.all { favoriteIds.contains(it.id) }
+                                                val openPlaylist = selectedPlaylist
+                                                val inPlaylistDetail = openPlaylist != null &&
+                                                    (selectedPlaylistKind == PlaylistKind.REGULAR || selectedPlaylistKind == PlaylistKind.FAVORITES)
+                                                val sheetPrimary = MaterialTheme.colorScheme.primary
+                                                val songActions = buildList {
+                                                    add(SheetAction(Icons.Filled.SelectAll, stringResource(R.string.main_select_all), sheetPrimary, onClick = {
                                                         showSelectionMenu = false
                                                         val trashedIds = trashRepo.getTrash().map { it.song.id }
                                                         val allSongs = SongLibraryHolder.songs.filter { it.id !in trashedIds }
                                                         selectedSongs.clear()
                                                         selectedSongs.addAll(allSongs)
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistAdd, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_add_to_playlist)) } },
-                                                    onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }
-                                                )
-                                                // --- COMPARTIR FRAGMENTO (carátula + audio horneados en un mp4, para
-                                                // cualquier app vía el selector genérico de Android) ---
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Share, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_share_clip)) } },
-                                                    onClick = {
+                                                    }))
+                                                    add(SheetAction(Icons.Filled.PlaylistAdd, stringResource(R.string.main_add_to_playlist), sheetPrimary, onClick = { showSelectionMenu = false; showMultiPlaylistDialog = true }))
+                                                    add(SheetAction(Icons.Filled.Share, stringResource(R.string.main_share_clip), sheetPrimary, onClick = {
                                                         showSelectionMenu = false
                                                         if (selectedSongs.size != 1) {
                                                             Toast.makeText(context, context.getString(R.string.main_share_one_only), Toast.LENGTH_SHORT).show()
@@ -673,23 +672,11 @@ class MainActivity : ComponentActivity() {
                                                                 }
                                                             }
                                                         }
-                                                    }
-                                                )
-                                                run {
-                                                    val allSelectedAreFavorites = selectedSongs.isNotEmpty() && selectedSongs.all { favoriteIds.contains(it.id) }
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                Icon(
-                                                                    if (allSelectedAreFavorites) Icons.Filled.HeartBroken else Icons.Filled.Favorite,
-                                                                    null,
-                                                                    modifier = Modifier.size(20.dp),
-                                                                    tint = Color(0xFFE91E63)
-                                                                )
-                                                                Spacer(Modifier.width(8.dp))
-                                                                Text(if (allSelectedAreFavorites) stringResource(R.string.main_remove_favorites) else stringResource(R.string.main_add_favorites))
-                                                            }
-                                                        },
+                                                    }))
+                                                    add(SheetAction(
+                                                        if (allSelectedAreFavorites) Icons.Filled.HeartBroken else Icons.Filled.Favorite,
+                                                        if (allSelectedAreFavorites) stringResource(R.string.main_remove_favorites) else stringResource(R.string.main_add_favorites),
+                                                        Color(0xFFE91E63),
                                                         onClick = {
                                                             showSelectionMenu = false
                                                             if (allSelectedAreFavorites) {
@@ -704,18 +691,8 @@ class MainActivity : ComponentActivity() {
                                                             Toast.makeText(context, if (allSelectedAreFavorites) context.getString(R.string.main_n_removed_favorites, selectedSongs.size) else context.getString(R.string.main_n_added_favorites, selectedSongs.size), Toast.LENGTH_SHORT).show()
                                                             selectedSongs.clear(); manualSongSelectionMode = false
                                                         }
-                                                    )
-                                                }
-                                                // --- OPCIÓN SUBIR A GOOGLE DRIVE ---
-                                                DropdownMenuItem(
-                                                    text = {
-                                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                                            Icon(Icons.Filled.CloudUpload, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                                                            Spacer(Modifier.width(8.dp))
-                                                            Text(stringResource(R.string.main_upload_drive))
-                                                        }
-                                                    },
-                                                    onClick = {
+                                                    ))
+                                                    add(SheetAction(Icons.Filled.CloudUpload, stringResource(R.string.main_upload_drive), sheetPrimary, onClick = {
                                                         showSelectionMenu = false
                                                         val account = GoogleSignIn.getLastSignedInAccount(context)
 
@@ -749,32 +726,20 @@ class MainActivity : ComponentActivity() {
                                                         } else {
                                                             Toast.makeText(context, context.getString(R.string.main_link_drive_first), Toast.LENGTH_LONG).show()
                                                         }
-                                                    }
-                                                )
-                                                // --- NUEVO: EDITAR CARÁTULA (imagen/GIF) Y NOMBRE ---
-                                                if (selectedSongs.isNotEmpty()) {
-                                                    DropdownMenuItem(
-                                                        text = {
-                                                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                                                Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary)
-                                                                Spacer(Modifier.width(8.dp))
-                                                                Text(if (selectedSongs.size == 1) stringResource(R.string.main_edit_cover_name) else stringResource(R.string.main_edit_cover_all))
+                                                    }))
+                                                    if (selectedSongs.isNotEmpty()) {
+                                                        add(SheetAction(
+                                                            Icons.Filled.Edit,
+                                                            if (selectedSongs.size == 1) stringResource(R.string.main_edit_cover_name) else stringResource(R.string.main_edit_cover_all),
+                                                            sheetPrimary,
+                                                            onClick = {
+                                                                showSelectionMenu = false
+                                                                showEditSongDialog = true
                                                             }
-                                                        },
-                                                        onClick = {
-                                                            showSelectionMenu = false
-                                                            showEditSongDialog = true
-                                                        }
-                                                    )
-                                                }
-                                                // --- QUITAR DE ESTA PLAYLIST (solo dentro del detalle de una playlist normal o Favoritos) ---
-                                                val openPlaylist = selectedPlaylist
-                                                if (openPlaylist != null && selectedSongs.isNotEmpty() &&
-                                                    (selectedPlaylistKind == PlaylistKind.REGULAR || selectedPlaylistKind == PlaylistKind.FAVORITES)
-                                                ) {
-                                                    DropdownMenuItem(
-                                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.PlaylistRemove, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_remove_from_this_playlist)) } },
-                                                        onClick = {
+                                                        ))
+                                                    }
+                                                    if (openPlaylist != null && selectedSongs.isNotEmpty() && inPlaylistDetail) {
+                                                        add(SheetAction(Icons.Filled.PlaylistRemove, stringResource(R.string.main_remove_from_this_playlist), sheetPrimary, onClick = {
                                                             showSelectionMenu = false
                                                             val idsToRemove = selectedSongs.map { it.id }.toSet()
                                                             val count = idsToRemove.size
@@ -792,12 +757,16 @@ class MainActivity : ComponentActivity() {
                                                             playlistsRefreshTrigger++
                                                             Toast.makeText(context, context.getString(R.string.main_n_removed_from_playlist, count), Toast.LENGTH_SHORT).show()
                                                             selectedSongs.clear(); manualSongSelectionMode = false
-                                                        }
-                                                    )
+                                                        }))
+                                                    }
+                                                    add(SheetAction(Icons.Filled.Delete, stringResource(R.string.main_move_to_trash), MaterialTheme.colorScheme.error, onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }))
                                                 }
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_move_to_trash)) } },
-                                                    onClick = { showSelectionMenu = false; showMultiDeleteDialog = true }
+                                                SelectionActionsSheet(
+                                                    title = if (openPlaylist != null && inPlaylistDetail) "${selectedSongs.size} · ${openPlaylist.name}" else "${selectedSongs.size} / $totalSongsOnDevice",
+                                                    actions = songActions,
+                                                    onDismiss = { showSelectionMenu = false },
+                                                    style = SheetStyle.GRID,
+                                                    columns = 4
                                                 )
                                             }
                                         },
@@ -812,34 +781,28 @@ class MainActivity : ComponentActivity() {
                                         actions = {
                                             IconButton(onClick = { showPlaylistSelectionMenu = true }) { Icon(Icons.Filled.MoreVert, stringResource(R.string.main_options)) }
 
-                                            DropdownMenu(expanded = showPlaylistSelectionMenu, onDismissRequest = { showPlaylistSelectionMenu = false }) {
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.SelectAll, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_select_all)) } },
-                                                    onClick = {
+                                            if (showPlaylistSelectionMenu) {
+                                                val sheetPrimary = MaterialTheme.colorScheme.primary
+                                                val playlistActions = buildList {
+                                                    add(SheetAction(Icons.Filled.SelectAll, stringResource(R.string.main_select_all), sheetPrimary, onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         val favoritesPlaylist = Playlist("favorites", context.getString(R.string.pl_favorites), favoriteIds.toList())
                                                         val allPlaylists = listOf(favoritesPlaylist, buildMostPlayedPlaylist(context), buildNeverPlayedPlaylist(context)) + playlistRepo.getPlaylists()
                                                         selectedPlaylists.clear()
                                                         selectedPlaylists.addAll(allPlaylists)
-                                                    }
-                                                )
-                                                if (selectedPlaylists.size == 1 &&
-                                                    selectedPlaylists.first().id != "favorites" &&
-                                                    selectedPlaylists.first().id != SmartPlaylistIds.MOST_PLAYED &&
-                                                    selectedPlaylists.first().id != SmartPlaylistIds.NEVER_PLAYED
-                                                ) {
-                                                    DropdownMenuItem(
-                                                        text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Edit, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.primary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_rename)) } },
-                                                        onClick = {
+                                                    }))
+                                                    if (selectedPlaylists.size == 1 &&
+                                                        selectedPlaylists.first().id != "favorites" &&
+                                                        selectedPlaylists.first().id != SmartPlaylistIds.MOST_PLAYED &&
+                                                        selectedPlaylists.first().id != SmartPlaylistIds.NEVER_PLAYED
+                                                    ) {
+                                                        add(SheetAction(Icons.Filled.Edit, stringResource(R.string.main_rename), sheetPrimary, onClick = {
                                                             showPlaylistSelectionMenu = false
                                                             renamePlaylistText = selectedPlaylists.first().name
                                                             showRenamePlaylistDialog = true
-                                                        }
-                                                    )
-                                                }
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Download, null, modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.secondary); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_export_m3u)) } },
-                                                    onClick = {
+                                                        }))
+                                                    }
+                                                    add(SheetAction(Icons.Filled.Download, stringResource(R.string.main_export_m3u), MaterialTheme.colorScheme.secondary, onClick = {
                                                         showPlaylistSelectionMenu = false
                                                         var successCount = 0
                                                         selectedPlaylists.forEach { playlist ->
@@ -853,11 +816,15 @@ class MainActivity : ComponentActivity() {
                                                         }
                                                         Toast.makeText(context, context.getString(R.string.main_n_of_m_exported, successCount, selectedPlaylists.size), Toast.LENGTH_SHORT).show()
                                                         selectedPlaylists.clear(); manualPlaylistSelectionMode = false
-                                                    }
-                                                )
-                                                DropdownMenuItem(
-                                                    text = { Row(verticalAlignment = Alignment.CenterVertically) { Icon(Icons.Filled.Delete, null, tint = MaterialTheme.colorScheme.error, modifier = Modifier.size(20.dp)); Spacer(Modifier.width(8.dp)); Text(stringResource(R.string.main_move_to_trash), color = MaterialTheme.colorScheme.error) } },
-                                                    onClick = { showPlaylistSelectionMenu = false; showDeletePlaylistsDialog = true }
+                                                    }))
+                                                    add(SheetAction(Icons.Filled.Delete, stringResource(R.string.main_move_to_trash), MaterialTheme.colorScheme.error, onClick = { showPlaylistSelectionMenu = false; showDeletePlaylistsDialog = true }))
+                                                }
+                                                SelectionActionsSheet(
+                                                    title = stringResource(R.string.main_n_selected, selectedPlaylists.size),
+                                                    actions = playlistActions,
+                                                    onDismiss = { showPlaylistSelectionMenu = false },
+                                                    style = SheetStyle.TILES,
+                                                    columns = 4
                                                 )
                                             }
                                         },
@@ -1064,11 +1031,10 @@ class MainActivity : ComponentActivity() {
                                     }
 
                                     // Barra deslizable: con 6 pantallas ya no caben todas a la vez, así que se
-                                    // muestran 4 (a la izquierda del botón "+") y el resto se alcanza deslizando (en cualquier dirección,
+                                    // muestran 5 y el resto se alcanza deslizando (en cualquier dirección,
                                     // con inercia, como el selector de íconos). Siempre se centra sola en la
                                     // pantalla activa, también cuando cambias de pantalla deslizando el contenido.
                                     val navBarStyleValue = com.music.musicflame.ui.components.NavBarStyleHolder.state(settingsRepo).value
-                                    // La píldora con las pantallas ocupa todo el ancho menos el botón "+" fijo de la derecha.
                                     Row(modifier = Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                                     Box(modifier = Modifier.weight(1f)) {
                                     if (navBarStyleValue == com.music.musicflame.ui.components.NavBarStyle.CLASSIC) {
@@ -1147,7 +1113,6 @@ class MainActivity : ComponentActivity() {
                                         }
                                     }
                                     }
-                                    com.music.musicflame.ui.components.NavPlusButton(style = navBarStyleValue)
                                     }
                                 }
                               }

@@ -305,14 +305,9 @@ fun SettingsScreen(
         listOf(
             Triple("default", "MusicFlame", R.mipmap.ic_launcher_musicflameupgrade),
             Triple("classic", context.getString(R.string.settings_original_version_anterior), R.mipmap.ic_launcher),
-            Triple("brilliant", context.getString(R.string.settings_brillante), R.mipmap.ic_launcher_brilliant),
-            Triple("pixel", "Pixelart", R.mipmap.ic_launcher_pixel),
             Triple("cookies", "Cookies N Cream", R.mipmap.ic_launcher_cookies),
-            Triple("gray", context.getString(R.string.settings_escala_de_grises), R.mipmap.ic_launcher_gray),
             Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
-            Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic),
             Triple("musicpika", "MusicPika", R.mipmap.ic_launcher_musicpika),
-            Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame),
             Triple("musicbear", "BearFlame", R.mipmap.ic_launcher_musicbear)
         )
     }

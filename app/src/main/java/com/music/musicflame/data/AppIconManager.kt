@@ -12,14 +12,9 @@ object AppIconManager {
     private val aliases = mapOf(
         "default" to "$PACKAGE.IconDefault",
         "classic" to "$PACKAGE.IconClassic",
-        "brilliant" to "$PACKAGE.IconBrilliant",
-        "pixel" to "$PACKAGE.IconPixel",
         "cookies" to "$PACKAGE.IconCookies",
-        "gray" to "$PACKAGE.IconGray",
         "remix" to "$PACKAGE.IconRemixFlame",
-        "demonmusic" to "$PACKAGE.IconDemonMusic",
         "musicpika" to "$PACKAGE.IconMusicPika",
-        "shimuflame" to "$PACKAGE.IconShimuFlame",
         "musicbear" to "$PACKAGE.IconMusicBear"
     )
 
@@ -31,16 +26,26 @@ object AppIconManager {
     private val iconDrawables = mapOf(
         "default" to R.mipmap.ic_launcher_musicflameupgrade,
         "classic" to R.mipmap.ic_launcher,
-        "brilliant" to R.mipmap.ic_launcher_brilliant,
-        "pixel" to R.mipmap.ic_launcher_pixel,
         "cookies" to R.mipmap.ic_launcher_cookies,
-        "gray" to R.mipmap.ic_launcher_gray,
         "remix" to R.mipmap.ic_launcher_remixflame,
-        "demonmusic" to R.mipmap.ic_launcher_demonmusic,
         "musicpika" to R.mipmap.ic_launcher_musicpika,
-        "shimuflame" to R.mipmap.ic_launcher_shimuflame,
         "musicbear" to R.mipmap.ic_launcher_musicbear
     )
+
+    /**
+     * Migración: si el usuario tenía guardado un icono que ya se eliminó
+     * (Brillante, Pixelart, Escala de grises, DemonMusic o ShimuFlame), su alias
+     * desapareció del manifest y la app podría quedarse sin icono en el launcher.
+     * Se llama al arrancar (MusicFlameApp) y lo devuelve al icono por defecto.
+     */
+    fun migrateRemovedIcon(context: Context) {
+        val repo = SettingsRepository(context)
+        val saved = repo.getSelectedAppIcon()
+        if (!aliases.containsKey(saved)) {
+            repo.saveSelectedAppIcon("default")
+            setIcon(context, "default")
+        }
+    }
 
     fun setIcon(context: Context, key: String) {
         val pm = context.packageManager

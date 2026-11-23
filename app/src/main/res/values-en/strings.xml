@@ -5,12 +5,9 @@
     <string name="nav_gemini">Gemini</string>
     <string name="nav_mix">Your Mix</string>
     <string name="nav_trash">Trash</string>
-    <string name="app_name_pixel">PixelFlame</string>
     <string name="app_name_cookies">CookieFlame</string>
     <string name="app_name_remixflame">RemixFlame</string>
-    <string name="app_name_demonmusic">DemonMusic</string>
     <string name="app_name_musicpika">MusicPika</string>
-    <string name="app_name_shimuflame">ShimuFlame</string>
     <string name="app_name_musicbear">BearFlame</string>
 
     <!-- Home screen widget -->
@@ -164,7 +161,6 @@
     <string name="settings_elige_una_imagen_o_gif_para_activa">Choose an image or GIF to enable the background.</string>
     <string name="settings_eq_pro_10_bandas">PRO EQ — 10 Bands</string>
     <string name="settings_error_desconocido">unknown error</string>
-    <string name="settings_escala_de_grises">Grayscale</string>
     <string name="settings_especificaciones_tecnicas">Technical specifications</string>
     <string name="settings_estado">Status</string>
     <string name="settings_este_color_tambien_se_aplica_a_la">This color is also applied to the lyrics shown in the home screen widget.</string>
@@ -397,7 +393,6 @@
     <string name="settings_nav_bar_sliding_pill">Sliding pill</string>
     <string name="settings_nav_bar_liquid_bulge">Liquid bulge</string>
     <string name="settings_nav_bar_icon_fill">Icon fill</string>
-    <string name="nav_plus_coming_soon">Coming soon</string>
     <string name="settings_banner_hint">Tap to choose your banner</string>
     <string name="settings_banner_remove">Remove banner</string>
     <string name="settings_banner_desc">Profile banner</string>

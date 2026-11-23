@@ -166,44 +166,6 @@
                 android:resource="@xml/shortcuts" />
         </activity-alias>
 
-        <!-- Alias: icono Brillante -->
-        <activity-alias
-            android:name=".IconBrilliant"
-            android:targetActivity=".MainActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_brilliant"
-            android:roundIcon="@mipmap/ic_launcher_brilliant"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.MusicFlame">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
-        </activity-alias>
-
-        <!-- Alias: icono Pixel (easter egg: cambia también el nombre a PixelFlame) -->
-        <activity-alias
-            android:name=".IconPixel"
-            android:targetActivity=".MainActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_pixel"
-            android:roundIcon="@mipmap/ic_launcher_pixel"
-            android:label="@string/app_name_pixel"
-            android:theme="@style/Theme.MusicFlame">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
-        </activity-alias>
-
         <!-- Alias: icono Cookies -->
         <activity-alias
             android:name=".IconCookies"
@@ -242,44 +204,6 @@
                 android:resource="@xml/shortcuts" />
         </activity-alias>
 
-        <!-- Alias: icono DemonMusic (cambia también el nombre a DemonMusic) -->
-        <activity-alias
-            android:name=".IconDemonMusic"
-            android:targetActivity=".MainActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_demonmusic"
-            android:roundIcon="@mipmap/ic_launcher_demonmusic"
-            android:label="@string/app_name_demonmusic"
-            android:theme="@style/Theme.MusicFlame">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
-        </activity-alias>
-
-        <!-- Alias: icono Gris -->
-        <activity-alias
-            android:name=".IconGray"
-            android:targetActivity=".MainActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_gray"
-            android:roundIcon="@mipmap/ic_launcher_gray"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.MusicFlame">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
-        </activity-alias>
-
         <!-- Alias: icono MusicPika (cambia también el nombre a MusicPika) -->
         <activity-alias
             android:name=".IconMusicPika"
@@ -289,25 +213,6 @@
             android:icon="@mipmap/ic_launcher_musicpika"
             android:roundIcon="@mipmap/ic_launcher_musicpika"
             android:label="@string/app_name_musicpika"
-            android:theme="@style/Theme.MusicFlame">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-            <meta-data
-                android:name="android.app.shortcuts"
-                android:resource="@xml/shortcuts" />
-        </activity-alias>
-
-        <!-- Alias: icono ShimuFlame (cambia también el nombre a ShimuFlame) -->
-        <activity-alias
-            android:name=".IconShimuFlame"
-            android:targetActivity=".MainActivity"
-            android:enabled="false"
-            android:exported="true"
-            android:icon="@mipmap/ic_launcher_shimuflame"
-            android:roundIcon="@mipmap/ic_launcher_shimuflame"
-            android:label="@string/app_name_shimuflame"
             android:theme="@style/Theme.MusicFlame">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

@@ -38,14 +38,9 @@ import com.music.musicflame.ui.theme.parseCustomTextColor
 private val appIconOptions = listOf(
     Triple("default", "MusicFlame", R.mipmap.ic_launcher_musicflameupgrade),
     Triple("classic", "Original (versión anterior)", R.mipmap.ic_launcher),
-    Triple("brilliant", "Brillante", R.mipmap.ic_launcher_brilliant),
-    Triple("pixel", "Pixelart", R.mipmap.ic_launcher_pixel),
     Triple("cookies", "Cookies N Cream", R.mipmap.ic_launcher_cookies),
-    Triple("gray", "Escala de grises", R.mipmap.ic_launcher_gray),
     Triple("remix", "RemixFlame", R.mipmap.ic_launcher_remixflame),
-    Triple("demonmusic", "DemonMusic", R.mipmap.ic_launcher_demonmusic),
     Triple("musicpika", "MusicPika", R.mipmap.ic_launcher_musicpika),
-    Triple("shimuflame", "ShimuFlame", R.mipmap.ic_launcher_shimuflame),
     Triple("musicbear", "BearFlame", R.mipmap.ic_launcher_musicbear)
 )
 
@@ -73,8 +68,6 @@ private fun themeLabel(theme: String) = when (theme) {
 @Composable
 private fun iconLabel(key: String, fallback: String) = when (key) {
     "classic" -> stringResource(R.string.settings_original_version_anterior)
-    "brilliant" -> stringResource(R.string.settings_brillante)
-    "gray" -> stringResource(R.string.settings_escala_de_grises)
     else -> fallback
 }
 

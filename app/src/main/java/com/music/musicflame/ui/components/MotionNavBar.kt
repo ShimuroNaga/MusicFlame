@@ -72,7 +72,7 @@ import kotlin.math.sqrt
  *  - LIQUID_BULGE: la barra se abulta como líquido bajo la pestaña activa y el bulto fluye a la nueva.
  *  - ICON_FILL: el ícono activo se rellena desde el centro, da un "pop" y deja un puntito.
  *
- * Igual que [GlassNavBar]: se ven 4 pestañas a la vez (NAV_VISIBLE_ITEMS), siempre con su nombre, y la lista se desliza
+ * Igual que [GlassNavBar]: se ven 5 pestañas a la vez (NAV_VISIBLE_ITEMS), siempre con su nombre, y la lista se desliza
  * con [listState] (el mismo de MainActivity, que sigue al pager). Todos los colores salen de
  * MaterialTheme.colorScheme, o sea del tema de la app (Material You cuando el color es "Adaptativo").
  */

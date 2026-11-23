@@ -5,12 +5,9 @@
     <string name="nav_gemini">Gemini</string>
     <string name="nav_mix">Seu Mix</string>
     <string name="nav_trash">Lixeira</string>
-    <string name="app_name_pixel">PixelFlame</string>
     <string name="app_name_cookies">CookieFlame</string>
     <string name="app_name_remixflame">RemixFlame</string>
-    <string name="app_name_demonmusic">DemonMusic</string>
     <string name="app_name_musicpika">MusicPika</string>
-    <string name="app_name_shimuflame">ShimuFlame</string>
     <string name="app_name_musicbear">BearFlame</string>
 
     <!-- Widget da tela inicial -->
@@ -164,7 +161,6 @@
     <string name="settings_elige_una_imagen_o_gif_para_activa">Escolha uma imagem ou GIF para ativar o fundo.</string>
     <string name="settings_eq_pro_10_bandas">EQ PRO — 10 Bandas</string>
     <string name="settings_error_desconocido">erro desconhecido</string>
-    <string name="settings_escala_de_grises">Escala de cinza</string>
     <string name="settings_especificaciones_tecnicas">Especificações Técnicas</string>
     <string name="settings_estado">Status</string>
     <string name="settings_este_color_tambien_se_aplica_a_la">Esta cor também é aplicada à letra exibida no widget da tela inicial.</string>
@@ -397,7 +393,6 @@
     <string name="settings_nav_bar_sliding_pill">Pílula deslizante</string>
     <string name="settings_nav_bar_liquid_bulge">Volume líquido</string>
     <string name="settings_nav_bar_icon_fill">Ícone preenchido</string>
-    <string name="nav_plus_coming_soon">Em breve</string>
 
     <!-- Fase 1: Barra lateral de vidro -->
     <string name="glass_sidebar_close">Fechar painel</string>

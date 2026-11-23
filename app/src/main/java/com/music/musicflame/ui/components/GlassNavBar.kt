@@ -60,6 +60,9 @@ import com.music.musicflame.navigation.Screen
 import kotlin.math.roundToInt
 import kotlin.math.sqrt
 
+/** Cuántas pestañas se ven a la vez en la barra inferior (el resto se alcanza deslizando). */
+const val NAV_VISIBLE_ITEMS = 5
+
 /**
  * Estilos de la barra inferior (Ajustes > Apariencia).
  *  - CLASSIC: la barra de siempre (NavigationBarItem).
@@ -92,7 +95,7 @@ object NavBarStyleHolder {
 
 /**
  * Barra inferior de vidrio con animación. Mantiene el comportamiento de la barra clásica:
- * se ven 4 pestañas a la vez (NAV_VISIBLE_ITEMS) y la lista se desliza ([listState] es el mismo de MainActivity).
+ * se ven 5 pestañas a la vez (NAV_VISIBLE_ITEMS) y la lista se desliza ([listState] es el mismo de MainActivity).
  * [style] debe ser GLASS_NOTCH o GLASS_BUBBLE.
  */
 @Composable

@@ -19,7 +19,7 @@
 
 ---
 
-## 🆕 Novedades 3.2
+## 🆕 Novedades 3.25
 
 * **Idiomas:** la app ahora está en español, inglés y portugués de Brasil (selector dentro de la app)
 * **En compañía:** salas para escuchar música juntos, con sincronización de reproducción; los invitados escuchan lo que pone el anfitrión aunque no tengan el archivo (con permiso del anfitrión y notificación)

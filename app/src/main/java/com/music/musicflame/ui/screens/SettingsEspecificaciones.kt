@@ -154,7 +154,7 @@ internal fun LazyListScope.settingsEspecificacionesSection(
     item { SettingsSectionHeader(style, stringResource(R.string.settings_sobre)) }
     item {
         SettingsRow(style, SettingsRowPos.First) {
-            ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.2") }, colors = style.listItemColors)
+            ListItem(headlineContent = { Text(stringResource(R.string.settings_version)) }, supportingContent = { Text("3.25") }, colors = style.listItemColors)
             SettingsDivider(style)
         }
     }

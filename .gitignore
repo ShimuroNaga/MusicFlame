@@ -21,3 +21,4 @@ app/debug/
 app/release/*.apk
 app/release/baselineProfiles/
 app/release/output-metadata.json
+.idea/

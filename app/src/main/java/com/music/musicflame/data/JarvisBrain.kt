@@ -138,7 +138,7 @@ object JarvisBrain {
         // "playlist de rock / de Queen para elegir": trae tema o artista -> que lo resuelva el modelo.
         // "playlist de cincuenta canciones" NO es un tema: despues del "de" hay un numero escrito con letras.
         val themed = RE_MK_THEMED.find(f)?.let { m -> numOf(f.substring(m.range.last + 1).trim().substringBefore(' ')) == null } ?: false
-        android.util.Log.w("JarvisDraft", "quick f='$f' verb=${RE_MK_VERB.containsMatchIn(f)} playlist=${RE_MK_PLAYLIST.containsMatchIn(f)} random=${RE_MK_RANDOM.containsMatchIn(f)} pick=$pick themed=$themed")
+
         if (pick && !RE_MK_RANDOM.containsMatchIn(f) && themed) return null
         if (!RE_MK_VERB.containsMatchIn(f) || !RE_MK_PLAYLIST.containsMatchIn(f) || !(RE_MK_RANDOM.containsMatchIn(f) || pick)) return null
         val given = RE_MK_SONGS.findAll(f).mapNotNull { numOf(it.groupValues[1]) }.firstOrNull()
@@ -181,7 +181,7 @@ object JarvisBrain {
         topic = RE_MK_EDGE.replace(RE_MK_LEAD.replace(topic, ""), "").trim().take(40)
         if (topic.isEmpty()) return null
         val name = topic.replaceFirstChar { it.uppercase() }
-        android.util.Log.w("JarvisDraft", "themedCreatePlaylist topic='$topic' count=$given")
+
         val call = JarvisCall(
             JarvisTool.CREATE_PLAYLIST,
             songs = JarvisSelector(theme = topic, count = given.coerceIn(1, MAX_SONGS_PER_CALL), shuffle = true),
@@ -420,7 +420,7 @@ object JarvisBrain {
                     JarvisTool.CREATE_PLAYLIST -> {
                         val browse = c.songs?.source == "browse"
                         val r = if (browse) Resolution(emptyList()) else resolveSongs(c.songs, library, stats, favIds, nowId, null, 20)
-                        android.util.Log.w("JarvisDraft", "create_playlist browse=$browse theme=${c.songs?.theme} artist=${c.songs?.artist} genre=${c.songs?.genre} source=${c.songs?.source} -> ${r.songs.size} canciones de ${library.size} en la biblioteca")
+
                         val name = c.name ?: c.songs?.theme ?: "MusicFlame"
                         // La tabla siempre muestra TODA la biblioteca: lo pedido va marcado y el resto sin marcar.
                         val pickedIds = r.songs.map { it.id }.toHashSet()

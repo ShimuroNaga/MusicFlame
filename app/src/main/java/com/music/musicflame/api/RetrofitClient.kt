@@ -9,6 +9,7 @@ object RetrofitClient {
     val instance: YouTubeApiService by lazy {
         Retrofit.Builder()
             .baseUrl(BASE_URL)
+            .client(AppHttp.client)
             .addConverterFactory(GsonConverterFactory.create())
             .build()
             .create(YouTubeApiService::class.java)

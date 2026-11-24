@@ -335,7 +335,7 @@ fun SongsScreen(
                 delay(500) // Debounce para no saturar la API
                 try {
                     errorMessage = null
-                    val response = com.music.musicflame.api.RetrofitClient.instance.searchVideos(query = searchQuery)
+                    val response = com.music.musicflame.api.YouTubeRepository.search(searchQuery)
 
                     if (isActive) {
                         displaySongs.clear()

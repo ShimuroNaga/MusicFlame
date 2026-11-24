@@ -16,6 +16,9 @@ val localProperties = Properties().apply {
     }
 }
 
+// -PabiSplits=true => un APK por arquitectura (ver bloque splits más abajo)
+val abiSplits = providers.gradleProperty("abiSplits").orNull == "true"
+
 android {
     namespace = "com.music.musicflame"
     compileSdk = 36
@@ -86,8 +89,29 @@ android {
             // Solo en el APK release: se empaquetan las librerías nativas para teléfonos (64 y 32 bits) y se
             // dejan fuera x86/x86_64 (solo emuladores y algunas tablets Intel). Antes iban las 4 arquitecturas.
             // El debug conserva todas para que el emulador siga funcionando.
-            ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+            // (Con -PabiSplits=true no se usa: los splits de abajo ya se encargan de las arquitecturas.)
+            if (!abiSplits) ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
         }
+    }
+
+    // APK por arquitectura (opcional): ./gradlew assembleRelease -PabiSplits=true
+    // Genera MusicFlame-arm64-v8a.apk y MusicFlame-armeabi-v7a.apk (cada uno trae solo sus librerías nativas, ONNX
+    // y LiteRT-LM pesan bastante) y deja el universal MusicFlame.apk. Sin la bandera todo sigue como antes.
+    splits {
+        abi {
+            isEnable = abiSplits
+            reset()
+            include("arm64-v8a", "armeabi-v7a")
+            isUniversalApk = true
+        }
+    }
+
+    // App Bundle (.aab): ./gradlew bundleRelease. Se separa por arquitectura y densidad, pero NO por idioma:
+    // la app tiene su propio selector de idioma (LanguageManager) y un split de idioma lo dejaría sin los textos.
+    bundle {
+        abi { enableSplit = true }
+        density { enableSplit = true }
+        language { enableSplit = false }
     }
 
     compileOptions {
@@ -110,7 +134,10 @@ androidComponents {
     onVariants { variant ->
         variant.outputs.forEach { output ->
             if (output is com.android.build.api.variant.impl.VariantOutputImpl) {
-                output.outputFileName.set("MusicFlame.apk")
+                val abi = output.filters
+                    .firstOrNull { it.filterType == com.android.build.api.variant.FilterConfiguration.FilterType.ABI }
+                    ?.identifier
+                output.outputFileName.set(if (abi != null) "MusicFlame-$abi.apk" else "MusicFlame.apk")
             }
         }
     }
@@ -141,7 +168,7 @@ dependencies {
     // Versión FIJA: 0.13.1 está hecha con Kotlin 2.2 (igual que este proyecto). Las más nuevas (con latest.release)
     // traen metadata de Kotlin 2.4 y el compilador 2.2 no las puede leer ("incompatible version of Kotlin").
     implementation("com.google.ai.edge.litertlm:litertlm-android:0.13.1")
-    // Escucha siempre: modelos de huellas de voz (assets/wake) ejecutados con ONNX Runtime
+    // Escucha siempre: modelos de huellas de voz (se descargan una vez, ver WakeModelManager) ejecutados con ONNX Runtime
     implementation("com.microsoft.onnxruntime:onnxruntime-android:1.20.0")
     // AutoMix: análisis de BPM / tonalidad / beats con BeatWeave (módulos MIT). NO se usa el módulo
     // "rubberband" (GPL-2.0): el stretch de la cola lo hace ExoPlayer (Sonic, Apache-2.0).
@@ -162,6 +189,8 @@ dependencies {
     // Coroutines para Play Services
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
     // Retrofit
+    // Cliente HTTP único (AppHttp): caché en disco, timeouts, reutiliza conexiones. 4.12.0 es la que ya trae Coil.
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
     implementation("com.squareup.retrofit2:retrofit:2.9.0")
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     // YouTube Player
@@ -178,6 +207,8 @@ dependencies {
     // Meta de ahorro (token de GitHub cifrado en el dispositivo)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
     implementation("androidx.core:core-splashscreen:1.0.1")
+    // Instala el Baseline Profile (src/main/baseline-prof.txt) también fuera de Google Play (APK desde GitHub)
+    implementation("androidx.profileinstaller:profileinstaller:1.4.1")
     // Escritura real de tags (carátula/título/artista/álbum) en el archivo de
     // audio en disco. Soporta mp3, flac, ogg, wav, m4a, wma, aiff, dsf y opus.
     // No re-codifica el audio: solo reescribe el bloque de metadatos.

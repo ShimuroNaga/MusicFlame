@@ -4,8 +4,10 @@ import com.music.musicflame.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import org.json.JSONObject
-import java.net.HttpURLConnection
-import java.net.URL
+import com.music.musicflame.api.AppHttp
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 
 /**
  * Consulta a Supabase que productos de la tienda de Ko-fi compro una cuenta de Google.
@@ -30,25 +32,19 @@ object KofiPurchasesApi {
         if (base.isBlank() || key.isBlank() || idToken.isBlank()) return@withContext Result.Failure
 
         try {
-            val conn = URL("$base/functions/v1/kofi-restore").openConnection() as HttpURLConnection
-            try {
-                conn.requestMethod = "POST"
-                conn.connectTimeout = 15_000
-                conn.readTimeout = 20_000
-                conn.doOutput = true
-                conn.setRequestProperty("apikey", key)
-                if (key.startsWith("eyJ")) conn.setRequestProperty("Authorization", "Bearer $key")
-                conn.setRequestProperty("Content-Type", "application/json")
-                val payload = JSONObject().put("id_token", idToken).toString()
-                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
-                if (conn.responseCode !in 200..299) return@withContext Result.Failure
-                val body = conn.inputStream.bufferedReader().use { it.readText() }
+            val payload = JSONObject().put("id_token", idToken).toString()
+            val rb = Request.Builder()
+                .url("$base/functions/v1/kofi-restore")
+                .header("apikey", key)
+                .post(payload.toRequestBody("application/json".toMediaType()))
+            if (key.startsWith("eyJ")) rb.header("Authorization", "Bearer $key")
+            AppHttp.client.newCall(rb.build()).execute().use { resp ->
+                if (!resp.isSuccessful) return@withContext Result.Failure
+                val body = resp.body?.string() ?: return@withContext Result.Failure
                 val arr = JSONObject(body).getJSONArray("codes")
                 val codes = mutableSetOf<String>()
                 for (i in 0 until arr.length()) codes.add(arr.getString(i))
                 Result.Ok(codes)
-            } finally {
-                conn.disconnect()
             }
         } catch (e: Exception) {
             Result.Failure

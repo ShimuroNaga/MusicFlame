@@ -276,48 +276,24 @@ class MainActivity : ComponentActivity() {
                 val coroutineScope = rememberCoroutineScope()
 
                 fun checkForUpdates(isManualCheck: Boolean) {
-                    coroutineScope.launch(Dispatchers.IO) {
-                        try {
-                            val url = java.net.URL("https://api.github.com/repos/ShimuroNaga/MusicFlame/releases/latest")
-                            val connection = url.openConnection() as java.net.HttpURLConnection
-                            connection.requestMethod = "GET"
-                            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
-
-                            if (connection.responseCode == 200) {
-                                val response = connection.inputStream.bufferedReader().use { it.readText() }
-
-                                val tagMatch = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(response)
-                                val apkMatch = "\"browser_download_url\"\\s*:\\s*\"([^\"]+\\.apk)\"".toRegex().find(response)
-
-                                if (tagMatch != null) {
-                                    val fetchedVersion = tagMatch.groupValues[1]
-                                    val downloadUrl = apkMatch?.groupValues?.get(1) ?: ""
-
-                                    val versionName = context.packageManager.getPackageInfo(context.packageName, 0).versionName
-                                    val currentVersion = "v$versionName"
-
-                                    withContext(Dispatchers.Main) {
-                                        if (fetchedVersion > currentVersion) {
-                                            if (isManualCheck || ignoredVersion != fetchedVersion) {
-                                                latestVersionTag = fetchedVersion
-                                                latestReleaseUrl = downloadUrl
-                                                showUpdateDialog = true
-                                            } else if (isManualCheck) {
-                                                Toast.makeText(context, context.getString(R.string.main_latest_version), Toast.LENGTH_SHORT).show()
-                                            }
-                                        } else if (isManualCheck) {
-                                            Toast.makeText(context, context.getString(R.string.main_up_to_date), Toast.LENGTH_SHORT).show()
-                                        }
-                                    }
-                                }
-                            }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                    coroutineScope.launch {
+                        // UpdateChecker: timeouts, If-None-Match (304 no gasta rate limit), máx. 1 consulta automática cada 12 h
+                        val latest = UpdateChecker.fetch(context, isManualCheck)
+                        if (latest == null) {
                             if (isManualCheck) {
-                                withContext(Dispatchers.Main) {
-                                    Toast.makeText(context, context.getString(R.string.main_update_network_error), Toast.LENGTH_SHORT).show()
-                                }
+                                Toast.makeText(context, context.getString(R.string.main_update_network_error), Toast.LENGTH_SHORT).show()
                             }
+                            return@launch
+                        }
+                        val versionName = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
+                        if (UpdateChecker.isNewer(latest.tag, "v$versionName")) {
+                            if (isManualCheck || ignoredVersion != latest.tag) {
+                                latestVersionTag = latest.tag
+                                latestReleaseUrl = latest.downloadUrl
+                                showUpdateDialog = true
+                            }
+                        } else if (isManualCheck) {
+                            Toast.makeText(context, context.getString(R.string.main_up_to_date), Toast.LENGTH_SHORT).show()
                         }
                     }
                 }

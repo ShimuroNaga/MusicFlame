@@ -15,6 +15,7 @@ import com.music.musicflame.data.SettingsStore
 class MusicFlameApp : Application() {
     override fun onCreate() {
         super.onCreate()
+        com.music.musicflame.api.AppHttp.init(this)
         SettingsStore.preload(this)
         ProStatusHolder.preload(this)
         com.music.musicflame.data.AppIconManager.migrateRemovedIcon(this)

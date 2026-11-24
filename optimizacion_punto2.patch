@@ -1,0 +1,582 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 90f4c39..a6c5fb5 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -189,6 +189,8 @@ dependencies {
+     // Coroutines para Play Services
+     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-play-services:1.9.0")
+     // Retrofit
++    // Cliente HTTP único (AppHttp): caché en disco, timeouts, reutiliza conexiones. 4.12.0 es la que ya trae Coil.
++    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+     implementation("com.squareup.retrofit2:retrofit:2.9.0")
+     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+     // YouTube Player
+diff --git a/app/src/main/java/com/music/musicflame/MainActivity.kt b/app/src/main/java/com/music/musicflame/MainActivity.kt
+index 8ae5c57..cc3b7df 100644
+--- a/app/src/main/java/com/music/musicflame/MainActivity.kt
++++ b/app/src/main/java/com/music/musicflame/MainActivity.kt
+@@ -274,48 +274,24 @@ class MainActivity : ComponentActivity() {
+                 val coroutineScope = rememberCoroutineScope()
+ 
+                 fun checkForUpdates(isManualCheck: Boolean) {
+-                    coroutineScope.launch(Dispatchers.IO) {
+-                        try {
+-                            val url = java.net.URL("https://api.github.com/repos/ShimuroNaga/MusicFlame/releases/latest")
+-                            val connection = url.openConnection() as java.net.HttpURLConnection
+-                            connection.requestMethod = "GET"
+-                            connection.setRequestProperty("Accept", "application/vnd.github.v3+json")
+-
+-                            if (connection.responseCode == 200) {
+-                                val response = connection.inputStream.bufferedReader().use { it.readText() }
+-
+-                                val tagMatch = "\"tag_name\"\\s*:\\s*\"([^\"]+)\"".toRegex().find(response)
+-                                val apkMatch = "\"browser_download_url\"\\s*:\\s*\"([^\"]+\\.apk)\"".toRegex().find(response)
+-
+-                                if (tagMatch != null) {
+-                                    val fetchedVersion = tagMatch.groupValues[1]
+-                                    val downloadUrl = apkMatch?.groupValues?.get(1) ?: ""
+-
+-                                    val versionName = context.packageManager.getPackageInfo(context.packageName, 0).versionName
+-                                    val currentVersion = "v$versionName"
+-
+-                                    withContext(Dispatchers.Main) {
+-                                        if (fetchedVersion > currentVersion) {
+-                                            if (isManualCheck || ignoredVersion != fetchedVersion) {
+-                                                latestVersionTag = fetchedVersion
+-                                                latestReleaseUrl = downloadUrl
+-                                                showUpdateDialog = true
+-                                            } else if (isManualCheck) {
+-                                                Toast.makeText(context, context.getString(R.string.main_latest_version), Toast.LENGTH_SHORT).show()
+-                                            }
+-                                        } else if (isManualCheck) {
+-                                            Toast.makeText(context, context.getString(R.string.main_up_to_date), Toast.LENGTH_SHORT).show()
+-                                        }
+-                                    }
+-                                }
+-                            }
+-                        } catch (e: Exception) {
+-                            e.printStackTrace()
++                    coroutineScope.launch {
++                        // UpdateChecker: timeouts, If-None-Match (304 no gasta rate limit), máx. 1 consulta automática cada 12 h
++                        val latest = UpdateChecker.fetch(context, isManualCheck)
++                        if (latest == null) {
+                             if (isManualCheck) {
+-                                withContext(Dispatchers.Main) {
+-                                    Toast.makeText(context, context.getString(R.string.main_update_network_error), Toast.LENGTH_SHORT).show()
+-                                }
++                                Toast.makeText(context, context.getString(R.string.main_update_network_error), Toast.LENGTH_SHORT).show()
++                            }
++                            return@launch
++                        }
++                        val versionName = context.packageManager.getPackageInfo(context.packageName, 0).versionName ?: ""
++                        if (UpdateChecker.isNewer(latest.tag, "v$versionName")) {
++                            if (isManualCheck || ignoredVersion != latest.tag) {
++                                latestVersionTag = latest.tag
++                                latestReleaseUrl = latest.downloadUrl
++                                showUpdateDialog = true
+                             }
++                        } else if (isManualCheck) {
++                            Toast.makeText(context, context.getString(R.string.main_up_to_date), Toast.LENGTH_SHORT).show()
+                         }
+                     }
+                 }
+diff --git a/app/src/main/java/com/music/musicflame/MusicFlameApp.kt b/app/src/main/java/com/music/musicflame/MusicFlameApp.kt
+index f56ef10..865f3b6 100644
+--- a/app/src/main/java/com/music/musicflame/MusicFlameApp.kt
++++ b/app/src/main/java/com/music/musicflame/MusicFlameApp.kt
+@@ -15,6 +15,7 @@ import com.music.musicflame.data.SettingsStore
+ class MusicFlameApp : Application() {
+     override fun onCreate() {
+         super.onCreate()
++        com.music.musicflame.api.AppHttp.init(this)
+         SettingsStore.preload(this)
+         ProStatusHolder.preload(this)
+         com.music.musicflame.data.AppIconManager.migrateRemovedIcon(this)
+diff --git a/app/src/main/java/com/music/musicflame/api/AppHttp.kt b/app/src/main/java/com/music/musicflame/api/AppHttp.kt
+new file mode 100644
+index 0000000..6066929
+--- /dev/null
++++ b/app/src/main/java/com/music/musicflame/api/AppHttp.kt
+@@ -0,0 +1,96 @@
++package com.music.musicflame.api
++
++import android.content.Context
++import android.content.pm.PackageManager
++import okhttp3.Cache
++import okhttp3.Interceptor
++import okhttp3.OkHttpClient
++import okhttp3.Response
++import java.io.File
++import java.security.MessageDigest
++import java.util.concurrent.TimeUnit
++
++/**
++ * Cliente HTTP único de la app (OkHttp): reutiliza conexiones, tiene timeouts explícitos y una caché en disco
++ * de 10 MB (cacheDir/http). Lo usan Retrofit (YouTube), el chequeo de actualizaciones, Ko-fi y la meta de ahorro.
++ *
++ * Las descargas grandes (modelos de IA / AutoMix / wake) y los streams (Groq) NO pasan por aquí a propósito.
++ */
++object AppHttp {
++    private const val CACHE_BYTES = 10L * 1024 * 1024
++    private const val YT_HOST = "www.googleapis.com"
++
++    /** TTL con el que se cachean en disco las respuestas públicas de YouTube (aunque Google no lo pida). */
++    private const val TTL_SEARCH_S = 15 * 60
++    private const val TTL_TRENDING_S = 60 * 60
++
++    @Volatile private var appContext: Context? = null
++
++    /** Llamar una vez en Application.onCreate. Si no se llama, el cliente funciona igual pero sin caché. */
++    fun init(context: Context) {
++        appContext = context.applicationContext
++    }
++
++    val client: OkHttpClient by lazy {
++        val b = OkHttpClient.Builder()
++            .connectTimeout(15, TimeUnit.SECONDS)
++            .readTimeout(30, TimeUnit.SECONDS)
++            .writeTimeout(30, TimeUnit.SECONDS)
++            .callTimeout(60, TimeUnit.SECONDS)
++        appContext?.let { ctx ->
++            b.cache(Cache(File(ctx.cacheDir, "http"), CACHE_BYTES))
++            b.addInterceptor(AndroidKeyInterceptor(ctx))
++        }
++        b.addNetworkInterceptor(YouTubeCacheInterceptor)
++        b.build()
++    }
++
++    /**
++     * Si la API key de YouTube se restringe en Google Cloud a "Aplicaciones Android" (paquete + SHA-1), las
++     * peticiones REST deben llevar estas dos cabeceras. El SHA-1 se calcula de la firma real del APK instalado,
++     * así que sirve igual para debug y release (los dos SHA-1 deben estar dados de alta en la clave).
++     */
++    private class AndroidKeyInterceptor(private val ctx: Context) : Interceptor {
++        private val certSha1: String? by lazy {
++            try {
++                @Suppress("DEPRECATION")
++                val info = ctx.packageManager.getPackageInfo(ctx.packageName, PackageManager.GET_SIGNING_CERTIFICATES)
++                val sig = info.signingInfo?.apkContentsSigners?.firstOrNull()
++                sig?.let { MessageDigest.getInstance("SHA-1").digest(it.toByteArray()).joinToString("") { b -> "%02X".format(b) } }
++            } catch (_: Exception) { null }
++        }
++
++        override fun intercept(chain: Interceptor.Chain): Response {
++            val req = chain.request()
++            if (req.url.host != YT_HOST) return chain.proceed(req)
++            val nb = req.newBuilder().header("X-Android-Package", ctx.packageName)
++            certSha1?.let { nb.header("X-Android-Cert", it) }
++            return chain.proceed(nb.build())
++        }
++    }
++
++    /**
++     * Pone Cache-Control a las respuestas PÚBLICAS de YouTube (sin Authorization): búsquedas 15 min y tendencias
++     * (mostPopular) 1 h. OkHttp las guarda en disco, así que sobreviven al cierre de la app. Las peticiones con
++     * cuenta de Google (likes, suscripciones) no se tocan.
++     */
++    private object YouTubeCacheInterceptor : Interceptor {
++        override fun intercept(chain: Interceptor.Chain): Response {
++            val req = chain.request()
++            val resp = chain.proceed(req)
++            if (req.method != "GET" || !resp.isSuccessful || req.header("Authorization") != null) return resp
++            if (req.url.host != YT_HOST) return resp
++            val path = req.url.encodedPath
++            val ttl = when {
++                path.endsWith("/youtube/v3/search") -> TTL_SEARCH_S
++                path.endsWith("/youtube/v3/videos") && req.url.queryParameter("chart") == "mostPopular" -> TTL_TRENDING_S
++                else -> return resp
++            }
++            return resp.newBuilder()
++                .header("Cache-Control", "public, max-age=$ttl")
++                .removeHeader("Pragma")
++                .removeHeader("Expires")
++                .build()
++        }
++    }
++}
+diff --git a/app/src/main/java/com/music/musicflame/api/RetrofitClient.kt b/app/src/main/java/com/music/musicflame/api/RetrofitClient.kt
+index c8c9de7..95b4e69 100644
+--- a/app/src/main/java/com/music/musicflame/api/RetrofitClient.kt
++++ b/app/src/main/java/com/music/musicflame/api/RetrofitClient.kt
+@@ -9,6 +9,7 @@ object RetrofitClient {
+     val instance: YouTubeApiService by lazy {
+         Retrofit.Builder()
+             .baseUrl(BASE_URL)
++            .client(AppHttp.client)
+             .addConverterFactory(GsonConverterFactory.create())
+             .build()
+             .create(YouTubeApiService::class.java)
+diff --git a/app/src/main/java/com/music/musicflame/api/YouTubeRepository.kt b/app/src/main/java/com/music/musicflame/api/YouTubeRepository.kt
+new file mode 100644
+index 0000000..e0d9b61
+--- /dev/null
++++ b/app/src/main/java/com/music/musicflame/api/YouTubeRepository.kt
+@@ -0,0 +1,34 @@
++package com.music.musicflame.api
++
++import android.os.SystemClock
++
++/**
++ * Búsqueda de YouTube con caché en memoria: LRU de 40 consultas, TTL de 20 min, con la consulta normalizada
++ * (sin mayúsculas ni espacios de más) para que "Bad  Bunny" y "bad bunny" cuenten como una sola. Cada
++ * search.list gasta 100 unidades de la cuota diaria (10.000), así que repetir una búsqueda no debe costar nada.
++ *
++ * Si la corrutina se cancela (el usuario siguió escribiendo), Retrofit cancela la petición en vuelo.
++ */
++object YouTubeRepository {
++    private const val MAX_ENTRIES = 40
++    private const val TTL_MS = 20 * 60_000L
++
++    private class Entry(val at: Long, val response: YouTubeResponse)
++
++    private val cache = object : LinkedHashMap<String, Entry>(MAX_ENTRIES, 0.75f, true) {
++        override fun removeEldestEntry(eldest: MutableMap.MutableEntry<String, Entry>?): Boolean = size > MAX_ENTRIES
++    }
++
++    fun normalize(query: String): String = query.trim().lowercase().replace(Regex("\\s+"), " ")
++
++    suspend fun search(query: String): YouTubeResponse {
++        val key = normalize(query)
++        val now = SystemClock.elapsedRealtime()
++        synchronized(cache) {
++            cache[key]?.takeIf { now - it.at < TTL_MS }?.let { return it.response }
++        }
++        val response = RetrofitClient.instance.searchVideos(query = key)
++        synchronized(cache) { cache[key] = Entry(now, response) }
++        return response
++    }
++}
+diff --git a/app/src/main/java/com/music/musicflame/data/KofiPurchasesApi.kt b/app/src/main/java/com/music/musicflame/data/KofiPurchasesApi.kt
+index 360c329..606690e 100644
+--- a/app/src/main/java/com/music/musicflame/data/KofiPurchasesApi.kt
++++ b/app/src/main/java/com/music/musicflame/data/KofiPurchasesApi.kt
+@@ -4,8 +4,10 @@ import com.music.musicflame.BuildConfig
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+ import org.json.JSONObject
+-import java.net.HttpURLConnection
+-import java.net.URL
++import com.music.musicflame.api.AppHttp
++import okhttp3.MediaType.Companion.toMediaType
++import okhttp3.Request
++import okhttp3.RequestBody.Companion.toRequestBody
+ 
+ /**
+  * Consulta a Supabase que productos de la tienda de Ko-fi compro una cuenta de Google.
+@@ -30,25 +32,19 @@ object KofiPurchasesApi {
+         if (base.isBlank() || key.isBlank() || idToken.isBlank()) return@withContext Result.Failure
+ 
+         try {
+-            val conn = URL("$base/functions/v1/kofi-restore").openConnection() as HttpURLConnection
+-            try {
+-                conn.requestMethod = "POST"
+-                conn.connectTimeout = 15_000
+-                conn.readTimeout = 20_000
+-                conn.doOutput = true
+-                conn.setRequestProperty("apikey", key)
+-                if (key.startsWith("eyJ")) conn.setRequestProperty("Authorization", "Bearer $key")
+-                conn.setRequestProperty("Content-Type", "application/json")
+-                val payload = JSONObject().put("id_token", idToken).toString()
+-                conn.outputStream.use { it.write(payload.toByteArray(Charsets.UTF_8)) }
+-                if (conn.responseCode !in 200..299) return@withContext Result.Failure
+-                val body = conn.inputStream.bufferedReader().use { it.readText() }
++            val payload = JSONObject().put("id_token", idToken).toString()
++            val rb = Request.Builder()
++                .url("$base/functions/v1/kofi-restore")
++                .header("apikey", key)
++                .post(payload.toRequestBody("application/json".toMediaType()))
++            if (key.startsWith("eyJ")) rb.header("Authorization", "Bearer $key")
++            AppHttp.client.newCall(rb.build()).execute().use { resp ->
++                if (!resp.isSuccessful) return@withContext Result.Failure
++                val body = resp.body?.string() ?: return@withContext Result.Failure
+                 val arr = JSONObject(body).getJSONArray("codes")
+                 val codes = mutableSetOf<String>()
+                 for (i in 0 until arr.length()) codes.add(arr.getString(i))
+                 Result.Ok(codes)
+-            } finally {
+-                conn.disconnect()
+             }
+         } catch (e: Exception) {
+             Result.Failure
+diff --git a/app/src/main/java/com/music/musicflame/data/SavingsGoalRepository.kt b/app/src/main/java/com/music/musicflame/data/SavingsGoalRepository.kt
+index 12ef6f3..152c55a 100644
+--- a/app/src/main/java/com/music/musicflame/data/SavingsGoalRepository.kt
++++ b/app/src/main/java/com/music/musicflame/data/SavingsGoalRepository.kt
+@@ -7,9 +7,11 @@ import androidx.security.crypto.MasterKey
+ import com.google.gson.Gson
+ import kotlinx.coroutines.Dispatchers
+ import kotlinx.coroutines.withContext
+-import java.io.BufferedReader
+-import java.net.HttpURLConnection
+-import java.net.URL
++import com.music.musicflame.api.AppHttp
++import okhttp3.CacheControl
++import okhttp3.MediaType.Companion.toMediaType
++import okhttp3.Request
++import okhttp3.RequestBody.Companion.toRequestBody
+ import java.nio.charset.StandardCharsets
+ import android.util.Base64
+ import java.security.KeyStore
+@@ -125,12 +127,12 @@ class SavingsGoalRepository(context: Context) {
+     /** Lectura pública, la usan TODOS los usuarios (dueño incluido). */
+     suspend fun fetchActual(): Int? = withContext(Dispatchers.IO) {
+         runCatching {
+-            val conn = URL(RAW_URL).openConnection() as HttpURLConnection
+-            conn.connectTimeout = 10_000
+-            conn.readTimeout = 10_000
+-            conn.requestMethod = "GET"
+-            val body = conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use(BufferedReader::readText)
+-            conn.disconnect()
++            // FORCE_NETWORK = revalidar con If-None-Match (si no cambió, GitHub contesta 304 y no gasta nada)
++            val req = Request.Builder().url(RAW_URL).cacheControl(CacheControl.FORCE_NETWORK).build()
++            val body = AppHttp.client.newCall(req).execute().use { resp ->
++                if (!resp.isSuccessful) error("HTTP ${resp.code}")
++                resp.body?.string() ?: error("sin cuerpo")
++            }
+             val meta = gson.fromJson(body, MetaData::class.java)
+             val value = meta.actual.coerceIn(0, META_MAX)
+             cachePrefs.edit().putInt(KEY_CACHED_ACTUAL, value).apply()
+@@ -163,17 +165,18 @@ class SavingsGoalRepository(context: Context) {
+ 
+         runCatching {
+             // 1) Obtener el sha actual del archivo.
+-            val getConn = URL(CONTENTS_API_URL).openConnection() as HttpURLConnection
+-            getConn.requestMethod = "GET"
+-            getConn.setRequestProperty("Authorization", "token $token")
+-            getConn.setRequestProperty("Accept", "application/vnd.github+json")
+-            if (getConn.responseCode !in 200..299) {
+-                val err = getConn.errorStream?.bufferedReader()?.use(BufferedReader::readText)
+-                getConn.disconnect()
+-                return@withContext PushResult.Error("No se pudo leer el archivo actual (HTTP ${getConn.responseCode}): ${err ?: ""}")
++            val getReq = Request.Builder().url(CONTENTS_API_URL)
++                .header("Authorization", "token $token")
++                .header("Accept", "application/vnd.github+json")
++                .cacheControl(CacheControl.FORCE_NETWORK)
++                .build()
++            val getBody = AppHttp.client.newCall(getReq).execute().use { resp ->
++                if (!resp.isSuccessful) {
++                    val err = resp.body?.string()
++                    return@withContext PushResult.Error("No se pudo leer el archivo actual (HTTP ${resp.code}): ${err ?: ""}")
++                }
++                resp.body?.string() ?: ""
+             }
+-            val getBody = getConn.inputStream.bufferedReader(StandardCharsets.UTF_8).use(BufferedReader::readText)
+-            getConn.disconnect()
+             val sha = com.google.gson.JsonParser.parseString(getBody).asJsonObject.get("sha").asString
+ 
+             // 2) Subir el nuevo contenido con ese sha.
+@@ -186,20 +189,17 @@ class SavingsGoalRepository(context: Context) {
+                 addProperty("branch", GITHUB_BRANCH)
+             }
+ 
+-            val putConn = URL(CONTENTS_API_URL).openConnection() as HttpURLConnection
+-            putConn.requestMethod = "PUT"
+-            putConn.doOutput = true
+-            putConn.setRequestProperty("Authorization", "token $token")
+-            putConn.setRequestProperty("Accept", "application/vnd.github+json")
+-            putConn.setRequestProperty("Content-Type", "application/json")
+-            putConn.outputStream.use { it.write(gson.toJson(payload).toByteArray(StandardCharsets.UTF_8)) }
+-
+-            if (putConn.responseCode !in 200..299) {
+-                val err = putConn.errorStream?.bufferedReader()?.use(BufferedReader::readText)
+-                putConn.disconnect()
+-                return@withContext PushResult.Error("GitHub rechazó el cambio (HTTP ${putConn.responseCode}): ${err ?: ""}")
++            val putReq = Request.Builder().url(CONTENTS_API_URL)
++                .header("Authorization", "token $token")
++                .header("Accept", "application/vnd.github+json")
++                .put(gson.toJson(payload).toRequestBody("application/json".toMediaType()))
++                .build()
++            AppHttp.client.newCall(putReq).execute().use { resp ->
++                if (!resp.isSuccessful) {
++                    val err = resp.body?.string()
++                    return@withContext PushResult.Error("GitHub rechazó el cambio (HTTP ${resp.code}): ${err ?: ""}")
++                }
+             }
+-            putConn.disconnect()
+             cachePrefs.edit().putInt(KEY_CACHED_ACTUAL, clamped).apply()
+             PushResult.Success
+         }.getOrElse { PushResult.Error("${it.javaClass.simpleName}: ${it.message ?: "error de red desconocido"}") }
+diff --git a/app/src/main/java/com/music/musicflame/data/UpdateChecker.kt b/app/src/main/java/com/music/musicflame/data/UpdateChecker.kt
+new file mode 100644
+index 0000000..db31df6
+--- /dev/null
++++ b/app/src/main/java/com/music/musicflame/data/UpdateChecker.kt
+@@ -0,0 +1,88 @@
++package com.music.musicflame.data
++
++import android.content.Context
++import android.os.Build
++import com.music.musicflame.api.AppHttp
++import kotlinx.coroutines.Dispatchers
++import kotlinx.coroutines.withContext
++import okhttp3.CacheControl
++import okhttp3.Request
++import org.json.JSONObject
++
++/**
++ * Chequeo de actualizaciones contra la API de GitHub (releases/latest).
++ *
++ * - Usa el OkHttp compartido (timeouts de 15/30 s) y su caché: OkHttp guarda el ETag y manda If-None-Match solo,
++ *   y una respuesta 304 no cuenta para el rate limit de GitHub.
++ * - El chequeo automático (al abrir la app) se hace como máximo cada 12 h; el resto de aperturas usan la última
++ *   versión conocida (guardada en [UpdatePreferences]). El manual siempre consulta (con If-None-Match).
++ * - Las versiones se comparan por números (v3.25 > v3.9), no como texto.
++ * - Si la release trae un APK por arquitectura, se elige el de la ABI del teléfono; si no, MusicFlame.apk o el primero.
++ */
++object UpdateChecker {
++    private const val URL = "https://api.github.com/repos/ShimuroNaga/MusicFlame/releases/latest"
++    private const val MIN_INTERVAL_MS = 12L * 60 * 60 * 1000
++
++    class Latest(val tag: String, val downloadUrl: String)
++
++    /** Devuelve la última versión publicada, o null si no se pudo saber (sin internet y sin dato guardado). */
++    suspend fun fetch(context: Context, manual: Boolean): Latest? {
++        val prefs = UpdatePreferences(context)
++        val known = prefs.getKnownRelease()
++        val now = System.currentTimeMillis()
++        val knownLatest = if (known.tag.isNotEmpty()) Latest(known.tag, known.url) else null
++
++        if (!manual && knownLatest != null && now - known.checkedAt in 0 until MIN_INTERVAL_MS) return knownLatest
++
++        val fresh = withContext(Dispatchers.IO) { request(manual) }
++        if (fresh == null) return if (manual) null else knownLatest
++        prefs.saveKnownRelease(now, fresh.tag, fresh.downloadUrl)
++        return fresh
++    }
++
++    private fun request(manual: Boolean): Latest? = try {
++        val rb = Request.Builder().url(URL).header("Accept", "application/vnd.github+json")
++        // "no-cache" = revalidar con If-None-Match en vez de fiarse de la copia guardada.
++        if (manual) rb.cacheControl(CacheControl.FORCE_NETWORK)
++        AppHttp.client.newCall(rb.build()).execute().use { resp ->
++            if (!resp.isSuccessful) return@use null
++            val json = JSONObject(resp.body?.string() ?: return@use null)
++            val tag = json.optString("tag_name")
++            if (tag.isEmpty()) return@use null
++            Latest(tag, pickApkUrl(json))
++        }
++    } catch (e: kotlinx.coroutines.CancellationException) {
++        throw e
++    } catch (_: Exception) {
++        null
++    }
++
++    private fun pickApkUrl(release: JSONObject): String {
++        val assets = release.optJSONArray("assets") ?: return ""
++        val apks = ArrayList<Pair<String, String>>()
++        for (i in 0 until assets.length()) {
++            val a = assets.optJSONObject(i) ?: continue
++            val name = a.optString("name")
++            val url = a.optString("browser_download_url")
++            if (url.endsWith(".apk")) apks += name to url
++        }
++        for (abi in Build.SUPPORTED_ABIS) apks.firstOrNull { it.first.contains(abi) }?.let { return it.second }
++        return (apks.firstOrNull { it.first == "MusicFlame.apk" } ?: apks.firstOrNull())?.second ?: ""
++    }
++
++    /** true si [fetched] (p. ej. "v3.25") es mayor que [current] (p. ej. "v3.9"), comparando número por número. */
++    fun isNewer(fetched: String, current: String): Boolean {
++        val f = numbers(fetched)
++        val c = numbers(current)
++        if (f.isEmpty()) return false
++        for (i in 0 until maxOf(f.size, c.size)) {
++            val x = f.getOrElse(i) { 0 }
++            val y = c.getOrElse(i) { 0 }
++            if (x != y) return x > y
++        }
++        return false
++    }
++
++    private fun numbers(s: String): List<Int> =
++        Regex("\\d+").findAll(s).map { it.value.toIntOrNull() ?: 0 }.toList()
++}
+diff --git a/app/src/main/java/com/music/musicflame/data/UpdatePreferences.kt b/app/src/main/java/com/music/musicflame/data/UpdatePreferences.kt
+index a9db3e2..33724b0 100644
+--- a/app/src/main/java/com/music/musicflame/data/UpdatePreferences.kt
++++ b/app/src/main/java/com/music/musicflame/data/UpdatePreferences.kt
+@@ -2,9 +2,11 @@ package com.music.musicflame.data
+ 
+ import android.content.Context
+ import androidx.datastore.preferences.core.edit
++import androidx.datastore.preferences.core.longPreferencesKey
+ import androidx.datastore.preferences.core.stringPreferencesKey
+ import androidx.datastore.preferences.preferencesDataStore
+ import kotlinx.coroutines.flow.Flow
++import kotlinx.coroutines.flow.first
+ import kotlinx.coroutines.flow.map
+ 
+ // Instancia de DataStore exclusiva para el control de versiones y actualizaciones
+@@ -15,6 +17,10 @@ class UpdatePreferences(private val context: Context) {
+     companion object {
+         // Clave única para almacenar el tag de la versión ignorada (ej. "v1.2.0")
+         private val IGNORED_VERSION_KEY = stringPreferencesKey("ignored_version")
++        // Última release conocida y cuándo se consultó (el chequeo automático va como máximo cada 12 h)
++        private val LAST_CHECK_KEY = longPreferencesKey("last_check_at")
++        private val LATEST_TAG_KEY = stringPreferencesKey("latest_tag")
++        private val LATEST_URL_KEY = stringPreferencesKey("latest_url")
+     }
+ 
+     /**
+@@ -44,4 +50,19 @@ class UpdatePreferences(private val context: Context) {
+             preferences.remove(IGNORED_VERSION_KEY)
+         }
+     }
+-}
+\ No newline at end of file
++
++    class KnownRelease(val checkedAt: Long, val tag: String, val url: String)
++
++    suspend fun getKnownRelease(): KnownRelease {
++        val p = context.updateDataStore.data.first()
++        return KnownRelease(p[LAST_CHECK_KEY] ?: 0L, p[LATEST_TAG_KEY] ?: "", p[LATEST_URL_KEY] ?: "")
++    }
++
++    suspend fun saveKnownRelease(checkedAt: Long, tag: String, url: String) {
++        context.updateDataStore.edit { p ->
++            p[LAST_CHECK_KEY] = checkedAt
++            p[LATEST_TAG_KEY] = tag
++            p[LATEST_URL_KEY] = url
++        }
++    }
++}
+diff --git a/app/src/main/java/com/music/musicflame/ui/screens/SongScreen.kt b/app/src/main/java/com/music/musicflame/ui/screens/SongScreen.kt
+index 9ac2475..8ad0075 100644
+--- a/app/src/main/java/com/music/musicflame/ui/screens/SongScreen.kt
++++ b/app/src/main/java/com/music/musicflame/ui/screens/SongScreen.kt
+@@ -326,7 +326,7 @@ fun SongsScreen(
+                 delay(500) // Debounce para no saturar la API
+                 try {
+                     errorMessage = null
+-                    val response = com.music.musicflame.api.RetrofitClient.instance.searchVideos(query = searchQuery)
++                    val response = com.music.musicflame.api.YouTubeRepository.search(searchQuery)
+ 
+                     if (isActive) {
+                         displaySongs.clear()
+diff --git a/app/src/test/java/com/music/musicflame/data/UpdateCheckerTest.kt b/app/src/test/java/com/music/musicflame/data/UpdateCheckerTest.kt
+new file mode 100644
+index 0000000..bdb811b
+--- /dev/null
++++ b/app/src/test/java/com/music/musicflame/data/UpdateCheckerTest.kt
+@@ -0,0 +1,22 @@
++package com.music.musicflame.data
++
++import org.junit.Assert.assertFalse
++import org.junit.Assert.assertTrue
++import org.junit.Test
++
++class UpdateCheckerTest {
++    @Test fun compara_por_numeros_no_por_texto() {
++        assertTrue(UpdateChecker.isNewer("v3.25", "v3.9"))
++        assertFalse(UpdateChecker.isNewer("v3.9", "v3.25"))
++    }
++
++    @Test fun iguales_y_distinto_largo() {
++        assertFalse(UpdateChecker.isNewer("v3.25", "v3.25"))
++        assertTrue(UpdateChecker.isNewer("v3.25.1", "v3.25"))
++        assertFalse(UpdateChecker.isNewer("v3.25", "v3.25.0"))
++    }
++
++    @Test fun tag_sin_numeros_no_es_nuevo() {
++        assertFalse(UpdateChecker.isNewer("latest", "v3.25"))
++    }
++}

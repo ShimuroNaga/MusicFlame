@@ -114,7 +114,10 @@ class WakeWordService : Service() {
         if (data == null || WakeTemplates.normName(data.name) != WakeTemplates.normName(aiName)) {
             fail(vs, R.string.wake_notif_stopped_error); return
         }
-        val detector = try { WakeDetector(this, data, vs.getWakeSensitivity()) } catch (_: Throwable) {
+        val detector = try {
+            if (!WakeModelManager.ensure(this)) throw IllegalStateException("modelos de escucha no disponibles")
+            WakeDetector(this, data, vs.getWakeSensitivity())
+        } catch (_: Throwable) {
             fail(vs, R.string.wake_notif_stopped_error); return
         }
         val buf = ShortArray(WakeAudio.CHUNK)

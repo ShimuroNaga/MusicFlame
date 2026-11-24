@@ -73,7 +73,7 @@
     <string name="wake_enroll_retry_short">That was too short. Say the full phrase.</string>
     <string name="wake_enroll_done">Done: your voice was saved as numeric fingerprints (the audio was deleted).</string>
     <string name="wake_enroll_inconsistent">Your recordings are quite different from each other and it may fail more. To improve it, record again somewhere quiet.</string>
-    <string name="wake_enroll_error">I couldn’t prepare the detector. Reinstall the app or report the error.</string>
+    <string name="wake_enroll_error">I couldn’t prepare the detector. The first time it needs internet to download its models (2.4 MB); check your connection and try again.</string>
     <string name="wake_enroll_mic_error">I couldn’t use the microphone (is another app using it?)</string>
     <string name="wake_test_title">Test “%1$s”</string>
     <string name="wake_test_intro">We’ll run two short tests: first you say the phrase several times, then you talk normally to check it doesn’t trigger by mistake.</string>

@@ -10,7 +10,7 @@ import kotlin.math.sqrt
 /**
  * Convierte audio (16 kHz, mono, PCM de 16 bits, bloques de 1280 muestras = 80 ms) en "huellas" de voz de 96 números.
  *
- * Usa los dos modelos pequeños de openWakeWord (assets/wake): un espectrograma mel y el modelo de embeddings de voz de
+ * Usa los dos modelos pequeños de openWakeWord (se descargan una vez: [WakeModelManager]): un espectrograma mel y el modelo de embeddings de voz de
  * Google. NO reconocen palabras: solo describen cómo suena el audio, por eso sirven con cualquier idioma y cualquier
  * nombre. Todo corre dentro del teléfono con ONNX Runtime.
  *
@@ -32,8 +32,8 @@ class WakeFeatureExtractor(context: Context) : AutoCloseable {
         val opts = OrtSession.SessionOptions()
         opts.setIntraOpNumThreads(1)
         opts.setInterOpNumThreads(1)
-        melSession = env.createSession(context.assets.open(MEL_ASSET).use { it.readBytes() }, opts)
-        embSession = env.createSession(context.assets.open(EMB_ASSET).use { it.readBytes() }, opts)
+        melSession = env.createSession(WakeModelManager.melFile(context).readBytes(), opts)
+        embSession = env.createSession(WakeModelManager.embFile(context).readBytes(), opts)
         melInput = melSession.inputNames.first()
         embInput = embSession.inputNames.first()
     }
@@ -99,7 +99,5 @@ class WakeFeatureExtractor(context: Context) : AutoCloseable {
         private const val MEL_BINS = 32
         private const val EMB_FRAMES = 76
         private const val MEL_KEEP = 120
-        private const val MEL_ASSET = "wake/melspectrogram.onnx"
-        private const val EMB_ASSET = "wake/embedding_model.onnx"
     }
 }

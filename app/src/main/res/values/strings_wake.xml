@@ -73,7 +73,7 @@
     <string name="wake_enroll_retry_short">Quedó muy corto. Di la frase completa.</string>
     <string name="wake_enroll_done">Listo: tu voz quedó guardada como huellas numéricas (el audio se borró).</string>
     <string name="wake_enroll_inconsistent">Tus grabaciones se parecen poco entre sí y puede fallar más. Para mejorar, vuelve a grabar en un lugar silencioso.</string>
-    <string name="wake_enroll_error">No pude preparar el detector. Reinstala la app o avisa del error.</string>
+    <string name="wake_enroll_error">No pude preparar el detector. La primera vez necesita internet para descargar sus modelos (2,4 MB); revisa tu conexión e inténtalo de nuevo.</string>
     <string name="wake_enroll_mic_error">No pude usar el micrófono (¿lo está usando otra app?)</string>
     <string name="wake_test_title">Probar «%1$s»</string>
     <string name="wake_test_intro">Haremos dos pruebas cortas: primero dirás la frase varias veces y luego hablarás normal para ver si se activa de más.</string>

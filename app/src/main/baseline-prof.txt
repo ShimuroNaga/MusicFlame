@@ -1,0 +1,46 @@
+# Baseline Profile de MusicFlame (escrito a mano; ProfileInstaller lo compila en el teléfono al instalar).
+# HSPL = método Hot + Startup + Post-startup. Se perfilan SOLO las rutas del arranque en frío, la biblioteca y el
+# reproductor: no se incluyen En compañía, IA, voz ni Blobatar (se usan poco; compilarlos solo engordaría el odex).
+# Para regenerarlo con datos reales de un teléfono: módulo :baselineprofile con androidx.baselineprofile (opcional).
+
+# Arranque: Application, Activity principal y navegación
+HSPLcom/music/musicflame/MusicFlameApp;->**(**)**
+HSPLcom/music/musicflame/MainActivity;->**(**)**
+HSPLcom/music/musicflame/MainActivityKt;->**(**)**
+HSPLcom/music/musicflame/navigation/**;->**(**)**
+Lcom/music/musicflame/MusicFlameApp;
+Lcom/music/musicflame/MainActivity;
+Lcom/music/musicflame/MainActivityKt;
+Lcom/music/musicflame/navigation/**;
+
+# Datos: biblioteca, ajustes, Room, reproductor
+HSPLcom/music/musicflame/data/*Repository;->**(**)**
+HSPLcom/music/musicflame/data/Settings*;->**(**)**
+HSPLcom/music/musicflame/data/Song*;->**(**)**
+HSPLcom/music/musicflame/data/LibraryIndex*;->**(**)**
+HSPLcom/music/musicflame/data/ProStatusHolder*;->**(**)**
+HSPLcom/music/musicflame/data/AppIconManager*;->**(**)**
+HSPLcom/music/musicflame/data/MusicPlayerManager*;->**(**)**
+HSPLcom/music/musicflame/data/MusicPlaybackService*;->**(**)**
+HSPLcom/music/musicflame/data/PlaybackCycle*;->**(**)**
+HSPLcom/music/musicflame/data/db/**;->**(**)**
+Lcom/music/musicflame/data/*Repository;
+Lcom/music/musicflame/data/Song*;
+Lcom/music/musicflame/data/db/**;
+
+# UI: tema, componentes de la biblioteca y del reproductor
+HSPLcom/music/musicflame/ui/theme/**;->**(**)**
+HSPLcom/music/musicflame/ui/components/AlbumArt*;->**(**)**
+HSPLcom/music/musicflame/ui/components/SongItemCard*;->**(**)**
+HSPLcom/music/musicflame/ui/components/GlassNavBar*;->**(**)**
+HSPLcom/music/musicflame/ui/components/MotionNavBar*;->**(**)**
+HSPLcom/music/musicflame/ui/components/NowPlayingCardStyle*;->**(**)**
+HSPLcom/music/musicflame/ui/components/AudioSpectrumEngine*;->**(**)**
+HSPLcom/music/musicflame/ui/screens/SongScreen*;->**(**)**
+HSPLcom/music/musicflame/ui/screens/FullScreenPlayer*;->**(**)**
+HSPLcom/music/musicflame/ui/utils/**;->**(**)**
+Lcom/music/musicflame/ui/theme/**;
+Lcom/music/musicflame/ui/components/AlbumArt*;
+Lcom/music/musicflame/ui/components/SongItemCard*;
+Lcom/music/musicflame/ui/screens/SongScreen*;
+Lcom/music/musicflame/ui/screens/FullScreenPlayer*;

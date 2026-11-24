@@ -7,9 +7,11 @@ import androidx.security.crypto.MasterKey
 import com.google.gson.Gson
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.BufferedReader
-import java.net.HttpURLConnection
-import java.net.URL
+import com.music.musicflame.api.AppHttp
+import okhttp3.CacheControl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import java.nio.charset.StandardCharsets
 import android.util.Base64
 import java.security.KeyStore
@@ -125,12 +127,12 @@ class SavingsGoalRepository(context: Context) {
     /** Lectura pública, la usan TODOS los usuarios (dueño incluido). */
     suspend fun fetchActual(): Int? = withContext(Dispatchers.IO) {
         runCatching {
-            val conn = URL(RAW_URL).openConnection() as HttpURLConnection
-            conn.connectTimeout = 10_000
-            conn.readTimeout = 10_000
-            conn.requestMethod = "GET"
-            val body = conn.inputStream.bufferedReader(StandardCharsets.UTF_8).use(BufferedReader::readText)
-            conn.disconnect()
+            // FORCE_NETWORK = revalidar con If-None-Match (si no cambió, GitHub contesta 304 y no gasta nada)
+            val req = Request.Builder().url(RAW_URL).cacheControl(CacheControl.FORCE_NETWORK).build()
+            val body = AppHttp.client.newCall(req).execute().use { resp ->
+                if (!resp.isSuccessful) error("HTTP ${resp.code}")
+                resp.body?.string() ?: error("sin cuerpo")
+            }
             val meta = gson.fromJson(body, MetaData::class.java)
             val value = meta.actual.coerceIn(0, META_MAX)
             cachePrefs.edit().putInt(KEY_CACHED_ACTUAL, value).apply()
@@ -163,17 +165,18 @@ class SavingsGoalRepository(context: Context) {
 
         runCatching {
             // 1) Obtener el sha actual del archivo.
-            val getConn = URL(CONTENTS_API_URL).openConnection() as HttpURLConnection
-            getConn.requestMethod = "GET"
-            getConn.setRequestProperty("Authorization", "token $token")
-            getConn.setRequestProperty("Accept", "application/vnd.github+json")
-            if (getConn.responseCode !in 200..299) {
-                val err = getConn.errorStream?.bufferedReader()?.use(BufferedReader::readText)
-                getConn.disconnect()
-                return@withContext PushResult.Error("No se pudo leer el archivo actual (HTTP ${getConn.responseCode}): ${err ?: ""}")
+            val getReq = Request.Builder().url(CONTENTS_API_URL)
+                .header("Authorization", "token $token")
+                .header("Accept", "application/vnd.github+json")
+                .cacheControl(CacheControl.FORCE_NETWORK)
+                .build()
+            val getBody = AppHttp.client.newCall(getReq).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    val err = resp.body?.string()
+                    return@withContext PushResult.Error("No se pudo leer el archivo actual (HTTP ${resp.code}): ${err ?: ""}")
+                }
+                resp.body?.string() ?: ""
             }
-            val getBody = getConn.inputStream.bufferedReader(StandardCharsets.UTF_8).use(BufferedReader::readText)
-            getConn.disconnect()
             val sha = com.google.gson.JsonParser.parseString(getBody).asJsonObject.get("sha").asString
 
             // 2) Subir el nuevo contenido con ese sha.
@@ -186,20 +189,17 @@ class SavingsGoalRepository(context: Context) {
                 addProperty("branch", GITHUB_BRANCH)
             }
 
-            val putConn = URL(CONTENTS_API_URL).openConnection() as HttpURLConnection
-            putConn.requestMethod = "PUT"
-            putConn.doOutput = true
-            putConn.setRequestProperty("Authorization", "token $token")
-            putConn.setRequestProperty("Accept", "application/vnd.github+json")
-            putConn.setRequestProperty("Content-Type", "application/json")
-            putConn.outputStream.use { it.write(gson.toJson(payload).toByteArray(StandardCharsets.UTF_8)) }
-
-            if (putConn.responseCode !in 200..299) {
-                val err = putConn.errorStream?.bufferedReader()?.use(BufferedReader::readText)
-                putConn.disconnect()
-                return@withContext PushResult.Error("GitHub rechazó el cambio (HTTP ${putConn.responseCode}): ${err ?: ""}")
+            val putReq = Request.Builder().url(CONTENTS_API_URL)
+                .header("Authorization", "token $token")
+                .header("Accept", "application/vnd.github+json")
+                .put(gson.toJson(payload).toRequestBody("application/json".toMediaType()))
+                .build()
+            AppHttp.client.newCall(putReq).execute().use { resp ->
+                if (!resp.isSuccessful) {
+                    val err = resp.body?.string()
+                    return@withContext PushResult.Error("GitHub rechazó el cambio (HTTP ${resp.code}): ${err ?: ""}")
+                }
             }
-            putConn.disconnect()
             cachePrefs.edit().putInt(KEY_CACHED_ACTUAL, clamped).apply()
             PushResult.Success
         }.getOrElse { PushResult.Error("${it.javaClass.simpleName}: ${it.message ?: "error de red desconocido"}") }

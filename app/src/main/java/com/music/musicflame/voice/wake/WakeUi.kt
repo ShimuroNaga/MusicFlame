@@ -69,7 +69,9 @@ fun WakeEnrollDialog(aiName: String, onFinished: (saved: Boolean) -> Unit) {
     }
     LaunchedEffect(Unit) {
         delay(450)
-        val extractor = withContext(Dispatchers.Default) { try { WakeFeatureExtractor(ctx) } catch (_: Throwable) { null } }
+        val extractor = withContext(Dispatchers.Default) {
+            try { if (WakeModelManager.ensure(ctx)) WakeFeatureExtractor(ctx) else null } catch (_: Throwable) { null }
+        }
         if (extractor == null) { failed = R.string.wake_enroll_error; return@LaunchedEffect }
         try {
             val groups = ArrayList<List<Array<FloatArray>>>()
@@ -160,7 +162,7 @@ fun WakeTestDialog(aiName: String, onClose: () -> Unit) {
         if (holder[0] == null) {
             val data = WakeTemplates.load(ctx)
             holder[0] = if (data == null) null else withContext(Dispatchers.Default) {
-                try { WakeDetector(ctx, data, VoiceSettings(ctx).getWakeSensitivity()) } catch (_: Throwable) { null }
+                try { if (WakeModelManager.ensure(ctx)) WakeDetector(ctx, data, VoiceSettings(ctx).getWakeSensitivity()) else null } catch (_: Throwable) { null }
             }
         }
         val det = holder[0]

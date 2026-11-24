@@ -50,6 +50,7 @@ import com.music.musicflame.ui.components.SongListSkeleton
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -104,6 +105,45 @@ private fun ListScrollbar(listState: LazyListState, modifier: Modifier = Modifie
                 .clip(RoundedCornerShape(2.dp))
                 .background(MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f))
         )
+    }
+}
+
+/** Filtros de la hoja (Artista / Álbum / Año / Género) agrupados en un solo valor comparable. */
+private data class FilterState(
+    val artist: String? = null,
+    val album: String? = null,
+    val year: Int? = null,
+    val genre: String? = null
+)
+
+/** Todo lo que determina la lista local mostrada; snapshotFlow emite uno nuevo solo si algo cambia. */
+private data class LocalListQuery(
+    val sort: SortType,
+    val songs: List<Song>,
+    val text: String,
+    val filters: FilterState
+)
+
+private fun sortAndFilterSongs(q: LocalListQuery): List<Song> {
+    val titleOrder = compareBy(String.CASE_INSENSITIVE_ORDER) { s: Song -> s.title }
+    val sortedBase = when (q.sort) {
+        SortType.DATE_CREATED -> q.songs.sortedByDescending { it.dateAdded }
+        SortType.A_Z -> q.songs.sortedWith(titleOrder)
+        SortType.Z_A -> q.songs.sortedWith(titleOrder.reversed())
+    }
+    val textFiltered = if (q.text.isBlank()) {
+        sortedBase
+    } else {
+        sortedBase.filter {
+            it.title.contains(q.text, ignoreCase = true) || it.artist.contains(q.text, ignoreCase = true)
+        }
+    }
+    val f = q.filters
+    return textFiltered.filter { song ->
+        (f.artist == null || song.artist == f.artist) &&
+            (f.album == null || song.album == f.album) &&
+            (f.year == null || song.year == f.year) &&
+            (f.genre == null || song.genre == f.genre)
     }
 }
 
@@ -293,46 +333,33 @@ fun SongsScreen(
         }
     }
 
-    // Reacciona cuando cambia la búsqueda, el modo, los recomendados de YouTube, se aplica un patch,
-    // o cambia alguno de los filtros (Artista/Álbum/Año/Género).
-    LaunchedEffect(sortType.value, songs.size, songsVersion.value, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger, filterArtist, filterAlbum, filterYear, filterGenre) {
+    // searchQuery llega como parámetro (no es State): lo envolvemos para que snapshotFlow lo observe.
+    val searchQueryState = rememberUpdatedState(searchQuery)
+
+    // MODO LOCAL: un solo flujo con TODOS los insumos agrupados (orden, lista, texto y FilterState).
+    // snapshotFlow solo emite cuando algo cambia de verdad y collectLatest cancela el cálculo anterior,
+    // en vez de relanzar un LaunchedEffect de 11 claves (incluidos songs.size y youtubeRecommendedSongs).
+    LaunchedEffect(searchMode) {
         if (searchMode == SearchMode.LOCAL) {
             isSearchingYoutube = false
-            // Debounce: cada tecla relanza este efecto y cancela el anterior, así que solo se
-            // filtra cuando el usuario deja de escribir (antes: ordenar + filtrar toda la
-            // biblioteca en el hilo principal por CADA tecla).
-            if (searchQuery.isNotBlank()) delay(150)
-            val snapshot = songs
-            val currentSort = sortType.value
-            val query = searchQuery
-            val fArtist = filterArtist
-            val fAlbum = filterAlbum
-            val fYear = filterYear
-            val fGenre = filterGenre
-            val fullyFiltered = withContext(Dispatchers.Default) {
-                val titleOrder = compareBy(String.CASE_INSENSITIVE_ORDER) { s: Song -> s.title }
-                val sortedBase = when (currentSort) {
-                    SortType.DATE_CREATED -> snapshot.sortedByDescending { it.dateAdded }
-                    SortType.A_Z -> snapshot.sortedWith(titleOrder)
-                    SortType.Z_A -> snapshot.sortedWith(titleOrder.reversed())
-                }
-                val textFiltered = if (query.isBlank()) {
-                    sortedBase
-                } else {
-                    sortedBase.filter {
-                        it.title.contains(query, ignoreCase = true) ||
-                                it.artist.contains(query, ignoreCase = true)
-                    }
-                }
-                textFiltered.filter { song ->
-                    (fArtist == null || song.artist == fArtist) &&
-                            (fAlbum == null || song.album == fAlbum) &&
-                            (fYear == null || song.year == fYear) &&
-                            (fGenre == null || song.genre == fGenre)
-                }
+            snapshotFlow {
+                LocalListQuery(
+                    sort = sortType.value,
+                    songs = songs,
+                    text = searchQueryState.value,
+                    filters = FilterState(filterArtist, filterAlbum, filterYear, filterGenre)
+                )
+            }.collectLatest { q ->
+                // Debounce: cada tecla cancela el cálculo anterior (collectLatest).
+                if (q.text.isNotBlank()) delay(150)
+                displaySongs = withContext(Dispatchers.Default) { sortAndFilterSongs(q) }
             }
-            displaySongs = fullyFiltered
-        } else {
+        }
+    }
+
+    // MODO YOUTUBE: depende solo del texto y de los recomendados.
+    LaunchedEffect(searchMode, searchQuery, youtubeRecommendedSongs) {
+        if (searchMode != SearchMode.LOCAL) {
             // --- BÚSQUEDA EN YOUTUBE ---
             if (searchQuery.isNotBlank()) {
                 isSearchingYoutube = true

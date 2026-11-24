@@ -143,6 +143,15 @@ androidComponents {
     }
 }
 
+// Reportes de estabilidad de Compose (solo se generan si pides: ./gradlew assembleRelease -PcomposeReports=true).
+// Salen en app/build/compose_compiler/*.txt (classes.txt = estabilidad de clases, composables.txt = skippable o no).
+if (project.findProperty("composeReports") == "true") {
+    composeCompiler {
+        reportsDestination = layout.buildDirectory.dir("compose_compiler")
+        metricsDestination = layout.buildDirectory.dir("compose_compiler")
+    }
+}
+
 dependencies {
     implementation(platform(libs.androidx.compose.bom))
     implementation(libs.androidx.activity.compose)

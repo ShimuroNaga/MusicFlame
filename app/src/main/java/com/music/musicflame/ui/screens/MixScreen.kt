@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -314,8 +315,13 @@ fun MixScreen(
                                         Box(
                                             modifier = Modifier
                                                 .size(80.dp)
-                                                .scale(if (isGenerating.value) pulse else 1f)
-                                                .rotate(if (isGenerating.value) rotation else idleRotation)
+                                                // Lectura en la fase de dibujo: la animación infinita ya no recompone la pantalla.
+                                                .graphicsLayer {
+                                                    val s = if (isGenerating.value) pulse else 1f
+                                                    scaleX = s
+                                                    scaleY = s
+                                                    rotationZ = if (isGenerating.value) rotation else idleRotation
+                                                }
                                                 .clip(CircleShape)
                                                 .background(MaterialTheme.colorScheme.primary),
                                             contentAlignment = Alignment.Center
@@ -325,7 +331,9 @@ fun MixScreen(
                                                 null,
                                                 modifier = Modifier
                                                     .size(40.dp)
-                                                    .rotate(if (isGenerating.value) -rotation else -idleRotation),
+                                                    .graphicsLayer {
+                                                        rotationZ = if (isGenerating.value) -rotation else -idleRotation
+                                                    },
                                                 tint = MaterialTheme.colorScheme.onPrimary
                                             )
                                         }

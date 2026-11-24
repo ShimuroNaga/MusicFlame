@@ -778,11 +778,14 @@ class VoiceAssistantActivity : ComponentActivity() {
         val wave by t.animateFloat(0f, 1f, infiniteRepeatable(tween(1100, easing = LinearEasing)), label = "wave")
         val lv by animateFloatAsState(level, tween(90), label = "lv")
         val ph = phase
-        val amp = when (ph) {
-            Phase.LISTENING -> 0.12f + lv
-            Phase.SPEAKING -> 0.35f + 0.25f * abs(sin(wave * 2f * PI.toFloat()))
-            Phase.THINKING -> 0.18f
-            Phase.DONE -> 0f
+        // Lambda: lv y wave (animaciones) se leen SOLO al dibujar, así el orbe no recompone a cada frame.
+        val amp: () -> Float = {
+            when (ph) {
+                Phase.LISTENING -> 0.12f + lv
+                Phase.SPEAKING -> 0.35f + 0.25f * abs(sin(wave * 2f * PI.toFloat()))
+                Phase.THINKING -> 0.18f
+                Phase.DONE -> 0f
+            }
         }
         val c1 = cs.primary; val c2 = cs.tertiary; val c3 = cs.secondary
 
@@ -792,6 +795,7 @@ class VoiceAssistantActivity : ComponentActivity() {
             }, contentAlignment = Alignment.Center
         ) {
             Canvas(Modifier.fillMaxSize()) {
+                val amp = amp()
                 val r = size.minDimension / 2f
                 for (i in 3 downTo 1) {
                     drawCircle(c1.copy(alpha = 0.09f * (4 - i)), radius = r * (0.62f + 0.11f * i + 0.22f * amp) * breathe)
@@ -807,6 +811,7 @@ class VoiceAssistantActivity : ComponentActivity() {
             )
         }
         Canvas(Modifier.fillMaxWidth().height(28.dp).padding(top = 6.dp)) {
+            val amp = amp()
             val n = 21
             val gap = 6.dp.toPx()
             val bw = ((size.width.coerceAtMost(260.dp.toPx())) - gap * (n - 1)) / n

@@ -360,8 +360,29 @@ fun PlaylistsScreen(
                                 )
                             }
 
+                            // Las playlists predeterminadas (favoritos, más sonadas, por descubrir)
+                            // dependen de la biblioteca: mientras el primer escaneo no termina se
+                            // muestran como skeleton en vez de tarjetas con 0 canciones.
+                            val libraryLoaded = com.music.musicflame.data.SongLibraryHolder.isLoaded
+                            if (defaultPlaylistsExpanded && !libraryLoaded) {
+                                com.music.musicflame.ui.components.ShimmerHost {
+                                    Column(
+                                        modifier = Modifier.padding(top = 6.dp),
+                                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                                    ) {
+                                        repeat(3) {
+                                            com.music.musicflame.ui.components.SongRowSkeleton(
+                                                cardRadius = if (isRounded) 16.dp else 0.dp,
+                                                artRadius = if (isRounded) 8.dp else 0.dp,
+                                                hasBackgroundImage = hasBackgroundImage
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
                             AnimatedVisibility(
-                                visible = defaultPlaylistsExpanded,
+                                visible = defaultPlaylistsExpanded && libraryLoaded,
                                 enter = fadeIn() + expandVertically(),
                                 exit = fadeOut() + shrinkVertically()
                             ) {

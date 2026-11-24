@@ -421,11 +421,19 @@ internal fun LazyListScope.settingsPaymentsSection(
                 )
 
                 if (purchased.isEmpty()) {
-                    Text(
-                        stringResource(R.string.kofi_none_yet),
-                        fontSize = 13.sp,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    if (isRestoring) {
+                        // Restaurando compras (red): filas en carga en vez de "ninguna todavía".
+                        com.music.musicflame.ui.components.ShimmerHost {
+                            com.music.musicflame.ui.components.PurchaseRowSkeleton(nameFraction = 0.55f)
+                            com.music.musicflame.ui.components.PurchaseRowSkeleton(nameFraction = 0.4f)
+                        }
+                    } else {
+                        Text(
+                            stringResource(R.string.kofi_none_yet),
+                            fontSize = 13.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 } else {
                     purchased.forEach { product ->
                         Row(
@@ -445,6 +453,11 @@ internal fun LazyListScope.settingsPaymentsSection(
                                 fontWeight = FontWeight.Bold,
                                 modifier = Modifier.weight(1f)
                             )
+                        }
+                    }
+                    if (isRestoring) {
+                        com.music.musicflame.ui.components.ShimmerHost {
+                            com.music.musicflame.ui.components.PurchaseRowSkeleton(nameFraction = 0.45f)
                         }
                     }
                     TextButton(

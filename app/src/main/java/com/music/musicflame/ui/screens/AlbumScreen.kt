@@ -39,6 +39,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.music.musicflame.AlbumArtShapeType
 import com.music.musicflame.LocalAlbumGridColumns
+import com.music.musicflame.LocalUseRoundCorners
 import com.music.musicflame.data.Album
 import com.music.musicflame.data.Artist
 import com.music.musicflame.data.Genre
@@ -194,7 +195,12 @@ private fun AlbumGrid(albums: List<Album>, hasBackgroundImage: Boolean, onAlbumC
     val columns = LocalAlbumGridColumns.current
 
     if (albums.isEmpty()) {
-        EmptyLibraryState(icon = Icons.Filled.Album, message = stringResource(R.string.al_no_albums))
+        // Lista vacía mientras la biblioteca aún carga = skeleton; ya cargada = "no hay álbumes".
+        if (!SongLibraryHolder.isLoaded) {
+            com.music.musicflame.ui.components.AlbumGridSkeleton(columns = columns)
+        } else {
+            EmptyLibraryState(icon = Icons.Filled.Album, message = stringResource(R.string.al_no_albums))
+        }
         return
     }
 
@@ -266,7 +272,11 @@ private fun ArtistGrid(artists: List<Artist>, onArtistClick: (Artist) -> Unit) {
     val columns = LocalAlbumGridColumns.current
 
     if (artists.isEmpty()) {
-        EmptyLibraryState(icon = Icons.Filled.Person, message = stringResource(R.string.al_no_artists))
+        if (!SongLibraryHolder.isLoaded) {
+            com.music.musicflame.ui.components.AlbumGridSkeleton(columns = columns, circular = true)
+        } else {
+            EmptyLibraryState(icon = Icons.Filled.Person, message = stringResource(R.string.al_no_artists))
+        }
         return
     }
 
@@ -339,7 +349,16 @@ private fun ArtistCard(artist: Artist, artSize: androidx.compose.ui.unit.Dp, onC
 @Composable
 private fun GenreList(genres: List<Genre>, onGenreClick: (Genre) -> Unit) {
     if (genres.isEmpty()) {
-        EmptyLibraryState(icon = Icons.Filled.Category, message = stringResource(R.string.al_no_genres))
+        if (!SongLibraryHolder.isLoaded) {
+            val isRounded = LocalUseRoundCorners.current
+            com.music.musicflame.ui.components.SongListSkeleton(
+                cardRadius = if (isRounded) 16.dp else 0.dp,
+                artRadius = if (isRounded) 8.dp else 0.dp,
+                hasBackgroundImage = false
+            )
+        } else {
+            EmptyLibraryState(icon = Icons.Filled.Category, message = stringResource(R.string.al_no_genres))
+        }
         return
     }
 

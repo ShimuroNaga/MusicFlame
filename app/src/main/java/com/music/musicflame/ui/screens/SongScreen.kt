@@ -46,6 +46,7 @@ import com.music.musicflame.LocalAlbumArtShape
 import com.music.musicflame.SearchMode
 import com.music.musicflame.data.*
 import com.music.musicflame.ui.components.AlbumArt
+import com.music.musicflame.ui.components.SongListSkeleton
 import com.music.musicflame.ui.theme.LocalAppTextColor
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -117,6 +118,8 @@ fun SongsScreen(
     selectedSongs: List<Song> = emptyList(),
     onToggleSelection: (Song) -> Unit = {},
     youtubeRecommendedSongs: List<Song> = emptyList(),
+    // true mientras MainActivity descarga los videos en tendencia / recomendados de YouTube.
+    youtubeRecommendedLoading: Boolean = false,
     isYoutubeLoggedIn: Boolean = false,
     // --- NUEVOS PARÁMETROS ---
     favoriteIds: Set<Long> = emptySet(),
@@ -147,6 +150,10 @@ fun SongsScreen(
     val displaySongs = remember { mutableStateListOf<Song>() }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
+
+    // true desde que el usuario escribe algo en modo YouTube hasta que llega la respuesta (o
+    // falla). Sirve para mostrar el skeleton en vez de la lista vieja / el spinner.
+    var isSearchingYoutube by remember { mutableStateOf(false) }
 
     val isRefreshing = remember { mutableStateOf(false) }
     val pullState = rememberPullToRefreshState()
@@ -285,6 +292,7 @@ fun SongsScreen(
     // o cambia alguno de los filtros (Artista/Álbum/Año/Género).
     LaunchedEffect(sortType.value, songs.size, songsVersion.value, searchQuery, searchMode, youtubeRecommendedSongs, patchTrigger, filterArtist, filterAlbum, filterYear, filterGenre) {
         if (searchMode == SearchMode.LOCAL) {
+            isSearchingYoutube = false
             // Debounce: cada tecla relanza este efecto y cancela el anterior, así que solo se
             // filtra cuando el usuario deja de escribir (antes: ordenar + filtrar toda la
             // biblioteca en el hilo principal por CADA tecla).
@@ -323,6 +331,7 @@ fun SongsScreen(
         } else {
             // --- BÚSQUEDA EN YOUTUBE ---
             if (searchQuery.isNotBlank()) {
+                isSearchingYoutube = true
                 delay(500) // Debounce para no saturar la API
                 try {
                     errorMessage = null
@@ -352,7 +361,10 @@ fun SongsScreen(
                     errorMessage = context.getString(R.string.song_youtube_error_type, e.javaClass.simpleName)
                     android.util.Log.e("YOUTUBE_DEBUG", "Error: ", e)
                 }
+                // Solo se llega aquí si NO se canceló (la cancelación relanza arriba).
+                isSearchingYoutube = false
             } else {
+                isSearchingYoutube = false
                 // Si la barra de búsqueda está vacía, mostramos los videos base (likes o tendencias)
                 displaySongs.clear()
                 displaySongs.addAll(youtubeRecommendedSongs)
@@ -372,8 +384,20 @@ fun SongsScreen(
             if (searchMode == SearchMode.YOUTUBE) {
                 Box(modifier = Modifier.fillMaxSize()) {
 
+                    // Skeleton de videos: mientras se busca lo que escribió el usuario, o mientras
+                    // llegan las tendencias y todavía no hay nada que mostrar.
+                    val showYoutubeSkeleton = isSearchingYoutube ||
+                        (searchQuery.isBlank() && youtubeRecommendedLoading && displaySongs.isEmpty())
+                    if (showYoutubeSkeleton) {
+                        SongListSkeleton(
+                            cardRadius = cardRadius,
+                            artRadius = albumRadius,
+                            hasBackgroundImage = hasBackgroundImage
+                        )
+                    }
+
                     // La "TV" de fondo solo aparece si NO hay videos que mostrar (o hay un error visual)
-                    if (displaySongs.isEmpty() || errorMessage != null) {
+                    if (!showYoutubeSkeleton && (displaySongs.isEmpty() || errorMessage != null)) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center
@@ -419,7 +443,7 @@ fun SongsScreen(
                     }
 
                     // Lista de resultados de YouTube
-                    if (displaySongs.isNotEmpty()) {
+                    if (!showYoutubeSkeleton && displaySongs.isNotEmpty()) {
                         LazyColumn(
                             modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp),
                             verticalArrangement = Arrangement.spacedBy(6.dp)
@@ -495,7 +519,14 @@ fun SongsScreen(
                         )
                     }
                 ) {
-                    if (displaySongs.isEmpty()) {
+                    if (displaySongs.isEmpty() && !com.music.musicflame.data.SongLibraryHolder.isLoaded) {
+                        // Primer escaneo de MediaStore en curso: lista vacía NO significa "sin canciones".
+                        SongListSkeleton(
+                            cardRadius = cardRadius,
+                            artRadius = albumRadius,
+                            hasBackgroundImage = hasBackgroundImage
+                        )
+                    } else if (displaySongs.isEmpty()) {
                         Box(
                             modifier = Modifier.fillMaxSize(),
                             contentAlignment = Alignment.Center

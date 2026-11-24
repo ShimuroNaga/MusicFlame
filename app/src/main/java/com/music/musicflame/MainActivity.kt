@@ -52,6 +52,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import coil.compose.AsyncImage
+import androidx.compose.foundation.Image
+import com.music.musicflame.ui.components.decodeStartupBackground
 import coil.decode.GifDecoder
 import coil.decode.ImageDecoderDecoder
 import coil.request.ImageRequest
@@ -485,9 +487,11 @@ class MainActivity : ComponentActivity() {
 
                 var youtubeVideoId by remember { mutableStateOf<String?>(null) }
                 var youtubeRecommendedSongs by remember { mutableStateOf<List<Song>>(emptyList()) }
+                var youtubeRecommendedLoading by remember { mutableStateOf(false) }
 
                 fun fetchInitialYoutubeVideos() {
                     coroutineScope.launch {
+                        youtubeRecommendedLoading = true
                         try {
                             val response = com.music.musicflame.api.RetrofitClient.instance.getPopularMusicVideos()
                             youtubeRecommendedSongs = response.items.mapNotNull { item ->
@@ -506,6 +510,8 @@ class MainActivity : ComponentActivity() {
                         } catch (e: Exception) {
                             if (e is kotlinx.coroutines.CancellationException) throw e
                             android.util.Log.e("YOUTUBE_API", "Error al cargar recomendados", e)
+                        } finally {
+                            youtubeRecommendedLoading = false
                         }
                     }
                 }
@@ -586,10 +592,25 @@ class MainActivity : ComponentActivity() {
                     ) {
 
                         if (hasBackgroundImage) {
+                            // Fondo ya decodificado para el PRIMER frame: AsyncImage decodifica en segundo
+                            // plano y, mientras tanto, solo se veía el fondo negro del tema (destello de
+                            // < 1 s al abrir la app). Se dibuja debajo del AsyncImage y se quita cuando
+                            // Coil termina de cargar (bgReady).
+                            val bgSource = playerGifUri.value ?: backgroundImageUri.value
+                            var bgReady by remember(bgSource) { mutableStateOf(false) }
+                            val startupBg = remember(bgSource) {
+                                bgSource?.let {
+                                    val dm = context.resources.displayMetrics
+                                    decodeStartupBackground(context, it, dm.widthPixels, dm.heightPixels)
+                                }
+                            }
+                            if (!bgReady && startupBg != null) {
+                                Image(bitmap = startupBg, contentDescription = null, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                            }
                             if (playerGifUri.value != null) {
-                                AsyncImage(model = ImageRequest.Builder(context).data(playerGifUri.value).decoderFactory(if (SDK_INT >= 28) ImageDecoderDecoder.Factory() else GifDecoder.Factory()).build(), contentDescription = stringResource(R.string.main_background), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                AsyncImage(model = ImageRequest.Builder(context).data(playerGifUri.value).decoderFactory(if (SDK_INT >= 28) ImageDecoderDecoder.Factory() else GifDecoder.Factory()).build(), contentDescription = stringResource(R.string.main_background), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onSuccess = { bgReady = true }, onError = { bgReady = true })
                             } else {
-                                AsyncImage(model = backgroundImageUri.value, contentDescription = stringResource(R.string.main_background), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+                                AsyncImage(model = backgroundImageUri.value, contentDescription = stringResource(R.string.main_background), modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop, onSuccess = { bgReady = true }, onError = { bgReady = true })
                             }
 
                             val brightness = bgBrightness.floatValue
@@ -1227,6 +1248,7 @@ class MainActivity : ComponentActivity() {
                                                 selectedSongs = selectedSongs,
                                                 onToggleSelection = onToggleSong,
                                                 youtubeRecommendedSongs = youtubeRecommendedSongs,
+                                                youtubeRecommendedLoading = youtubeRecommendedLoading,
                                                 isYoutubeLoggedIn = isYouTubeLinked,
                                                 favoriteIds = favoriteIds,
                                                 onToggleFavorite = { song ->

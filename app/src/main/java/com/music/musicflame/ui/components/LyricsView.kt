@@ -130,8 +130,8 @@ fun LyricsView(
                     Modifier.fillMaxSize(), horizontalAlignment = Alignment.CenterHorizontally,
                     verticalArrangement = Arrangement.Center
                 ) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    Spacer(Modifier.height(12.dp))
+                    LyricsSkeleton(color = textColor)
+                    Spacer(Modifier.height(20.dp))
                     Text(
                         stringResource(R.string.ly_searching),
                         color = textColor.copy(alpha = 0.7f),

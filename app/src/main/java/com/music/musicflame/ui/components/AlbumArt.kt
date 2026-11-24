@@ -31,6 +31,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Outline
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
@@ -488,21 +489,15 @@ fun AlbumArt(
                         )
                     }
                 } else {
-                    // Mientras carga (Loading): mismo ícono y mismo tono que el estado
-                    // Error/sin-carátula de abajo (antes tenía 50% de opacidad y el otro
-                    // 100%, así que se veía "apagado" mientras cargaba y de golpe se
-                    // ponía más marcado al resolver — inconsistente sin razón real).
+                    // Mientras carga (Loading): shimmer. El ícono de nota musical queda solo
+                    // para Error/sin-carátula, así "cargando" y "no hay carátula" ya no se
+                    // confunden. El recorte (clipShape) lo aplica la Box de afuera.
                     Box(
-                        modifier = Modifier.size(size).background(MaterialTheme.colorScheme.surfaceVariant),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Icon(
-                            Icons.Filled.MusicNote,
-                            contentDescription = null,
-                            modifier = Modifier.size(size / 2),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
+                        modifier = Modifier
+                            .size(size)
+                            .background(MaterialTheme.colorScheme.surfaceVariant)
+                            .shimmer(shape = RectangleShape)
+                    )
                 }
             }
         } else {

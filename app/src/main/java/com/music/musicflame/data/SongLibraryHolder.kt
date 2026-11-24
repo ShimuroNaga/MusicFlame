@@ -55,6 +55,15 @@ object SongLibraryHolder {
     private val state = mutableStateOf(LibraryIndex(emptyList()))
     @Volatile private var hasLoadedOnce = false
 
+    // Versión observable de hasLoadedOnce: las pantallas la leen para mostrar skeletons de
+    // carga mientras el PRIMER escaneo de MediaStore todavía no termina (lista vacía !=
+    // "no hay canciones"). Pasa a true una sola vez y ya no vuelve a false.
+    private val loadedState = mutableStateOf(false)
+
+    /** true cuando ya terminó el primer escaneo. Leerlo dentro de un @Composable te suscribe. */
+    val isLoaded: Boolean
+        get() = loadedState.value
+
     // Generación de MediaStore (Android 11+) del último escaneo. Si no cambió, los refresh
     // "automáticos" (onResume, ContentObserver) se saltan el query completo. -1 = desconocida.
     @Volatile private var lastGeneration = -1L
@@ -173,6 +182,7 @@ object SongLibraryHolder {
         }
         lastGeneration = generation
         hasLoadedOnce = true
+        loadedState.value = true
 
         // Si el contenido es idéntico no se publica nada: ninguna pantalla se recompone y los
         // índices ya calculados se reutilizan.

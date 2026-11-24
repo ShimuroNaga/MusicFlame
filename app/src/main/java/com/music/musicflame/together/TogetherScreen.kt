@@ -518,6 +518,18 @@ private fun TogetherScreenContent(
                     }
                 }
             }
+            // Mientras se crea / se une / se reconecta a la sala y aún no llegó ningún miembro,
+            // se muestran tarjetas de miembro en carga en vez de un hueco vacío.
+            if (manager.status == TogetherManager.Status.CONNECTING && manager.members.isEmpty()) {
+                item {
+                    com.music.musicflame.ui.components.ShimmerHost {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            com.music.musicflame.ui.components.MemberRowSkeleton(nameFraction = 0.5f)
+                            com.music.musicflame.ui.components.MemberRowSkeleton(nameFraction = 0.38f)
+                        }
+                    }
+                }
+            }
             items(manager.members, key = { it.uid }) { m ->
                 Card(
                     shape = RoundedCornerShape(20.dp),

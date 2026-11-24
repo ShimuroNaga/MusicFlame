@@ -32,7 +32,7 @@ import androidx.room.migration.Migration
         OrbitaMetaEntity::class,
         OrbitaSongEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = true
 )
 abstract class AppDatabase : RoomDatabase() {

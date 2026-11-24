@@ -286,6 +286,19 @@ fun EditSongDialog(
             TextButton(
                 enabled = hasChanges,
                 onClick = {
+                  scope.launch {
+                    // Consultas a MediaStore (restablecer) fuera del hilo principal; el resto del guardado
+                    // sigue en Main porque usa Toast y el estado de Compose.
+                    val sid = song?.id
+                    val batchIds = selectedSongs.map { it.id }
+                    val origTitle = if (resetTitle && sid != null) withContext(Dispatchers.IO) { getOriginalSongTitle(context, sid) } else null
+                    val origArtist = if (resetArtist && sid != null) withContext(Dispatchers.IO) { getOriginalSongArtist(context, sid) } else null
+                    val origAlbum = if (resetAlbum && sid != null) withContext(Dispatchers.IO) { getOriginalSongAlbum(context, sid) } else null
+                    val defaultCovers: Map<Long, String?> = if (resetCover) {
+                        withContext(Dispatchers.IO) {
+                            (listOfNotNull(sid) + batchIds).distinct().associateWith { getDefaultAlbumArtUri(context, it) }
+                        }
+                    } else emptyMap()
                     val patches = mutableListOf<SongEditPatch>()
 
                     if (isSingle && song != null) {
@@ -334,10 +347,10 @@ fun EditSongDialog(
                         }
 
                         // Valores FINALES a mostrar ya mismo en la lista (sin releer MediaStore):
-                        val finalTitle = newTitle ?: if (resetTitle) getOriginalSongTitle(context, song.id) else null
-                        val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, song.id) else null
-                        val finalArtist = newArtist ?: if (resetArtist) getOriginalSongArtist(context, song.id) else null
-                        val finalAlbum = newAlbum ?: if (resetAlbum) getOriginalSongAlbum(context, song.id) else null
+                        val finalTitle = newTitle ?: origTitle
+                        val finalCover = pickedCoverUri ?: defaultCovers[song.id]
+                        val finalArtist = newArtist ?: origArtist
+                        val finalAlbum = newAlbum ?: origAlbum
                         // displayTitleFormatted no tiene botón de "restablecer" propio: si
                         // cambió, se manda tal cual (vacío = se borró el formato).
                         val finalDisplayTitleFormatted = if (displayTitleChanged) displayTitleFormatted else null
@@ -371,7 +384,7 @@ fun EditSongDialog(
                         }
                         scope.launch { SongLibraryHolder.refresh(context) }
                         selectedSongs.forEach { s ->
-                            val finalCover = pickedCoverUri ?: if (resetCover) getDefaultAlbumArtUri(context, s.id) else null
+                            val finalCover = pickedCoverUri ?: defaultCovers[s.id]
                             if (finalCover != null || batchAlbum != null) {
                                 patches.add(SongEditPatch(s.id, newCoverUri = finalCover, newAlbum = batchAlbum))
                             }
@@ -396,6 +409,7 @@ fun EditSongDialog(
                         }
                     }
                     onSaved(patches)
+                  }
                 }
             ) { Text(stringResource(R.string.action_save), fontWeight = FontWeight.Bold) }
         },

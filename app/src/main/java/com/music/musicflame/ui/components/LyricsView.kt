@@ -206,7 +206,7 @@ fun LyricsView(
                     contentPadding = androidx.compose.foundation.layout.PaddingValues(vertical = 120.dp, horizontal = 28.dp),
                     verticalArrangement = Arrangement.spacedBy(18.dp)
                 ) {
-                    itemsIndexed(lyrics.lines) { index, line ->
+                    itemsIndexed(lyrics.lines, contentType = { _, _ -> "line" }) { index, line ->
                         val isActive = index == activeIndex
                         val targetAlpha = if (!lyrics.isSynced) 1f else if (isActive) 1f else 0.35f
                         // "Rebote": la línea activa crece un poco más y con overshoot (spring).

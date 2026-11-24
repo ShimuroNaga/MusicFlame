@@ -288,7 +288,7 @@ fun GlassNavBar(
                 .padding(top = rise)
                 .height(barHeight)
         ) {
-            itemsIndexed(items) { index, screen ->
+            itemsIndexed(items, key = { _, screen -> screen.route }, contentType = { _, _ -> "tab" }) { index, screen ->
                 val selected = index == selectedIndex
                 val lift by animateDpAsState(if (selected && !isBubble) (-5).dp else 0.dp, label = "navGlassLift")
                 val tint by animateColorAsState(

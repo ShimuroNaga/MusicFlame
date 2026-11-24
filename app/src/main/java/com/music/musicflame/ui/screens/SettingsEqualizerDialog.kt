@@ -280,7 +280,7 @@ internal fun SettingsEqualizerDialog(
                             }
                             Spacer(Modifier.height(8.dp))
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(allPresets) { preset ->
+                                items(allPresets, contentType = { "preset" }) { preset ->
                                     Card(
                                         colors = CardDefaults.cardColors(containerColor = if (tempPreset.value == preset) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant),
                                         modifier = Modifier.clickable {

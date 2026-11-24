@@ -291,7 +291,7 @@ fun MotionNavBar(
                 .padding(top = rise)
                 .height(barHeight)
         ) {
-            itemsIndexed(items) { index, screen ->
+            itemsIndexed(items, key = { _, screen -> screen.route }, contentType = { _, _ -> "tab" }) { index, screen ->
                 val selected = index == selectedIndex
                 val label = stringResource(screen.labelRes)
 

@@ -94,12 +94,31 @@ object Migrations {
         }
     }
 
+    /** v7 -> v8: orbita_meta.autor_nombre con COLLATE NOCASE + índice (findImportedByAuthor lo usa). */
+    val MIGRATION_7_8: Migration = object : Migration(7, 8) {
+        override fun migrate(db: SupportSQLiteDatabase) {
+            db.execSQL(
+                "CREATE TABLE IF NOT EXISTS `orbita_meta_new` (`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                    "`nombre` TEXT NOT NULL, `autor_nombre` TEXT NOT NULL COLLATE NOCASE, " +
+                    "`es_propia` INTEGER NOT NULL, `fecha_import` INTEGER NOT NULL)"
+            )
+            db.execSQL(
+                "INSERT INTO `orbita_meta_new` (`id`, `nombre`, `autor_nombre`, `es_propia`, `fecha_import`) " +
+                    "SELECT `id`, `nombre`, `autor_nombre`, `es_propia`, `fecha_import` FROM `orbita_meta`"
+            )
+            db.execSQL("DROP TABLE `orbita_meta`")
+            db.execSQL("ALTER TABLE `orbita_meta_new` RENAME TO `orbita_meta`")
+            db.execSQL("CREATE INDEX IF NOT EXISTS `index_orbita_meta_autor_nombre` ON `orbita_meta` (`autor_nombre`)")
+        }
+    }
+
     val ALL: Array<Migration> = arrayOf(
         MIGRATION_1_2,
         MIGRATION_2_3,
         MIGRATION_3_4,
         MIGRATION_4_5,
         MIGRATION_5_6,
-        MIGRATION_6_7
+        MIGRATION_6_7,
+        MIGRATION_7_8
     )
 }

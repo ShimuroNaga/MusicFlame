@@ -6,12 +6,12 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 
 /** Una Órbita (la propia o una importada desde un archivo .orbita). */
-@Entity(tableName = "orbita_meta")
+@Entity(tableName = "orbita_meta", indices = [Index(value = ["autor_nombre"])])
 data class OrbitaMetaEntity(
     @PrimaryKey(autoGenerate = true)
     @ColumnInfo(name = "id") val id: Long = 0,
     @ColumnInfo(name = "nombre") val nombre: String,
-    @ColumnInfo(name = "autor_nombre") val autorNombre: String,
+    @ColumnInfo(name = "autor_nombre", collate = ColumnInfo.NOCASE) val autorNombre: String,
     /** true = editable (la del usuario); false = importada, solo lectura. */
     @ColumnInfo(name = "es_propia") val esPropia: Boolean,
     @ColumnInfo(name = "fecha_import") val fechaImport: Long

@@ -153,7 +153,7 @@ class ShuffleTileService : TileService() {
         val artUriString = s.albumArtUri?.toString()
         val finalArtworkUri: Uri = when {
             s.hasCustomCover && !artUriString.isNullOrEmpty() -> Uri.parse(artUriString)
-            s.path.isNotEmpty() -> SongArtLoader.embeddedArtUri(s.path, artUriString)
+            s.path.isNotEmpty() -> SongArtLoader.embeddedArtUri(s.path, null)
             !artUriString.isNullOrEmpty() -> Uri.parse(artUriString)
             else -> Uri.parse("android.resource://$packageName/${R.mipmap.ic_launcher}")
         }

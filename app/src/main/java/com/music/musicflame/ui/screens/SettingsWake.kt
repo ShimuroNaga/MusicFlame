@@ -32,7 +32,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -74,7 +74,7 @@ internal fun LazyListScope.settingsWakeSection(style: SettingsStyle) {
         var showTest by remember { mutableStateOf(false) }
         var showOverlayAsk by remember { mutableStateOf(false) }
         var enableAfterEnroll by remember { mutableStateOf(false) }
-        val state by WakeWord.state.collectAsState()
+        val state by WakeWord.state.collectAsStateWithLifecycle()
         val lifecycleOwner = androidx.compose.ui.platform.LocalLifecycleOwner.current
 
         // Al volver de los ajustes del sistema (permiso "sobre otras apps") o de cambiar el nombre de la IA.

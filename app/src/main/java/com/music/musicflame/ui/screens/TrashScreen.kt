@@ -259,8 +259,8 @@ fun TrashScreen(
                                 val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
                                 context.contentResolver.delete(
                                     uri,
-                                    "${MediaStore.Audio.Media.DATA} = ?",
-                                    arrayOf(item.song.path)
+                                    "${MediaStore.Audio.Media._ID} = ?",
+                                    arrayOf(item.song.id.toString())
                                 )
                             } catch (e: Exception) {
                                 e.printStackTrace()

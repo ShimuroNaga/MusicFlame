@@ -540,7 +540,7 @@ class MusicPlayerManager(private val context: Context) {
             // le pedimos a SongArtBitmapLoader que primero saque la carátula
             // embebida REAL de este archivo puntual, y solo si el archivo no
             // trae ninguna, caiga a esa Uri genérica como respaldo.
-            s.path.isNotEmpty() -> SongArtLoader.embeddedArtUri(s.path, artUriString)
+            s.path.isNotEmpty() -> SongArtLoader.embeddedArtUri(s.path, null) // sin respaldo por álbum: es la carátula de OTRA canción del álbum
             !artUriString.isNullOrEmpty() -> Uri.parse(artUriString)
             else -> Uri.parse("android.resource://${context.packageName}/${R.mipmap.ic_launcher}")
         }

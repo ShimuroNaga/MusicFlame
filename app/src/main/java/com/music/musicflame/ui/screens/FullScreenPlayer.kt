@@ -1169,7 +1169,7 @@ fun FullScreenPlayer(
                                         val effectiveArtModel: Any? = when {
                                             exhaustedAllFallbacks -> null
                                             pageSong.hasCustomCover && pageSong.albumArtUri != null && !useEmbeddedFallback -> pageSong.albumArtUri
-                                            pageSong.path.isNotEmpty() && !useAlbumUriFallback -> embeddedArtUriFor(pageSong.path)
+                                            pageSong.path.isNotEmpty() -> embeddedArtUriFor(pageSong.path)
                                             !pageSong.hasCustomCover && pageSong.albumArtUri != null -> pageSong.albumArtUri
                                             else -> null
                                         }
@@ -1215,7 +1215,7 @@ fun FullScreenPlayer(
                                                             realArtLoaded = false
                                                             when {
                                                                 pageSong.hasCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
-                                                                !useAlbumUriFallback -> useAlbumUriFallback = true
+                                                                pageSong.path.isEmpty() && !useAlbumUriFallback -> useAlbumUriFallback = true
                                                                 else -> {
                                                                     exhaustedAllFallbacks = true
                                                                     if (!pageSong.hasCustomCover && pageSong.path.isNotEmpty()) {

@@ -129,11 +129,28 @@ class DriveRepository(private val context: Context) {
     }
 
     // 4. Función para subir una canción local a nuestra carpeta de Drive (subida reanudable, en streaming)
-    suspend fun uploadSong(account: GoogleSignInAccount, folderId: String, localFilePath: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun uploadSong(account: GoogleSignInAccount, folderId: String, localFilePath: String, mediaStoreId: Long = -1L): Boolean = withContext(Dispatchers.IO) {
         try {
             val file = File(localFilePath)
-            // Verificamos que el archivo físico realmente exista en el teléfono
-            if (!file.exists()) return@withContext false
+            // Con scoped storage (Android 10+) File(path) puede no existir/no ser legible aunque la canción
+            // sí esté en MediaStore; por eso, si no se puede leer por ruta, se abre por su Uri de MediaStore.
+            val uri = if (mediaStoreId >= 0) {
+                android.content.ContentUris.withAppendedId(android.provider.MediaStore.Audio.Media.EXTERNAL_CONTENT_URI, mediaStoreId)
+            } else null
+            val readableByPath = file.exists() && file.canRead()
+            if (!readableByPath && uri == null) return@withContext false
+            val length: Long = if (readableByPath) file.length() else {
+                context.contentResolver.openAssetFileDescriptor(uri!!, "r")?.use { it.length } ?: -1L
+            }
+            if (length <= 0L) return@withContext false
+            val mime = when (file.extension.lowercase()) {
+                "mp3" -> "audio/mpeg"
+                "m4a", "aac" -> "audio/mp4"
+                "flac" -> "audio/flac"
+                "ogg", "opus" -> "audio/ogg"
+                "wav" -> "audio/wav"
+                else -> "audio/mpeg"
+            }
 
             withAuth(account) { token ->
                 // Paso 1: abrir la sesión con los metadatos (nombre y carpeta destino)
@@ -142,8 +159,8 @@ class DriveRepository(private val context: Context) {
                 val sessionUrl = try {
                     init.doOutput = true
                     init.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
-                    init.setRequestProperty("X-Upload-Content-Type", "audio/mpeg")
-                    init.setRequestProperty("X-Upload-Content-Length", file.length().toString())
+                    init.setRequestProperty("X-Upload-Content-Type", mime)
+                    init.setRequestProperty("X-Upload-Content-Length", length.toString())
                     init.outputStream.use { it.write(meta.toByteArray(Charsets.UTF_8)) }
                     val code = init.responseCode
                     if (code == 401) throw AuthExpired()
@@ -156,9 +173,11 @@ class DriveRepository(private val context: Context) {
                 try {
                     put.readTimeout = 120_000
                     put.doOutput = true
-                    put.setFixedLengthStreamingMode(file.length())
-                    put.setRequestProperty("Content-Type", "audio/mpeg")
-                    FileInputStream(file).use { input -> put.outputStream.use { out -> input.copyTo(out, 64 * 1024) } }
+                    put.setFixedLengthStreamingMode(length)
+                    put.setRequestProperty("Content-Type", mime)
+                    val input = if (readableByPath) FileInputStream(file) else context.contentResolver.openInputStream(uri!!)
+                        ?: throw IOException("No se pudo abrir la canción")
+                    input.use { src -> put.outputStream.use { out -> src.copyTo(out, 64 * 1024) } }
                     val code = put.responseCode
                     if (code == 401) throw AuthExpired()
                     code in 200..299

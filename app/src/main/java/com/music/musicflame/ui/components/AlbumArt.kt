@@ -352,7 +352,9 @@ fun AlbumArt(
     // que van a fallar cada vez que se abre la lista (ver ArtworkCacheRepository).
     val artworkCache = remember { ArtworkCacheRepository(context) }
     val cachedSource = remember(filePath, isCustomCover) {
-        if (!isCustomCover && filePath != null) artworkCache.get(filePath) else null
+        // ALBUM_URI guardado por versiones anteriores ya no es válido: era la carátula compartida del
+        // álbum (de otra canción). Se ignora para volver a resolver con la carátula embebida propia.
+        if (!isCustomCover && filePath != null) artworkCache.get(filePath)?.takeIf { it != ArtworkSource.ALBUM_URI } else null
     }
 
     // BUG ARREGLADO: cuando varias canciones se agrupan en un mismo álbum
@@ -382,7 +384,7 @@ fun AlbumArt(
     // a esa Uri.
     var useEmbeddedFallback by remember(albumArtUri, filePath, isCustomCover) { mutableStateOf(false) }
     var useAlbumUriFallback by remember(albumArtUri, filePath, isCustomCover) {
-        mutableStateOf(cachedSource == ArtworkSource.ALBUM_URI)
+        mutableStateOf(false)
     }
     // NUEVO: cuando el ÚLTIMO escalón de fallback (la URI genérica de MediaStore
     // por álbum) también falla, antes no pasaba nada: el `when` de onError no
@@ -402,7 +404,9 @@ fun AlbumArt(
     val effectiveModel: Any? = when {
         exhaustedAllFallbacks -> null
         isCustomCover && albumArtUri != null && !useEmbeddedFallback -> albumArtUri
-        filePath != null && !useAlbumUriFallback -> embeddedArtUriFor(filePath)
+        // Canción con archivo físico: solo su carátula embebida. La URI de álbum de MediaStore devuelve
+        // la imagen de OTRA canción del mismo álbum, así que no se usa como respaldo.
+        filePath != null -> embeddedArtUriFor(filePath)
         !isCustomCover && albumArtUri != null -> albumArtUri
         else -> null
     }
@@ -459,7 +463,7 @@ fun AlbumArt(
                         // intento fue el que falló (ver comentario arriba).
                         when {
                             isCustomCover && !useEmbeddedFallback -> useEmbeddedFallback = true
-                            !useAlbumUriFallback -> useAlbumUriFallback = true
+                            filePath == null && !useAlbumUriFallback -> useAlbumUriFallback = true
                             else -> exhaustedAllFallbacks = true
                         }
                     })

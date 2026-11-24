@@ -215,7 +215,7 @@ fun ProEqualizerDialog(onDismiss: () -> Unit) {
                                 ) + EqPresets.PRO
                             }
                             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                items(presets) { (name, gains) ->
+                                items(presets, contentType = { "preset" }) { (name, gains) ->
                                     Card(
                                         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant),
                                         modifier = Modifier.clickable { applyPreset(gains) }

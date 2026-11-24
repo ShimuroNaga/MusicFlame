@@ -146,8 +146,11 @@ fun SongsScreen(
     val scope = rememberCoroutineScope()
     val trashRepo = remember { TrashRepository(context) }
 
-    val songs = remember { mutableStateListOf<Song>() }
-    val displaySongs = remember { mutableStateListOf<Song>() }
+    // Listas INMUTABLES en un solo State: reemplazarlas es una sola escritura de snapshot (antes
+    // clear()+addAll() sobre un SnapshotStateList con miles de canciones = miles de escrituras, una
+    // invalidación intermedia con la lista vacía y parpadeo). LazyColumn lee una sola referencia.
+    var songs by remember { mutableStateOf<List<Song>>(emptyList()) }
+    var displaySongs by remember { mutableStateOf<List<Song>>(emptyList()) }
 
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
@@ -203,8 +206,8 @@ fun SongsScreen(
     val refreshSongs = {
         val trashedIds = trashRepo.getTrash().map { it.song.id }
         val loaded = com.music.musicflame.data.SongLibraryHolder.songs
-        songs.clear()
-        songs.addAll(loaded.filter { it.id !in trashedIds })
+        val trashedSet = trashedIds.toHashSet()
+        songs = loaded.filter { it.id !in trashedSet }
         songsVersion.value = songsVersion.value + 1
     }
 
@@ -242,7 +245,7 @@ fun SongsScreen(
         // el nombre de la canción aunque el mp3 no tenga el artista en sus
         // etiquetas, y no repite canciones ya revisadas en una corrida anterior.
         scope.launch {
-            lyricsRepo.scanLibrary(songs.toList(), onFound = { found ->
+            lyricsRepo.scanLibrary(songs, onFound = { found ->
                 lyricsAvailableIds.value = lyricsAvailableIds.value + found.id
             })
         }
@@ -252,10 +255,11 @@ fun SongsScreen(
     // (instantáneo, sin volver a consultar MediaStore). Se dispara solo cuando patchTrigger cambia.
     LaunchedEffect(patchTrigger) {
         if (patchTrigger > 0 && pendingPatches.isNotEmpty()) {
+            val working = songs.toMutableList()
             pendingPatches.forEach { patch ->
-                val idx = songs.indexOfFirst { it.id == patch.songId }
+                val idx = working.indexOfFirst { it.id == patch.songId }
                 if (idx != -1) {
-                    var updated = songs[idx]
+                    var updated = working[idx]
                     if (patch.newTitle != null) updated = updated.copy(title = patch.newTitle)
                     if (patch.newCoverUri != null) updated = updated.copy(
                         albumArtUri = patch.newCoverUri,
@@ -270,9 +274,10 @@ fun SongsScreen(
                             displayTitleFormatted = patch.newDisplayTitleFormatted.takeIf { it.isNotBlank() }
                         )
                     }
-                    songs[idx] = updated
+                    working[idx] = updated
                 }
             }
+            songs = working
         }
     }
 
@@ -297,7 +302,7 @@ fun SongsScreen(
             // filtra cuando el usuario deja de escribir (antes: ordenar + filtrar toda la
             // biblioteca en el hilo principal por CADA tecla).
             if (searchQuery.isNotBlank()) delay(150)
-            val snapshot = songs.toList()
+            val snapshot = songs
             val currentSort = sortType.value
             val query = searchQuery
             val fArtist = filterArtist
@@ -326,8 +331,7 @@ fun SongsScreen(
                             (fGenre == null || song.genre == fGenre)
                 }
             }
-            displaySongs.clear()
-            displaySongs.addAll(fullyFiltered)
+            displaySongs = fullyFiltered
         } else {
             // --- BÚSQUEDA EN YOUTUBE ---
             if (searchQuery.isNotBlank()) {
@@ -338,8 +342,6 @@ fun SongsScreen(
                     val response = com.music.musicflame.api.YouTubeRepository.search(searchQuery)
 
                     if (isActive) {
-                        displaySongs.clear()
-
                         val youtubeSongs = response.items.mapNotNull { item ->
                             val realVideoId = item.id?.videoId ?: return@mapNotNull null
                             Song(
@@ -353,7 +355,7 @@ fun SongsScreen(
                                 youtubeVideoId = realVideoId
                             )
                         }
-                        displaySongs.addAll(youtubeSongs)
+                        displaySongs = youtubeSongs
                     }
                 } catch (e: Exception) {
                     if (e is kotlinx.coroutines.CancellationException) throw e
@@ -366,8 +368,7 @@ fun SongsScreen(
             } else {
                 isSearchingYoutube = false
                 // Si la barra de búsqueda está vacía, mostramos los videos base (likes o tendencias)
-                displaySongs.clear()
-                displaySongs.addAll(youtubeRecommendedSongs)
+                displaySongs = youtubeRecommendedSongs
             }
         }
     }
@@ -449,7 +450,7 @@ fun SongsScreen(
                             verticalArrangement = Arrangement.spacedBy(6.dp)
                         ) {
                             item { Spacer(modifier = Modifier.height(8.dp)) }
-                            items(displaySongs, key = { it.id }) { song ->
+                            items(displaySongs, key = { it.id }, contentType = { "song" }) { song ->
                                 val npColors = if (currentPlayingSongId != null && currentPlayingSongId == song.id) com.music.musicflame.ui.components.nowPlayingCardColors() else null
                                 val rowTextColor = npColors?.content ?: normalTextColor
                                 Card(
@@ -556,7 +557,7 @@ fun SongsScreen(
                     ) {
                         item { Spacer(modifier = Modifier.height(8.dp)) }
 
-                        items(displaySongs, key = { it.id }) { song ->
+                        items(displaySongs, key = { it.id }, contentType = { "song" }) { song ->
                             val isSelected = selectedSongs.contains(song)
 
                             val npColors = if (!isSelected && currentPlayingSongId != null && currentPlayingSongId == song.id) com.music.musicflame.ui.components.nowPlayingCardColors() else null
@@ -607,7 +608,11 @@ fun SongsScreen(
                                             )
 
                                             // Muestra la nube si el nombre de la canción está en Drive
-                                            if (syncedFileNames.contains(song.title) || syncedFileNames.contains("${song.title}.mp3")) {
+                                            // Drive guarda el archivo con su nombre real (file.name, con cualquier
+                                            // extensión); antes solo se comparaba por título / "título.mp3", así que
+                                            // las canciones ya subidas con otro nombre/extensión no mostraban la nube.
+                                            val driveName = remember(song.path) { song.path.substringAfterLast('/') }
+                                            if (syncedFileNames.contains(driveName) || syncedFileNames.contains(song.title) || syncedFileNames.contains("${song.title}.mp3")) {
                                                 Spacer(Modifier.width(8.dp))
                                                 Icon(
                                                     imageVector = Icons.Filled.CloudDone,
@@ -727,10 +732,10 @@ fun SongsScreen(
 
             // --- NUEVO: hoja inferior con los filtros de Artista / Álbum / Año / Género ---
             if (showFilterSheet) {
-                val allArtists = remember(songs.size) { songs.map { it.artist }.filter { it.isNotBlank() }.distinct().sorted() }
-                val allAlbums = remember(songs.size) { songs.map { it.album }.filter { it.isNotBlank() }.distinct().sorted() }
-                val allYears = remember(songs.size) { songs.mapNotNull { it.year }.distinct().sortedDescending() }
-                val allGenres = remember(songs.size) { songs.mapNotNull { it.genre }.filter { it.isNotBlank() }.distinct().sorted() }
+                val allArtists = remember(songs, songsVersion.value) { songs.map { it.artist }.filter { it.isNotBlank() }.distinct().sorted() }
+                val allAlbums = remember(songs, songsVersion.value) { songs.map { it.album }.filter { it.isNotBlank() }.distinct().sorted() }
+                val allYears = remember(songs, songsVersion.value) { songs.mapNotNull { it.year }.distinct().sortedDescending() }
+                val allGenres = remember(songs, songsVersion.value) { songs.mapNotNull { it.genre }.filter { it.isNotBlank() }.distinct().sorted() }
 
                 ModalBottomSheet(onDismissRequest = { showFilterSheet = false }) {
                     Column(

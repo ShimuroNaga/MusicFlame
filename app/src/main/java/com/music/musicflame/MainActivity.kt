@@ -37,6 +37,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -268,7 +269,7 @@ class MainActivity : ComponentActivity() {
 
                 // --- SISTEMA DE ACTUALIZACIONES ---
                 val updatePreferences = remember { UpdatePreferences(context) }
-                val ignoredVersion by updatePreferences.ignoredVersionFlow.collectAsState(initial = null)
+                val ignoredVersion by updatePreferences.ignoredVersionFlow.collectAsStateWithLifecycle(initialValue = null)
 
                 var showUpdateDialog by remember { mutableStateOf(false) }
                 var latestVersionTag by remember { mutableStateOf("") }
@@ -694,21 +695,25 @@ class MainActivity : ComponentActivity() {
                                                         val account = GoogleSignIn.getLastSignedInAccount(context)
 
                                                         if (account != null && isDriveLinked) {
+                                                            // Copia fija de la selección: la lista de estado se vacía/cambia
+                                                            // mientras sube, y eso cortaba el forEach y dejaba el contador en "1 de 0".
+                                                            val songsToUpload = selectedSongs.toList()
+                                                            selectedSongs.clear(); manualSongSelectionMode = false
                                                             coroutineScope.launch {
-                                                                Toast.makeText(context, context.getString(R.string.main_uploading_n, selectedSongs.size), Toast.LENGTH_SHORT).show()
+                                                                Toast.makeText(context, context.getString(R.string.main_uploading_n, songsToUpload.size), Toast.LENGTH_SHORT).show()
 
                                                                 val driveRepo = DriveRepository(context)
                                                                 val folderId = driveRepo.getOrCreateAppFolder(account)
 
                                                                 if (folderId != null) {
                                                                     var successCount = 0
-                                                                    selectedSongs.forEach { song ->
-                                                                        val success = driveRepo.uploadSong(account, folderId, song.path)
+                                                                    songsToUpload.forEach { song ->
+                                                                        val success = driveRepo.uploadSong(account, folderId, song.path, song.id)
                                                                         if (success) successCount++
                                                                     }
 
                                                                     withContext(Dispatchers.Main) {
-                                                                        Toast.makeText(context, context.getString(R.string.main_uploaded_n_of_m, successCount, selectedSongs.size), Toast.LENGTH_LONG).show()
+                                                                        Toast.makeText(context, context.getString(R.string.main_uploaded_n_of_m, successCount, songsToUpload.size), Toast.LENGTH_LONG).show()
                                                                         // Actualizamos la lista visual instantáneamente
                                                                         val files = driveRepo.getSongsFromFolder(account, folderId)
                                                                         syncedFileNames = files.map { it.name }.toSet()
@@ -718,7 +723,6 @@ class MainActivity : ComponentActivity() {
                                                                         Toast.makeText(context, context.getString(R.string.main_drive_folder_error), Toast.LENGTH_SHORT).show()
                                                                     }
                                                                 }
-                                                                selectedSongs.clear(); manualSongSelectionMode = false
                                                             }
                                                         } else {
                                                             Toast.makeText(context, context.getString(R.string.main_link_drive_first), Toast.LENGTH_LONG).show()

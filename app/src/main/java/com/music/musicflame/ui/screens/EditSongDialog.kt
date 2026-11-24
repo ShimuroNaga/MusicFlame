@@ -25,7 +25,9 @@ import com.music.musicflame.data.SettingsRepository
 import com.music.musicflame.data.Song
 import com.music.musicflame.data.SongCustomizationRepository
 import com.music.musicflame.data.SongLibraryHolder
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import com.music.musicflame.data.getDefaultAlbumArtUri
 import com.music.musicflame.data.getOriginalSongTitle
 import com.music.musicflame.data.getOriginalSongArtist
@@ -190,7 +192,8 @@ fun EditSongDialog(
                     if (existingCustomization?.title != null) {
                         TextButton(onClick = {
                             resetTitle = true
-                            titleText = getOriginalSongTitle(context, song!!.id)
+                            val originalId = song!!.id
+                            scope.launch { titleText = withContext(Dispatchers.IO) { getOriginalSongTitle(context, originalId) } }
                         }) {
                             Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
@@ -220,7 +223,8 @@ fun EditSongDialog(
                     if (existingCustomization?.artist != null) {
                         TextButton(onClick = {
                             resetArtist = true
-                            artistText = getOriginalSongArtist(context, song!!.id)
+                            val originalId = song!!.id
+                            scope.launch { artistText = withContext(Dispatchers.IO) { getOriginalSongArtist(context, originalId) } }
                         }) {
                             Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))
@@ -241,7 +245,8 @@ fun EditSongDialog(
                     if (existingCustomization?.album != null) {
                         TextButton(onClick = {
                             resetAlbum = true
-                            albumText = getOriginalSongAlbum(context, song!!.id)
+                            val originalId = song!!.id
+                            scope.launch { albumText = withContext(Dispatchers.IO) { getOriginalSongAlbum(context, originalId) } }
                         }) {
                             Icon(Icons.Filled.RestartAlt, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(4.dp))

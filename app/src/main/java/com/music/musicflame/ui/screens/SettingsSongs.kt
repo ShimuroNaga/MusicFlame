@@ -104,7 +104,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.MutableIntState
 import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.collectAsState
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -423,8 +423,8 @@ internal fun LazyListScope.settingsSongsSection(
                             val automixCache = remember { com.music.musicflame.data.AutomixCacheRepository(context) }
                             var analyzedCount by remember { mutableIntStateOf(0) }
                             val libraryTotal = com.music.musicflame.data.SongLibraryHolder.songs.size
-                            val libraryRunning by com.music.musicflame.audio.AutomixLibraryAnalysis.running.collectAsState()
-                            val libraryProgress by com.music.musicflame.audio.AutomixLibraryAnalysis.progress.collectAsState()
+                            val libraryRunning by com.music.musicflame.audio.AutomixLibraryAnalysis.running.collectAsStateWithLifecycle()
+                            val libraryProgress by com.music.musicflame.audio.AutomixLibraryAnalysis.progress.collectAsStateWithLifecycle()
 
                             // Contador: se refresca cada 3 s (el análisis ocurre en segundo plano).
                             LaunchedEffect(Unit) {
@@ -440,7 +440,7 @@ internal fun LazyListScope.settingsSongsSection(
                                 fontSize = 11.sp,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
-                            val automixStatus by com.music.musicflame.audio.AutomixStatus.text.collectAsState()
+                            val automixStatus by com.music.musicflame.audio.AutomixStatus.text.collectAsStateWithLifecycle()
                             if (automixStatus.isNotEmpty()) {
                                 Text(
                                     automixStatus,

@@ -57,7 +57,9 @@ import androidx.compose.material.icons.filled.BatteryStd
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.LaunchedEffect
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -504,27 +506,36 @@ fun SettingsScreen(
     // --- EXPORTAR / IMPORTAR CONFIGURACIÓN (copia de seguridad entre dispositivos) ---
     val exportConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/json")) { uri ->
         uri?.let {
-            try {
-                context.contentResolver.openOutputStream(it)?.use { out ->
-                    out.write(com.music.musicflame.data.ConfigExportRepository.exportToJson(context).toByteArray())
+            // exportToJson usa Room (runBlocking): se ejecuta en IO para no bloquear la UI.
+            refreshScope.launch {
+                try {
+                    withContext(Dispatchers.IO) {
+                        context.contentResolver.openOutputStream(it)?.use { out ->
+                            out.write(com.music.musicflame.data.ConfigExportRepository.exportToJson(context).toByteArray())
+                        }
+                    }
+                    Toast.makeText(context, context.getString(R.string.settings_configuracion_exportada), Toast.LENGTH_SHORT).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_exportar_1_s, e.message), Toast.LENGTH_LONG).show()
                 }
-                Toast.makeText(context, context.getString(R.string.settings_configuracion_exportada), Toast.LENGTH_SHORT).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_exportar_1_s, e.message), Toast.LENGTH_LONG).show()
             }
         }
     }
 
     val importConfigLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
-            try {
-                val text = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
-                val applied = com.music.musicflame.data.ConfigExportRepository.importFromJson(context, text)
-                Toast.makeText(context, context.getString(R.string.settings_se_aplicaron_1_s_ajustes_reinicia, applied), Toast.LENGTH_LONG).show()
-            } catch (e: IllegalArgumentException) {
-                Toast.makeText(context, e.message ?: context.getString(R.string.settings_archivo_invalido), Toast.LENGTH_LONG).show()
-            } catch (e: Exception) {
-                Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_importar_1_s, e.message), Toast.LENGTH_LONG).show()
+            refreshScope.launch {
+                try {
+                    val applied = withContext(Dispatchers.IO) {
+                        val text = context.contentResolver.openInputStream(it)?.bufferedReader()?.use { reader -> reader.readText() } ?: ""
+                        com.music.musicflame.data.ConfigExportRepository.importFromJson(context, text)
+                    }
+                    Toast.makeText(context, context.getString(R.string.settings_se_aplicaron_1_s_ajustes_reinicia, applied), Toast.LENGTH_LONG).show()
+                } catch (e: IllegalArgumentException) {
+                    Toast.makeText(context, e.message ?: context.getString(R.string.settings_archivo_invalido), Toast.LENGTH_LONG).show()
+                } catch (e: Exception) {
+                    Toast.makeText(context, context.getString(R.string.settings_no_se_pudo_importar_1_s, e.message), Toast.LENGTH_LONG).show()
+                }
             }
         }
     }

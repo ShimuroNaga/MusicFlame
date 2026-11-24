@@ -152,6 +152,7 @@ dependencies {
     implementation(libs.androidx.compose.ui.tooling.preview)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)
+    implementation(libs.androidx.lifecycle.runtime.compose)
     testImplementation(libs.junit)
     // org.json de android.jar es un stub en los tests JVM (lanza RuntimeException): se usa la implementación real.
     testImplementation("org.json:json:20240303")

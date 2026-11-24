@@ -22,7 +22,22 @@ class TrashRepository(private val context: Context) { // Hacemos el context acce
     private val prefs = context.getSharedPreferences("trash", Context.MODE_PRIVATE)
     private val thirtyDaysMs = 30L * 24 * 60 * 60 * 1000
 
+    private companion object {
+        // Caché en memoria compartida por todas las instancias (se crean varias: SongScreen, MixScreen,
+        // FullScreenPlayer, MainActivity). Antes cada getTrash() leía SharedPreferences y parseaba el
+        // JSON completo en el hilo principal. Solo esta clase escribe "trash", así que se mantiene
+        // sincronizada en saveTrash().
+        @Volatile private var cachedTrash: List<TrashedSong>? = null
+    }
+
     fun getTrash(): List<TrashedSong> {
+        cachedTrash?.let { return it }
+        return synchronized(Companion) {
+            cachedTrash ?: parseTrash().also { cachedTrash = it }
+        }
+    }
+
+    private fun parseTrash(): List<TrashedSong> {
         val json = prefs.getString("trash", "[]") ?: "[]"
         val array = JSONArray(json)
         val result = mutableListOf<TrashedSong>()
@@ -109,8 +124,8 @@ class TrashRepository(private val context: Context) { // Hacemos el context acce
             val uri = MediaStore.Audio.Media.EXTERNAL_CONTENT_URI
             val rows = context.contentResolver.delete(
                 uri,
-                "${MediaStore.Audio.Media.DATA} = ?",
-                arrayOf(item.song.path)
+                "${MediaStore.Audio.Media._ID} = ?",
+                arrayOf(item.song.id.toString())
             )
             if (rows > 0) fileDeleted = true
         } catch (e: Exception) {
@@ -219,6 +234,7 @@ class TrashRepository(private val context: Context) { // Hacemos el context acce
             obj.put("deletedAt", item.deletedAt)
             array.put(obj)
         }
+        cachedTrash = trash.toList()
         prefs.edit().putString("trash", array.toString()).apply()
     }
 }

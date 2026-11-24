@@ -101,7 +101,7 @@ fun AddToPlaylistDialog(
                 LazyColumn(
                     modifier = Modifier.fillMaxWidth()
                 ) {
-                    items(playlists) { playlist ->
+                    items(playlists, key = { it.id }, contentType = { "playlist" }) { playlist ->
                         Card(
                             modifier = Modifier
                                 .fillMaxWidth()

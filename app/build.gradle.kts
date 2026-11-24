@@ -195,10 +195,6 @@ dependencies {
     implementation("com.squareup.retrofit2:converter-gson:2.9.0")
     // YouTube Player
     implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:13.0.0")
-    implementation("com.google.api-client:google-api-client-android:1.34.1")
-    implementation("com.google.api-client:google-api-client-gson:1.34.1")
-    implementation("com.google.http-client:google-http-client-android:1.43.3")
-    implementation("com.google.apis:google-api-services-drive:v3-rev20220815-2.0.0")
     implementation("androidx.datastore:datastore-preferences:1.0.0")
     // Room (SQLite) para los datos grandes/de lista. Apache-2.0. Versión estable.
     implementation("androidx.room:room-runtime:2.8.5")
@@ -220,7 +216,6 @@ dependencies {
     // --- FIREBASE (modo "En compañía") ---
     // Con el BoM 34+ ya no existen los módulos -ktx
     implementation(platform("com.google.firebase:firebase-bom:34.19.0"))
-    implementation("com.google.firebase:firebase-analytics")
     implementation("com.google.firebase:firebase-database")
     implementation("com.google.firebase:firebase-auth")
 

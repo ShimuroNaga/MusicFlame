@@ -8,6 +8,7 @@ import com.music.musicflame.R
 object AppIconManager {
 
     private const val PACKAGE = "com.music.musicflame"
+    private const val MIGRATION_KEY = "removed_icons_v1"
 
     private val aliases = mapOf(
         "default" to "$PACKAGE.IconDefault",
@@ -36,15 +37,21 @@ object AppIconManager {
      * Migración: si el usuario tenía guardado un icono que ya se eliminó
      * (Brillante, Pixelart, Escala de grises, DemonMusic o ShimuFlame), su alias
      * desapareció del manifest y la app podría quedarse sin icono en el launcher.
-     * Se llama al arrancar (MusicFlameApp) y lo devuelve al icono por defecto.
+     * Se llama al arrancar (MusicFlameApp), en un hilo de fondo, y corre UNA sola vez: al terminar deja
+     * una marca. Si un día se elimina otro icono, sube [MIGRATION_KEY] (v2, v3…) para que vuelva a correr.
+     * Lo devuelve al icono por defecto.
      */
     fun migrateRemovedIcon(context: Context) {
-        val repo = SettingsRepository(context)
+        val app = context.applicationContext
+        val prefs = app.getSharedPreferences("app_icon_migration", Context.MODE_PRIVATE)
+        if (prefs.getBoolean(MIGRATION_KEY, false)) return
+        val repo = SettingsRepository(app)
         val saved = repo.getSelectedAppIcon()
         if (!aliases.containsKey(saved)) {
             repo.saveSelectedAppIcon("default")
-            setIcon(context, "default")
+            setIcon(app, "default")
         }
+        prefs.edit().putBoolean(MIGRATION_KEY, true).apply()
     }
 
     fun setIcon(context: Context, key: String) {

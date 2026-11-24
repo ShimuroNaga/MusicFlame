@@ -18,7 +18,10 @@ class MusicFlameApp : Application() {
         com.music.musicflame.api.AppHttp.init(this)
         SettingsStore.preload(this)
         ProStatusHolder.preload(this)
-        com.music.musicflame.data.AppIconManager.migrateRemovedIcon(this)
+        // Una sola vez y fuera del hilo principal (lee ajustes de disco y puede tocar el PackageManager).
+        kotlin.concurrent.thread(name = "icon-migration") {
+            com.music.musicflame.data.AppIconManager.migrateRemovedIcon(this)
+        }
         // Si la escucha siempre debía estar activa pero el sistema mató el proceso, se avisa (3 s después, por si ya se está reactivando).
         android.os.Handler(android.os.Looper.getMainLooper()).postDelayed(
             { com.music.musicflame.voice.wake.WakeWordService.checkStopped(this) }, 3000L

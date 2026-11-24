@@ -1,114 +1,172 @@
 package com.music.musicflame.data
 
 import android.content.Context
+import com.google.android.gms.auth.GoogleAuthUtil
 import com.google.android.gms.auth.api.signin.GoogleSignInAccount
-import com.google.api.client.googleapis.extensions.android.gms.auth.GoogleAccountCredential
-import com.google.api.client.http.javanet.NetHttpTransport
-import com.google.api.client.json.gson.GsonFactory
-import com.google.api.services.drive.Drive
-import com.google.api.services.drive.DriveScopes
-import com.google.api.services.drive.model.File
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import com.google.api.client.http.FileContent
+import org.json.JSONArray
+import org.json.JSONObject
+import java.io.File
+import java.io.FileInputStream
+import java.io.IOException
+import java.net.HttpURLConnection
+import java.net.URL
+import java.net.URLEncoder
 
+/** Archivo de audio en la carpeta MusicFlame de Drive (solo lo que la app usa). */
+data class DriveFile(val id: String, val name: String)
+
+/**
+ * Respaldo en Google Drive por REST directo (HttpURLConnection + token de play-services-auth).
+ * Antes usaba google-api-client + google-api-services-drive, que pesaban mucho y solo se usaban aquí.
+ * Alcance: drive.file (solo archivos que crea la propia app).
+ */
 class DriveRepository(private val context: Context) {
 
-    // 1. Inicializar el motor de Drive usando la cuenta de Google activa
-    private fun getDriveService(account: GoogleSignInAccount): Drive {
-        val credential = GoogleAccountCredential.usingOAuth2(
-            context, listOf(DriveScopes.DRIVE_FILE)
-        )
-        credential.selectedAccount = account.account
+    private companion object {
+        const val SCOPE = "oauth2:https://www.googleapis.com/auth/drive.file"
+        const val API = "https://www.googleapis.com/drive/v3/files"
+        const val UPLOAD = "https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&fields=id"
+        const val FOLDER_MIME = "application/vnd.google-apps.folder"
+        const val FOLDER_NAME = "MusicFlame"
+    }
 
-        return Drive.Builder(
-            NetHttpTransport(),
-            GsonFactory.getDefaultInstance(),
-            credential
-        )
-            .setApplicationName("MusicFlame")
-            .build()
+    private class AuthExpired : IOException("401")
+
+    // Token OAuth de la cuenta activa. Bloqueante: llamar siempre dentro de Dispatchers.IO.
+    private fun token(account: GoogleSignInAccount): String {
+        val acc = account.account ?: throw IOException("Cuenta sin Account")
+        return GoogleAuthUtil.getToken(context.applicationContext, acc, SCOPE)
+    }
+
+    // Ejecuta [block] con el token; si Drive responde 401, invalida el token y reintenta una vez.
+    private fun <T> withAuth(account: GoogleSignInAccount, block: (String) -> T): T {
+        val first = token(account)
+        return try {
+            block(first)
+        } catch (_: AuthExpired) {
+            GoogleAuthUtil.clearToken(context.applicationContext, first)
+            block(token(account))
+        }
+    }
+
+    private fun open(url: String, method: String, token: String): HttpURLConnection =
+        (URL(url).openConnection() as HttpURLConnection).apply {
+            requestMethod = method
+            connectTimeout = 15_000
+            readTimeout = 30_000
+            setRequestProperty("Authorization", "Bearer $token")
+            setRequestProperty("Accept", "application/json")
+        }
+
+    private fun readJson(conn: HttpURLConnection): JSONObject {
+        val code = conn.responseCode
+        if (code == 401) throw AuthExpired()
+        if (code !in 200..299) {
+            val err = try { conn.errorStream?.bufferedReader()?.use { it.readText() } } catch (_: Exception) { null }
+            throw IOException("Drive HTTP $code ${err ?: ""}")
+        }
+        return JSONObject(conn.inputStream.bufferedReader().use { it.readText() })
+    }
+
+    private fun enc(s: String) = URLEncoder.encode(s, "UTF-8")
+
+    private fun listFiles(token: String, query: String, fields: String): List<JSONObject> {
+        val out = ArrayList<JSONObject>()
+        var pageToken: String? = null
+        do {
+            val url = buildString {
+                append(API).append("?q=").append(enc(query))
+                append("&spaces=drive&pageSize=1000&fields=").append(enc("nextPageToken,files($fields)"))
+                if (pageToken != null) append("&pageToken=").append(enc(pageToken!!))
+            }
+            val conn = open(url, "GET", token)
+            try {
+                val json = readJson(conn)
+                val arr: JSONArray = json.optJSONArray("files") ?: JSONArray()
+                for (i in 0 until arr.length()) out += arr.getJSONObject(i)
+                pageToken = json.optString("nextPageToken").takeIf { it.isNotEmpty() }
+            } finally { conn.disconnect() }
+        } while (pageToken != null)
+        return out
     }
 
     // 2. Buscar nuestra base de operaciones (La carpeta)
     suspend fun getOrCreateAppFolder(account: GoogleSignInAccount): String? = withContext(Dispatchers.IO) {
         try {
-            val driveService = getDriveService(account)
-            val folderName = "MusicFlame"
+            withAuth(account) { token ->
+                val query = "mimeType='$FOLDER_MIME' and name='$FOLDER_NAME' and trashed=false"
+                val existing = listFiles(token, query, "id,name").firstOrNull()
+                if (existing != null) return@withAuth existing.getString("id")
 
-            val query = "mimeType='application/vnd.google-apps.folder' and name='$folderName' and trashed=false"
-            val fileList = driveService.files().list()
-                .setQ(query)
-                .setSpaces("drive")
-                .setFields("files(id, name)")
-                .execute()
-
-            if (fileList.files.isNotEmpty()) {
-                return@withContext fileList.files[0].id
+                val body = JSONObject().put("name", FOLDER_NAME).put("mimeType", FOLDER_MIME).toString()
+                val conn = open("$API?fields=id", "POST", token)
+                try {
+                    conn.doOutput = true
+                    conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    conn.outputStream.use { it.write(body.toByteArray(Charsets.UTF_8)) }
+                    readJson(conn).getString("id")
+                } finally { conn.disconnect() }
             }
-
-            val folderMetadata = File().apply {
-                name = folderName
-                mimeType = "application/vnd.google-apps.folder"
-            }
-
-            val folder = driveService.files().create(folderMetadata)
-                .setFields("id")
-                .execute()
-
-            return@withContext folder.id
         } catch (e: Exception) {
             e.printStackTrace()
-            return@withContext null
+            null
         }
     }
 
     // 3. El escáner de música
-    suspend fun getSongsFromFolder(account: GoogleSignInAccount, folderId: String): List<File> = withContext(Dispatchers.IO) {
+    suspend fun getSongsFromFolder(account: GoogleSignInAccount, folderId: String): List<DriveFile> = withContext(Dispatchers.IO) {
         try {
-            val driveService = getDriveService(account)
-
-            val query = "'$folderId' in parents and mimeType contains 'audio/' and trashed=false"
-            val fileList = driveService.files().list()
-                .setQ(query)
-                .setSpaces("drive")
-                .setFields("files(id, name, size, webContentLink)")
-                .execute()
-
-            return@withContext fileList.files ?: emptyList()
+            withAuth(account) { token ->
+                val query = "'$folderId' in parents and mimeType contains 'audio/' and trashed=false"
+                listFiles(token, query, "id,name").map { DriveFile(it.getString("id"), it.optString("name")) }
+            }
         } catch (e: Exception) {
             e.printStackTrace()
-            return@withContext emptyList()
+            emptyList()
         }
     }
 
-    // 4. Función para subir una canción local a nuestra carpeta de Drive
+    // 4. Función para subir una canción local a nuestra carpeta de Drive (subida reanudable, en streaming)
     suspend fun uploadSong(account: GoogleSignInAccount, folderId: String, localFilePath: String): Boolean = withContext(Dispatchers.IO) {
         try {
-            val driveService = getDriveService(account)
-            val fileToUpload = java.io.File(localFilePath)
-
+            val file = File(localFilePath)
             // Verificamos que el archivo físico realmente exista en el teléfono
-            if (!fileToUpload.exists()) return@withContext false
+            if (!file.exists()) return@withContext false
 
-            // Metadatos: Le decimos a Drive cómo se llama el archivo y en qué carpeta guardarlo
-            val fileMetadata = File().apply {
-                name = fileToUpload.name
-                parents = listOf(folderId) // Aquí usamos el ID de la carpeta "MusicFlame"
+            withAuth(account) { token ->
+                // Paso 1: abrir la sesión con los metadatos (nombre y carpeta destino)
+                val meta = JSONObject().put("name", file.name).put("parents", JSONArray().put(folderId)).toString()
+                val init = open(UPLOAD, "POST", token)
+                val sessionUrl = try {
+                    init.doOutput = true
+                    init.setRequestProperty("Content-Type", "application/json; charset=UTF-8")
+                    init.setRequestProperty("X-Upload-Content-Type", "audio/mpeg")
+                    init.setRequestProperty("X-Upload-Content-Length", file.length().toString())
+                    init.outputStream.use { it.write(meta.toByteArray(Charsets.UTF_8)) }
+                    val code = init.responseCode
+                    if (code == 401) throw AuthExpired()
+                    if (code !in 200..299) throw IOException("Drive upload init HTTP $code")
+                    init.getHeaderField("Location") ?: throw IOException("Drive no devolvió la URL de subida")
+                } finally { init.disconnect() }
+
+                // Paso 2: mandar los bytes del audio sin cargarlos enteros en memoria
+                val put = open(sessionUrl, "PUT", token)
+                try {
+                    put.readTimeout = 120_000
+                    put.doOutput = true
+                    put.setFixedLengthStreamingMode(file.length())
+                    put.setRequestProperty("Content-Type", "audio/mpeg")
+                    FileInputStream(file).use { input -> put.outputStream.use { out -> input.copyTo(out, 64 * 1024) } }
+                    val code = put.responseCode
+                    if (code == 401) throw AuthExpired()
+                    code in 200..299
+                } finally { put.disconnect() }
             }
-
-            // El contenido real (los bytes del audio mp3)
-            val mediaContent = FileContent("audio/mpeg", fileToUpload)
-
-            // Ejecutamos la subida a los servidores de Google
-            driveService.files().create(fileMetadata, mediaContent)
-                .setFields("id")
-                .execute()
-
-            return@withContext true
         } catch (e: Exception) {
             e.printStackTrace()
-            return@withContext false
+            false
         }
     }
 }

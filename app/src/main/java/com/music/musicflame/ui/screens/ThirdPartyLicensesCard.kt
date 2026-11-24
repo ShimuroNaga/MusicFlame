@@ -73,12 +73,10 @@ private val thirdPartyLibs = listOf(
     ThirdPartyLib("ZXing (código QR de las salas)", "Apache-2.0",
         "https://github.com/zxing/zxing", APACHE_URL),
     // --- Google y Firebase ---
-    ThirdPartyLib("Google API Client / HTTP Client / Drive API", "Apache-2.0",
-        "https://github.com/googleapis/google-api-java-client", APACHE_URL),
     ThirdPartyLib("Google Play Services Auth (Google Sign-In)", "Google ToS",
         "https://developers.google.com/identity/sign-in/android",
         "https://developers.google.com/terms"),
-    ThirdPartyLib("Firebase (Auth, Realtime Database, Analytics)", "Apache-2.0",
+    ThirdPartyLib("Firebase (Auth, Realtime Database)", "Apache-2.0",
         "https://github.com/firebase/firebase-android-sdk", APACHE_URL),
     // --- IA local ---
     ThirdPartyLib("LiteRT-LM (IA local)", "Apache-2.0",

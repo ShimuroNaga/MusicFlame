@@ -333,7 +333,13 @@ class TogetherManager(
         if (roomCode != null) { status = Status.DISCONNECTED; statusDetail = appContext.getString(R.string.tgm_saved_room) }
         // Archivos que quedaron en Supabase de una sesión anterior (la app se cerró sin cerrar la sala).
         cleanupOrphanUploads()
-        // Escucha el desfase con el reloj del servidor (una sola vez).
+        // El desfase con el reloj del servidor ya NO se escucha aquí: antes abría la conexión de Firebase
+        // en cada arranque aunque nunca se usara "En compañía". Ahora se pide al crear/unirse/reconectar.
+    }
+
+    /** Escucha el desfase con el reloj del servidor (una sola vez, la primera vez que se entra a una sala). */
+    private fun ensureServerOffsetListener() {
+        if (offsetListener != null) return
         try {
             offsetListener = object : ValueEventListener {
                 override fun onDataChange(s: DataSnapshot) { serverOffset = s.getValue(Long::class.java) ?: 0L }
@@ -370,6 +376,7 @@ class TogetherManager(
 
     /** "+ Crear sala". */
     fun createRoom() {
+        ensureServerOffsetListener()
         if (_busy.value) return
         _busy.value = true
         scope.launch {
@@ -417,6 +424,7 @@ class TogetherManager(
 
     /** Unirse pegando el código (o el enlace completo). */
     fun joinRoom(input: String) {
+        ensureServerOffsetListener()
         val code = parseCode(input)
         if (code.length < 4) { toast(appContext.getString(R.string.tgm_invalid_code)); return }
         if (_busy.value) return
@@ -501,6 +509,7 @@ class TogetherManager(
 
     /** Botón Reconectar: reinicia la conexión con Firebase y vuelve a sincronizar. */
     fun reconnect() {
+        ensureServerOffsetListener()
         val code = roomCode ?: return
         if (_busy.value) return
         _busy.value = true

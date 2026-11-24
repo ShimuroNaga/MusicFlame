@@ -106,7 +106,29 @@ private val LOWK_S = pose(-12f, -4f, 55f, 130f, -20f, 60f, 6f, 0f, 62f, 58f, 0f)
 private val LUP_W = pose(-4f, 0f, 5f, 10f, 12f, 155f, 50f, -15f, -40f, -35f, 0f)
 private val LUP_S = pose(14f, -6f, 62f, 172f, 12f, 155f, 22f, 2f, -10f, -5f, 0.1f)
 
-// tip: qué punta pega. 0 mano delantera, 1 mano trasera, 2 pie delantero, 3 pie trasero.
+// --- Golpes nuevos ---
+// Puño giratorio (spinning backfist): el cuerpo gira dándole la espalda al rival y el brazo trasero sale al final.
+private val SPINB_W = pose(-14f, -4f, 30f, 150f, 20f, 150f, 28f, 6f, -28f, -10f, 0f)
+private val SPINB_S = pose(22f, 4f, 30f, 150f, 92f, 88f, 24f, 4f, -30f, -18f, 0.05f)
+// Codo giratorio (spinning elbow).
+private val SPINE_S = pose(26f, 6f, 30f, 150f, 94f, 172f, 24f, 2f, -30f, -18f, 0.05f)
+// Patada giratoria (wheel kick / tornado): salta girando y la pierna trasera barre en círculo.
+private val WHEEL_W = pose(-14f, -4f, 40f, 100f, -30f, -40f, 6f, 0f, -34f, -60f, 0.05f)
+private val WHEEL_S = pose(-36f, -10f, 70f, 100f, -45f, -40f, 3f, 0f, 118f, 114f, 0.35f)
+// Patada lateral (side kick): el torso se echa atrás y la pierna sale recta como un pistón.
+private val SIDEK_S = pose(-40f, -10f, 50f, 125f, -25f, 70f, 94f, 96f, -20f, -8f, 0.02f)
+// Rodillazo volador (flying knee): salto explosivo con la rodilla adelantada.
+private val FKNEE_S = pose(12f, 2f, 70f, 150f, 55f, 150f, 108f, 6f, -32f, -28f, 0.85f)
+// Codo ascendente (upward elbow): el codo sube hacia la barbilla con el antebrazo plegado.
+private val UELB_W = pose(-6f, -2f, 28f, 150f, -20f, 40f, 30f, 6f, -25f, -8f, 0f)
+private val UELB_S = pose(30f, 4f, 28f, 150f, 128f, 250f, 24f, 2f, -28f, -16f, 0.06f)
+
+// tip: qué punta pega. 0 mano delantera, 1 mano trasera, 2 pie delantero, 3 pie trasero,
+// 4 codo trasero, 5 rodilla delantera.
+// wind/hit/hold: fracciones del golpe (0..1) donde termina la preparación, llega el impacto y
+// empieza el regreso a la guardia. Cada golpe tiene su propio ritmo (el jab es un latigazo
+// corto; el gancho se carga más y suelta de golpe) en vez de un mismo reloj para todos.
+// spin: vueltas completas que gira el cuerpo antes de pegar (0 = no gira).
 internal class FightMove(
     val windup: FloatArray,
     val strike: FloatArray,
@@ -114,23 +136,48 @@ internal class FightMove(
     val reachU: Float,
     val power: Float,
     val lunge: Float,
-    val dur: Float
+    val dur: Float,
+    val wind: Float = 0.30f,
+    val hit: Float = 0.48f,
+    val hold: Float = 0.66f,
+    val spin: Float = 0f
 )
 
-private val JAB = FightMove(JAB_W, JAB_S, 0, 2.5f, 0.5f, 0.5f, 0.30f)
-private val CROSS = FightMove(CROSS_W, CROSS_S, 1, 2.7f, 0.8f, 0.8f, 0.36f)
-private val HOOK = FightMove(HOOK_W, HOOK_S, 1, 2.8f, 1.0f, 0.9f, 0.42f)
-private val UPPERCUT = FightMove(UPPER_W, UPPER_S, 1, 2.0f, 1.1f, 0.6f, 0.40f)
-private val KICK = FightMove(KICK_W, KICK_S, 3, 2.3f, 1.3f, 0.8f, 0.50f)
-private val HIGH_KICK = FightMove(KICK_W, HIGHKICK_S, 3, 2.2f, 1.2f, 0.7f, 0.52f)
-private val FLYING_KICK = FightMove(FLY_W, FLY_S, 3, 2.6f, 1.6f, 1.8f, 0.58f)
-private val TEEP = FightMove(TEEP_W, TEEP_S, 2, 2.3f, 0.9f, 0.4f, 0.42f)
-private val ELBOW = FightMove(ELBOW_W, ELBOW_S, 1, 1.7f, 1.0f, 0.5f, 0.34f)
-private val OVERHAND = FightMove(OVER_W, OVER_S, 1, 2.7f, 1.1f, 0.9f, 0.40f)
-private val KNEE = FightMove(KNEE_W, KNEE_S, 2, 1.6f, 1.1f, 0.5f, 0.38f)
-private val LOW_KICK = FightMove(LOWK_W, LOWK_S, 3, 2.2f, 0.9f, 0.6f, 0.40f)
-private val LEAD_UPPER = FightMove(LUP_W, LUP_S, 0, 1.9f, 0.9f, 0.5f, 0.36f)
-private val LEAD_HOOK = FightMove(LHOOK_W, LHOOK_S, 0, 2.3f, 0.8f, 0.7f, 0.36f)
+private fun tipIndex(tip: Int): Int = when (tip) {
+    0 -> SK_HAND_L
+    1 -> SK_HAND_R
+    2 -> SK_FOOT_L
+    3 -> SK_FOOT_R
+    4 -> SK_ELBOW_R
+    else -> SK_KNEE_L
+}
+
+// Retraso de cada articulación respecto al resto del cuerpo (fracción del golpe). El torso
+// se adelanta, y antebrazo/espinilla llegan un poco después que brazo/muslo: ese arrastre
+// es lo que hace que el golpe "latigue" en vez de moverse como un bloque rígido.
+private val JOINT_LAG = floatArrayOf(-0.035f, 0.05f, 0f, 0.045f, 0f, 0.045f, 0f, 0.04f, 0f, 0.04f, -0.01f)
+
+private val JAB = FightMove(JAB_W, JAB_S, 0, 2.5f, 0.5f, 0.5f, 0.30f, wind = 0.22f, hit = 0.36f, hold = 0.50f)
+private val CROSS = FightMove(CROSS_W, CROSS_S, 1, 2.7f, 0.8f, 0.8f, 0.36f, wind = 0.28f, hit = 0.44f, hold = 0.60f)
+private val HOOK = FightMove(HOOK_W, HOOK_S, 1, 2.8f, 1.0f, 0.9f, 0.42f, wind = 0.34f, hit = 0.50f, hold = 0.66f)
+private val UPPERCUT = FightMove(UPPER_W, UPPER_S, 1, 2.0f, 1.1f, 0.6f, 0.40f, wind = 0.32f, hit = 0.48f, hold = 0.64f)
+private val KICK = FightMove(KICK_W, KICK_S, 3, 2.3f, 1.3f, 0.8f, 0.50f, wind = 0.34f, hit = 0.52f, hold = 0.70f)
+private val HIGH_KICK = FightMove(KICK_W, HIGHKICK_S, 3, 2.2f, 1.2f, 0.7f, 0.52f, wind = 0.34f, hit = 0.53f, hold = 0.71f)
+private val FLYING_KICK = FightMove(FLY_W, FLY_S, 3, 2.6f, 1.6f, 1.8f, 0.58f, wind = 0.28f, hit = 0.50f, hold = 0.68f)
+private val TEEP = FightMove(TEEP_W, TEEP_S, 2, 2.3f, 0.9f, 0.4f, 0.42f, wind = 0.30f, hit = 0.46f, hold = 0.64f)
+private val ELBOW = FightMove(ELBOW_W, ELBOW_S, 4, 1.7f, 1.0f, 0.5f, 0.34f, wind = 0.26f, hit = 0.42f, hold = 0.58f)
+private val OVERHAND = FightMove(OVER_W, OVER_S, 1, 2.7f, 1.1f, 0.9f, 0.40f, wind = 0.34f, hit = 0.50f, hold = 0.64f)
+private val KNEE = FightMove(KNEE_W, KNEE_S, 5, 1.6f, 1.1f, 0.5f, 0.38f, wind = 0.30f, hit = 0.46f, hold = 0.64f)
+private val LOW_KICK = FightMove(LOWK_W, LOWK_S, 3, 2.2f, 0.9f, 0.6f, 0.40f, wind = 0.32f, hit = 0.50f, hold = 0.66f)
+private val LEAD_UPPER = FightMove(LUP_W, LUP_S, 0, 1.9f, 0.9f, 0.5f, 0.36f, wind = 0.28f, hit = 0.44f, hold = 0.60f)
+private val LEAD_HOOK = FightMove(LHOOK_W, LHOOK_S, 0, 2.3f, 0.8f, 0.7f, 0.36f, wind = 0.30f, hit = 0.46f, hold = 0.62f)
+
+private val SPIN_BACKFIST = FightMove(SPINB_W, SPINB_S, 1, 2.5f, 1.3f, 1.0f, 0.62f, wind = 0.20f, hit = 0.58f, hold = 0.74f, spin = 1f)
+private val SPIN_ELBOW = FightMove(SPINB_W, SPINE_S, 4, 1.8f, 1.4f, 0.9f, 0.60f, wind = 0.20f, hit = 0.56f, hold = 0.72f, spin = 1f)
+private val WHEEL_KICK = FightMove(WHEEL_W, WHEEL_S, 3, 2.4f, 1.6f, 1.2f, 0.70f, wind = 0.20f, hit = 0.60f, hold = 0.76f, spin = 1f)
+private val SIDE_KICK = FightMove(TEEP_W, SIDEK_S, 2, 2.5f, 1.2f, 0.5f, 0.46f, wind = 0.32f, hit = 0.48f, hold = 0.66f)
+private val FLYING_KNEE = FightMove(FLY_W, FKNEE_S, 5, 1.8f, 1.5f, 1.7f, 0.56f, wind = 0.28f, hit = 0.50f, hold = 0.68f)
+private val UP_ELBOW = FightMove(UELB_W, UELB_S, 4, 1.6f, 1.0f, 0.5f, 0.34f, wind = 0.26f, hit = 0.42f, hold = 0.58f)
 
 // Índices de los puntos del esqueleto (cada uno ocupa 2 floats: x, y).
 internal const val SK_HIP = 0
@@ -182,6 +229,14 @@ internal class FightFighter(val dir: Float, val isBass: Boolean) {
     var lastMove: FightMove? = null
     var hitPower = 0f
 
+    // Giro del cuerpo (escala horizontal de los miembros: 1 = de frente al rival, -1 = de espaldas),
+    // dónde pegó el último golpe recibido (0 cabeza, 1 cuerpo, 2 piernas), pulso al ritmo
+    // de la música y una semilla para que los dos no se muevan en perfecta sincronía.
+    var spinK = 1f
+    var hitZone = 1
+    var pulse = 0f
+    var seed = 0f
+
     var band = 0f
     var avg = 0f
     var peak = 0.3f
@@ -201,6 +256,14 @@ internal class FightSim(seed: Int = 20261011) {
 
     val a = FightFighter(dir = 1f, isBass = true)
     val b = FightFighter(dir = -1f, isBass = false)
+
+    init {
+        // Antes los dos arrancaban con la misma fase y rebotaban como espejo. Desfasados se ven vivos.
+        a.seed = 0.4f
+        b.seed = 2.3f
+        b.phase = 2.3f
+    }
+
     val sparks = ArrayList<FightSpark>()
     val impacts = ArrayList<FightImpact>()
 
@@ -322,12 +385,12 @@ internal class FightSim(seed: Int = 20261011) {
                 f.block > 0f -> 30f
                 f.stagger > 0f -> 38f
                 f.dodge > 0f -> 26f
-                f.move != null -> 20f * max(1f, f.moveSpeed)
+                f.move != null -> 30f * max(1f, f.moveSpeed)
                 else -> 14f
             }
             val k = 1f - exp(-dt * rate)
             for (i in 0 until POSE_SIZE) f.shown[i] += (f.target[i] - f.shown[i]) * k
-            computeSkel(f)
+            computeSkel(f, dtReal)
             updateTrail(f)
             f.flash = max(0f, f.flash - dtReal * 5f)
         }
@@ -380,6 +443,9 @@ internal class FightSim(seed: Int = 20261011) {
         f.phase += dt * (4f + 10f * overall)
         f.runPh += abs(f.vx) / u * dt * 1.6f
         f.avg += (f.drive - f.avg) * (1f - exp(-dtReal / 0.35f))
+        // Cada golpe de la música marca un "rebote" (el cuerpo se hunde un poco y se recupera).
+        if (f.drive > 0.25f && f.drive - f.avg > 0.12f) f.pulse = 1f
+        f.pulse *= exp(-dtReal * 9f)
         if (f.stagger > 0f) {
             f.stagger -= dt
             if (f.stagger <= 0f) {
@@ -413,7 +479,7 @@ internal class FightSim(seed: Int = 20261011) {
         val m = f.move
         if (m != null) {
             f.moveT += dt * f.moveSpeed / m.dur
-            if (!f.struck && f.moveT >= 0.45f) {
+            if (!f.struck && f.moveT >= m.hit - 0.03f) {
                 f.struck = true
                 resolveStrike(f, o, m)
             }
@@ -480,6 +546,8 @@ internal class FightSim(seed: Int = 20261011) {
         f.moveT = 0f
         f.struck = false
         f.moveSpeed = ((1f + (if (f.isBass) 2.4f else 2.05f) * f.drive) * (1f + tempoBoost()) * (0.92f + rnd.nextFloat() * 0.16f)).coerceAtMost(3.6f)
+        // Los golpes giratorios se limitan en velocidad: si no, la vuelta dura 2-3 cuadros y no se ve.
+        if (m.spin != 0f) f.moveSpeed = min(f.moveSpeed, 2.0f)
         attacksStarted++
         f.attacks++
 
@@ -516,23 +584,27 @@ internal class FightSim(seed: Int = 20261011) {
                     else -> LOW_KICK
                 }
                 b < 0.7f -> when {
-                    r < 0.18f -> HOOK
-                    r < 0.34f -> UPPERCUT
-                    r < 0.52f -> KICK
-                    r < 0.66f -> OVERHAND
-                    r < 0.78f -> KNEE
-                    r < 0.90f -> LOW_KICK
-                    else -> TEEP
+                    r < 0.17f -> HOOK
+                    r < 0.32f -> UPPERCUT
+                    r < 0.48f -> KICK
+                    r < 0.60f -> OVERHAND
+                    r < 0.71f -> KNEE
+                    r < 0.82f -> LOW_KICK
+                    r < 0.90f -> TEEP
+                    else -> SIDE_KICK
                 }
                 else -> when {
-                    r < 0.20f -> KICK
-                    r < 0.36f -> FLYING_KICK
-                    r < 0.50f -> HOOK
-                    r < 0.62f -> HIGH_KICK
-                    r < 0.74f -> OVERHAND
-                    r < 0.84f -> KNEE
-                    r < 0.92f -> ELBOW
-                    else -> TEEP
+                    r < 0.15f -> KICK
+                    r < 0.27f -> FLYING_KICK
+                    r < 0.38f -> HOOK
+                    r < 0.47f -> HIGH_KICK
+                    r < 0.55f -> OVERHAND
+                    r < 0.62f -> KNEE
+                    r < 0.69f -> FLYING_KNEE
+                    r < 0.77f -> WHEEL_KICK
+                    r < 0.84f -> SPIN_ELBOW
+                    r < 0.91f -> UP_ELBOW
+                    else -> SIDE_KICK
                 }
             }
         } else {
@@ -543,32 +615,31 @@ internal class FightSim(seed: Int = 20261011) {
                     else -> LEAD_UPPER
                 }
                 b < 0.7f -> when {
-                    r < 0.28f -> JAB
-                    r < 0.50f -> CROSS
-                    r < 0.66f -> LEAD_HOOK
-                    r < 0.80f -> LEAD_UPPER
-                    r < 0.90f -> ELBOW
+                    r < 0.27f -> JAB
+                    r < 0.48f -> CROSS
+                    r < 0.64f -> LEAD_HOOK
+                    r < 0.76f -> LEAD_UPPER
+                    r < 0.84f -> ELBOW
+                    r < 0.92f -> SPIN_BACKFIST
                     else -> UPPERCUT
                 }
                 else -> when {
-                    r < 0.28f -> JAB
-                    r < 0.50f -> CROSS
-                    r < 0.62f -> TEEP
-                    r < 0.74f -> KNEE
-                    r < 0.86f -> ELBOW
-                    else -> HIGH_KICK
+                    r < 0.25f -> JAB
+                    r < 0.45f -> CROSS
+                    r < 0.54f -> TEEP
+                    r < 0.63f -> KNEE
+                    r < 0.72f -> ELBOW
+                    r < 0.79f -> UP_ELBOW
+                    r < 0.87f -> SPIN_BACKFIST
+                    r < 0.94f -> HIGH_KICK
+                    else -> SIDE_KICK
                 }
             }
         }
     }
 
     private fun resolveStrike(f: FightFighter, o: FightFighter, m: FightMove) {
-        val tipIdx = when (m.tip) {
-            0 -> SK_HAND_L
-            1 -> SK_HAND_R
-            2 -> SK_FOOT_L
-            else -> SK_FOOT_R
-        }
+        val tipIdx = tipIndex(m.tip)
         val tipY = f.skel[tipIdx * 2 + 1].coerceIn(ground - 4f * u, ground - 0.3f * u)
         val dist = abs(o.x - f.x)
 
@@ -607,6 +678,16 @@ internal class FightSim(seed: Int = 20261011) {
         val contactX = o.x - f.dir * 0.5f * u
         spawnSparks(contactX, tipY, f.dir, (6 + 10 * m.power).toInt(), m.power)
         impacts.add(FightImpact(contactX, tipY, m.power))
+
+        // Dónde le pegaron decide cómo reacciona: cabeza = se le va la cara hacia atrás, cuerpo =
+        // se dobla por la mitad, piernas = se le doblan las rodillas.
+        val oShY = o.skel[SK_SHOULDER * 2 + 1]
+        val oHipY = o.skel[SK_HIP * 2 + 1]
+        o.hitZone = when {
+            tipY < oShY + 0.3f * u -> 0
+            tipY < oHipY + 0.1f * u -> 1
+            else -> 2
+        }
 
         // El golpeado se interrumpe, sale volando hacia atrás y se tambalea.
         o.move = null
@@ -662,10 +743,37 @@ internal class FightSim(seed: Int = 20261011) {
                 out[2] += flail
                 out[3] += flail
                 out[4] -= flail
-                // Cuanto más fuerte el golpe, más se echa atrás el torso y la cabeza (se recupera con el tambaleo).
-                val recoil = f.hitPower * 4f * (f.stagger / max(0.01f, f.staggerDur))
-                out[0] -= recoil
-                out[1] -= recoil * 0.4f
+                // Cuanto más fuerte el golpe, más se mueve el cuerpo (se recupera con el tambaleo).
+                val k = f.stagger / max(0.01f, f.staggerDur)
+                val recoil = f.hitPower * 4f * k
+                when (f.hitZone) {
+                    // A la cabeza: el torso se arquea hacia atrás y la cara se va de lado.
+                    0 -> {
+                        out[0] -= recoil * 1.7f
+                        out[1] -= recoil * 1.3f
+                        out[3] += 25f * k
+                        out[5] += 25f * k
+                    }
+                    // Al cuerpo: se dobla por la mitad con los brazos sobre el estómago.
+                    1 -> {
+                        out[0] += f.hitPower * 7f * k
+                        out[1] += f.hitPower * 5f * k
+                        out[2] = lerp(out[2], 15f, 0.6f * k)
+                        out[3] = lerp(out[3], 105f, 0.6f * k)
+                        out[4] = lerp(out[4], 20f, 0.6f * k)
+                        out[5] = lerp(out[5], 100f, 0.6f * k)
+                        out[6] += 12f * k
+                        out[8] -= 6f * k
+                    }
+                    // A las piernas: se le doblan las rodillas y baja la cadera.
+                    else -> {
+                        out[0] -= recoil * 0.6f
+                        out[6] += 32f * f.hitPower * k
+                        out[7] -= 22f * f.hitPower * k
+                        out[8] -= 14f * f.hitPower * k
+                        out[10] = max(out[10], 0.1f * k)
+                    }
+                }
             }
             f.dodge > 0f -> System.arraycopy(DODGE, 0, out, 0, POSE_SIZE)
             m != null -> movePose(m, f.moveT, out)
@@ -675,19 +783,33 @@ internal class FightSim(seed: Int = 20261011) {
                 System.arraycopy(if (f.cornered) BLOCK else GUARD, 0, out, 0, POSE_SIZE)
                 val amp = 0.25f + 0.75f * overall
                 val s = sin(f.phase)
-                out[0] += s * 3f * amp
+                out[0] += s * 3f * amp + f.pulse * 5f
                 out[6] += s * 6f * amp
                 out[8] -= s * 6f * amp
-                out[10] = max(0f, sin(f.phase * 2f)) * 0.07f * amp
-                out[1] += sin(f.phase) * 2f * amp
+                out[10] = max(0f, sin(f.phase * 2f + f.seed)) * 0.07f * amp
+                out[1] += sin(f.phase - 0.8f) * 2.5f * amp // la cabeza va un poco atrasada del torso
                 out[2] += sin(f.phase * 0.5f + 1f) * 3f * amp
                 out[4] += sin(f.phase * 0.5f) * 3f * amp
+                // Las manos flotan solas con ritmos distintos (nunca se repiten igual).
+                out[3] += sin(f.phase * 0.71f + f.seed) * 5f * amp
+                out[5] += sin(f.phase * 0.63f + f.seed + 2f) * 5f * amp
+                // Cambio de apoyo: levanta un pie y luego el otro, como boxeador rebotando.
+                val liftF = max(0f, s)
+                val liftR = max(0f, -s)
+                out[6] += liftF * 9f * amp
+                out[7] -= liftF * 13f * amp
+                out[8] += liftR * 9f * amp
+                out[9] -= liftR * 14f * amp
+                // Respiración + rebote al ritmo: el cuerpo se hunde en cada golpe de la música.
+                out[0] += sin(time * 2.4f + f.seed) * 0.8f
+                out[6] += f.pulse * 12f
+                out[8] -= f.pulse * 9f
 
                 // Carrera: si se desplaza rápido (se acercan, se alejan, vuelven tras un golpe)
                 // el cuerpo pasa a un ciclo de carrera cuya amplitud sigue a la velocidad real.
                 val sp = abs(f.vx) / u
-                if (sp > 4f) {
-                    val ra = ((sp - 4f) / 9f).coerceIn(0f, 1f)
+                if (sp > 2.4f) {
+                    val ra = ((sp - 2.4f) / 7f).coerceIn(0f, 1f)
                     val front = f.vx * f.dir >= 0f
                     val sc = if (front) 1f else 0.6f
                     val s1 = sin(f.runPh)
@@ -711,16 +833,26 @@ internal class FightSim(seed: Int = 20261011) {
 
     private fun movePose(m: FightMove, t: Float, out: FloatArray) {
         for (i in 0 until POSE_SIZE) {
+            // Cada articulación va con su propio reloj (ver JOINT_LAG): el golpe se siente fluido.
+            val ti = (t - JOINT_LAG[i]).coerceIn(0f, 1f)
             out[i] = when {
-                t < 0.30f -> lerp(GUARD[i], m.windup[i], smooth(t / 0.30f))
-                t < 0.48f -> lerp(m.windup[i], m.strike[i], easeOutBack((t - 0.30f) / 0.18f))
-                t < 0.66f -> m.strike[i]
-                else -> lerp(m.strike[i], GUARD[i], smooth((t - 0.66f) / 0.34f))
+                ti < m.wind -> lerp(GUARD[i], m.windup[i], smooth(ti / m.wind))
+                ti < m.hit -> lerp(m.windup[i], m.strike[i], easeOutBack((ti - m.wind) / (m.hit - m.wind)))
+                ti < m.hold -> m.strike[i]
+                else -> lerp(m.strike[i], GUARD[i], smooth((ti - m.hold) / (1f - m.hold)))
             }
         }
     }
 
-    private fun computeSkel(f: FightFighter) {
+    /** Escala horizontal de los miembros según cuánto ha girado el cuerpo (golpes giratorios). */
+    private fun spinTarget(f: FightFighter): Float {
+        val m = f.move
+        if (m == null || m.spin == 0f) return 1f
+        val p = ((f.moveT - 0.06f) / (m.hit - 0.06f)).coerceIn(0f, 1f)
+        return cos(2f * PI.toFloat() * m.spin * smooth(p))
+    }
+
+    private fun computeSkel(f: FightFighter, dtSkel: Float) { // dtSkel = tiempo real (no se congela con el hit-stop)
         val p = f.shown
         val s = f.skel
         val d = f.dir
@@ -729,22 +861,32 @@ internal class FightSim(seed: Int = 20261011) {
         val legL = uu * (cos(rad(p[6])) + cos(rad(p[7])))
         val legR = uu * (cos(rad(p[8])) + cos(rad(p[9])))
         val hipY = ground - max(legL, legR) - p[10] * uu
-        setPt(s, SK_HIP, f.x, hipY)
 
+        // Giro (golpes giratorios): suavizado para que no haya saltos si lo interrumpen.
+        f.spinK += (spinTarget(f) - f.spinK) * (1f - exp(-dtSkel * 70f))
+        val sc = f.spinK
+
+        // Al inclinar el torso la cadera se va al lado contrario (contrapeso): el cuerpo
+        // se dobla en la cintura en vez de girar como un palo rígido sobre los pies.
         val lean = rad(p[0])
-        val shX = f.x + d * sin(lean) * 1.35f * uu
+        val hipX = f.x - d * sin(lean) * 0.45f * uu
+        setPt(s, SK_HIP, hipX, hipY)
+
+        val shX = hipX + d * sin(lean) * 1.35f * uu
         val shY = hipY - cos(lean) * 1.35f * uu
         setPt(s, SK_SHOULDER, shX, shY)
 
         val headA = rad(p[0] + p[1])
         setPt(s, SK_HEAD, shX + d * sin(headA) * 0.6f * uu, shY - cos(headA) * 0.6f * uu)
 
-        limb(s, SK_ELBOW_L, SK_HAND_L, shX, shY, p[2], p[3], 0.85f * uu, d)
-        limb(s, SK_ELBOW_R, SK_HAND_R, shX, shY, p[4], p[5], 0.85f * uu, d)
-        limb(s, SK_KNEE_L, SK_FOOT_L, f.x, hipY, p[6], p[7], 1.0f * uu, d)
-        limb(s, SK_KNEE_R, SK_FOOT_R, f.x, hipY, p[8], p[9], 1.0f * uu, d)
+        limb(s, SK_ELBOW_L, SK_HAND_L, shX, shY, p[2], p[3], 0.85f * uu, d * sc)
+        limb(s, SK_ELBOW_R, SK_HAND_R, shX, shY, p[4], p[5], 0.85f * uu, d * sc)
+        limb(s, SK_KNEE_L, SK_FOOT_L, hipX, hipY, p[6], p[7], 1.0f * uu, d * sc)
+        limb(s, SK_KNEE_R, SK_FOOT_R, hipX, hipY, p[8], p[9], 1.0f * uu, d * sc)
     }
 
+    // [d] ya viene multiplicado por la escala de giro (sc): al girar el cuerpo los miembros
+    // se "pliegan" hacia el eje y luego salen por el otro lado, como una rotación vista de perfil.
     private fun limb(
         s: FloatArray, midIdx: Int, endIdx: Int,
         ox: Float, oy: Float, a1: Float, a2: Float, len: Float, d: Float
@@ -759,17 +901,12 @@ internal class FightSim(seed: Int = 20261011) {
 
     private fun updateTrail(f: FightFighter) {
         val m = f.move
-        if (m != null && f.moveT in 0.25f..0.72f) {
+        if (m != null && f.moveT in (m.wind - 0.05f)..(m.hold + 0.06f)) {
             for (i in TRAIL_N - 1 downTo 1) {
                 f.trail[i * 2] = f.trail[(i - 1) * 2]
                 f.trail[i * 2 + 1] = f.trail[(i - 1) * 2 + 1]
             }
-            val idx = when (m.tip) {
-                0 -> SK_HAND_L
-                1 -> SK_HAND_R
-                2 -> SK_FOOT_L
-                else -> SK_FOOT_R
-            }
+            val idx = tipIndex(m.tip)
             f.trail[0] = f.skel[idx * 2]
             f.trail[1] = f.skel[idx * 2 + 1]
             f.trailLen = min(TRAIL_N, f.trailLen + 1)

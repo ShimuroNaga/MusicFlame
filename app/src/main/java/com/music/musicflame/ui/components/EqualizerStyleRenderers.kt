@@ -894,9 +894,9 @@ fun FightEqualizerCanvas(
                     strokeWidth = max(2f, sim.u * 0.25f)
                 )
             }
-            drawFighter(sim.a, color, sim.u)
+            drawFighter(sim.a, color, sim.u, sim.ground)
             // El otro luchador va en una variante más clara del color elegido.
-            drawFighter(sim.b, lerpColor(color, Color.White, 0.4f), sim.u)
+            drawFighter(sim.b, lerpColor(color, Color.White, 0.4f), sim.u, sim.ground)
 
             // Ondas de impacto.
             for (im in sim.impacts) {
@@ -922,15 +922,23 @@ fun FightEqualizerCanvas(
     }
 }
 
-private fun DrawScope.drawFighter(f: FightFighter, c: Color, u: Float) {
+private fun DrawScope.drawFighter(f: FightFighter, c: Color, u: Float, ground: Float) {
     val sk = f.skel
     val sw = max(2.5f, u * 0.22f)
     val base = lerpColor(c, Color.White, f.flash * 0.8f)
     val rear = base.copy(alpha = base.alpha * 0.7f)
 
     fun pt(i: Int) = Offset(sk[i * 2], sk[i * 2 + 1])
-    fun seg(from: Int, to: Int, col: Color) =
-        drawLine(col, pt(from), pt(to), strokeWidth = sw, cap = StrokeCap.Round)
+    fun seg(from: Int, to: Int, col: Color, w: Float = sw) =
+        drawLine(col, pt(from), pt(to), strokeWidth = w, cap = StrokeCap.Round)
+
+    // Sombra en el suelo: se achica cuando el luchador salta (da peso y sensación de altura).
+    val lift = (f.shown[10] / 0.9f).coerceIn(0f, 1f)
+    drawOval(
+        color = c.copy(alpha = c.alpha * 0.22f * (1f - 0.5f * lift)),
+        topLeft = Offset(f.x - u * (0.9f - 0.3f * lift), ground + u * 0.02f),
+        size = Size(u * (1.8f - 0.6f * lift), max(2f, u * 0.2f))
+    )
 
     // Estela del golpe (la punta que pega deja un rastro que se desvanece).
     for (i in 0 until f.trailLen - 1) {
@@ -944,11 +952,34 @@ private fun DrawScope.drawFighter(f: FightFighter, c: Color, u: Float) {
         )
     }
 
-    // Extremidades traseras (más tenues, dan profundidad), torso, delanteras y cabeza.
-    seg(SK_SHOULDER, SK_ELBOW_R, rear); seg(SK_ELBOW_R, SK_HAND_R, rear)
-    seg(SK_HIP, SK_KNEE_R, rear); seg(SK_KNEE_R, SK_FOOT_R, rear)
-    seg(SK_HIP, SK_SHOULDER, base)
-    seg(SK_HIP, SK_KNEE_L, base); seg(SK_KNEE_L, SK_FOOT_L, base)
-    seg(SK_SHOULDER, SK_ELBOW_L, base); seg(SK_ELBOW_L, SK_HAND_L, base)
+    // Pie: una pequeña punta hacia el frente cuando está apoyado en el suelo (se ve el apoyo).
+    fun foot(i: Int, col: Color) {
+        val p = pt(i)
+        if (ground - p.y < u * 0.45f) {
+            drawLine(col, p, Offset(p.x + f.dir * f.spinK * u * 0.3f, p.y), strokeWidth = sw * 0.9f, cap = StrokeCap.Round)
+        }
+    }
+
+    // Extremidades traseras (más tenues, dan profundidad). Más gruesas arriba que abajo.
+    seg(SK_SHOULDER, SK_ELBOW_R, rear, sw * 0.95f); seg(SK_ELBOW_R, SK_HAND_R, rear, sw * 0.82f)
+    seg(SK_HIP, SK_KNEE_R, rear, sw * 1.1f); seg(SK_KNEE_R, SK_FOOT_R, rear, sw * 0.92f)
+    foot(SK_FOOT_R, rear)
+    drawCircle(color = rear, radius = sw * 0.62f, center = pt(SK_HAND_R))
+
+    // Torso con una leve curva de columna: se arquea según la inclinación en vez de ser un palo recto.
+    val hip = pt(SK_HIP)
+    val sh = pt(SK_SHOULDER)
+    val bend = u * 0.28f * sin(f.shown[0] * 0.0174533f)
+    val spine = Path().apply {
+        moveTo(hip.x, hip.y)
+        quadraticTo((hip.x + sh.x) / 2f - f.dir * bend, (hip.y + sh.y) / 2f, sh.x, sh.y)
+    }
+    drawPath(spine, color = base, style = Stroke(width = sw * 1.2f, cap = StrokeCap.Round))
+
+    // Extremidades delanteras, puños y cabeza.
+    seg(SK_HIP, SK_KNEE_L, base, sw * 1.1f); seg(SK_KNEE_L, SK_FOOT_L, base, sw * 0.92f)
+    foot(SK_FOOT_L, base)
+    seg(SK_SHOULDER, SK_ELBOW_L, base, sw * 0.95f); seg(SK_ELBOW_L, SK_HAND_L, base, sw * 0.82f)
+    drawCircle(color = base, radius = sw * 0.62f, center = pt(SK_HAND_L))
     drawCircle(color = base, radius = u * 0.34f, center = pt(SK_HEAD))
 }

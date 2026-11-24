@@ -55,20 +55,10 @@ object PaymentCatalog {
         Item("eq_style_rain", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_rain),
         Item("eq_style_fight", R.string.pay_sec_eq_styles, labelRes = R.string.pay_it_fight),
 
-        // "Adaptativo" del ecualizador vuelto a ser gratis (igual que en
-        // texto/Now Playing) — no se vende, no tiene id de catálogo.
-        Item("eq_color_custom", R.string.pay_sec_eq_color, labelRes = R.string.pay_it_custom),
-        Item("eq_color_rainbow", R.string.pay_sec_eq_color, labelRes = R.string.pay_it_rainbow),
-
-        Item("text_color_rainbow", R.string.pay_sec_text_color, labelRes = R.string.pay_it_rainbow),
-
-        Item("now_playing_custom", R.string.pay_sec_now_playing, labelRes = R.string.pay_it_custom),
-        Item("now_playing_rainbow", R.string.pay_sec_now_playing, labelRes = R.string.pay_it_rainbow),
+        // Los colores (ecualizador, texto, Now Playing y letras) ahora son GRATIS:
+        // ver LicenseRepository.FREE_ITEM_IDS. Ya no se venden ni salen en la tabla.
 
         Item("vinyl_widget", R.string.pay_sec_vinyl, labelRes = R.string.pay_it_widget_full),
-
-        Item("lyrics_custom", R.string.pay_sec_lyrics_color, labelRes = R.string.pay_it_custom),
-        Item("lyrics_rainbow", R.string.pay_sec_lyrics_color, labelRes = R.string.pay_it_rainbow),
 
         Item("pro_eq_10band", R.string.pay_sec_pro_eq, labelRes = R.string.pay_it_pro_eq, priceMxn = 20)
     )

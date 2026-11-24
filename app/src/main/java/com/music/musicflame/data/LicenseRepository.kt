@@ -152,9 +152,9 @@ class LicenseRepository(context: Context) {
 
     /** Todos los ids de PaymentCatalog actualmente desbloqueados (dueño = todos). */
     fun unlockedItemIds(): Set<String> {
-        val all = PaymentCatalog.ITEMS.map { it.id }.toSet()
+        val all = PaymentCatalog.ITEMS.map { it.id }.toSet() + FREE_ITEM_IDS
         if (isOwnerAccount()) return all
-        val ids = mutableSetOf<String>()
+        val ids = mutableSetOf<String>().apply { addAll(FREE_ITEM_IDS) }
         for (product in recognizedProducts()) {
             if (product.catalogIds.contains(ALL_ITEMS_ID)) return all
             ids.addAll(product.catalogIds)
@@ -271,13 +271,23 @@ class LicenseRepository(context: Context) {
         const val ALL_ITEMS_ID = "__ALL__"
 
         /**
+         * Ítems que ahora son GRATIS para todos (antes eran el "Pack de colores" de Ko-fi).
+         * Ya no están en PaymentCatalog.ITEMS ni se venden, pero los candados de cada selector
+         * siguen consultando unlockedIds, así que se agregan siempre a los desbloqueados.
+         */
+        val FREE_ITEM_IDS: Set<String> = setOf(
+            "eq_color_custom", "eq_color_rainbow", "text_color_rainbow", "now_playing_custom",
+            "now_playing_rainbow", "lyrics_custom", "lyrics_rainbow"
+        )
+
+        /**
          * Productos de la tienda de Ko-fi. Para cada uno que ya exista, pega en [KofiProduct.url]
          * el link que te da Ko-fi (https://ko-fi.com/s/xxxxxxxxxx). Mientras sea null, su botón
          * de compra queda deshabilitado. El nombre es solo una referencia para ti; lo que
          * identifica la compra es el código del final del link.
          */
         val KOFI_PRODUCTS: List<KofiProduct> = listOf(
-            KofiProduct("TODO", "https://ko-fi.com/s/1be1b91e12", listOf(ALL_ITEMS_ID), nameRes = R.string.lic_whole_catalog, priceMxn = 105),
+            KofiProduct("TODO", "https://ko-fi.com/s/1be1b91e12", listOf(ALL_ITEMS_ID), nameRes = R.string.lic_whole_catalog, priceMxn = 80),
             KofiProduct(
                 "Pack 1 de ecualizadores", "https://ko-fi.com/s/c213993c41",
                 listOf("eq_style_mirrored_wave", "eq_style_wave", "eq_style_pulse", "eq_style_particles", "eq_style_thin"),
@@ -287,14 +297,6 @@ class LicenseRepository(context: Context) {
                 "Pack 2 de ecualizadores", "https://ko-fi.com/s/2a390656e4",
                 listOf("eq_style_vu", "eq_style_oscilloscope", "eq_style_skyline", "eq_style_rain", "eq_style_fight"),
                 nameRes = R.string.kofi_prod_eq_pack2, priceMxn = 25
-            ),
-            KofiProduct(
-                "Pack de colores", "https://ko-fi.com/s/a9aa209b1e",
-                listOf(
-                    "eq_color_custom", "eq_color_rainbow", "text_color_rainbow", "now_playing_custom",
-                    "now_playing_rainbow", "lyrics_custom", "lyrics_rainbow"
-                ),
-                nameRes = R.string.kofi_prod_colors, priceMxn = 25
             ),
             KofiProduct("EQ PRO", "https://ko-fi.com/s/e7684d4d2d", listOf("pro_eq_10band"), nameRes = R.string.kofi_prod_pro_eq, priceMxn = 20),
             KofiProduct("Widget vinilo", "https://ko-fi.com/s/c0e9a4d156", listOf("vinyl_widget"), nameRes = R.string.kofi_prod_vinyl, priceMxn = 10)
